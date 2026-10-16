@@ -59,6 +59,8 @@
       ]);
       // opt-in usages: never checked automatically for a new row, never handed to another row on undeploy
       const PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS = new Set([
+        11, // tldr-shortener
+        12, // log-report
         13  // knowledge (Scoutro knowledge graph extraction)
       ]);
       const PRODUCTION_MODEL_API_KEY_COLUMN_INDEX = 3;
@@ -1312,7 +1314,7 @@
             }
           });
         } else if (!PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS.has(columnIndex)) {
-          // an opt-in usage (knowledge) switched off is off: it is never handed to another row
+          // Keep the existing reassignment behavior only for non-optional usages.
           ensureFeatureAssignedToAnotherModel(columnIndex, currentRow);
         }
 
@@ -1357,7 +1359,7 @@
         const button = row.querySelector('button[data-action="undeploy"]');
         if (!button) return;
         button.disabled = false;
-        button.title = "Remove this model (features will be reassigned if possible).";
+        button.title = "Remove this model. Chat may be reassigned; optional roles stay unassigned.";
       }
 
       function ensureFeatureAssignedToAnotherModel(columnIndex, sourceRow) {
@@ -2193,7 +2195,7 @@
       <p role="status">#[tldrMessage]#</p>
       <form action="LLMSelection_p.html#tldr-controls" method="post" accept-charset="UTF-8">
         <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
-        <p><label><input type="checkbox" name="tldrEnabled" #(tldrEnabled)#::checked="checked"#(/tldrEnabled)# /> Enable automatic TLDR fallback</label></p>
+        <p><label><input type="checkbox" name="tldrEnabled" #(tldrEnabled)#::checked="checked"#(/tldrEnabled)# /> Allow automatic TLDR fallback for an assigned model</label></p>
         <p><label><input type="checkbox" name="tldrDiagnostics" #(tldrDiagnostics)#::checked="checked"#(/tldrDiagnostics)# /> Enable full administrator content diagnostics for 15 minutes</label></p>
         <p>Content diagnostics until: #[tldrDiagnosticsUntil]#. Only administrator-owned calls are retained. History is memory-only, limited to 32 calls and 30 minutes; full content expires with diagnostics. Restart clears the history.</p>
         <button type="submit" name="saveTldrSettings" value="1" class="btn btn-primary">Save TLDR settings</button>
@@ -2308,6 +2310,7 @@
     <fieldset id="availableModelsContainer" style="display:none"><a name="availableModels"></a></fieldset>
 
     <fieldset id="productionModelsContainer" style="display: block;"><a name="productionModels"></a><legend>Production Models Matrix</legend>
+        <p>TLDR and log-report are optional model assignments. Clearing a role or removing its model leaves it unassigned; no other model takes over. Automatic use also requires its existing enable setting. Keep a TLDR model assigned with automatic fallback off for manual tests.</p>
         <div id="testActivityContainer" style="display:none; margin-bottom:12px;">
             <div id="testActivityList"></div>
         </div>

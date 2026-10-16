@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Disposable Scoutro + local fake LLM; never accepts a production URL/DATA directory."""
 import hashlib
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import html
 import json
@@ -67,7 +69,10 @@ class FakeLLM(BaseHTTPRequestHandler):
 
 
 def settings(path):
-    return dict(line.split('=', 1) for line in path.read_text().splitlines() if '=' in line and not line.startswith('#'))
+    # Match FileUtils.loadMap/saveMap, including multiline production-model JSON.
+    unescape = lambda value: re.sub(r'\\([\\n=])', lambda match: {'n': '\n', '=': '=', '\\': '\\'}[match[1]], value)
+    return {key: unescape(value) for key, value in
+            (line.split('=', 1) for line in path.read_text().splitlines() if '=' in line and not line.startswith('#'))}
 
 
 def main():
@@ -92,6 +97,8 @@ def main():
                 (cache / name).write_text('<?xml version="1.0" encoding="UTF-8"?><BaseURLs/>')
             row = dict(service='OPENAI', hoststub=stub, model='fixture', api_key='sk-local-sentinel',
                        max_tokens='1024', chat=True, tldr=True, logreport=True)
+            secondary = dict(row, model='fixture-secondary', chat=False, tldr=False, logreport=False, knowledge=True)
+            spare = dict(row, model='fixture-spare', chat=False, tldr=False, logreport=False, knowledge=False)
             config.write_text('\n'.join([
                 f'port={port}', 'adminAccountForLocalhost=false', 'adminAccountAllPages=false',
                 'adminAccountUserName=admin', 'adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c',
@@ -100,8 +107,8 @@ def main():
                 'locale.language=de', 'ai.logreport.enabled=false', 'ai.tldr.enabled=false',
                 'resource.disk.free.min.steadystate=1', 'resource.disk.free.min.undershot=1',
                 'resource.disk.used.max.steadystate=1000000000000', 'resource.disk.used.max.overshot=1000000000000',
-                'ai.production_models=' + json.dumps([row]), 'ai.service_num_ctx=' + json.dumps({stub: 8192}),
-                'ai.model_capabilities=' + json.dumps({f'OPENAI|{stub}|fixture': dict(thinking='unsupported', tooling='unsupported', vision='unsupported', format='unsupported', format_probe=4)}),
+                'ai.production_models=' + json.dumps([row, secondary, spare]), 'ai.service_num_ctx=' + json.dumps({stub: 8192}),
+                'ai.model_capabilities=' + json.dumps({f'OPENAI|{stub}|{name}': dict(thinking='unsupported', tooling='unsupported', vision='unsupported', format='unsupported', format_probe=4) for name in ('fixture', 'fixture-secondary', 'fixture-spare')}),
                 'ai.inference_system=' + json.dumps(dict(service='OPENAI', hoststub=stub)),
             ]) + '\n')
             state = root / 'DATA/SCOUTRO/discovery/state.json'
@@ -267,6 +274,55 @@ def main():
                 check(not list(reports.glob('.statistics-*')), 'no statistics checkpoint files')
                 check(hashlib.sha256(state.read_bytes()).hexdigest() == sentinel, 'discovery state changed')
                 check(json.loads(call('/scoutro/api/v1/crawls')[1])['crawls'] == [], 'crawler was started')
+                if os.environ.get('NODE_PATH'):
+                    # Existing switches on, but the actual matrix opt-out must still stop both automatic roles.
+                    post('/LLMSelection_p.html', {'saveTldrSettings': '1', 'tldrEnabled': 'on'})
+                    daily_time = datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')
+                    post('/LogReports_p.html', {'saveReportSettings': '1', 'scheduleMode': 'daily',
+                        'scheduleHours': '1', 'scheduleTime': daily_time, 'scheduleZone': 'Europe/Berlin'})
+                    kg_before = json.loads(call('/scoutro/api/v1/kg/collections')[1])['llm']
+                    check(kg_before['model'] == 'OPENAI/fixture-secondary', 'knowledge model before opt-out')
+                    calls_before = sum(k == 'tldr' for k, _ in CALLS)
+                    subprocess.run(['node', str(REPO / 'test/scoutro-ui/rag-report-tldr-ui-test.mjs')], cwd=REPO,
+                        env=dict(os.environ, SCOUTRO_URL=base, SCOUTRO_ROLES_ONLY='1'), check=True, timeout=90)
+                    check(sum(k == 'tldr' for k, _ in CALLS) == calls_before + 1, 'unchanged explicit manual TLDR test once with automation off')
+                    def verify_roles():
+                        values = settings(config)
+                        models = json.loads(values['ai.production_models'])
+                        check(len(models) == 2 and all(not m['tldr'] and not m['logreport'] for m in models), 'two models keep optional roles off')
+                        check([m['model'] for m in models if m['knowledge']] == ['fixture-secondary'], 'knowledge assignment unchanged')
+                        check(values['ai.tldr.enabled'] == values['ai.logreport.enabled'] == 'true', 'existing permissions preserved; missing role still blocks execution')
+                        return values
+                    verify_roles()
+                    before = len(CALLS)
+                    # Only the isolated fixture's existing schedule journal is made due; no new job is introduced.
+                    journal = reports / '.generation-state.properties'
+                    due = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat().replace('+00:00', 'Z')
+                    content = re.sub(r'^next\.scheduled=.*$', 'next.scheduled=' + due, journal.read_text(), flags=re.M)
+                    staged = journal.with_suffix('.fixture.tmp')
+                    staged.write_text(content)
+                    staged.replace(journal)
+                    deadline = time.monotonic() + 40
+                    while 'next.scheduled=' + due in journal.read_text() and time.monotonic() < deadline:
+                        time.sleep(.2)
+                    check('next.scheduled=' + due not in journal.read_text(), 'existing scheduler reached the due period')
+                    check(len(CALLS) == before, 'no report model call with all log-report roles off')
+                    check(chat()[0] == 200, 'chat continues with reassigned chat model')
+                    check(sum(k == 'tldr' for k, _ in CALLS) == calls_before + 1, 'no automatic TLDR call with all tldr roles off')
+                    for path in ('/ViewLog_p.html', '/Status.html', '/PerformanceMemory_p.html',
+                                 '/PerformanceSearch_p.html', '/PerformanceConcurrency_p.html', '/LogReports_p.html'):
+                        check(call(path)[0] == 200, 'existing LLM-free operator page: ' + path)
+                    check(json.loads(call('/scoutro/api/v1/kg/collections')[1])['llm'] == kg_before, 'knowledge model/settings unchanged')
+                    before = len(CALLS)
+                    stop()
+                    start()
+                    verify_roles()
+                    check(chat()[0] == 200, 'chat after restart with optional roles off')
+                    check(sum(k == 'tldr' for k, _ in CALLS) == calls_before + 1, 'restart does not re-enable automatic TLDR')
+                    check(sum(k == 'report' for k, _ in CALLS) == sum(k == 'report' for k, _ in CALLS[:before]), 'restart does not re-enable log-report')
+                    check(json.loads(call('/scoutro/api/v1/kg/collections')[1])['llm'] == kg_before, 'knowledge selection survives restart unchanged')
+                    check(all((reports / name).exists() for name in snapshot), 'existing report files retained after role changes')
+                    check(hashlib.sha256(state.read_bytes()).hexdigest() == sentinel, 'role changes preserve discovery state')
                 print(f'PASS: {checks} isolated control/security/restart checks; only local fake-model requests', flush=True)
             except Exception:
                 print((root / 'peer.log').read_text()[-2500:])

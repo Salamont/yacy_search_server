@@ -300,3 +300,45 @@ budget), and `clearTldrHistory`. Automatic output remains capped at 200 tokens,
 the manual test shares that path, and calls have a 30-second read timeout and a
 16 KiB response cap. A configured model is not a guarantee of endpoint health;
 loading this page does not probe it with a paid inference request.
+
+## Optional TLDR and log-report model roles
+
+The existing `tldr-shortener` and `log-report` matrix checkboxes select optional
+model roles (`tldr` and `logreport` in `ai.production_models`). Clearing either
+checkbox leaves the role unassigned, including when other models exist. Removing
+its model does not transfer the role, and deploying a new model never automatically
+assigns it. The existing `knowledge` opt-in behavior is unchanged.
+
+No additional switch or configuration key is introduced. Automatic TLDR still
+requires both an assigned model and the existing `ai.tldr.enabled`; automatic
+log reports still require an assigned model and the existing enabled schedule /
+`ai.logreport.enabled`. The report schedule is unchanged. No assigned role means
+no automatic model call, even when its enable setting remains configured on.
+Assigning a model explicitly does not change these enable settings.
+
+The matrix shows model assignment. The existing TLDR status shows the assigned
+model and whether automatic fallback is active, off, or unavailable. The existing
+Log Reports page shows report model, actual state and schedule. Reload updates
+these server-rendered readouts after a matrix change. These are two existing
+requirements (assignment and automatic use), not two competing activation settings.
+
+For the unchanged manual TLDR test, keep a model assigned and switch automatic
+fallback off. The explicit test button still works and can incur API costs. With
+no assigned model it remains unavailable; no replacement model is chosen for it.
+Saving matrix assignments uses the existing authenticated POST with transaction
+token. No changes are made to chat/RAG, the knowledge pipeline, reporting sources,
+report generation, scheduler, or databases by this correction.
+
+### Existing operation without a report model (read-only inventory)
+
+YaCy already has LLM-free operator views: `ViewLog_p.html` reads the standard
+GuiHandler log buffer; `Status.html` shows peer/system/resource state;
+`PerformanceMemory_p.html`, `PerformanceSearch_p.html`, and
+`PerformanceConcurrency_p.html` show memory, search events and worker state from
+existing runtime structures. Normal FileHandler logging/rotation is independent
+of model roles. Existing report files remain readable in `LogReports_p.html`.
+
+These views are retained unchanged. No independent automatic narrative weekly or
+monthly situation report without an LLM was identified in the reviewed report
+code. The existing no-data notice is not such an operational report. No new
+non-LLM report or replacement generation mode is introduced.
