@@ -4185,6 +4185,10 @@ words/minute==слова/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Сохранение настроек моделей…
+Model settings saved.==Настройки моделей сохранены.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Не удалось сохранить настройки моделей. Изменения не подтверждены. Перезагрузите страницу перед дальнейшими изменениями.
+Network error==Ошибка сети
 #---------------------------
 alt="info"==alt="информация"
 LLM Selection==Выбор LLM

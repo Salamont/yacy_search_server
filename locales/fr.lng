@@ -3764,6 +3764,10 @@ YaCy Pack Manager==Gestionnaire de paquets YaCy
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Enregistrement des paramètres des modèles…
+Model settings saved.==Paramètres des modèles enregistrés.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Les paramètres des modèles n’ont pas pu être enregistrés. Les modifications ne sont pas confirmées. Rechargez cette page avant toute autre modification.
+Network error==Erreur réseau
 #---------------------------
 alt="info"==alt="info"
 (not required for Ollama or LMStudio)==(non requis pour Ollama ou LMStudio)

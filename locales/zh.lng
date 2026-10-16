@@ -2078,6 +2078,10 @@ words/minute==字/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==正在保存模型设置…
+Model settings saved.==模型设置已保存。
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==无法保存模型设置。更改尚未确认。请重新加载此页面后再进行更改。
+Network error==网络错误
 #---------------------------
 alt="info"==alt="信息"
 LLM Selection==LLM 选择

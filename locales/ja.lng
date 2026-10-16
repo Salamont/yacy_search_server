@@ -2073,6 +2073,10 @@ words/minute==言葉/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==モデル設定を保存中…
+Model settings saved.==モデル設定を保存しました。
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==モデル設定を保存できませんでした。変更は確認されていません。さらに変更する前に、このページを再読み込みしてください。
+Network error==ネットワークエラー
 #---------------------------
 alt="info"==alt="情報"
 LLM Selection==LLM 選択

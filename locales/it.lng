@@ -3961,6 +3961,10 @@ System Prompt==Prompt di sistema
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Salvataggio delle impostazioni dei modelli…
+Model settings saved.==Impostazioni dei modelli salvate.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Impossibile salvare le impostazioni dei modelli. Le modifiche non sono confermate. Ricaricare questa pagina prima di apportare altre modifiche.
+Network error==Errore di rete
 #---------------------------
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==Nella "Matrice dei modelli di produzione" è quindi possibile assegnare ad ogni modello selezionato una funzione all'interno di YaCy
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> è la finestra contestuale (in token) del servizio di inferenza&mdash; a per-service

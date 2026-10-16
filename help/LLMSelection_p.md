@@ -262,3 +262,37 @@ Never switch the knowledge usage automatically from a result.
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.
 
 On narrow screens the Services, Available Models and Production Models Matrix use labelled cards from the same table cells and controls. Existing model/usage/context-window save handlers are reused; resizing does not create a second model list or save path.
+
+## Saving model assignments
+
+`tldr-shortener`, `log-report` and `knowledge` are opt-in columns. A new model
+starts with these roles off. Deselecting or undeploying their model does not
+assign those roles to another model. Existing assignments and the `chat`
+assignment behaviour are preserved. With no assigned model, the existing TLDR
+fallback and automatic LLM reports make no model calls for that role; normal
+YaCy logs and status pages remain available. Already running calls may finish.
+
+The existing administrator-only `POST /LLMSelection_p.html` accepts a JSON body
+with `production_models`, `inference_system`, `model_capabilities` and/or
+`service_num_ctx`. Empty API keys retain their stored values as before. Saves
+on this page are serialized. The response HTML has `data-settings-saved="1"`
+on its body only after a checked atomic configuration-file replacement.
+The page sends `If-Match` with the quoted `data-settings-revision` from the
+last confirmed response. A stale page receives HTTP 409 instead of overwriting
+newer settings from another tab. Automation can send the same precondition;
+legacy requests without it retain their existing unconditional-save semantics.
+A storage failure returns HTTP 500 with a generic message and leaves the
+requested in-memory settings unchanged; invalid JSON returns HTTP 400. No
+configuration contents or filesystem exception details are returned.
+
+The page reports pending, saved or failed status. It verifies both HTTP status
+and the save acknowledgement. After a storage, HTTP or network failure it
+discards queued saves and blocks further saves until the page is reloaded.
+Reload to see the authoritative server state before retrying. This also covers
+a lost network response where the server may already have completed the save.
+Do not treat unconfirmed checkboxes as a successful shutdown. Automation must
+check the HTTP status and acknowledgement; do not retry stale matrix snapshots.
+The checked path requires atomic replacement support in the configuration file
+system. The usual YaCy `setConfig()` calls and other configuration pages retain
+their existing persistence behaviour. No report, schedule, TLDR execution or
+retrieval behaviour is changed.

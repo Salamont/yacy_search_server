@@ -8,19 +8,156 @@ import static org.junit.Assert.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Test;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
+import net.yacy.server.serverSwitch;
 
 /** Stored API keys are never rendered, and an empty field keeps them. */
 public class LLMSelection_pTest {
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private static JSONArray threeModels(final boolean enabled) throws Exception {
+        final JSONArray rows = stored();
+        for (int i = 0; i < rows.length(); i++) {
+            rows.getJSONObject(i).put("tldr", enabled && i == 0).put("logreport", enabled && i == 0)
+                    .put("knowledge", i == 0).put("chat", i == 1).put("max_tokens", "2048");
+        }
+        return rows;
+    }
+
+    @Test
+    public void deselectionSurvivesSubsequentTokenSaveAndReloadWithoutLosingKeys() throws Exception {
+        final File root = this.temporaryFolder.newFolder();
+        final serverSwitch peer = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        peer.setConfig("unrelated.setting", "keep=it\\with\nnewlines");
+        final JSONObject inference = new JSONObject().put("service", "OPENAI").put("hoststub", "https://api.example.org")
+                .put("api_key", "sk-own-inference");
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(true)).put("inference_system", inference));
+        final JSONArray disabled = threeModels(false);
+        for (int i = 0; i < disabled.length(); i++) disabled.getJSONObject(i).put("api_key", "");
+        inference.put("api_key", "");
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", disabled).put("inference_system", inference));
+        disabled.getJSONObject(0).put("max_tokens", "4096");
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", disabled));
+        final serverSwitch reloaded = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        final JSONArray saved = new JSONArray(reloaded.getConfig("ai.production_models", "[]"));
+        assertEquals(3, saved.length());
+        for (int i = 0; i < saved.length(); i++) {
+            assertFalse(saved.getJSONObject(i).getBoolean("tldr"));
+            assertFalse(saved.getJSONObject(i).getBoolean("logreport"));
+        }
+        assertTrue(saved.getJSONObject(0).getBoolean("knowledge"));
+        assertTrue(saved.getJSONObject(1).getBoolean("chat"));
+        assertEquals("4096", saved.getJSONObject(0).getString("max_tokens"));
+        assertEquals("sk-row-a", saved.getJSONObject(0).getString("api_key"));
+        assertEquals("sk-row-b", saved.getJSONObject(1).getString("api_key"));
+        assertEquals("sk-own-inference", new JSONObject(reloaded.getConfig("ai.inference_system", "{}")).getString("api_key"));
+        assertEquals("keep=it\\with\nnewlines", reloaded.getConfig("unrelated.setting", ""));
+    }
+
+    @Test
+    public void concurrentPageSavesAndLegacyWritesRetainAllSettings() throws Exception {
+        final File root = this.temporaryFolder.newFolder();
+        final serverSwitch peer = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(true)));
+        final ExecutorService pool = Executors.newFixedThreadPool(6);
+        final List<Future<?>> writes = new ArrayList<>();
+        try {
+            for (int i = 0; i < 6; i++) {
+                final int writer = i;
+                writes.add(pool.submit(() -> {
+                    for (int n = 0; n < 12; n++) {
+                        if (writer % 2 == 0) {
+                            final JSONArray rows = threeModels(false);
+                            for (int r = 0; r < rows.length(); r++) rows.getJSONObject(r).put("api_key", "");
+                            LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", rows));
+                        } else {
+                            peer.setConfig("legacy." + writer, Integer.toString(n));
+                        }
+                    }
+                    return null;
+                }));
+            }
+            for (final Future<?> write : writes) write.get();
+        } finally {
+            pool.shutdownNow();
+        }
+        final serverSwitch reloaded = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        final JSONArray saved = new JSONArray(reloaded.getConfig("ai.production_models", "[]"));
+        for (int i = 0; i < saved.length(); i++) {
+            assertFalse(saved.getJSONObject(i).getBoolean("tldr"));
+            assertFalse(saved.getJSONObject(i).getBoolean("logreport"));
+        }
+        assertEquals("sk-row-b", saved.getJSONObject(1).getString("api_key"));
+        assertTrue(saved.getJSONObject(0).getBoolean("knowledge"));
+        for (int i = 1; i < 6; i += 2) assertEquals("11", reloaded.getConfig("legacy." + i, ""));
+    }
+
+    @Test
+    public void failedWriteDoesNotPublishOrLeakIntoTheNextSuccessfulSave() throws Exception {
+        final File root = this.temporaryFolder.newFolder();
+        final serverSwitch peer = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(true)));
+        final File settings = new File(root, "settings");
+        final java.nio.file.Path path = settings.toPath();
+        org.junit.Assume.assumeTrue(Files.getFileStore(path).supportsFileAttributeView("posix"));
+        final java.util.Set<java.nio.file.attribute.PosixFilePermission> mode = Files.getPosixFilePermissions(path);
+        try {
+            Files.setPosixFilePermissions(path, java.nio.file.attribute.PosixFilePermissions.fromString("r-xr-xr-x"));
+            org.junit.Assume.assumeFalse("Requires a non-root test process", Files.isWritable(path));
+            try {
+                LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(false)));
+                org.junit.Assert.fail("A read-only configuration directory must fail");
+            } catch (final IOException expected) {
+                assertTrue(new JSONArray(peer.getConfig("ai.production_models", "[]")).getJSONObject(0).getBoolean("tldr"));
+            }
+        } finally {
+            Files.setPosixFilePermissions(path, mode);
+        }
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("service_num_ctx", new JSONObject().put("http://ollama:11434", 8192)));
+        final serverSwitch reloaded = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        assertTrue(new JSONArray(reloaded.getConfig("ai.production_models", "[]")).getJSONObject(0).getBoolean("tldr"));
+        LLMSelection_p.saveSettings(reloaded, new JSONObject().put("production_models", threeModels(false)));
+        assertFalse(new JSONArray(new serverSwitch(root, root, "missing.init", "settings/yacy.conf")
+                .getConfig("ai.production_models", "[]")).getJSONObject(0).getBoolean("logreport"));
+    }
 
     private static JSONArray stored() throws Exception {
         return new JSONArray()
                 .put(new JSONObject().put("service", "OPENAI").put("model", "a").put("hoststub", "https://api.example.org/").put("api_key", "sk-row-a"))
                 .put(new JSONObject().put("service", "OPENAI").put("model", "b").put("hoststub", "https://api.example.org").put("api_key", "sk-row-b"))
                 .put(new JSONObject().put("service", "OLLAMA").put("model", "c").put("hoststub", "http://ollama:11434").put("api_key", ""));
+    }
+
+    @Test
+    public void staleConcurrentMatrixCannotUndoAnAlreadySavedDeselection() throws Exception {
+        final File root = this.temporaryFolder.newFolder();
+        final serverSwitch peer = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(true)));
+        final String oldRevision = "\"" + LLMSelection_p.settingsRevision(peer) + "\"";
+        final String next = LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(false)), oldRevision);
+        assertFalse(oldRevision.equals("\"" + next + "\""));
+        try {
+            LLMSelection_p.saveSettings(peer, new JSONObject().put("production_models", threeModels(true)), oldRevision);
+            org.junit.Assert.fail("A stale browser must reload rather than restore old roles");
+        } catch (final net.yacy.http.servlets.TemplateProcessingException expected) {
+            assertEquals(409, expected.getStatus());
+        }
+        final serverSwitch reloaded = new serverSwitch(root, root, "missing.init", "settings/yacy.conf");
+        assertFalse(new JSONArray(reloaded.getConfig("ai.production_models", "[]")).getJSONObject(0).getBoolean("tldr"));
     }
 
     @Test

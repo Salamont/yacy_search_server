@@ -2077,6 +2077,10 @@ words/minute==slová/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Ukladajú sa nastavenia modelov…
+Model settings saved.==Nastavenia modelov boli uložené.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Nastavenia modelov sa nepodarilo uložiť. Zmeny nie sú potvrdené. Pred ďalšími zmenami znovu načítajte túto stránku.
+Network error==Chyba siete
 #---------------------------
 alt="info"==alt="info"
 LLM Selection==Výber LLM

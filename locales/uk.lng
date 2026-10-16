@@ -3993,6 +3993,10 @@ Packs: Loaded List==Пакети: завантажений список
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Збереження налаштувань моделей…
+Model settings saved.==Налаштування моделей збережено.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Не вдалося зберегти налаштування моделей. Зміни не підтверджено. Перезавантажте сторінку перед подальшими змінами.
+Network error==Помилка мережі
 #---------------------------
 alt="info"==alt="інформація"
 LLM Selection==LLM Вибір

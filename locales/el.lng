@@ -2078,6 +2078,10 @@ words/minute==λέξεις/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Αποθήκευση ρυθμίσεων μοντέλων…
+Model settings saved.==Οι ρυθμίσεις μοντέλων αποθηκεύτηκαν.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Δεν ήταν δυνατή η αποθήκευση των ρυθμίσεων μοντέλων. Οι αλλαγές δεν επιβεβαιώθηκαν. Ανανεώστε τη σελίδα πριν κάνετε άλλες αλλαγές.
+Network error==Σφάλμα δικτύου
 #---------------------------
 alt="info"==alt="πληροφορίες"
 LLM Selection==LLM Επιλογή

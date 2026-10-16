@@ -2085,6 +2085,10 @@ words/minute==kelimeler/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Model ayarları kaydediliyor…
+Model settings saved.==Model ayarları kaydedildi.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Model ayarları kaydedilemedi. Değişiklikler onaylanmadı. Başka değişiklik yapmadan önce bu sayfayı yeniden yükleyin.
+Network error==Ağ hatası
 #---------------------------
 alt="info"==alt="bilgi"
 LLM Selection==LLM Seçim

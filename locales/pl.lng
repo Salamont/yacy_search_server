@@ -2083,6 +2083,10 @@ words/minute==słowa/minutę
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==Zapisywanie ustawień modeli…
+Model settings saved.==Ustawienia modeli zapisane.
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==Nie udało się zapisać ustawień modeli. Zmiany nie zostały potwierdzone. Przed kolejnymi zmianami odśwież tę stronę.
+Network error==Błąd sieci
 #---------------------------
 alt="info"==alt="Info"
 LLM Selection==Wybór LLM

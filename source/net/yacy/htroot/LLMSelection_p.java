@@ -23,6 +23,10 @@
 
 package net.yacy.htroot;
 
+import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -30,6 +34,7 @@ import org.json.JSONTokener;
 
 import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.search.Switchboard;
+import net.yacy.http.servlets.TemplateProcessingException;
 import net.yacy.server.serverObjects;
 import net.yacy.server.serverSwitch;
 
@@ -150,7 +155,7 @@ public class LLMSelection_p {
         row.put("api_key", storedKey(storedRows, storedInference, row.optString("service", ""), hoststub, row.optString("model", "")));
     }
 
-    private static JSONArray storedRows(final Switchboard sb) {
+    private static JSONArray storedRows(final serverSwitch sb) {
         try {
             return new JSONArray(new JSONTokener(sb.getConfig("ai.production_models", "[]")));
         } catch (final JSONException e) {
@@ -158,11 +163,98 @@ public class LLMSelection_p {
         }
     }
 
-    private static JSONObject storedInference(final Switchboard sb) {
+    private static JSONObject storedInference(final serverSwitch sb) {
         try {
             return new JSONObject(new JSONTokener(sb.getConfig("ai.inference_system", "{}")));
         } catch (final JSONException e) {
             return new JSONObject();
+        }
+    }
+
+    /** Change detection for this page, not an authentication token. */
+    static String settingsRevision(final serverSwitch sb) {
+        synchronized (sb) {
+            return org.apache.commons.codec.digest.DigestUtils.sha256Hex(sb.getConfig("ai.production_models", "[]") + "\u0000"
+                    + sb.getConfig("ai.inference_system", "{}") + "\u0000"
+                    + sb.getConfig(MODEL_CAPABILITIES_CONFIG, "{}") + "\u0000"
+                    + sb.getConfig(net.yacy.ai.LLM.SERVICE_NUM_CTX_CONFIG, "{}"));
+        }
+    }
+
+    static void saveSettings(final serverSwitch sb, final JSONObject bodyj) throws IOException, JSONException {
+        saveSettings(sb, bodyj, null);
+    }
+
+    /** Serialize key preservation and the checked write for this page only. */
+    static String saveSettings(final serverSwitch sb, final JSONObject bodyj, final String expectedRevision)
+            throws IOException, JSONException {
+        synchronized (sb) {
+            if (expectedRevision != null && !expectedRevision.equals("\"" + settingsRevision(sb) + "\"")) {
+                throw new TemplateProcessingException("Model settings changed. Reload before saving again.", 409);
+            }
+            // stored configuration before this save, for keys the browser never receives
+            final JSONArray storedRows = storedRows(sb);
+            final JSONObject storedInference = storedInference(sb);
+            JSONObject inferenceSystem = bodyj.optJSONObject("inference_system");
+            final String clearedHoststub = inferenceSystem != null && inferenceSystem.optBoolean("api_key_clear", false)
+                    ? net.yacy.ai.LLM.normalizeHoststub(inferenceSystem.optString("hoststub", "")) : "";
+
+            final Map<String, String> changes = new LinkedHashMap<>();
+            JSONArray production_models = bodyj.optJSONArray("production_models");
+            if (production_models != null) {
+                // store the model array; an empty api_key keeps the stored key of that endpoint
+                final JSONArray normalizedModels = new JSONArray();
+                for (int i = 0; i < production_models.length(); i++) {
+                    final JSONObject row = normalizeProductionModelRow(production_models.getJSONObject(i));
+                    keepStoredKey(row, storedRows, storedInference, clearedHoststub);
+                    normalizedModels.put(row);
+                }
+                changes.put("ai.production_models", normalizedModels.toString(0));
+            } else if (!clearedHoststub.isEmpty()) {
+                // clear the stored keys of that endpoint also in the stored production rows
+                for (int i = 0; i < storedRows.length(); i++) {
+                    final JSONObject row = storedRows.getJSONObject(i);
+                    if (clearedHoststub.equals(net.yacy.ai.LLM.normalizeHoststub(row.optString("hoststub", "")))) row.put("api_key", "");
+                }
+                changes.put("ai.production_models", storedRows.toString(0));
+            }
+
+            JSONObject modelCapabilities = bodyj.optJSONObject("model_capabilities");
+            if (modelCapabilities != null) {
+                changes.put(MODEL_CAPABILITIES_CONFIG, normalizeModelCapabilities(modelCapabilities).toString());
+            }
+
+            if (inferenceSystem != null) {
+                final JSONObject inference = new JSONObject(true);
+                inference.put("service", inferenceSystem.optString("service", ""));
+                inference.put("hoststub", inferenceSystem.optString("hoststub", ""));
+                inference.put("api_key", inferenceSystem.optString("api_key", "").trim());
+                if (inference.optString("api_key", "").isEmpty() && clearedHoststub.isEmpty()) {
+                    // An unchanged inference endpoint keeps its own key, even when
+                    // individual production models use different keys on that host.
+                    final boolean sameEndpoint = net.yacy.ai.LLM.normalizeHoststub(inference.optString("hoststub", ""))
+                            .equals(net.yacy.ai.LLM.normalizeHoststub(storedInference.optString("hoststub", "")));
+                    final String ownKey = sameEndpoint ? storedInference.optString("api_key", "").trim() : "";
+                    inference.put("api_key", ownKey.isEmpty() ? storedKey(storedRows, storedInference,
+                            inference.optString("service", ""), inference.optString("hoststub", ""), null) : ownKey);
+                }
+                changes.put("ai.inference_system", inference.toString());
+            }
+
+            JSONObject serviceNumCtx = bodyj.optJSONObject("service_num_ctx");
+            if (serviceNumCtx != null) {
+                // per-service context window (num_ctx), keyed by normalized hoststub
+                final JSONObject normalized = new JSONObject(true);
+                for (final String hoststub : serviceNumCtx.keySet()) {
+                    final String key = net.yacy.ai.LLM.normalizeHoststub(hoststub);
+                    if (key.isEmpty()) continue;
+                    final int value = serviceNumCtx.optInt(hoststub, 0);
+                    if (value > 0) normalized.put(key, value);
+                }
+                changes.put(net.yacy.ai.LLM.SERVICE_NUM_CTX_CONFIG, normalized.toString());
+            }
+            if (!changes.isEmpty()) sb.setConfigChecked(changes);
+            return settingsRevision(sb);
         }
     }
 
@@ -171,88 +263,26 @@ public class LLMSelection_p {
         final Switchboard sb = (Switchboard) env;
 
         final serverObjects prop = new serverObjects();
+        prop.put("settings_revision", settingsRevision(sb));
         String body = post == null ? "" : post.get("BODY", "");
         JSONObject bodyj = new JSONObject();
         if (body.length() > 0) {
             try {
                 bodyj = new JSONObject(new JSONTokener(body));
             } catch (JSONException e) {
-                // silently catch this
+                throw new TemplateProcessingException("Invalid model settings.", 400);
             }
         }
-        // stored configuration before this save, for keys the browser never receives
-        final JSONArray storedRows = storedRows(sb);
-        final JSONObject storedInference = storedInference(sb);
-        JSONObject inferenceSystem = bodyj.optJSONObject("inference_system");
-        final String clearedHoststub = inferenceSystem != null && inferenceSystem.optBoolean("api_key_clear", false)
-                ? net.yacy.ai.LLM.normalizeHoststub(inferenceSystem.optString("hoststub", "")) : "";
-
-        JSONArray production_models = bodyj.optJSONArray("production_models");
-        if (production_models != null) {
-            // store the model array; an empty api_key keeps the stored key of that endpoint
+        prop.put("settings_saved", 0);
+        if (!body.isEmpty()) {
             try {
-                final JSONArray normalizedModels = new JSONArray();
-                for (int i = 0; i < production_models.length(); i++) {
-                    final JSONObject row = normalizeProductionModelRow(production_models.getJSONObject(i));
-                    keepStoredKey(row, storedRows, storedInference, clearedHoststub);
-                    normalizedModels.put(row);
-                }
-                sb.setConfig("ai.production_models", normalizedModels.toString(0));
-            } catch (JSONException e) {
-                //e.printStackTrace();
-            }
-        } else if (!clearedHoststub.isEmpty()) {
-            // clear the stored keys of that endpoint also in the stored production rows
-            try {
-                for (int i = 0; i < storedRows.length(); i++) {
-                    final JSONObject row = storedRows.getJSONObject(i);
-                    if (clearedHoststub.equals(net.yacy.ai.LLM.normalizeHoststub(row.optString("hoststub", "")))) row.put("api_key", "");
-                }
-                sb.setConfig("ai.production_models", storedRows.toString(0));
-            } catch (JSONException e) {
-                //e.printStackTrace();
-            }
-        }
-
-        JSONObject modelCapabilities = bodyj.optJSONObject("model_capabilities");
-        if (modelCapabilities != null) {
-            try {
-                sb.setConfig(MODEL_CAPABILITIES_CONFIG, normalizeModelCapabilities(modelCapabilities).toString());
-            } catch (JSONException e) {
-                sb.setConfig(MODEL_CAPABILITIES_CONFIG, "{}");
-            }
-        }
-
-        if (inferenceSystem != null) {
-            try {
-                final JSONObject inference = new JSONObject(true);
-                inference.put("service", inferenceSystem.optString("service", ""));
-                inference.put("hoststub", inferenceSystem.optString("hoststub", ""));
-                inference.put("api_key", inferenceSystem.optString("api_key", "").trim());
-                if (inference.optString("api_key", "").isEmpty() && clearedHoststub.isEmpty()) {
-                    inference.put("api_key", storedKey(storedRows, storedInference, inference.optString("service", ""),
-                            inference.optString("hoststub", ""), null));
-                }
-                sb.setConfig("ai.inference_system", inference.toString());
-            } catch (JSONException e) {
-                //e.printStackTrace();
-            }
-        }
-
-        JSONObject serviceNumCtx = bodyj.optJSONObject("service_num_ctx");
-        if (serviceNumCtx != null) {
-            // per-service context window (num_ctx), keyed by normalized hoststub
-            try {
-                final JSONObject normalized = new JSONObject(true);
-                for (final String hoststub : serviceNumCtx.keySet()) {
-                    final String key = net.yacy.ai.LLM.normalizeHoststub(hoststub);
-                    if (key.isEmpty()) continue;
-                    final int value = serviceNumCtx.optInt(hoststub, 0);
-                    if (value > 0) normalized.put(key, value);
-                }
-                sb.setConfig(net.yacy.ai.LLM.SERVICE_NUM_CTX_CONFIG, normalized.toString());
-            } catch (JSONException e) {
-                //e.printStackTrace();
+                prop.put("settings_revision", saveSettings(sb, bodyj, header == null ? null : header.get("If-Match", null)));
+                prop.put("settings_saved", 1);
+            } catch (final IOException e) {
+                // Never return configuration values, keys or filesystem exception details.
+                throw new TemplateProcessingException("Model settings could not be saved. No changes were applied.", 500);
+            } catch (final JSONException e) {
+                throw new TemplateProcessingException("Invalid model settings.", 400);
             }
         }
         /*
@@ -283,6 +313,7 @@ public class LLMSelection_p {
 
         // generate table for production_models
         String pms = sb.getConfig("ai.production_models", "[]");
+        JSONArray production_models = null;
         if (pms.isEmpty() || pms.equals("{}")) pms = "[]";
         try {
             production_models = new JSONArray(new JSONTokener(pms));

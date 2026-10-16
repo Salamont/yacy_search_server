@@ -590,6 +590,52 @@ public final class FileUtils {
         }
     }
 
+    /**
+     * Opt-in checked delta save. Uses the same file lock as saveMap, taking its
+     * snapshot only after earlier writers have finished. Publish only the delta
+     * after the atomic replacement; unrelated concurrent in-memory updates must
+     * not be overwritten by the snapshot. A failed write leaves props unchanged.
+     * Existing best-effort saveMap callers keep their behaviour.
+     */
+    public static void saveMapChecked(final File file, final Map<String, String> props,
+            final Map<String, String> changes, final String comment) throws IOException {
+        final Map<String, String> delta = new TreeMap<>(changes);
+        for (final Map.Entry<String, String> entry : delta.entrySet()) {
+            if (entry.getValue() == null) throw new IllegalArgumentException("Null configuration value");
+        }
+        final Object lock = SAVE_MAP_LOCKS.computeIfAbsent(file.getAbsolutePath(), k -> new Object());
+        synchronized (lock) {
+            final Map<String, String> snapshot = new TreeMap<>(props);
+            snapshot.putAll(delta);
+            final File parent = file.getAbsoluteFile().getParentFile();
+            if (parent != null) java.nio.file.Files.createDirectories(parent.toPath());
+            final String name = file.getName();
+            File temporary = File.createTempFile(name.length() < 3 ? "cfg" : name, ".tmp", parent);
+            try {
+                try (FileOutputStream output = new FileOutputStream(temporary);
+                        Writer writer = new java.io.OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+                    writer.write("# " + comment + "\n");
+                    for (final Map.Entry<String, String> entry : snapshot.entrySet()) {
+                        final String key = StringUtils.replaceEach(entry.getKey(), unescaped_strings_in, escaped_strings_out);
+                        final String value = entry.getValue() == null ? ""
+                                : StringUtils.replaceEach(entry.getValue(), unescaped_strings_in, escaped_strings_out);
+                        writer.write(key + "=" + value + "\n");
+                    }
+                    writer.write("# EOF\n");
+                    writer.flush();
+                    output.getFD().sync();
+                }
+                // Fail explicitly on file systems without atomic replacement.
+                java.nio.file.Files.move(temporary.toPath(), file.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                temporary = null;
+                props.putAll(delta);
+            } finally {
+                if (temporary != null) java.nio.file.Files.deleteIfExists(temporary.toPath());
+            }
+        }
+    }
+
     public static void saveMapB(final File file, final Map<String, byte[]> props, final String comment) {
         final HashMap<String, String> m = new HashMap<>();
         for (final Map.Entry<String, byte[]> e: props.entrySet()) m.put(e.getKey(), UTF8.String(e.getValue()));
