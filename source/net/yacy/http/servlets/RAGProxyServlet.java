@@ -48,6 +48,7 @@ import net.yacy.ai.LLM;
 import net.yacy.ai.PromptGuard;
 import net.yacy.ai.RAGAugmentor;
 import net.yacy.ai.ToolCallProtocol;
+import net.yacy.ai.TldrService;
 import net.yacy.ai.rag.ChatCollections;
 import net.yacy.ai.rag.GraphFacts;
 import net.yacy.ai.rag.RagCitations;
@@ -95,11 +96,9 @@ import net.yacy.search.Switchboard;
 public class RAGProxyServlet extends HttpServlet {
 
     private static final long serialVersionUID = 3411544789759643137L;
-    private static final int DIRECT_SEARCH_WORD_LIMIT = 40;
 
     public static final String LLM_SYSTEM_PROMPT_DEFAULT = "You are a smart and helpful chatbot. If possible, use friendly emojies.";
     static final String LLM_USER_PREFIX_DEFAULT = "\n\nSearch results (numbered sources, cite them as [n]):\n\n";
-    private static final String LLM_QUERY_GENERATOR_PREFIX_DEFAULT = "Make a list of search words with low document frequency for the following prompt; use a JSON Array: ";
 
     // Volatile, in-memory access log for rate limiting. This is intentionally not persisted
     // to respect user privacy; entries older than 24h are purged on each access.
@@ -215,7 +214,7 @@ public class RAGProxyServlet extends HttpServlet {
             try {usage = LLM.LLMUsage.valueOf(model);} catch (IllegalArgumentException e) {}
             if (usage == LLM.LLMUsage.knowledge) usage = LLM.LLMUsage.chat; // the extraction model is never a chat model
             LLM.LLMModel llm4Chat = LLM.llmFromUsage(usage, runId, "rag-chat");
-            LLM.LLMModel llm4tldr = LLM.llmFromUsage(LLM.LLMUsage.tldr, runId, "rag-query-generator");
+            LLM.LLMModel llm4tldr = TldrService.automaticEnabled(sb) ? LLM.llmFromUsage(LLM.LLMUsage.tldr, runId, "rag-query-generator") : null;
             if (llm4Chat == null) {
                 ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=no-chat-model usage=" + usage + " durationMs=" + elapsed(requestStart));
                 LLMAccess.error(hresponse, HttpServletResponse.SC_SERVICE_UNAVAILABLE, LLMAccess.NO_CHAT_MODEL,
@@ -344,16 +343,18 @@ public class RAGProxyServlet extends HttpServlet {
                         : ChatCollections.permits(allCollections, query.questionCollection, releasedCollections) ? query.questionCollection : null;
                 // Scoutro: the peer-to-peer network search stays with administrators and the AI Shield's own rules
                 final boolean global = "global".equals(ragMode) && scope == null && member == null;
-                final RagRetriever retriever = new RagRetriever((q, c, n, g) -> RAGAugmentor.searchCandidates(q, c, n, g, runId));
+                final RagRetriever retriever = new RagRetriever((concepts, q, c, n, g) -> RAGAugmentor.searchCandidates(concepts, q, c, n, g, runId));
                 RagRetriever.Result result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
-                if (result.selected.isEmpty() && countWords(question) > DIRECT_SEARCH_WORD_LIMIT && llm4tldr != null) {
-                    // long question without result: let the tldr model suggest search words once
-                    final String words = RAGAugmentor.searchWordsForPrompt(llm4tldr.llm, llm4tldr.model, question,
-                            sb.getConfig("ai.llm-query-generator-prefix", LLM_QUERY_GENERATOR_PREFIX_DEFAULT), runId);
-                    if (words != null && !words.isEmpty()) {
-                        query = RagQuery.prepare(words);
+                TldrService.Attempt tldrAttempt = null;
+                if (TldrService.shouldRun(TldrService.automaticEnabled(sb), llm4tldr != null, countWords(question), result.selected.size())) {
+                    tldrAttempt = TldrService.execute(llm4tldr, question,
+                            sb.getConfig("ai.llm-query-generator-prefix", TldrService.DEFAULT_INSTRUCTION), false);
+                    if (tldrAttempt.valid()) {
+                        query = RagQuery.prepare(tldrAttempt.words);
                         result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
                     }
+                    TldrService.finish(sb, tldrAttempt, 0, result.selected.size(), member == null && (shield == LLMAccess.Shield.ADMIN
+                            || shield == LLMAccess.Shield.LOCAL && sb.verifyAuthentication(new net.yacy.cora.protocol.RequestHeader(hrequest))));
                 }
                 final int sourceChars = Math.max(0, budget.sourceChars(RagConversation.historyChars(messages)) - currentExtraChars);
                 // Scoutro knowledge graph: facts of the entities the question names or the found pages hold, as further
@@ -384,9 +385,21 @@ public class RAGProxyServlet extends HttpServlet {
                 retrieval.put("collection", scope == null ? JSONObject.NULL : scope);
                 retrieval.put("global", result.global);
                 retrieval.put("candidates", result.candidates);
+                final JSONArray matches = new JSONArray();
+                for (final RagRetriever.Scored scored : result.selected) {
+                    matches.put(new JSONObject().put("url", scored.candidate.url).put("concepts", scored.strong)
+                            .put("original", scored.exactStrong).put("expanded", scored.expanded));
+                }
+                retrieval.put("matches", matches);
                 retrieval.put("contextChars", contextText.length());
                 retrieval.put("contextTokens", RagContext.tokens(contextText.length()));
                 retrieval.put("numCtx", llm4Chat.llm.num_ctx);
+                if (tldrAttempt != null) {
+                    final JSONObject tldrMeta = new JSONObject(tldrAttempt.details.toString());
+                    // The response goes only to this chat. Full questions/answers require the admin diagnostic history.
+                    tldrMeta.remove("input"); tldrMeta.remove("raw"); tldrMeta.remove("instruction");
+                    retrieval.put("tldr", tldrMeta);
+                }
                 initialMetadata.put("scoutro-retrieval", retrieval);
                 if (!contextText.isEmpty()) {
                     // the attachment the chat page keeps for follow-up questions: exactly what the model saw

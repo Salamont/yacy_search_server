@@ -210,7 +210,7 @@ public final class RagContext {
         if (sentences.isEmpty()) return "";
         final int[] score = new int[sentences.size()];
         for (int i = 0; i < sentences.size(); i++) {
-            score[i] = RagCandidate.matched(query, RagQuery.fold(sentences.get(i))).size();
+            score[i] = candidate.matchedWithAlternatives(query, RagQuery.fold(sentences.get(i))).size();
         }
         final boolean[] chosen = new boolean[sentences.size()];
         int used = 0;

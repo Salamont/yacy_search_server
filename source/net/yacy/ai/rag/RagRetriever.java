@@ -33,18 +33,31 @@ public final class RagRetriever {
         List<RagCandidate> search(String query, String collection, int count, boolean global);
     }
 
+    /** Production search also receives the original concepts, before expansion into a search string. */
+    public interface ConceptSearcher {
+        List<RagCandidate> search(RagQuery concepts, String query, String collection, int count, boolean global);
+    }
+
     /** A selected candidate with its match counts. */
     public static final class Scored {
         public final RagCandidate candidate;
         public final int strong;
         public final int all;
         public final int title;
+        public final int exactStrong;
+        public final int expanded;
 
         Scored(final RagCandidate candidate, final int strong, final int all, final int title) {
+            this(candidate, strong, all, title, strong, 0);
+        }
+
+        Scored(final RagCandidate candidate, final int strong, final int all, final int title, final int exactStrong, final int expanded) {
             this.candidate = candidate;
             this.strong = strong;
             this.all = all;
             this.title = title;
+            this.exactStrong = exactStrong;
+            this.expanded = expanded;
         }
     }
 
@@ -73,9 +86,13 @@ public final class RagRetriever {
         }
     }
 
-    private final Searcher searcher;
+    private final ConceptSearcher searcher;
 
     public RagRetriever(final Searcher searcher) {
+        this((concepts, query, collection, count, global) -> searcher.search(query, collection, count, global));
+    }
+
+    public RagRetriever(final ConceptSearcher searcher) {
         this.searcher = searcher;
     }
 
@@ -89,7 +106,7 @@ public final class RagRetriever {
         if (query.isEmpty()) return new Result(query, "", collection, remote, "no-terms", 0, 0, Collections.emptyList());
         // remote peers require every word (AND): plain words for the P2P search, base forms only locally
         final String searchQuery = query.searchString(!remote);
-        final List<RagCandidate> found = this.searcher.search(searchQuery, collection, CANDIDATES, remote);
+        final List<RagCandidate> found = this.searcher.search(query, searchQuery, collection, CANDIDATES, remote);
         final List<RagCandidate> candidates = new ArrayList<>();
         int foreign = 0;
         if (found != null) {
@@ -106,7 +123,11 @@ public final class RagRetriever {
             int strong = 0;
             for (final RagQuery.Term term : matched) if (onlyWeak || !term.weak) strong++;
             if (strong == 0) continue;
-            scored.add(new Scored(candidate, strong, matched.size(), candidate.matchedInTitle(query).size()));
+            final Set<RagQuery.Term> exact = candidate.exact(query);
+            int exactStrong = 0;
+            for (final RagQuery.Term term : exact) if (onlyWeak || !term.weak) exactStrong++;
+            scored.add(new Scored(candidate, strong, matched.size(), candidate.matchedInTitle(query).size(), exactStrong,
+                    matched.size() - exact.size()));
         }
         final String[] stages = {"all", "majority", "any"};
         final int[] needs = {strongTotal, Math.max(1, (strongTotal + 1) / 2), 1};
@@ -116,7 +137,7 @@ public final class RagRetriever {
             final List<Scored> accepted = new ArrayList<>();
             for (final Scored candidate : scored) if (candidate.strong >= need) accepted.add(candidate);
             if (accepted.isEmpty()) continue;
-            accepted.sort(Comparator.comparingInt((Scored c) -> -c.strong).thenComparingInt(c -> -c.all)
+            accepted.sort(Comparator.comparingInt((Scored c) -> -c.strong).thenComparingInt(c -> -c.exactStrong).thenComparingInt(c -> c.expanded).thenComparingInt(c -> -c.all)
                     .thenComparingInt(c -> -c.title).thenComparingInt(c -> c.candidate.rank));
             return new Result(query, searchQuery, collection, remote, stages[s], candidates.size(), foreign,
                     new ArrayList<>(accepted.subList(0, Math.min(Math.max(1, maxSources), accepted.size()))));

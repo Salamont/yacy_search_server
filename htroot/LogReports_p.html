@@ -159,6 +159,19 @@
         padding: 12px;
         margin: 10px 0 16px 0;
       }
+      .logreport-settings { margin-bottom: 20px; min-width: 0; }
+      .logreport-status-scroll { overflow-x: auto; }
+      .report-delete-form { position: absolute; right: 4px; top: 8px; }
+      .report-delete-form button { min-height: 40px; min-width: 40px; }
+      @media (max-width: 700px) {
+        .logreport-layout { flex-direction: column; }
+        .logreport-nav { flex-basis: auto; width: 100%; max-height: 250px; }
+        .logreport-main { width: 100%; }
+        .logreport-settings input, .logreport-settings select, .logreport-actions input { max-width: 100%; min-height: 40px; }
+        .logreport-settings p, .report-schedule-status dd { overflow-wrap: anywhere; }
+        .logreport-settings label, .logreport-actions label { display: block; }
+        .logreport-settings button { min-height: 44px; }
+      }
     </style>
   </head>
   <body id="LogReports">
@@ -167,17 +180,85 @@
 
     <h2>Log Reports</h2>
 
+    <fieldset class="logreport-settings">
+      <legend>Automatic reports – settings</legend>
+      <p role="status">#[settingsMessage]#</p>
+      <p>Assigned model: <strong>#[reportModel]#</strong>. <a href="LLMSelection_p.html">Model settings</a></p>
+      <p>One report covers one selected interval. Weekly and monthly schedules do not generate hourly reports.</p>
+      <form action="LogReports_p.html" method="post" accept-charset="UTF-8" id="reportScheduleForm">
+        <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+        <p><label for="scheduleMode">Schedule</label>
+          <select id="scheduleMode" name="scheduleMode" data-current="#[scheduleMode]#">
+            <option value="off">Off</option><option value="hourly">Hourly</option><option value="daily">Daily</option>
+            <option value="weekly">Weekly</option><option value="monthly">Monthly</option>
+          </select>
+        </p>
+        <p data-schedule="hourly"><label for="scheduleHours">Every</label>
+          <select id="scheduleHours" name="scheduleHours" data-current="#[scheduleHours]#">
+            <option value="1">1 h</option><option value="2">2 h</option><option value="4">4 h</option><option value="6">6 h</option><option value="12">12 h</option>
+          </select>
+        </p>
+        <p data-schedule="weekly"><label for="scheduleWeekday">Weekday</label>
+          <select id="scheduleWeekday" name="scheduleWeekday" data-current="#[scheduleWeekday]#">
+            <option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option>
+            <option value="5">Friday</option><option value="6">Saturday</option><option value="7">Sunday</option>
+          </select>
+        </p>
+        <p data-schedule="monthly"><label for="scheduleMonthday">Day of month</label>
+          <select id="scheduleMonthday" name="scheduleMonthday" data-current="#[scheduleMonthday]#"><option value="0">Last day of month</option>
+<option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option>
+          </select>
+          <span>Unavailable calendar days use the last day.</span>
+        </p>
+        <p data-schedule="daily weekly monthly"><label for="scheduleTime">Execution time</label>
+          <input type="time" id="scheduleTime" name="scheduleTime" value="#[scheduleTime]#" required="required" />
+        </p>
+        <p><label for="scheduleZone">Timezone</label> <input id="scheduleZone" name="scheduleZone" value="#[reportZone]#" required="required" list="reportZones" />
+          <datalist id="reportZones"><option value="Europe/Berlin"></option><option value="UTC"></option></datalist>
+        </p>
+        <p>Calendar schedules follow local time with daylight saving changes. A missing local time moves forward; a repeated time runs once. Hourly intervals use elapsed hours.</p>
+        <p>No catch-up of missed periods. Existing reports and logs are retained. Each report shows available entries and coverage gaps.</p>
+        <button type="submit" name="saveReportSettings" value="1" class="btn btn-primary">Save report settings</button>
+      </form>
+      #(migrationNotice)#::<p>Legacy settings are retained. The former primary interval is migrated to a single schedule; parallel daily consolidation is no longer automatic. Review the desired schedule.</p>#(/migrationNotice)#
+      <dl class="report-schedule-status">
+        <dt>Actual state</dt><dd>#[scheduleState]#</dd>
+        <dt>Next execution</dt><dd id="reportNextRun">#[scheduled_next]#</dd>
+        <dt>Last completed period</dt><dd id="reportCompletedPeriod">#[completedPeriod]#</dd>
+        <dt>Last success</dt><dd>#[scheduled_success]#</dd><dt>Last failure</dt><dd>#[scheduled_failure]#</dd>
+      </dl>
+      <p>Last result: #[scheduled_message]#</p>
+      <p>Reports use only the available YaCy standard logs. Weekly and monthly history is not guaranteed. No additional log collection runs.</p>
+      <script type="text/javascript">
+        (function () {
+          document.querySelectorAll('#reportScheduleForm select[data-current]').forEach(function (field) { field.value = field.dataset.current; });
+          var mode = document.getElementById('scheduleMode');
+          function updateSchedule() {
+            document.querySelectorAll('[data-schedule]').forEach(function (row) { row.hidden = row.dataset.schedule.split(' ').indexOf(mode.value) === -1; });
+          }
+          mode.addEventListener('change', updateSchedule); updateSchedule();
+        })();
+      </script>
+    </fieldset>
+
     <!-- the report computation runs asynchronously on the server (LogReportService
          manual job); this form only triggers it and returns immediately. While the
          job is running the button is disabled, the progress box is shown and the
          script below polls the page until the result is available -->
     <form action="LogReports_p.html" method="post" accept-charset="UTF-8" class="logreport-actions" id="runReportForm">
+      <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+      <p><label for="manualReportStart">Period start</label> <input type="datetime-local" name="reportStart" id="manualReportStart" step="60" value="#[reportStart]#" required="required" /></p>
+      <p><label for="manualReportEnd">Period end (exclusive)</label> <input type="datetime-local" name="reportEnd" id="manualReportEnd" step="60" max="#[reportEnd]#" value="#[reportEnd]#" required="required" /></p>
+      <p>Period: <span id="manualReportPeriod">#[reportPeriod]#</span> (#[reportZone]#).</p>
+      <p><label><input type="checkbox" name="recreateReport" /> Explicitly recreate an already processed period</label></p>
+      <p>Manual generation works while automation is off. A model call may incur API charges. Select a past period; unavailable logs and uncertain coverage are shown.</p>
       <button type="submit" name="runReportNow" value="1" class="btn btn-primary" id="runReportButton" #(reportRunning)#::disabled="disabled"#(/reportRunning)#>run report now</button>
     </form>
 
+    <div id="manualReportError" role="alert" class="logreport-warning" style="display:none"></div>
     <div class="logreport-progress" id="runReportProgress" #(reportRunning)#::style="display:flex"#(/reportRunning)#>
       <div class="spinner"></div>
-      <div>Generating report from the current-hour log lines &mdash; the LLM call can take a while &hellip;
+      <div>Generating one situation report for the selected period &mdash; the LLM call can take a while &hellip;
         <span id="runReportElapsed">#(reportRunning)#0::#[elapsedSeconds]##(/reportRunning)#</span> seconds elapsed</div>
     </div>
 
@@ -188,6 +269,10 @@
       // reloads - the partially generated report is rendered in place so the user
       // can read and scroll in it while it is still being completed.
       (function () {
+        var startInput = document.getElementById("manualReportStart");
+        var endInput = document.getElementById("manualReportEnd");
+        function showPeriod() { document.getElementById("manualReportPeriod").textContent = startInput.value + " – " + endInput.value; }
+        startInput.addEventListener("change", showPeriod); endInput.addEventListener("change", showPeriod);
         var button = document.getElementById("runReportButton");
         var progress = document.getElementById("runReportProgress");
         var elapsedElement = document.getElementById("runReportElapsed");
@@ -226,9 +311,9 @@
           clearInterval(pollTimer);
           setRunningUI(false);
           if (status.outcome === 1) {
-            if (liveTitle) liveTitle.textContent = "YaCy hourly log report (just generated)";
+            if (liveTitle) liveTitle.textContent = "Scoutro situation report (just generated)";
             if (liveMeta) liveMeta.textContent = status.message + " - " + status.durationSeconds + " seconds";
-            showResultBox("logreport-message", "Current-hour report written: " + status.message + " (" + status.durationSeconds + " seconds)");
+            showResultBox("logreport-message", "Selected-period report written: " + status.message + " (" + status.durationSeconds + " seconds)");
             // add the new report to the navigation column; a delete button is
             // omitted here on purpose, a page reload will offer it
             var nav = document.querySelector(".logreport-nav");
@@ -242,14 +327,14 @@
               date.textContent = status.message.replace(/^report-(\d{4}-\d{2}-\d{2})-(\d{2})\.md$/, "$1 $2:00");
               var type = document.createElement("span");
               type.className = "nav-type";
-              type.textContent = "hourly report";
+              type.textContent = "situation report";
               a.appendChild(date);
               a.appendChild(type);
               li.appendChild(a);
               nav.insertBefore(li, nav.firstChild);
             }
           } else if (status.outcome === 2) {
-            showResultBox("logreport-warning", "No log lines were found for the current hour.");
+            showResultBox("logreport-warning", "No operational data were available for the selected period.");
           } else if (status.outcome === 3) {
             showResultBox("logreport-warning", "No production model is configured for the log-report role.");
           } else if (status.outcome === 4) {
@@ -284,10 +369,15 @@
         document.getElementById("runReportForm").addEventListener("submit", function (event) {
           event.preventDefault();
           setRunningUI(true);
-          fetch("LogReports_p.html", { method: "POST", body: new URLSearchParams({ runReportNow: "1" }) })
-            .then(function () { startPolling(); })
+          var data = new URLSearchParams(new FormData(event.target));
+          data.set("runReportNow", "1");
+          fetch("LogReports_p.html", { method: "POST", body: data })
+            .then(function (response) { if (!response.ok) throw new Error("Report request rejected"); startPolling(); })
             .catch(function (err) {
               console.warn("could not start report generation", err);
+              var errorBox = document.getElementById("manualReportError");
+              errorBox.textContent = "Could not start report generation. Reload the page, check the login and selected period, then try again.";
+              errorBox.style.display = "block";
               setRunningUI(false);
             });
         });
@@ -300,9 +390,9 @@
 
     #(runReportResult)#
     ::
-    <div class="logreport-message">Current-hour report written: #[runReportFile]# (#[runReportDurationSeconds]# seconds)</div>
+    <div class="logreport-message">Selected-period report written: #[runReportFile]# (#[runReportDurationSeconds]# seconds)</div>
     ::
-    <div class="logreport-warning">No log lines were found for the current hour.</div>
+    <div class="logreport-warning">No operational data were available for the selected period.</div>
     ::
     <div class="logreport-warning">
       No production model is configured for the log-report role. Assign one in the
@@ -331,7 +421,7 @@
 
     #(reportdirMissing)#
     ::
-    <div class="logreport-empty">The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.</div>
+    <div class="logreport-empty">The report directory does not exist yet. Reports will appear here after the first completed reporting period.</div>
     #(/reportdirMissing)#
 
     #(hasReports)#
@@ -342,9 +432,12 @@
         <li #(selected)#::class="selected"#(/selected)#>
           <a href="LogReports_p.html?report=#[filename]#" title="#[filename]#">
             <span class="nav-date">#[date]#</span>
-            <span class="nav-type">#[type]# report</span>
+            <span class="nav-type">#[type]#</span>
           </a>
-          <a class="nav-delete" href="LogReports_p.html?deleteReport=#[filename]#" title="delete this report">&times;</a>
+          <form action="LogReports_p.html" method="post" class="report-delete-form">
+            <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+            <button type="submit" name="deleteReport" value="#[filename]#" title="delete this report">&times;</button>
+          </form>
         </li>
         #{/reports}#
       </ul>
@@ -367,7 +460,7 @@
           <div class="logreport-header">
             <div class="logreport-title">#[title]#</div>
             <div class="logreport-meta">
-              #[type]# report - #[filename]# - #[published]# - #[chars]# characters
+              #[type]# - #[filename]# - #[published]# - #[chars]# characters
             </div>
           </div>
           <!-- the template writes the escaped markdown source into this element; the

@@ -210,3 +210,46 @@ Real-model check against an OpenAI-compatible endpoint (read-only, disposable DA
 SCOUTRO_RAG_LLM=http://<ollama-host>:11434 SCOUTRO_RAG_MODEL=llama3.1:8b \
 SCOUTRO_RAG_NUM_CTX=8192 python3 test/scoutro-rag/rag-quality.py --label real --out real.json
 ```
+
+## Search-scoped synonym matching
+
+The production retriever passes its original prepared `RagQuery` together with the
+expanded search string through `ConceptSearcher` to `RAGAugmentor`. The synonym
+resolver uses that same object as scoring and excerpts. Expanded strings are never
+passed through stopword/acronym filtering or `MAX_TERMS` selection a second time.
+This preserves short concepts such as `TV` and all original concepts of long queries.
+The resolver still intersects forms with YaCy's effective included words, so existing
+query exclusions remain effective. A single uppercase acronym is retained on initial
+preparation; the existing stopword treatment of all-uppercase sentences remains.
+
+`python3 test/scoutro-ui/pr75-blockers-live-smoke.py` exercises the real chat endpoint,
+embedded Solr, outbound model context and failed AI-settings persistence/restart on
+a disposable peer with a counting localhost model; it accepts no production DATA.
+
+RAG carries grounded search alternatives into both candidate scoring and sentence
+selection. `RagSynonyms` uses the live embedded schema's query analyzer for fields
+actually present in this request's `qf`, including multi-token graph paths. The
+index-side path additionally requires `synonyms_sxt` in `qf`, the corresponding
+metadata on this candidate, and a document word whose currently loaded YaCy
+synonym mapping actually generates the query form. Metadata without readable text
+is insufficient. Remote-only/unknown schemas fail closed to the previous matching.
+No new dictionary is imported and no broad category alias becomes a search synonym.
+
+Each original `RagQuery.Term` counts once. Exact/original-form and expanded match
+counts remain separate; exact coverage ranks ahead of expanded coverage at equal
+concept coverage. The existing strictest successful stage and candidate/source
+budgets remain. `RagContext` uses the same candidate alternatives to select relevant
+sentences. Short acronyms now require both word boundaries (`KI` does not match
+`Kita`). Long original stems retain existing compound handling.
+
+The small directional exclusion setting `ai.rag.synonyms.blocked_pairs` defaults
+to `beratung=besprechung;besprechung=beratung`, because the bundled thesaurus group
+mixes a service and a meeting. Extend only after relevance tests; it is not a new
+taxonomy. No lexical mechanism disambiguates all polysemy. Retrieval does not create
+provider facts. Negations and third-party attribution are preserved in source text,
+and answer instructions explicitly prohibit turning them into own-provider claims.
+
+`RagSynonymsSolrTest` supplements the simple corpus searcher with an actual embedded
+Solr instance, repository schema/default query fields, bounded existing-dictionary
+fixtures, all four collections, exact/synonym ranking, missing text, excerpts, and
+negative controls. No production index or LLM is involved.

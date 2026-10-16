@@ -262,3 +262,91 @@ Never switch the knowledge usage automatically from a result.
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.
 
 On narrow screens the Services, Available Models and Production Models Matrix use labelled cards from the same table cells and controls. Existing model/usage/context-window save handlers are reused; resizing does not create a second model list or save path.
+
+## TLDR: search-query fallback, controls and manual test
+
+`tldr-shortener` is a search-query role, not a stored web-page summarizer. Automatic
+use requires **all** of: `ai.tldr.enabled=true` (new, compatibility default true), an
+assigned `tldr` model, a question longer than 40 words, and no selected sources from
+the first RAG retrieval. The switch is independent of the model-role assignment:
+assigning a model makes manual tests available, while the switch controls only
+automatic use. No other model role or ordinary retrieval is changed.
+
+**TLDR testen** explicitly makes one bounded model request even when automation is
+off. It does not search, crawl, index or mutate the graph. Review possible API
+charges before clicking. The result displays the original input, actual instruction,
+original response content, parsed terms, effective query, validity/error, duration
+and token usage if returned. Invalid output is not used as a query. Model-produced
+collection/site operators cannot change the existing authorized retrieval scope.
+Manual source comparison is not performed (`sourcesBefore/After=-1`). Automatic
+calls report selected source counts before/after retry.
+
+The operator history includes only administrator/local administrator-owned calls.
+Other accounts' content is not available through this page; their own chat may
+receive TLDR metadata in `scoutro-retrieval.tldr`. History is memory-only, at most
+32 records for 30 minutes. Full question/instruction/response content is omitted
+unless the operator explicitly enables diagnostics for 15 minutes. The new
+`ai.tldr.diagnostics_until` is an expiry timestamp, not stored chat content. Content
+expires at that deadline and is purged on access; history is cleared on restart
+and can be cleared manually. Known credential patterns are redacted in retained
+content; configured API keys never enter it.
+
+All settings, model-matrix writes and manual tests require administrator access,
+POST and the existing `transactionToken` obtained from this page. The model matrix
+JSON body remains unchanged; send the token as a request parameter. Additional
+form actions: `saveTldrSettings` with optional `tldrEnabled`/`tldrDiagnostics`,
+`testTldr` with `tldrQuestion` (1–16000 characters and within the model context
+budget), and `clearTldrHistory`. Automatic output remains capped at 200 tokens,
+the manual test shares that path, and calls have a 30-second read timeout and a
+16 KiB response cap. A configured model is not a guarantee of endpoint health;
+loading this page does not probe it with a paid inference request.
+
+## Optional TLDR and log-report model roles
+
+Saving the affected AI settings now requires a checked atomic write before runtime
+values change. A write failure returns HTTP 500 without a success message, retaining
+the previous roles, activation and stored API keys. The matrix checks HTTP errors,
+shows a visible failure and re-reads saved role checkboxes. Existing asynchronous
+saves are serialized; reload after an unreachable peer to verify its actual state.
+The old automatic functions can remain active when an attempted shutdown was not
+saved. No question, key or upstream error body is included in the save error.
+
+The existing `tldr-shortener` and `log-report` matrix checkboxes select optional
+model roles (`tldr` and `logreport` in `ai.production_models`). Clearing either
+checkbox leaves the role unassigned, including when other models exist. Removing
+its model does not transfer the role, and deploying a new model never automatically
+assigns it. The existing `knowledge` opt-in behavior is unchanged.
+
+No additional switch or configuration key is introduced. Automatic TLDR still
+requires both an assigned model and the existing `ai.tldr.enabled`; automatic
+log reports still require an assigned model and the existing enabled schedule /
+`ai.logreport.enabled`. The report schedule is unchanged. No assigned role means
+no automatic model call, even when its enable setting remains configured on.
+Assigning a model explicitly does not change these enable settings.
+
+The matrix shows model assignment. The existing TLDR status shows the assigned
+model and whether automatic fallback is active, off, or unavailable. The existing
+Log Reports page shows report model, actual state and schedule. Reload updates
+these server-rendered readouts after a matrix change. These are two existing
+requirements (assignment and automatic use), not two competing activation settings.
+
+For the unchanged manual TLDR test, keep a model assigned and switch automatic
+fallback off. The explicit test button still works and can incur API costs. With
+no assigned model it remains unavailable; no replacement model is chosen for it.
+Saving matrix assignments uses the existing authenticated POST with transaction
+token. No changes are made to chat/RAG, the knowledge pipeline, reporting sources,
+report generation, scheduler, or databases by this correction.
+
+### Existing operation without a report model (read-only inventory)
+
+YaCy already has LLM-free operator views: `ViewLog_p.html` reads the standard
+GuiHandler log buffer; `Status.html` shows peer/system/resource state;
+`PerformanceMemory_p.html`, `PerformanceSearch_p.html`, and
+`PerformanceConcurrency_p.html` show memory, search events and worker state from
+existing runtime structures. Normal FileHandler logging/rotation is independent
+of model roles. Existing report files remain readable in `LogReports_p.html`.
+
+These views are retained unchanged. No independent automatic narrative weekly or
+monthly situation report without an LLM was identified in the reviewed report
+code. The existing no-data notice is not such an operational report. No new
+non-LLM report or replacement generation mode is introduced.

@@ -143,8 +143,8 @@ public final class RagQuery {
         String questionCollection = null;
         final Map<String, Term> terms = new LinkedHashMap<>();
         final Matcher tokens = TOKEN.matcher(text);
-        // a question written in capitals has no acronyms
-        final boolean capitals = text.equals(text.toUpperCase(Locale.ROOT));
+        // A whole sentence in capitals has no acronyms; a single "TV" still is one.
+        final boolean capitals = text.codePoints().anyMatch(Character::isWhitespace) && text.equals(text.toUpperCase(Locale.ROOT));
         int position = 0;
         while (tokens.find()) {
             if (tokens.group(1) != null) { // quoted phrase

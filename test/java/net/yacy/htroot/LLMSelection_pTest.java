@@ -16,6 +16,34 @@ import org.junit.Test;
 /** Stored API keys are never rendered, and an empty field keeps them. */
 public class LLMSelection_pTest {
 
+    @Test
+    public void checkedSettingsFailureNeverPublishesOrLosesOtherValues() throws Exception {
+        final java.nio.file.Path root = Files.createTempDirectory("checked-ai-settings-");
+        final net.yacy.server.serverSwitch config = new net.yacy.server.serverSwitch(root.toFile(),
+                new java.io.File("."), "defaults/yacy.init", "settings.conf");
+        config.setConfigChecked(java.util.Map.of("ai.tldr.enabled", "true", "ai.production_models", stored().toString(),
+                "operator.setting", "kept"));
+        final byte[] before = Files.readAllBytes(root.resolve("settings.conf"));
+        final java.util.Set<java.nio.file.attribute.PosixFilePermission> permissions = Files.getPosixFilePermissions(root);
+        try {
+            Files.setPosixFilePermissions(root, java.nio.file.attribute.PosixFilePermissions.fromString("r-xr-xr-x"));
+            try {
+                config.setConfigChecked(java.util.Map.of("ai.tldr.enabled", "false", "ai.production_models", "[]"));
+                org.junit.Assert.fail("read-only configuration must fail");
+            } catch (final java.io.IOException expected) { }
+            assertEquals("true", config.getConfig("ai.tldr.enabled", ""));
+            assertEquals(stored().toString(), config.getConfig("ai.production_models", ""));
+            org.junit.Assert.assertArrayEquals(before, Files.readAllBytes(root.resolve("settings.conf")));
+        } finally { Files.setPosixFilePermissions(root, permissions); }
+        config.setConfigChecked(java.util.Map.of("ai.tldr.enabled", "false"));
+        final net.yacy.server.serverSwitch restarted = new net.yacy.server.serverSwitch(root.toFile(),
+                new java.io.File("."), "defaults/yacy.init", "settings.conf");
+        assertEquals("false", restarted.getConfig("ai.tldr.enabled", ""));
+        assertEquals(stored().toString(), restarted.getConfig("ai.production_models", ""));
+        assertEquals("kept", restarted.getConfig("operator.setting", ""));
+        net.yacy.kelondro.util.FileUtils.deletedelete(root.toFile());
+    }
+
     private static JSONArray stored() throws Exception {
         return new JSONArray()
                 .put(new JSONObject().put("service", "OPENAI").put("model", "a").put("hoststub", "https://api.example.org/").put("api_key", "sk-row-a"))

@@ -36,7 +36,7 @@ try {
         const saves = [];
         page.on('pageerror', error => errors.push(error.message));
         // Exercise serialization without changing even the disposable peer's settings.
-        await page.route('**/LLMSelection_p.html', route => {
+        await page.route('**/LLMSelection_p.html*', route => {
           if (route.request().method() !== 'POST') return route.continue();
           saves.push(route.request().postDataJSON());
           return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
@@ -136,6 +136,7 @@ try {
         check(saves.some(save => save.production_models?.some(model => model.service === 'OLLAMA' && model.model === 'fixture-model:latest')), `${width}: canonical production model serialized`);
         const deployed = saves.at(-1).production_models.find(model => model.model === 'fixture-model:latest');
         check(deployed.knowledge === false, `${width}: the opt-in knowledge usage is not assigned automatically: ${JSON.stringify(deployed)}`);
+        check(deployed.tldr === false && deployed.logreport === false, `${width}: optional TLDR/report roles stay off on first deployment: ${JSON.stringify(deployed)}`);
         check((await page.locator('#productionModelsTable thead').textContent()).includes('knowledge'), `${width}: knowledge column`);
         // Reflow must preserve the exact original controls and serialized grant.
         const beforeReflow = saves.at(-1).production_models;

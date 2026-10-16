@@ -536,56 +536,45 @@ public final class FileUtils {
     private final static String[] unescaped_strings_out = {"\\", "\n", "="};
 
     public static void saveMap(final File file, final Map<String, String> props, final String comment) {
-        final String lockKey = file.getAbsolutePath();
-        final Object lock = SAVE_MAP_LOCKS.computeIfAbsent(lockKey, k -> new Object());
+        try {
+            saveMapInternal(file, props, comment, false);
+        } catch (final IOException e) {
+            ConcurrentLog.severe("FileUtils", "Could not persist map to " + file + ": " + e.getMessage(), e);
+        }
+    }
+
+    /** Same map format and atomic replacement, with checked I/O for callers requiring confirmed persistence. */
+    public static void saveMapChecked(final File file, final Map<String, String> props, final String comment) throws IOException {
+        saveMapInternal(file, props, comment, true);
+    }
+
+    private static void saveMapInternal(final File file, final Map<String, String> props, final String comment,
+            final boolean sync) throws IOException {
+        final Object lock = SAVE_MAP_LOCKS.computeIfAbsent(file.getAbsolutePath(), k -> new Object());
         synchronized (lock) {
-            /* Take the snapshot in write order so delayed callers cannot persist stale state. */
             final Map<String, String> propsCopy = new TreeMap<>(props);
-            File tf = null;
-            PrintWriter pw = null;
+            final File parent = file.getAbsoluteFile().getParentFile();
+            if (!parent.exists() && !parent.mkdirs()) throw new IOException("Cannot create configuration directory");
+            final String baseName = file.getName();
+            final File temp = File.createTempFile(baseName.length() < 3 ? baseName + "___" : baseName, ".tmp", parent);
             try {
-                final File parent = file.getAbsoluteFile().getParentFile();
-                if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                    ConcurrentLog.warn("FileUtils", "Could not create parent directory for " + file);
-                    return;
-                }
-                final String baseName = file.getName();
-                final String prefix = (baseName.length() < 3) ? (baseName + "___").substring(0, 3) : baseName;
-                tf = File.createTempFile(prefix, ".tmp", parent);
-
-                pw = new PrintWriter(tf, StandardCharsets.UTF_8.name());
-                pw.println("# " + comment);
-                String key, value;
-                for ( final Map.Entry<String, String> entry : propsCopy.entrySet() ) {
-                    key = entry.getKey();
-                    if ( key != null ) {
-                        key = StringUtils.replaceEach(key, unescaped_strings_in, escaped_strings_out);
+                try (FileOutputStream output = new FileOutputStream(temp);
+                        PrintWriter writer = new PrintWriter(output, false, StandardCharsets.UTF_8)) {
+                    writer.println("# " + comment);
+                    for (final Map.Entry<String, String> entry : propsCopy.entrySet()) {
+                        final String key = entry.getKey() == null ? null
+                                : StringUtils.replaceEach(entry.getKey(), unescaped_strings_in, escaped_strings_out);
+                        final String value = entry.getValue() == null ? ""
+                                : StringUtils.replaceEach(entry.getValue(), unescaped_strings_in, escaped_strings_out);
+                        writer.println(key + "=" + value);
                     }
-                    if ( entry.getValue() == null ) {
-                        value = "";
-                    } else {
-                        value = entry.getValue();
-                        value = StringUtils.replaceEach(value, unescaped_strings_in, escaped_strings_out);
-                    }
-                    pw.println(key + "=" + value);
+                    writer.println("# EOF");
+                    if (writer.checkError()) throw new IOException("Cannot write configuration");
+                    if (sync) output.getFD().sync();
                 }
-                pw.println("# EOF");
-                pw.flush();
-                pw.close();
-                pw = null;
-
-                forceMove(tf, file);
-            } catch (final FileNotFoundException | UnsupportedEncodingException e ) {
-                ConcurrentLog.warn("FileUtils", "Could not write map to temporary file for " + file + ": " + e.getMessage(), e);
-            } catch (final IOException e) {
-                ConcurrentLog.severe("FileUtils", "Could not persist map to " + file + ": " + e.getMessage(), e);
+                forceMove(temp, file);
             } finally {
-                if (pw != null) {
-                    pw.close();
-                }
-                if (tf != null && tf.exists()) {
-                    FileUtils.deletedelete(tf);
-                }
+                FileUtils.deletedelete(temp);
             }
         }
     }

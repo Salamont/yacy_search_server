@@ -302,10 +302,19 @@ public class serverSwitch {
     }
 
     public void setConfig(final String key, final String value) {
-        // set the value
-        final String oldValue = this.configProps.put(key, value);
-        if (oldValue == null || !value.equals(oldValue)) {
-            this.saveConfig(saveOriginContext.get());
+        synchronized (this.configProps) {
+            final String oldValue = this.configProps.put(key, value);
+            if (oldValue == null || !value.equals(oldValue)) this.saveConfig(saveOriginContext.get());
+        }
+    }
+
+    /** Opt-in checked batch for AI settings: publish to readers only after the complete file is saved. */
+    public void setConfigChecked(final Map<String, String> updates) throws IOException {
+        synchronized (this.configProps) {
+            final Map<String, String> next = new TreeMap<>(this.configProps);
+            next.putAll(updates);
+            FileUtils.saveMapChecked(this.configFile, next, this.configComment);
+            this.configProps.putAll(updates);
         }
     }
 
@@ -323,7 +332,7 @@ public class serverSwitch {
     }
 
     public void removeConfig(final String key) {
-        this.configProps.remove(key);
+        synchronized (this.configProps) { this.configProps.remove(key); }
     }
 
     /**
@@ -512,7 +521,9 @@ public class serverSwitch {
     }
 
     private void saveConfig(final SaveConfigOrigin origin) {
-        FileUtils.saveMap(this.configFile, this.configProps, this.configComment);
+        synchronized (this.configProps) {
+            FileUtils.saveMap(this.configFile, this.configProps, this.configComment);
+        }
         if (this.log != null && this.log.isFine()) {
             this.log.fine("Saved config to " + this.configFile + " (origin=" + origin + ")");
         }

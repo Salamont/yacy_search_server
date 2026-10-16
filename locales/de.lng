@@ -4222,6 +4222,10 @@ System Prompt==System-Prompt
 #-----------------------------
 
 #File: LLMSelection_p.html
+Not saved. Previous settings still apply; automatic functions may still be active. Check write permissions, storage and login, then reload.==Nicht gespeichert. Die bisherigen Einstellungen gelten weiter; automatische Funktionen können weiterhin aktiv sein. Schreibrechte, Speicherplatz und Anmeldung prüfen, danach neu laden.
+TLDR and log-report are optional model assignments. Clearing a role or removing its model leaves it unassigned; no other model takes over. Automatic use also requires its existing enable setting. Keep a TLDR model assigned with automatic fallback off for manual tests.==TLDR und Logbericht sind optionale Modellzuordnungen. Wird eine Rolle abgewählt oder ihr Modell entfernt, bleibt sie unzugewiesen; kein anderes Modell übernimmt. Automatische Nutzung erfordert zusätzlich die vorhandene Aktivierung. Für manuelle TLDR-Tests das Modell zugewiesen lassen und den automatischen Fallback ausschalten.
+Remove this model. Chat may be reassigned; optional roles stay unassigned.==Dieses Modell entfernen. Chat kann neu zugewiesen werden; optionale Rollen bleiben unzugewiesen.
+Allow automatic TLDR fallback for an assigned model==Automatischen TLDR-Fallback bei zugewiesenem Modell erlauben
 #---------------------------
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==In der "Produktionsmodell-Matrix" können Sie dann jedem ausgewählten Modell eine Funktion innerhalb von YaCy zuweisen
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> ist das Kontextfenster (in Tokens) des Inferenzdienstes &mdash; ein dienstspezifischer
@@ -4415,6 +4419,42 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 Start without a price: only the caps of calls and tokens apply, the cost stays unknown==Ohne Preis starten: Es gelten nur die Obergrenzen für Aufrufe und Tokens, die Kosten bleiben unbekannt
 <label>at most calls, retries included <input==<label>höchstens Aufrufe, Wiederholungen eingeschlossen <input
 <label>cost limit, against the estimate <input==<label>Kostengrenze, gegen die Schätzung <input
+
+# Scoutro query/report controls
+TLDR – automatically shorten search queries==TLDR – Suchanfragen automatisch verkürzen
+Only questions longer than 40 words without selected RAG sources use this fallback. No stored web page summaries are created.==Der Fallback verkürzt ausschließlich Fragen mit mehr als 40 Wörtern, wenn die erste RAG-Suche keine Quellen auswählt. Es entstehen keine gespeicherten Webseitenzusammenfassungen.
+Assigned model:==Zugewiesenes Modell:
+State:==Zustand:
+Enable automatic TLDR fallback==Automatischen TLDR-Fallback aktivieren
+Enable full administrator content diagnostics for 15 minutes==Vollständige Inhaltsdiagnose eigener Administratoraufrufe für 15 Minuten aktivieren
+Content diagnostics until:==Inhaltsdiagnose bis:
+Only administrator-owned calls are retained. History is memory-only, limited to 32 calls and 30 minutes; full content expires with diagnostics. Restart clears the history.==Gespeichert werden nur eigene Administratoraufrufe, ausschließlich im Arbeitsspeicher: höchstens 32 Aufrufe für 30 Minuten. Vollständige Inhalte verfallen mit der Diagnosefreigabe. Ein Neustart leert die Historie.
+Save TLDR settings==TLDR-Einstellungen speichern
+Clear TLDR history==TLDR-Historie löschen
+Question for manual TLDR test==Frage für den manuellen TLDR-Test
+Each test click calls the assigned model once and may incur API charges. Automatic fallback can stay off. No search, crawl, index or knowledge graph change is performed.==Jeder Testklick ruft das zugewiesene Modell einmal auf und kann API-Kosten verursachen. Die Automatik darf ausgeschaltet bleiben. Es erfolgen keine Suche, kein Crawl und keine Änderung an Index oder Wissensgraph.
+Test TLDR==TLDR testen
+TLDR test result==TLDR-Testergebnis
+Duration (ms):==Dauer (ms):
+Original input==Ursprüngliche Eingabe
+Actual instruction==Tatsächlich übergebene Instruktion
+Original model answer==Originale Modellantwort
+Parsed search terms==Geparste Suchbegriffe
+Effective search query==Effektive Suchanfrage
+Token usage (if returned)==Tokenverbrauch (soweit vom Anbieter geliefert)
+Recent TLDR calls and diagnostics==Letzte TLDR-Aufrufe und Diagnose
+This model shortens long chat questions into search terms only when the first RAG search selects no sources. It does not create stored web page summaries.==Dieses Modell verkürzt lange Chatfragen zu Suchbegriffen, wenn die erste RAG-Suche keine Quellen auswählt. Es erzeugt keine gespeicherten Webseitenzusammenfassungen.
+
+
+Recent TLDR calls==Letzte TLDR-Aufrufe
+Time and trigger==Zeitpunkt und Auslöser
+Model and state==Modell und Zustand
+Input words / output terms==Eingabewörter / Suchbegriffe
+Actual search terms==Tatsächliche Suchbegriffe
+Sources before / after==Quellen vorher / nachher
+Duration (ms)==Dauer (ms)
+Source count -1 means no search was performed by the manual test.==Die Quellenzahl -1 bedeutet, dass der manuelle Test keine Suche ausgeführt hat.
+
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier, nachdem der Scheduler den ersten vollständigen Stundenbericht erzeugt hat.
@@ -4434,6 +4474,84 @@ Feeds:==Feeds:
 JSON==JSON
 RSS==RSS
 #-----------------------------
+
+
+# Scoutro query/report controls
+Automatic reports – settings==Automatische Berichte – Einstellungen
+Assigned model:==Zugewiesenes Modell:
+Model settings==Modelleinstellungen
+Timezone:==Zeitzone:
+Daylight saving changes follow this server timezone. Repeated local hours are processed once.==Sommer- und Winterzeit folgen dieser Serverzeitzone. Doppelte lokale Stunden werden einmal verarbeitet.
+Automatic log reports==Automatische Logberichte
+Generation interval==Erstellungsintervall
+min (current)==Min. (aktuell)
+Daily consolidation==Tagesverdichtung
+Daily report time==Uhrzeit des Tagesberichts
+Intervals change the schedule, not the one-hour report buckets. Old periods are not replayed after activation or restart. Existing reports and logs are retained.==Das Intervall steuert den Zeitplan. Jeder Bericht umfasst weiter eine Stunde. Nach Aktivierung oder Neustart werden alte Zeiträume nicht nachgeholt. Vorhandene Berichte und Protokolle bleiben erhalten.
+Save report settings==Berichtseinstellungen speichern
+Report type==Berichtsart
+Actual state==Tatsächlicher Zustand
+Last success==Letzte erfolgreiche Erstellung
+Last failure==Letzte fehlgeschlagene Erstellung
+Next execution==Nächste Ausführung
+Hourly reports==Stundenberichte
+Daily reports==Tagesberichte
+Hourly result:==Ergebnis Stundenbericht:
+Daily result:==Ergebnis Tagesbericht:
+Report hour==Berichtsstunde
+Period:==Zeitraum:
+Explicitly recreate an already processed hour==Bereits verarbeitete Stunde ausdrücklich neu erstellen
+Manual generation works while automation is off. A model call may incur API charges. The selected current hour is incomplete.==Manuelle Erstellung ist auch bei ausgeschalteter Automatik möglich. Der Modellaufruf kann API-Kosten verursachen. Eine ausgewählte laufende Stunde ist noch unvollständig.
+
+
+Could not start report generation. Reload the page, check the login and selected period, then try again.==Die Berichtserstellung konnte nicht gestartet werden. Seite neu laden, Anmeldung und Zeitraum prüfen und erneut versuchen.
+
+
+Selected-hour report written:==Bericht für die gewählte Stunde erstellt:
+Generating report from the selected-hour log lines==Bericht für die gewählte Stunde wird erstellt
+
+# Flexible situation reports (long keys before shorter matches)
+Reports use only the available YaCy standard logs. Weekly and monthly history is not guaranteed. No additional log collection runs.==Berichte verwenden ausschließlich verfügbare YaCy-Standardlogs. Eine Wochen- oder Monatshistorie ist nicht garantiert. Es läuft keine zusätzliche Logsammlung.
+Unavailable calendar days use the last day.==Nicht vorhandene Kalendertage verwenden den letzten Monatstag.
+Legacy settings are retained. The former primary interval is migrated to a single schedule; parallel daily consolidation is no longer automatic. Review the desired schedule.==Alte Einstellungen bleiben erhalten. Das bisherige Hauptintervall wird in einen einzelnen Zeitplan übernommen; die parallele Tagesverdichtung entfällt. Bitte den gewünschten Zeitplan prüfen.
+Calendar schedules follow local time with daylight saving changes. A missing local time moves forward; a repeated time runs once. Hourly intervals use elapsed hours.==Kalenderpläne folgen der Ortszeit einschließlich Sommer-/Winterzeit. Eine fehlende Uhrzeit wird vorgerückt; eine doppelte Uhrzeit wird einmal ausgeführt. Stundenintervalle zählen verstrichene Stunden.
+Manual generation works while automation is off. A model call may incur API charges. Select a past period; unavailable logs and uncertain coverage are shown.==Manuelle Erstellung ist bei ausgeschalteter Automatik möglich. Ein Modellaufruf kann API-Kosten verursachen. Vergangenen Zeitraum wählen; fehlende Logs und unsichere Abdeckung werden ausgewiesen.
+No catch-up of missed periods. Existing reports and logs are retained. Each report shows available entries and coverage gaps.==Verpasste Zeiträume werden nicht nachgeholt. Vorhandene Berichte und Logs bleiben erhalten. Jeder Bericht zeigt verfügbare Einträge und Datenlücken.
+The report directory does not exist yet. Reports will appear here after the first completed reporting period.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier nach dem ersten abgeschlossenen Berichtszeitraum.
+One report covers one selected interval. Weekly and monthly schedules do not generate hourly reports.==Ein Bericht umfasst genau ein gewähltes Intervall. Wochen- und Monatspläne erzeugen keine zusätzlichen Stundenberichte.
+No operational data were available for the selected period.==Für den gewählten Zeitraum waren keine Betriebsdaten verfügbar.
+Generating one situation report for the selected period==Ein Lagebericht für den gewählten Zeitraum wird erstellt
+Explicitly recreate an already processed period==Bereits verarbeiteten Zeitraum ausdrücklich neu erstellen
+Scoutro situation report (just generated)==Scoutro-Lagebericht (soeben erstellt)
+Selected-period report written:==Lagebericht für den gewählten Zeitraum erstellt:
+Period end (exclusive)==Zeitraum bis (ausschließlich)
+Last completed period==Zuletzt abgeschlossener Berichtszeitraum
+Last day of month==Letzter Monatstag
+situation report==Lagebericht
+Execution time==Uhrzeit
+Reports found:==Gefundene Berichte:
+Day of month==Kalendertag
+Last result:==Letztes Ergebnis:
+Period start==Zeitraum von
+Directory:==Verzeichnis:
+characters==Zeichen
+Wednesday==Mittwoch
+Schedule==Zeitplan
+Thursday==Donnerstag
+Saturday==Samstag
+Timezone==Zeitzone
+Monthly==Monatlich
+Weekday==Wochentag
+Tuesday==Dienstag
+seconds==Sekunden
+Hourly==Stündlich
+Weekly==Wöchentlich
+Monday==Montag
+Friday==Freitag
+Sunday==Sonntag
+Daily==Täglich
+Every==Alle
+Off==Ausgeschaltet
 
 #File: IndexFederated_p.html
 #---------------------------

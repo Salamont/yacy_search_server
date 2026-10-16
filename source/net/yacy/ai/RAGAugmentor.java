@@ -35,6 +35,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import net.yacy.ai.rag.RagCandidate;
+import net.yacy.ai.rag.RagQuery;
+import net.yacy.ai.rag.RagSynonyms;
+import net.yacy.cora.language.synonyms.SynonymLibrary;
 import net.yacy.cora.document.analysis.Classification;
 import net.yacy.cora.document.id.DigestURL;
 import net.yacy.cora.document.id.MultiProtocolURL;
@@ -117,12 +120,27 @@ public final class RAGAugmentor {
      */
     public static List<RagCandidate> searchCandidates(final String query, final String collection, final int count,
             final boolean global, final String runId) {
+        return searchCandidates(RagQuery.prepare(query), query, collection, count, global, runId);
+    }
+
+    public static List<RagCandidate> searchCandidates(final RagQuery concepts, final String query, final String collection,
+            final int count, final boolean global, final String runId) {
         final List<RagCandidate> candidates = new ArrayList<>();
         final Switchboard sb = Switchboard.getSwitchboard();
         if (sb == null || query == null || query.trim().isEmpty() || count <= 0) return candidates;
         final QueryParams theQuery = buildTextQueryParams(query, count,
                 global ? QueryParams.Searchdom.GLOBAL : QueryParams.Searchdom.LOCAL, collection);
         final long start = System.currentTimeMillis();
+        RagSynonyms synonymResolver = null;
+        if (!global && sb.index.fulltext().connectedLocalSolr() && !sb.index.fulltext().connectedRemoteSolr()) {
+            final net.yacy.cora.federate.solr.connector.EmbeddedSolrConnector connector = sb.index.fulltext().getDefaultEmbeddedConnector();
+            if (connector != null) {
+                final org.apache.solr.client.solrj.SolrQuery solr = theQuery.solrQuery(Classification.ContentDomain.ALL, false, false, false);
+                synonymResolver = new RagSynonyms(connector.getCore().getLatestSchema(), solr.get("qf", ""), concepts,
+                        SynonymLibrary::getSynonyms, sb.getConfig(RagSynonyms.BLOCKED_CONFIG, RagSynonyms.DEFAULT_BLOCKED),
+                        theQuery.getQueryGoal().getIncludeWordsSet());
+            }
+        }
         final SearchEvent theSearch = startSearch(sb, theQuery);
         final long timeout = sb.getConfigLong(
                 SwitchboardConstants.REMOTESEARCH_MAXTIME_USER,
@@ -147,9 +165,11 @@ public final class RAGAugmentor {
             final List<String> collections = new ArrayList<>();
             final Collection<Object> values = node.getFieldValues(CollectionSchema.collection_sxt.getSolrFieldName());
             if (values != null) for (final Object value : values) if (value != null) collections.add(value.toString());
-            candidates.add(new RagCandidate(node.urlstring(), node.title(),
-                    firstFieldString(node.getFieldValue(CollectionSchema.description_txt.getSolrFieldName())),
-                    text, node.url().getHost(), collections, index));
+            final String description = firstFieldString(node.getFieldValue(CollectionSchema.description_txt.getSolrFieldName()));
+            candidates.add(new RagCandidate(node.urlstring(), node.title(), description,
+                    text, node.url().getHost(), collections, index, synonymResolver == null ? java.util.Collections.emptyMap()
+                            : synonymResolver.forDocument(node.title(), description, text,
+                                    node.getFieldValues(CollectionSchema.synonyms_sxt.getSolrFieldName()))));
             index++;
         }
         ConcurrentLog.info("RAGProxy", prefix(runId) + "event=rag-search phase=candidates global=" + global + " collection=" + (collection != null)
@@ -432,41 +452,9 @@ public final class RAGAugmentor {
     }
 
     public static String searchWordsForPrompt(final LLM llm, final String model, final String prompt, final String systemPrompt, final String runId) {
-        final long start = System.currentTimeMillis();
-        final String question = prompt == null ? "" : prompt.trim();
-        final String instruction = systemPrompt == null || systemPrompt.trim().isEmpty()
-                ? "Compress the user prompt into a short search description. Return only a JSON array of concise, discriminative search terms in lowercase."
-                : systemPrompt.trim();
-        if (llm == null || model == null || model.isEmpty()) {
-            ConcurrentLog.warn("RAGProxy", prefix(runId) + "event=rag-query-generation phase=skip reason=no-model promptChars=" + question.length());
-            return null;
-        }
-        try {
-            ConcurrentLog.info("RAGProxy", prefix(runId) + "event=rag-query-generation phase=model-call model=" + LogRedaction.redact(model) + " backend=" + LogRedaction.redact(llm.hoststub) + " promptChars=" + question.length() + " promptWords=" + wordCount(question));
-            LLM.Context context = new LLM.Context(instruction);
-            context.addPrompt(question);
-            Set<String> singlewords = new LinkedHashSet<>();
-            String[] a = LLM.stringsFromChat(llm.chat(model, context, LLM.listSchema, 200));
-            if (a == null || a.length == 0) {
-                ConcurrentLog.warn("RAGProxy", prefix(runId) + "event=rag-query-generation phase=model-return result=empty durationMs=" + (System.currentTimeMillis() - start));
-                return null;
-            }
-            for (String s: a) {
-                if (s == null) continue;
-                // Flatten model output into unique lowercased tokens.
-                for (String t: s.split(" ")) if (!t.isEmpty()) singlewords.add(t.toLowerCase());
-            }
-            if (singlewords.isEmpty()) return null;
-            StringBuilder query = new StringBuilder();
-            for (String s: singlewords) query.append(s).append(' ');
-            String querys = query.toString().trim();
-            if (querys.length() == 0) return null;
-            ConcurrentLog.info("RAGProxy", prefix(runId) + "event=rag-query-generation phase=end result=success terms=" + singlewords.size() + " queryChars=" + querys.length() + " durationMs=" + (System.currentTimeMillis() - start));
-            return querys;
-        } catch (IOException | JSONException e) {
-            ConcurrentLog.warn("RAGProxy", prefix(runId) + "event=rag-query-generation phase=end result=failure errorClass=" + e.getClass().getName() + " reason=" + LogRedaction.redactMessage(e) + " durationMs=" + (System.currentTimeMillis() - start));
-            return null;
-        }
+        final TldrService.Attempt attempt = TldrService.execute(llm == null ? null : new LLM.LLMModel(llm, model, false, false),
+                prompt, systemPrompt, false);
+        return attempt.valid() ? attempt.words : null;
     }
 
     private static String prefix(final String runId) {

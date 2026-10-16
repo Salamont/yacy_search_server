@@ -128,6 +128,13 @@ class ChatFixture(BaseHTTPRequestHandler):
 def llm_security_checks(base, client, config, stub, chat_stub):
     """AI Shield behind a proxy, JSON errors, stored keys and the server prompt, on the disposable peer."""
     def call(path, body=None, headers=None, auth=True, method=None):
+        if path == "/LLMSelection_p.html" and body is not None and auth:
+            _, response_headers, _ = call(path)
+            token = response_headers.get("X-YaCy-Transaction-Token", response_headers.get("X-YACY-Transaction-Token", ""))
+            if not token:
+                _, _, page = call(path)
+                token = re.search(rb'name="transactionToken" value="([^"]+)"', page)[1].decode()
+            path += "?transactionToken=" + urllib.parse.quote(token)
         request = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
                                          headers=dict({"Content-Type": "application/json"} if body is not None else {}, **(headers or {})),
                                          method=method)

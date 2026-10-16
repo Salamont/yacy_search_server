@@ -59,6 +59,8 @@
       ]);
       // opt-in usages: never checked automatically for a new row, never handed to another row on undeploy
       const PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS = new Set([
+        11, // tldr-shortener
+        12, // log-report
         13  // knowledge (Scoutro knowledge graph extraction)
       ]);
       const PRODUCTION_MODEL_API_KEY_COLUMN_INDEX = 3;
@@ -84,7 +86,42 @@
         "vision",
         "format"
       ];
-      const PRODUCTION_MODEL_SUBMIT_URL = "LLMSelection_p.html";
+      const PRODUCTION_MODEL_SUBMIT_URL = "LLMSelection_p.html?transactionToken=#[transactionToken]#";
+      let modelSettingsSave = Promise.resolve();
+
+      function persistModelSettings(payload) {
+        // Serialize existing saves so an older request cannot overwrite a later opt-out.
+        modelSettingsSave = modelSettingsSave.then(async () => {
+          try {
+            const response = await fetch(PRODUCTION_MODEL_SUBMIT_URL, {
+              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error("Settings not saved");
+            if (payload.production_models) document.getElementById("modelSaveError").hidden = true;
+          } catch (error) {
+            document.getElementById("modelSaveError").hidden = false;
+            // Re-read saved checkboxes only; never display an upstream error body or key.
+            try {
+              const response = await fetch("LLMSelection_p.html", { cache: "no-store" });
+              if (!response.ok) return;
+              const saved = new DOMParser().parseFromString(await response.text(), "text/html");
+              const identity = row => [0, 1, 2].map(n => row.cells[n]?.textContent.trim()).join("\n");
+              const rows = new Map(Array.from(saved.querySelectorAll("#productionModelsTable tbody tr"))
+                .map(row => [identity(row), row]));
+              for (const row of getProductionTableBody()?.rows || []) {
+                const previous = rows.get(identity(row));
+                if (!previous) continue;
+                for (let col = PRODUCTION_MODEL_USAGE_COLUMN_START; col <= PRODUCTION_MODEL_USAGE_COLUMN_END; col++) {
+                  const checkbox = row.cells[col]?.querySelector('input[type="checkbox"]');
+                  const stored = previous.cells[col]?.querySelector('input[type="checkbox"]');
+                  if (checkbox && stored) checkbox.checked = stored.checked;
+                }
+              }
+            } catch (ignored) { /* The visible error requires a reload when the peer is unreachable. */ }
+          }
+        });
+        return modelSettingsSave;
+      }
       const TOOLING_EXPECTED_FUNCTION_NAME = "lightswitch";
       let cachedVisionTestImageBase64 = null;
       let cachedVisionTestImagePromise = null;
@@ -1145,12 +1182,7 @@
           api_key: apikeyInput ? apikeyInput.value : "", // empty keeps the stored key
           api_key_clear: apiKeyClearRequested()
         };
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ inference_system })
-        }).catch(err => {
-          console.error("Failed to persist inference system", err);
-        });
+        persistModelSettings({ inference_system });
       }
 
       const SERVICE_DEFAULT_NUM_CTX = 4096;
@@ -1233,12 +1265,7 @@
           const value = parseInt(sel.value, 10);
           if (hoststub && Number.isFinite(value) && value > 0) service_num_ctx[hoststub] = value;
         });
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ service_num_ctx })
-        }).catch(err => {
-          console.error("Failed to persist service context windows", err);
-        });
+        persistModelSettings({ service_num_ctx });
       }
 
       function ensureProductionRowUsageCells(row, defaultChecked) {
@@ -1312,7 +1339,7 @@
             }
           });
         } else if (!PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS.has(columnIndex)) {
-          // an opt-in usage (knowledge) switched off is off: it is never handed to another row
+          // Keep the existing reassignment behavior only for non-optional usages.
           ensureFeatureAssignedToAnotherModel(columnIndex, currentRow);
         }
 
@@ -1357,7 +1384,7 @@
         const button = row.querySelector('button[data-action="undeploy"]');
         if (!button) return;
         button.disabled = false;
-        button.title = "Remove this model (features will be reassigned if possible).";
+        button.title = "Remove this model. Chat may be reassigned; optional roles stay unassigned.";
       }
 
       function ensureFeatureAssignedToAnotherModel(columnIndex, sourceRow) {
@@ -1425,12 +1452,7 @@
           api_key_clear: apiKeyClearRequested()
         };
 
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ production_models: production_models_table, inference_system, model_capabilities: persistedModelCapabilities })
-        }).catch(err => {
-          console.error("Failed to persist production models", err);
-        });
+        persistModelSettings({ production_models: production_models_table, inference_system, model_capabilities: persistedModelCapabilities });
         updateAvailableModelButtons();
       }
 
@@ -2186,6 +2208,52 @@
     <p>
         <b>Install your local LLM service!</b> You need either a local <a href="https://ollama.com/">ollama</a> or <a href="https://lmstudio.ai/">LM Studio</a> instance running on your local host or inside the intranet.
     </p>
+    <fieldset class="scoutro-tldr" id="tldr-controls">
+      <legend>TLDR – automatically shorten search queries</legend>
+      <p>Only questions longer than 40 words without selected RAG sources use this fallback. No stored web page summaries are created.</p>
+      <p>Assigned model: <strong>#[tldrModel]#</strong>. State: <strong>#[tldrState]#</strong></p>
+      <p role="status">#[tldrMessage]#</p>
+      <form action="LLMSelection_p.html#tldr-controls" method="post" accept-charset="UTF-8">
+        <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+        <p><label><input type="checkbox" name="tldrEnabled" #(tldrEnabled)#::checked="checked"#(/tldrEnabled)# /> Allow automatic TLDR fallback for an assigned model</label></p>
+        <p><label><input type="checkbox" name="tldrDiagnostics" #(tldrDiagnostics)#::checked="checked"#(/tldrDiagnostics)# /> Enable full administrator content diagnostics for 15 minutes</label></p>
+        <p>Content diagnostics until: #[tldrDiagnosticsUntil]#. Only administrator-owned calls are retained. History is memory-only, limited to 32 calls and 30 minutes; full content expires with diagnostics. Restart clears the history.</p>
+        <button type="submit" name="saveTldrSettings" value="1" class="btn btn-primary">Save TLDR settings</button>
+        <button type="submit" name="clearTldrHistory" value="1" class="btn btn-default">Clear TLDR history</button>
+      </form>
+      <form action="LLMSelection_p.html#tldr-controls" method="post" accept-charset="UTF-8">
+        <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+        <p><label for="tldrQuestion">Question for manual TLDR test</label></p>
+        <textarea id="tldrQuestion" name="tldrQuestion" rows="5" maxlength="16000" required="required" style="width:100%;box-sizing:border-box"></textarea>
+        <p>Each test click calls the assigned model once and may incur API charges. Automatic fallback can stay off. No search, crawl, index or knowledge graph change is performed.</p>
+        <button type="submit" name="testTldr" value="1" class="btn btn-primary" #(tldrAvailable)#disabled="disabled"::#(/tldrAvailable)#>Test TLDR</button>
+      </form>
+      #(tldrResult)#::
+      <div id="tldr-test-result" role="status">
+        <h3>TLDR test result</h3>
+        <p>State: #[state]#. Model: #[model]#. Duration (ms): #[durationMs]#</p>
+        <p>#[error]#</p>
+        <h4>Original input</h4><pre>#[input]#</pre>
+        <h4>Actual instruction</h4><pre>#[instruction]#</pre>
+        <h4>Original model answer</h4><pre>#[raw]#</pre>
+        <h4>Parsed search terms</h4><pre>#[terms]#</pre>
+        <h4>Effective search query</h4><pre>#[effectiveQuery]#</pre>
+        <h4>Token usage (if returned)</h4><pre>#[usage]#</pre>
+      </div>
+      #(/tldrResult)#
+      <h3>Recent TLDR calls</h3>
+      <div style="overflow-x:auto"><table class="table">
+        <thead><tr><th>Time and trigger</th><th>Model and state</th><th>Input words / output terms</th><th>Actual search terms</th><th>Sources before / after</th><th>Duration (ms)</th></tr></thead>
+        <tbody>#{tldrHistoryEntries}#
+          <tr><td>#[timestamp]#<br/>#[trigger]#</td><td>#[model]#<br/>#[state]#<br/>#[error]#</td>
+            <td>#[inputWords]# / #[outputTerms]#</td><td>#[terms]#</td><td>#[sourcesBefore]# / #[sourcesAfter]#</td><td>#[durationMs]#</td></tr>
+        #{/tldrHistoryEntries}#</tbody>
+      </table></div>
+      <p>Source count -1 means no search was performed by the manual test.</p>
+      <details><summary>Recent TLDR calls and diagnostics</summary><pre id="tldr-history">#[tldrHistory]#</pre></details>
+    </fieldset>
+    <style type="text/css">.scoutro-tldr { min-width:0; margin-bottom:20px; } .scoutro-tldr pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:360px; overflow:auto; } .scoutro-tldr button { min-height:40px; margin-bottom:8px; }</style>
+
     <form id="llmForm">
     <fieldset><legend>Service Selection</legend>
       <dl>
@@ -2262,6 +2330,8 @@
     <fieldset id="availableModelsContainer" style="display:none"><a name="availableModels"></a></fieldset>
 
     <fieldset id="productionModelsContainer" style="display: block;"><a name="productionModels"></a><legend>Production Models Matrix</legend>
+        <p id="modelSaveError" class="alert alert-danger" role="alert" hidden="hidden">Not saved. Previous settings still apply; automatic functions may still be active. Check write permissions, storage and login, then reload.</p>
+        <p>TLDR and log-report are optional model assignments. Clearing a role or removing its model leaves it unassigned; no other model takes over. Automatic use also requires its existing enable setting. Keep a TLDR model assigned with automatic fallback off for manual tests.</p>
         <div id="testActivityContainer" style="display:none; margin-bottom:12px;">
             <div id="testActivityList"></div>
         </div>
@@ -2281,7 +2351,7 @@
                     <td class="narrow">classification<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model is used to classify prompts to find out what they demand</span></span></td>
                     <td class="narrow">search-query<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model produces search queries to YaCy search from prompts in RAG or chat</span></span></td>
                     <td class="narrow">qa-pairs<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model can be used to produce query-answer pairs which enhance search from chat prompts</span></span></td>
-                    <td class="narrow">tldr-shortener<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model is used to make summaries from web content</span></span></td>
+                    <td class="narrow">tldr-shortener<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model shortens long chat questions into search terms only when the first RAG search selects no sources. It does not create stored web page summaries.</span></span></td>
                     <td class="narrow">log-report<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model evaluates YaCy runtime logs and creates self-enhancement reports</span></span></td>
                     <td class="narrow">knowledge<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text</span></span></td>
                     

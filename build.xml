@@ -384,6 +384,7 @@
       </classpath>
     </javac>
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <arg value="net.yacy.ai.rag.RagSynonymsSolrTest" />
       <arg value="net.yacy.ai.rag.RagQueryTest" />
       <arg value="net.yacy.ai.rag.RagRetrieverTest" />
       <arg value="net.yacy.ai.rag.RagContextTest" />
@@ -398,6 +399,19 @@
         <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
         <fileset dir="${libt}" includes="**/*.jar" />
       </classpath>
+    </java>
+  </target>
+
+  <target name="scoutro-ai-controls-test" depends="compile" description="offline log scheduling and TLDR control regressions">
+    <mkdir dir="build/scoutro-controls-tests" />
+    <javac srcdir="${test}" destdir="build/scoutro-controls-tests" includes="net/yacy/ai/LogReportControlTest.java,net/yacy/ai/LogReportServiceTest.java,net/yacy/ai/LogReportDiagnosticsTest.java,net/yacy/ai/TldrServiceTest.java"
+           includeantruntime="false" release="${javacRelease}" encoding="UTF-8">
+      <classpath><pathelement location="${build}"/><path refid="compile.path"/><fileset dir="${lib}" includes="solr9-bridge-*.jar"/><fileset dir="${libt}" includes="**/*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <arg value="net.yacy.ai.LogReportControlTest"/><arg value="net.yacy.ai.LogReportServiceTest"/>
+      <arg value="net.yacy.ai.LogReportDiagnosticsTest"/><arg value="net.yacy.ai.TldrServiceTest"/>
+      <classpath><pathelement location="build/scoutro-controls-tests"/><pathelement location="${build}"/><path refid="compile.path"/><fileset dir="${lib}" includes="solr9-bridge-*.jar"/><fileset dir="${libt}" includes="**/*.jar"/></classpath>
     </java>
   </target>
 
