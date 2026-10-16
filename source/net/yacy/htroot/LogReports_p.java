@@ -57,7 +57,10 @@ public class LogReports_p {
                         post.get("scheduleZone","Europe/Berlin"));
                 service.saveSchedule(plan);
                 prop.putHTML("settingsMessage", "Einstellungen gespeichert. Alte Zeiträume werden nicht nachgeholt.");
-            } catch (final Exception e) { prop.putHTML("settingsMessage", "Ungültiger Zeitplan oder Speicherfehler. Die bisherigen Einstellungen bleiben erhalten; Status prüfen."); }
+            } catch (final Exception e) {
+                throw new net.yacy.http.servlets.TemplateProcessingException(
+                        "Nicht gespeichert. Schreibrechte und Speicherplatz prüfen, danach neu laden. Bisherige Automatik kann weiterhin aktiv sein.", 500);
+            }
         }
         final LogReportSchedule plan=service.schedule();
         prop.putHTML("scheduleMode",plan.mode); prop.putNum("scheduleHours",plan.hours);

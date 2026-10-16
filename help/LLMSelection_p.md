@@ -303,6 +303,14 @@ loading this page does not probe it with a paid inference request.
 
 ## Optional TLDR and log-report model roles
 
+Saving the affected AI settings now requires a checked atomic write before runtime
+values change. A write failure returns HTTP 500 without a success message, retaining
+the previous roles, activation and stored API keys. The matrix checks HTTP errors,
+shows a visible failure and re-reads saved role checkboxes. Existing asynchronous
+saves are serialized; reload after an unreachable peer to verify its actual state.
+The old automatic functions can remain active when an attempted shutdown was not
+saved. No question, key or upstream error body is included in the save error.
+
 The existing `tldr-shortener` and `log-report` matrix checkboxes select optional
 model roles (`tldr` and `logreport` in `ai.production_models`). Clearing either
 checkbox leaves the role unassigned, including when other models exist. Removing

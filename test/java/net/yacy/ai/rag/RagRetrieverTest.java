@@ -12,6 +12,21 @@ import org.junit.Test;
 /** Retrieval stages, collection scope and fallback on the offline corpus. */
 public class RagRetrieverTest {
 
+    @Test
+    public void productionSearchReceivesTheOriginalConceptsBeforeWordExpansion() {
+        for (final String question : List.of("Suche TV", "Pflegeheime Seniorenheime Beratungen Automatisierungen Integrationen Anwendungen Dienstleistungen Rechner")) {
+            final RagQuery original = RagQuery.prepare(question);
+            new RagRetriever((concepts, search, collection, count, global) -> {
+                org.junit.Assert.assertSame(original, concepts);
+                assertEquals(original.searchString(true), search);
+                assertEquals("stackfinder-web", collection);
+                assertEquals(30, count);
+                org.junit.Assert.assertFalse(global);
+                return List.of();
+            }).retrieve(original, "stackfinder-web", false, 6);
+        }
+    }
+
     private final RagCorpus corpus;
     private final List<String> queries = new ArrayList<>();
 

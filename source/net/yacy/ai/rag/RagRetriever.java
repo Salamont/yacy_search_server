@@ -33,6 +33,11 @@ public final class RagRetriever {
         List<RagCandidate> search(String query, String collection, int count, boolean global);
     }
 
+    /** Production search also receives the original concepts, before expansion into a search string. */
+    public interface ConceptSearcher {
+        List<RagCandidate> search(RagQuery concepts, String query, String collection, int count, boolean global);
+    }
+
     /** A selected candidate with its match counts. */
     public static final class Scored {
         public final RagCandidate candidate;
@@ -81,9 +86,13 @@ public final class RagRetriever {
         }
     }
 
-    private final Searcher searcher;
+    private final ConceptSearcher searcher;
 
     public RagRetriever(final Searcher searcher) {
+        this((concepts, query, collection, count, global) -> searcher.search(query, collection, count, global));
+    }
+
+    public RagRetriever(final ConceptSearcher searcher) {
         this.searcher = searcher;
     }
 
@@ -97,7 +106,7 @@ public final class RagRetriever {
         if (query.isEmpty()) return new Result(query, "", collection, remote, "no-terms", 0, 0, Collections.emptyList());
         // remote peers require every word (AND): plain words for the P2P search, base forms only locally
         final String searchQuery = query.searchString(!remote);
-        final List<RagCandidate> found = this.searcher.search(searchQuery, collection, CANDIDATES, remote);
+        final List<RagCandidate> found = this.searcher.search(query, searchQuery, collection, CANDIDATES, remote);
         final List<RagCandidate> candidates = new ArrayList<>();
         int foreign = 0;
         if (found != null) {

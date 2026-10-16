@@ -71,6 +71,9 @@ public class RagQueryTest {
 
     @Test
     public void modifiersPhrasesAcronymsAndWeakWords() {
+        assertEquals(List.of("tv"), terms(RagQuery.prepare("TV")));
+        assertEquals(List.of("it"), terms(RagQuery.prepare("IT")));
+        assertTrue(RagQuery.prepare("WAS IST ES").isEmpty());
         RagQuery query = RagQuery.prepare("collection:stackfinder-web site:shop.example \"Shopware 6\" Agentur KI IT");
         assertEquals("stackfinder-web", query.questionCollection);
         assertEquals(List.of("site:shop.example"), query.modifiers);

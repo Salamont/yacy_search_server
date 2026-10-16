@@ -38,6 +38,15 @@ import net.yacy.server.serverSwitch;
 
 public class LLMSelection_p {
 
+    private static void saveSettings(final Switchboard sb, final java.util.Map<String, String> updates) {
+        try {
+            sb.setConfigChecked(updates);
+        } catch (final java.io.IOException e) {
+            throw new net.yacy.http.servlets.TemplateProcessingException(
+                    "Nicht gespeichert. Die bisherigen Einstellungen gelten weiter. Schreibrechte und Speicherplatz prüfen, danach neu laden.", 500);
+        }
+    }
+
     private static final String MODEL_CAPABILITIES_CONFIG = "ai.model_capabilities";
 
     private static String normalizeCapabilityStatus(final Object value) {
@@ -183,8 +192,8 @@ public class LLMSelection_p {
             AiSettingsTransaction.check(header, post);
         prop.putHTML("tldrMessage", "");
         if (post != null && post.containsKey("saveTldrSettings")) {
-            sb.setConfig(TldrService.ENABLED, post.containsKey("tldrEnabled"));
-            sb.setConfig(TldrService.DIAGNOSTICS_UNTIL, post.containsKey("tldrDiagnostics") ? System.currentTimeMillis() + TldrService.DIAGNOSTICS_MS : 0);
+            saveSettings(sb, java.util.Map.of(TldrService.ENABLED, Boolean.toString(post.containsKey("tldrEnabled")),
+                    TldrService.DIAGNOSTICS_UNTIL, Long.toString(post.containsKey("tldrDiagnostics") ? System.currentTimeMillis() + TldrService.DIAGNOSTICS_MS : 0)));
             if (!post.containsKey("tldrDiagnostics")) TldrService.clearHistory();
             prop.putHTML("tldrMessage", "TLDR-Einstellungen gespeichert.");
         }
@@ -231,6 +240,7 @@ public class LLMSelection_p {
         // stored configuration before this save, for keys the browser never receives
         final JSONArray storedRows = storedRows(sb);
         final JSONObject storedInference = storedInference(sb);
+        final java.util.Map<String, String> updates = new java.util.LinkedHashMap<>();
         JSONObject inferenceSystem = bodyj.optJSONObject("inference_system");
         final String clearedHoststub = inferenceSystem != null && inferenceSystem.optBoolean("api_key_clear", false)
                 ? net.yacy.ai.LLM.normalizeHoststub(inferenceSystem.optString("hoststub", "")) : "";
@@ -245,7 +255,7 @@ public class LLMSelection_p {
                     keepStoredKey(row, storedRows, storedInference, clearedHoststub);
                     normalizedModels.put(row);
                 }
-                sb.setConfig("ai.production_models", normalizedModels.toString(0));
+                updates.put("ai.production_models", normalizedModels.toString(0));
             } catch (JSONException e) {
                 //e.printStackTrace();
             }
@@ -256,7 +266,7 @@ public class LLMSelection_p {
                     final JSONObject row = storedRows.getJSONObject(i);
                     if (clearedHoststub.equals(net.yacy.ai.LLM.normalizeHoststub(row.optString("hoststub", "")))) row.put("api_key", "");
                 }
-                sb.setConfig("ai.production_models", storedRows.toString(0));
+                updates.put("ai.production_models", storedRows.toString(0));
             } catch (JSONException e) {
                 //e.printStackTrace();
             }
@@ -265,9 +275,9 @@ public class LLMSelection_p {
         JSONObject modelCapabilities = bodyj.optJSONObject("model_capabilities");
         if (modelCapabilities != null) {
             try {
-                sb.setConfig(MODEL_CAPABILITIES_CONFIG, normalizeModelCapabilities(modelCapabilities).toString());
+                updates.put(MODEL_CAPABILITIES_CONFIG, normalizeModelCapabilities(modelCapabilities).toString());
             } catch (JSONException e) {
-                sb.setConfig(MODEL_CAPABILITIES_CONFIG, "{}");
+                updates.put(MODEL_CAPABILITIES_CONFIG, "{}");
             }
         }
 
@@ -281,7 +291,7 @@ public class LLMSelection_p {
                     inference.put("api_key", storedKey(storedRows, storedInference, inference.optString("service", ""),
                             inference.optString("hoststub", ""), null));
                 }
-                sb.setConfig("ai.inference_system", inference.toString());
+                updates.put("ai.inference_system", inference.toString());
             } catch (JSONException e) {
                 //e.printStackTrace();
             }
@@ -298,11 +308,12 @@ public class LLMSelection_p {
                     final int value = serviceNumCtx.optInt(hoststub, 0);
                     if (value > 0) normalized.put(key, value);
                 }
-                sb.setConfig(net.yacy.ai.LLM.SERVICE_NUM_CTX_CONFIG, normalized.toString());
+                updates.put(net.yacy.ai.LLM.SERVICE_NUM_CTX_CONFIG, normalized.toString());
             } catch (JSONException e) {
                 //e.printStackTrace();
             }
         }
+        if (!updates.isEmpty()) saveSettings(sb, updates);
         /*
         {"production_models":[{
           "service":"OLLAMA",

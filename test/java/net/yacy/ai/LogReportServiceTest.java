@@ -50,6 +50,42 @@ public class LogReportServiceTest {
         };
     }
     @After public void close() { LogReportService.stopScheduler(scheduler); this.endpoint.stop(0); }
+
+    @Test public void failedSettingsWritePreservesConfigJournalAndScheduler() throws Exception {
+        final LogReportSchedule weekly = new LogReportSchedule("weekly", 1, "08:00", 1, 0, "Europe/Berlin");
+        service.saveSchedule(weekly); scheduler = LogReportService.startScheduler(service);
+        final java.nio.file.Path directory = tmp.getRoot().toPath();
+        final java.nio.file.Path journal = service.getReportDirectory().toPath().resolve(".generation-state.properties");
+        final byte[] before = Files.readAllBytes(journal);
+        final java.util.Set<java.nio.file.attribute.PosixFilePermission> permissions = Files.getPosixFilePermissions(directory);
+        try {
+            Files.setPosixFilePermissions(directory, java.nio.file.attribute.PosixFilePermissions.fromString("r-xr-xr-x"));
+            try { service.saveSchedule(new LogReportSchedule("off", 1, "08:00", 1, 0, "Europe/Berlin")); fail(); }
+            catch (final java.io.IOException expected) { }
+            assertEquals(weekly.encode(), service.schedule().encode());
+            assertTrue(config.getConfigBool(LogReportService.CONFIG_ENABLED, false));
+            assertTrue(LogReportService.isSchedulerRunning());
+            assertArrayEquals(before, Files.readAllBytes(journal));
+            assertEquals(0, calls.get());
+        } finally { Files.setPosixFilePermissions(directory, permissions); }
+    }
+
+    @Test public void failedJournalUpdateRollsBackCheckedScheduleConfiguration() throws Exception {
+        final LogReportSchedule weekly = new LogReportSchedule("weekly", 1, "08:00", 1, 0, "Europe/Berlin");
+        service.saveSchedule(weekly);
+        final java.nio.file.Path directory = service.getReportDirectory().toPath();
+        final java.util.Set<java.nio.file.attribute.PosixFilePermission> permissions = Files.getPosixFilePermissions(directory);
+        try {
+            Files.setPosixFilePermissions(directory, java.nio.file.attribute.PosixFilePermissions.fromString("r-xr-xr-x"));
+            try { service.saveSchedule(new LogReportSchedule("off", 1, "08:00", 1, 0, "Europe/Berlin")); fail(); }
+            catch (final java.io.IOException expected) { }
+            assertEquals(weekly.encode(), service.schedule().encode());
+            final serverSwitch restarted = new serverSwitch(tmp.getRoot(), new File("."), "defaults/yacy.init", "settings.conf");
+            assertEquals(weekly.encode(), LogReportSchedule.load(restarted).encode());
+            assertTrue(restarted.getConfigBool(LogReportService.CONFIG_ENABLED, false));
+            assertEquals(0, calls.get());
+        } finally { Files.setPosixFilePermissions(directory, permissions); }
+    }
     private String line(final LocalDateTime at) {
         return "W " + at.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")) + " TEST synthetic observed failure";
     }

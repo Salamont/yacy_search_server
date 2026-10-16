@@ -100,11 +100,22 @@ public class LogReportService {
 
     public void saveSchedule(final LogReportSchedule schedule) throws IOException {
         synchronized (LogReportControl.LOCK) {
-            // A configuration change must not wait for an in-flight model call.
-            // Prepare the durable plan before publishing its single atomic configuration value.
-            control().initialize(schedule, Instant.now(), true);
-            this.sb.setConfig(LogReportSchedule.CONFIG, schedule.encode());
-            this.sb.setConfig(CONFIG_ENABLED, !schedule.mode.equals("off"));
+            // A failed configuration write must leave both runtime and the schedule journal untouched.
+            final Map<String, String> previous = Map.of(LogReportSchedule.CONFIG, this.sb.getConfig(LogReportSchedule.CONFIG, ""),
+                    CONFIG_ENABLED, this.sb.getConfig(CONFIG_ENABLED, "true"));
+            this.sb.setConfigChecked(Map.of(LogReportSchedule.CONFIG, schedule.encode(),
+                    CONFIG_ENABLED, Boolean.toString(!schedule.mode.equals("off"))));
+            try {
+                control().initialize(schedule, Instant.now(), true);
+            } catch (final IOException e) {
+                try { this.sb.setConfigChecked(previous); }
+                catch (final IOException rollback) {
+                    // An uncertain save must never leave an automatic report task running.
+                    stopScheduler(schedulerExecutor);
+                    throw new IOException("Zeitplan nicht vollständig gespeichert. Automatische Berichte pausiert; Speicher prüfen und neu starten.");
+                }
+                throw new IOException("Zeitplan nicht gespeichert. Die bisherigen Einstellungen gelten weiter.");
+            }
         }
         refreshScheduler();
     }
@@ -305,7 +316,7 @@ public class LogReportService {
             final LogReportSchedule schedule = service.schedule();
             service.control().initialize(schedule, Instant.now(), false);
             if (service.sb.getConfig(LogReportSchedule.CONFIG, "").isEmpty()) {
-                service.sb.setConfig(LogReportSchedule.CONFIG, schedule.encode());
+                service.sb.setConfigChecked(Map.of(LogReportSchedule.CONFIG, schedule.encode()));
             }
         } catch (final IOException | RuntimeException e) {
             log.warn("Cannot initialize report schedule; automatic calls remain blocked: " + LogRedaction.redactMessage(e));

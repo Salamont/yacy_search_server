@@ -213,6 +213,19 @@ SCOUTRO_RAG_NUM_CTX=8192 python3 test/scoutro-rag/rag-quality.py --label real --
 
 ## Search-scoped synonym matching
 
+The production retriever passes its original prepared `RagQuery` together with the
+expanded search string through `ConceptSearcher` to `RAGAugmentor`. The synonym
+resolver uses that same object as scoring and excerpts. Expanded strings are never
+passed through stopword/acronym filtering or `MAX_TERMS` selection a second time.
+This preserves short concepts such as `TV` and all original concepts of long queries.
+The resolver still intersects forms with YaCy's effective included words, so existing
+query exclusions remain effective. A single uppercase acronym is retained on initial
+preparation; the existing stopword treatment of all-uppercase sentences remains.
+
+`python3 test/scoutro-ui/pr75-blockers-live-smoke.py` exercises the real chat endpoint,
+embedded Solr, outbound model context and failed AI-settings persistence/restart on
+a disposable peer with a counting localhost model; it accepts no production DATA.
+
 RAG carries grounded search alternatives into both candidate scoring and sentence
 selection. `RagSynonyms` uses the live embedded schema's query analyzer for fields
 actually present in this request's `qf`, including multi-token graph paths. The

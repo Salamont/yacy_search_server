@@ -4222,6 +4222,7 @@ System Prompt==System-Prompt
 #-----------------------------
 
 #File: LLMSelection_p.html
+Not saved. Previous settings still apply; automatic functions may still be active. Check write permissions, storage and login, then reload.==Nicht gespeichert. Die bisherigen Einstellungen gelten weiter; automatische Funktionen können weiterhin aktiv sein. Schreibrechte, Speicherplatz und Anmeldung prüfen, danach neu laden.
 TLDR and log-report are optional model assignments. Clearing a role or removing its model leaves it unassigned; no other model takes over. Automatic use also requires its existing enable setting. Keep a TLDR model assigned with automatic fallback off for manual tests.==TLDR und Logbericht sind optionale Modellzuordnungen. Wird eine Rolle abgewählt oder ihr Modell entfernt, bleibt sie unzugewiesen; kein anderes Modell übernimmt. Automatische Nutzung erfordert zusätzlich die vorhandene Aktivierung. Für manuelle TLDR-Tests das Modell zugewiesen lassen und den automatischen Fallback ausschalten.
 Remove this model. Chat may be reassigned; optional roles stay unassigned.==Dieses Modell entfernen. Chat kann neu zugewiesen werden; optionale Rollen bleiben unzugewiesen.
 Allow automatic TLDR fallback for an assigned model==Automatischen TLDR-Fallback bei zugewiesenem Modell erlauben

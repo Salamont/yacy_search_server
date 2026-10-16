@@ -38,11 +38,18 @@ public final class RagSynonyms {
     /** Uses the live schema and the exact qf of this search, not a bundled replacement dictionary. */
     public RagSynonyms(final IndexSchema schema, final String queryFields, final RagQuery query,
             final Function<String, Set<String>> dictionary, final String blockedPairs) {
+        this(schema, queryFields, query, dictionary, blockedPairs, null);
+    }
+
+    public RagSynonyms(final IndexSchema schema, final String queryFields, final RagQuery query,
+            final Function<String, Set<String>> dictionary, final String blockedPairs, final Set<String> searchedForms) {
         this.dictionary = dictionary;
         for (final String pair : blockedPairs.toLowerCase(Locale.ROOT).split(";")) this.blocked.add(pair.trim());
         for (final RagQuery.Term term : query.terms) {
             if (term.phrase) continue; // a phrase is not a bag of independently expanded words
-            this.forms.addAll(term.searchForms(true));
+            for (final String form : term.searchForms(true)) {
+                if (searchedForms == null || searchedForms.contains(form)) this.forms.add(form);
+            }
         }
         boolean indexed = false;
         for (final String spec : queryFields.trim().split("\\s+")) {

@@ -102,6 +102,14 @@ An in-flight request can finish after disabling; no further automatic call start
 
 ### Configuration and migration
 
+Saving the existing schedule uses a checked configuration write. The enabled flag
+and plan are saved together before runtime publication. A failed configuration
+write leaves the plan, journal and scheduler unchanged and returns HTTP 500 with
+an explicit failure message. If updating the existing journal fails, configuration
+is restored; if that restoration also fails, the report scheduler is stopped and
+the page reports failure. Reload to inspect the actual state and fix storage before retrying.
+No success or confirmed shutdown is shown for an unsuccessful save.
+
 `ai.logreport.schedule` is a single versioned atomic configuration value:
 `1|mode|hours|HH:mm|weekday|monthday|zone`. The editor validates it before saving. The existing `ai.logreport.enabled=false` remains an emergency stop for automatic reports; saving an active/off schedule synchronizes that flag.
 The existing configuration writer persists it in `DATA/SETTINGS/yacy.conf`.

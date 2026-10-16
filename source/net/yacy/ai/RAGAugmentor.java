@@ -120,6 +120,11 @@ public final class RAGAugmentor {
      */
     public static List<RagCandidate> searchCandidates(final String query, final String collection, final int count,
             final boolean global, final String runId) {
+        return searchCandidates(RagQuery.prepare(query), query, collection, count, global, runId);
+    }
+
+    public static List<RagCandidate> searchCandidates(final RagQuery concepts, final String query, final String collection,
+            final int count, final boolean global, final String runId) {
         final List<RagCandidate> candidates = new ArrayList<>();
         final Switchboard sb = Switchboard.getSwitchboard();
         if (sb == null || query == null || query.trim().isEmpty() || count <= 0) return candidates;
@@ -131,8 +136,9 @@ public final class RAGAugmentor {
             final net.yacy.cora.federate.solr.connector.EmbeddedSolrConnector connector = sb.index.fulltext().getDefaultEmbeddedConnector();
             if (connector != null) {
                 final org.apache.solr.client.solrj.SolrQuery solr = theQuery.solrQuery(Classification.ContentDomain.ALL, false, false, false);
-                synonymResolver = new RagSynonyms(connector.getCore().getLatestSchema(), solr.get("qf", ""), RagQuery.prepare(theQuery.getQueryGoal().getIncludeString()),
-                        SynonymLibrary::getSynonyms, sb.getConfig(RagSynonyms.BLOCKED_CONFIG, RagSynonyms.DEFAULT_BLOCKED));
+                synonymResolver = new RagSynonyms(connector.getCore().getLatestSchema(), solr.get("qf", ""), concepts,
+                        SynonymLibrary::getSynonyms, sb.getConfig(RagSynonyms.BLOCKED_CONFIG, RagSynonyms.DEFAULT_BLOCKED),
+                        theQuery.getQueryGoal().getIncludeWordsSet());
             }
         }
         final SearchEvent theSearch = startSearch(sb, theQuery);

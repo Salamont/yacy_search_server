@@ -87,6 +87,41 @@
         "format"
       ];
       const PRODUCTION_MODEL_SUBMIT_URL = "LLMSelection_p.html?transactionToken=#[transactionToken]#";
+      let modelSettingsSave = Promise.resolve();
+
+      function persistModelSettings(payload) {
+        // Serialize existing saves so an older request cannot overwrite a later opt-out.
+        modelSettingsSave = modelSettingsSave.then(async () => {
+          try {
+            const response = await fetch(PRODUCTION_MODEL_SUBMIT_URL, {
+              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error("Settings not saved");
+            if (payload.production_models) document.getElementById("modelSaveError").hidden = true;
+          } catch (error) {
+            document.getElementById("modelSaveError").hidden = false;
+            // Re-read saved checkboxes only; never display an upstream error body or key.
+            try {
+              const response = await fetch("LLMSelection_p.html", { cache: "no-store" });
+              if (!response.ok) return;
+              const saved = new DOMParser().parseFromString(await response.text(), "text/html");
+              const identity = row => [0, 1, 2].map(n => row.cells[n]?.textContent.trim()).join("\n");
+              const rows = new Map(Array.from(saved.querySelectorAll("#productionModelsTable tbody tr"))
+                .map(row => [identity(row), row]));
+              for (const row of getProductionTableBody()?.rows || []) {
+                const previous = rows.get(identity(row));
+                if (!previous) continue;
+                for (let col = PRODUCTION_MODEL_USAGE_COLUMN_START; col <= PRODUCTION_MODEL_USAGE_COLUMN_END; col++) {
+                  const checkbox = row.cells[col]?.querySelector('input[type="checkbox"]');
+                  const stored = previous.cells[col]?.querySelector('input[type="checkbox"]');
+                  if (checkbox && stored) checkbox.checked = stored.checked;
+                }
+              }
+            } catch (ignored) { /* The visible error requires a reload when the peer is unreachable. */ }
+          }
+        });
+        return modelSettingsSave;
+      }
       const TOOLING_EXPECTED_FUNCTION_NAME = "lightswitch";
       let cachedVisionTestImageBase64 = null;
       let cachedVisionTestImagePromise = null;
@@ -1147,12 +1182,7 @@
           api_key: apikeyInput ? apikeyInput.value : "", // empty keeps the stored key
           api_key_clear: apiKeyClearRequested()
         };
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ inference_system })
-        }).catch(err => {
-          console.error("Failed to persist inference system", err);
-        });
+        persistModelSettings({ inference_system });
       }
 
       const SERVICE_DEFAULT_NUM_CTX = 4096;
@@ -1235,12 +1265,7 @@
           const value = parseInt(sel.value, 10);
           if (hoststub && Number.isFinite(value) && value > 0) service_num_ctx[hoststub] = value;
         });
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ service_num_ctx })
-        }).catch(err => {
-          console.error("Failed to persist service context windows", err);
-        });
+        persistModelSettings({ service_num_ctx });
       }
 
       function ensureProductionRowUsageCells(row, defaultChecked) {
@@ -1427,12 +1452,7 @@
           api_key_clear: apiKeyClearRequested()
         };
 
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ production_models: production_models_table, inference_system, model_capabilities: persistedModelCapabilities })
-        }).catch(err => {
-          console.error("Failed to persist production models", err);
-        });
+        persistModelSettings({ production_models: production_models_table, inference_system, model_capabilities: persistedModelCapabilities });
         updateAvailableModelButtons();
       }
 
@@ -2310,6 +2330,7 @@
     <fieldset id="availableModelsContainer" style="display:none"><a name="availableModels"></a></fieldset>
 
     <fieldset id="productionModelsContainer" style="display: block;"><a name="productionModels"></a><legend>Production Models Matrix</legend>
+        <p id="modelSaveError" class="alert alert-danger" role="alert" hidden="hidden">Not saved. Previous settings still apply; automatic functions may still be active. Check write permissions, storage and login, then reload.</p>
         <p>TLDR and log-report are optional model assignments. Clearing a role or removing its model leaves it unassigned; no other model takes over. Automatic use also requires its existing enable setting. Keep a TLDR model assigned with automatic fallback off for manual tests.</p>
         <div id="testActivityContainer" style="display:none; margin-bottom:12px;">
             <div id="testActivityList"></div>

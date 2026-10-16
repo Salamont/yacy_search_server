@@ -343,7 +343,7 @@ public class RAGProxyServlet extends HttpServlet {
                         : ChatCollections.permits(allCollections, query.questionCollection, releasedCollections) ? query.questionCollection : null;
                 // Scoutro: the peer-to-peer network search stays with administrators and the AI Shield's own rules
                 final boolean global = "global".equals(ragMode) && scope == null && member == null;
-                final RagRetriever retriever = new RagRetriever((q, c, n, g) -> RAGAugmentor.searchCandidates(q, c, n, g, runId));
+                final RagRetriever retriever = new RagRetriever((concepts, q, c, n, g) -> RAGAugmentor.searchCandidates(concepts, q, c, n, g, runId));
                 RagRetriever.Result result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
                 TldrService.Attempt tldrAttempt = null;
                 if (TldrService.shouldRun(TldrService.automaticEnabled(sb), llm4tldr != null, countWords(question), result.selected.size())) {

@@ -88,6 +88,10 @@ public class RagSynonymsSolrTest {
         assertEquals("RAG query=" + q, 1, retrieve(q, hits, "stackfinder-web").selected.size());
         assertEquals(0, retrieve(q, search(q, "text_t", "stackfinder-web", false), "stackfinder-web").selected.size());
         assertEquals(0, retrieve(q, hits, "edelsenior-web").selected.size());
+        final RagSynonyms filtered = new RagSynonyms(this.instance.getDefaultCore().getLatestSchema(), "text_t", q,
+                SynonymLibrary::getSynonyms, RagSynonyms.DEFAULT_BLOCKED, Set.of("other"));
+        assertTrue("Concepts filtered out of the actual search gain no alternatives",
+                filtered.forDocument("Testquelle", "", "Television is available as a device.", List.of()).isEmpty());
     }
     @Test public void exactAndExpandedConceptsCountOnceAndShareExcerptMatching() throws Exception {
         final String longText = "Köln hat viele schöne Plätze. " + "Allgemeine Informationen zum Unternehmen. ".repeat(80)
