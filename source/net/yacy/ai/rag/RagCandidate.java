@@ -4,6 +4,8 @@ package net.yacy.ai.rag;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -18,11 +20,20 @@ public final class RagCandidate {
     /** position in the YaCy result order (0 = best) */
     public final int rank;
 
+    private final Map<String, Set<String>> alternatives;
     private final String haystack;
     private final String titleHaystack;
 
     public RagCandidate(final String url, final String title, final String description, final String text, final String host,
             final List<String> collections, final int rank) {
+        this(url, title, description, text, host, collections, rank, Collections.emptyMap());
+    }
+
+    public RagCandidate(final String url, final String title, final String description, final String text, final String host,
+            final List<String> collections, final int rank, final Map<String, Set<String>> alternatives) {
+        final Map<String, Set<String>> copy = new LinkedHashMap<>();
+        alternatives.forEach((key, values) -> copy.put(key, Set.copyOf(values)));
+        this.alternatives = Collections.unmodifiableMap(copy);
         this.url = url == null ? "" : url;
         this.title = title == null ? "" : title.trim();
         this.description = description == null ? "" : description.trim();
@@ -40,12 +51,32 @@ public final class RagCandidate {
 
     /** terms found in title, description or text */
     Set<RagQuery.Term> matched(final RagQuery query) {
-        return matched(query, this.haystack);
+        return matchedWithAlternatives(query, this.haystack);
     }
 
     /** terms found in the title */
     Set<RagQuery.Term> matchedInTitle(final RagQuery query) {
-        return matched(query, this.titleHaystack);
+        return matchedWithAlternatives(query, this.titleHaystack);
+    }
+
+    Set<RagQuery.Term> matchedWithAlternatives(final RagQuery query, final String folded) {
+        final Set<RagQuery.Term> found = matched(query, folded);
+        for (final RagQuery.Term term : query.terms) {
+            if (found.contains(term) || term.phrase) continue;
+            for (final String form : term.searchForms(true)) {
+                for (final String alternative : this.alternatives.getOrDefault(form, Collections.emptySet())) {
+                    if (literal(alternative, folded)) found.add(term);
+                }
+            }
+        }
+        return found;
+    }
+
+    static boolean literal(final String text, final String folded) {
+        final String normalized = RagQuery.fold(text).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        if (normalized.isEmpty()) return false;
+        return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(normalized).replace(" ", "\\E[^\\p{L}\\p{N}]+\\Q")
+                + "(?![\\p{L}\\p{N}])").matcher(folded).find();
     }
 
     static Set<RagQuery.Term> matched(final RagQuery query, final String folded) {
@@ -62,6 +93,6 @@ public final class RagCandidate {
      */
     static boolean matches(final RagQuery.Term term, final String folded) {
         if (term.phrase || term.stem.length() >= RagQuery.MIN_STEM) return folded.contains(term.stem);
-        return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(term.stem)).matcher(folded).find();
+        return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(term.stem) + (term.stem.length() <= 2 ? "(?![\\p{L}\\p{N}])" : "")).matcher(folded).find();
     }
 }

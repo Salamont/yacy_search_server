@@ -162,6 +162,55 @@ def source_urls(answer):
     return [s.get("url", "") for s in answer["meta"].get("scoutro-sources", []) if isinstance(s, dict)]
 
 
+def run_synonyms(digest, rita, rolf):
+    """Actual index/query analyzers, production handoff and the model's outgoing context."""
+    fixtures = [
+        (ALPHA_HOST, "device", "alpha-web", "Television ist verfügbar FUNDSTELLE_DEVICE."),
+        (ALPHA_HOST, "computer", "alpha-web", "Allgemeine Hinweise. " * 150
+         + "Unser Computer und Elektronengehirn hat eine besondere Akkulaufzeit FUNDSTELLE_COMPUTER."),
+        (BETA_HOST, "long", "beta-web", "Pflegeheim Seniorenheim Beratung Automatisierung Integration Anwendung Dienstleistung. "
+         + "Allgemeine Hinweise. " * 150 + "Der Computer hat eine besondere Akkulaufzeit FUNDSTELLE_LONG."),
+        (ALPHA_HOST, "meeting", "alpha-web", "Besprechung des Teamessens FUNDSTELLE_MEETING."),
+        (ALPHA_HOST, "kita", "alpha-web", "Kindertagesstätte und Mittagessen FUNDSTELLE_KITA."),
+    ]
+    for host, name, collection, text in fixtures:
+        html = "<html><head><title>Testbeleg</title></head><body><p>" + text + "</p></body></html>"
+        check(push(digest, f"https://{host}/syn-{name}", html, collection), "push synonym fixture " + name)
+    deadline = time.monotonic() + 60
+    while True:
+        _, docs, _ = digest.call("GET", "/solr/select?wt=json&q=*:*&rows=100&fl=sku,synonyms_sxt")
+        indexed = [doc for doc in docs.get("response", {}).get("docs", []) if "/syn-" in doc.get("sku", "")] if isinstance(docs, dict) else []
+        if len(indexed) >= len(fixtures) or time.monotonic() > deadline:
+            break
+        time.sleep(.3)
+    check(len(indexed) == len(fixtures), "synonym fixtures searchable", str(len(indexed)))
+    check(any("syn-computer" in doc.get("sku", "") and "rechner" in doc.get("synonyms_sxt", []) for doc in indexed),
+          "actual indexing produced the Rechner alias")
+    check(any("syn-meeting" in doc.get("sku", "") and "beratung" in doc.get("synonyms_sxt", []) for doc in indexed),
+          "ambiguous negative fixture really carries the search alias")
+    cases = [(rita, "TV", None, "FUNDSTELLE_DEVICE", 1), (rita, "Rechner", None, "FUNDSTELLE_COMPUTER", 1),
+             (rolf, "Bitte suche " * 25 + "Pflegeheime Seniorenheime Beratungen Automatisierungen Integrationen Anwendungen Dienstleistungen Rechner",
+              "beta-web", "FUNDSTELLE_LONG", 8)]
+    for client, question, collection, marker, concepts in cases:
+        status, answer, requests = chat(client, question, collection=collection)
+        retrieval = answer["meta"].get("scoutro-retrieval", {})
+        check(status == 200 and len(requests) == 1, "synonym chat: one model call with TLDR assigned", str(len(requests)))
+        check(retrieval.get("stage") == "all" and len(retrieval.get("query", "").split()) == concepts,
+              "original concepts survive the production handoff", str(retrieval))
+        check(marker in model_saw(requests), "relevant synonym passage reaches outgoing model context")
+        check(marker in answer["meta"].get("search-text", "") and source_urls(answer), "source attachment agrees with model context")
+        check(retrieval.get("candidates", 31) <= 30 and len(source_urls(answer)) <= 8, "existing hit/source budgets respected")
+    for question, marker in (("Beratung", "FUNDSTELLE_MEETING"), ("KI", "FUNDSTELLE_KITA")):
+        status, answer, requests = chat(rita, question)
+        check(status == 200 and marker not in model_saw(requests) and marker not in answer["meta"].get("search-text", ""),
+              "negative synonym/prefix stays outside model context: " + question)
+    status, answer, requests = chat(rita, "TV", collection="beta-web")
+    check(status == 403 and not requests, "synonym request cannot bypass collection rights")
+    status, answer, requests = chat(rolf, "TV", collection="beta-web")
+    check(status == 200 and "FUNDSTELLE_DEVICE" not in model_saw(requests) and not source_urls(answer),
+          "allowed other collection still excludes foreign synonym source")
+
+
 def run(base, digest, stub_port):
     for url, collection, html in PAGES:
         check(push(digest, url, html, collection), "push " + url)
@@ -252,6 +301,7 @@ def run(base, digest, stub_port):
           "administrator: released tools still run", str(len(requests)))
     status, answer, requests = chat(Client(base), "Pflegeberatung")
     check(status == 401 and not requests, "anonymous chat refused in protected mode", str(status))
+    run_synonyms(digest, rita, rolf)
 
 
 def main():
@@ -262,10 +312,13 @@ def main():
     stub_port = stub.server_address[1]
     threading.Thread(target=stub.serve_forever, daemon=True).start()
     models = [{"service": "OLLAMA", "model": "stub", "hoststub": f"http://127.0.0.1:{stub_port}", "api_key": "", "max_tokens": "512",
-               "chat": True, "tooling": True, "tldr": False, "logreport": False, "knowledge": False}]
+               "chat": True, "tooling": True, "tldr": True, "logreport": False, "knowledge": False}]
     root = Path(tempfile.mkdtemp(prefix="scoutro-chat-rag-"))
     process = None
     try:
+        dictionary = root / "DATA/DICTIONARIES/synonyms"
+        dictionary.mkdir(parents=True)
+        (dictionary / "fixture.txt").write_text("Computer,Rechner,Elektronengehirn\nBeratung,Consulting,Besprechung\n")
         process, base = smoke.start_peer(root, port, extra=[
             "scoutro.access.protected=true", "ai.production_models=" + json.dumps(models, separators=(",", ":")),
             "ai.tools.search.enabled=true", "scoutro.kg.enabled=true", "scoutro.kg.collections=alpha-web,beta-web",
