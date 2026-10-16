@@ -159,6 +159,16 @@
         padding: 12px;
         margin: 10px 0 16px 0;
       }
+      .logreport-settings { margin-bottom: 20px; min-width: 0; }
+      .logreport-status-scroll { overflow-x: auto; }
+      .report-delete-form { position: absolute; right: 4px; top: 8px; }
+      .report-delete-form button { min-height: 40px; min-width: 40px; }
+      @media (max-width: 700px) {
+        .logreport-layout { flex-direction: column; }
+        .logreport-nav { flex-basis: auto; width: 100%; max-height: 250px; }
+        .logreport-main { width: 100%; }
+        .logreport-settings input { max-width: 100%; }
+      }
     </style>
   </head>
   <body id="LogReports">
@@ -167,17 +177,54 @@
 
     <h2>Log Reports</h2>
 
+    <fieldset class="logreport-settings">
+      <legend>Automatic reports – settings</legend>
+      <p role="status">#[settingsMessage]#</p>
+      <p>Assigned model: <strong>#[reportModel]#</strong>. <a href="LLMSelection_p.html">Model settings</a></p>
+      <p>Timezone: <strong>#[reportZone]#</strong>. Daylight saving changes follow this server timezone. Repeated local hours are processed once.</p>
+      <form action="LogReports_p.html" method="post" accept-charset="UTF-8">
+        <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+        <p><label><input type="checkbox" name="automaticEnabled" #(automaticEnabled)#::checked="checked"#(/automaticEnabled)# /> Automatic log reports</label></p>
+        <p><label for="reportInterval">Generation interval</label>
+          <select id="reportInterval" name="periodMinutes">
+            <option value="#[periodMinutes]#">#[periodMinutes]# min (current)</option>
+            <option value="60">1 h</option><option value="120">2 h</option><option value="240">4 h</option>
+            <option value="360">6 h</option><option value="720">12 h</option>
+          </select>
+        </p>
+        <p><label><input type="checkbox" name="dailyEnabled" #(dailyEnabled)#::checked="checked"#(/dailyEnabled)# /> Daily consolidation</label>
+          <label for="reportDailyTime">Daily report time</label> <input type="time" id="reportDailyTime" name="dailyTime" value="#[dailyTime]#" required="required" />
+        </p>
+        <p>Intervals change the schedule, not the one-hour report buckets. Old periods are not replayed after activation or restart. Existing reports and logs are retained.</p>
+        <button type="submit" name="saveReportSettings" value="1" class="btn btn-primary">Save report settings</button>
+      </form>
+      <div class="logreport-status-scroll"><table class="table">
+        <thead><tr><th>Report type</th><th>Actual state</th><th>Last success</th><th>Last failure</th><th>Next execution</th></tr></thead>
+        <tbody>
+          <tr><td>Hourly reports</td><td>#[hourlyState]#</td><td>#[hourly_success]#</td><td>#[hourly_failure]#</td><td>#[hourly_next]#</td></tr>
+          <tr><td>Daily reports</td><td>#[dailyState]#</td><td>#[daily_success]#</td><td>#[daily_failure]#</td><td>#[daily_next]#</td></tr>
+        </tbody>
+      </table></div>
+      <p>Hourly result: #[hourly_message]#</p><p>Daily result: #[daily_message]#</p>
+    </fieldset>
+
     <!-- the report computation runs asynchronously on the server (LogReportService
          manual job); this form only triggers it and returns immediately. While the
          job is running the button is disabled, the progress box is shown and the
          script below polls the page until the result is available -->
     <form action="LogReports_p.html" method="post" accept-charset="UTF-8" class="logreport-actions" id="runReportForm">
+      <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+      <p><label for="manualReportHour">Report hour</label> <input type="datetime-local" name="reportHour" id="manualReportHour" step="3600" max="#[reportHour]#" value="#[reportHour]#" required="required" /></p>
+      <p>Period: <span id="manualReportPeriod">#[reportPeriod]#</span> (#[reportZone]#).</p>
+      <p><label><input type="checkbox" name="recreateReport" /> Explicitly recreate an already processed hour</label></p>
+      <p>Manual generation works while automation is off. A model call may incur API charges. The selected current hour is incomplete.</p>
       <button type="submit" name="runReportNow" value="1" class="btn btn-primary" id="runReportButton" #(reportRunning)#::disabled="disabled"#(/reportRunning)#>run report now</button>
     </form>
 
+    <div id="manualReportError" role="alert" class="logreport-warning" style="display:none"></div>
     <div class="logreport-progress" id="runReportProgress" #(reportRunning)#::style="display:flex"#(/reportRunning)#>
       <div class="spinner"></div>
-      <div>Generating report from the current-hour log lines &mdash; the LLM call can take a while &hellip;
+      <div>Generating report from the selected-hour log lines &mdash; the LLM call can take a while &hellip;
         <span id="runReportElapsed">#(reportRunning)#0::#[elapsedSeconds]##(/reportRunning)#</span> seconds elapsed</div>
     </div>
 
@@ -188,6 +235,14 @@
       // reloads - the partially generated report is rendered in place so the user
       // can read and scroll in it while it is still being completed.
       (function () {
+        var hourInput = document.getElementById("manualReportHour");
+        function showPeriod() {
+          var start = hourInput.value;
+          var parts = start.split(/[T:]/);
+          var endHour = Number(parts[1]) + 1;
+          document.getElementById("manualReportPeriod").textContent = start + " – " + (endHour === 24 ? "24:00" : String(endHour).padStart(2, "0") + ":00");
+        }
+        hourInput.addEventListener("change", showPeriod);
         var button = document.getElementById("runReportButton");
         var progress = document.getElementById("runReportProgress");
         var elapsedElement = document.getElementById("runReportElapsed");
@@ -228,7 +283,7 @@
           if (status.outcome === 1) {
             if (liveTitle) liveTitle.textContent = "YaCy hourly log report (just generated)";
             if (liveMeta) liveMeta.textContent = status.message + " - " + status.durationSeconds + " seconds";
-            showResultBox("logreport-message", "Current-hour report written: " + status.message + " (" + status.durationSeconds + " seconds)");
+            showResultBox("logreport-message", "Selected-hour report written: " + status.message + " (" + status.durationSeconds + " seconds)");
             // add the new report to the navigation column; a delete button is
             // omitted here on purpose, a page reload will offer it
             var nav = document.querySelector(".logreport-nav");
@@ -284,10 +339,15 @@
         document.getElementById("runReportForm").addEventListener("submit", function (event) {
           event.preventDefault();
           setRunningUI(true);
-          fetch("LogReports_p.html", { method: "POST", body: new URLSearchParams({ runReportNow: "1" }) })
-            .then(function () { startPolling(); })
+          var data = new URLSearchParams(new FormData(event.target));
+          data.set("runReportNow", "1");
+          fetch("LogReports_p.html", { method: "POST", body: data })
+            .then(function (response) { if (!response.ok) throw new Error("Report request rejected"); startPolling(); })
             .catch(function (err) {
               console.warn("could not start report generation", err);
+              var errorBox = document.getElementById("manualReportError");
+              errorBox.textContent = "Could not start report generation. Reload the page, check the login and selected period, then try again.";
+              errorBox.style.display = "block";
               setRunningUI(false);
             });
         });
@@ -300,7 +360,7 @@
 
     #(runReportResult)#
     ::
-    <div class="logreport-message">Current-hour report written: #[runReportFile]# (#[runReportDurationSeconds]# seconds)</div>
+    <div class="logreport-message">Selected-hour report written: #[runReportFile]# (#[runReportDurationSeconds]# seconds)</div>
     ::
     <div class="logreport-warning">No log lines were found for the current hour.</div>
     ::
@@ -344,7 +404,10 @@
             <span class="nav-date">#[date]#</span>
             <span class="nav-type">#[type]# report</span>
           </a>
-          <a class="nav-delete" href="LogReports_p.html?deleteReport=#[filename]#" title="delete this report">&times;</a>
+          <form action="LogReports_p.html" method="post" class="report-delete-form">
+            <input type="hidden" name="transactionToken" value="#[transactionToken]#" />
+            <button type="submit" name="deleteReport" value="#[filename]#" title="delete this report">&times;</button>
+          </form>
         </li>
         #{/reports}#
       </ul>

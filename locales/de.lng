@@ -4435,6 +4435,41 @@ JSON==JSON
 RSS==RSS
 #-----------------------------
 
+
+# Scoutro query/report controls
+Automatic reports – settings==Automatische Berichte – Einstellungen
+Assigned model:==Zugewiesenes Modell:
+Model settings==Modelleinstellungen
+Timezone:==Zeitzone:
+Daylight saving changes follow this server timezone. Repeated local hours are processed once.==Sommer- und Winterzeit folgen dieser Serverzeitzone. Doppelte lokale Stunden werden einmal verarbeitet.
+Automatic log reports==Automatische Logberichte
+Generation interval==Erstellungsintervall
+min (current)==Min. (aktuell)
+Daily consolidation==Tagesverdichtung
+Daily report time==Uhrzeit des Tagesberichts
+Intervals change the schedule, not the one-hour report buckets. Old periods are not replayed after activation or restart. Existing reports and logs are retained.==Das Intervall steuert den Zeitplan. Jeder Bericht umfasst weiter eine Stunde. Nach Aktivierung oder Neustart werden alte Zeiträume nicht nachgeholt. Vorhandene Berichte und Protokolle bleiben erhalten.
+Save report settings==Berichtseinstellungen speichern
+Report type==Berichtsart
+Actual state==Tatsächlicher Zustand
+Last success==Letzte erfolgreiche Erstellung
+Last failure==Letzte fehlgeschlagene Erstellung
+Next execution==Nächste Ausführung
+Hourly reports==Stundenberichte
+Daily reports==Tagesberichte
+Hourly result:==Ergebnis Stundenbericht:
+Daily result:==Ergebnis Tagesbericht:
+Report hour==Berichtsstunde
+Period:==Zeitraum:
+Explicitly recreate an already processed hour==Bereits verarbeitete Stunde ausdrücklich neu erstellen
+Manual generation works while automation is off. A model call may incur API charges. The selected current hour is incomplete.==Manuelle Erstellung ist auch bei ausgeschalteter Automatik möglich. Der Modellaufruf kann API-Kosten verursachen. Eine ausgewählte laufende Stunde ist noch unvollständig.
+
+
+Could not start report generation. Reload the page, check the login and selected period, then try again.==Die Berichtserstellung konnte nicht gestartet werden. Seite neu laden, Anmeldung und Zeitraum prüfen und erneut versuchen.
+
+
+Selected-hour report written:==Bericht für die gewählte Stunde erstellt:
+Generating report from the selected-hour log lines==Bericht für die gewählte Stunde wird erstellt
+
 #File: IndexFederated_p.html
 #---------------------------
 Tick this when the remote Solr server is password protected and is requested over HTTPS but provides only a self-signed certificate (not a validated one by an official Certificate Authority). The Solr URL could be for example something like <i>https://user:password@localhost:8984/solr</i>.==Aktivieren Sie dies, wenn der entfernte Solr-Server passwortgeschützt ist und über HTTPS angesprochen wird, aber nur ein selbstsigniertes Zertifikat bereitstellt (kein von einer offiziellen Zertifizierungsstelle validiertes). Die Solr-URL könnte zum Beispiel etwa so aussehen: <i>https://user:password@localhost:8984/solr</i>.

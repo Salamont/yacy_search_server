@@ -21,8 +21,7 @@ import net.yacy.server.serverSwitch;
  * Polling endpoint for the manual "run report now" job on /LogReports_p.html.
  * Returns the job state and the partially generated report text, so the page can
  * show the report growing live (via JavaScript, without hard page reloads) while
- * the LLM is still streaming its output. When the job has finished, the first
- * poll consumes the one-time job result and reports it in outcome/message.
+ * the LLM is still streaming its output. When the job has finished, the poll returns the last job result in outcome/message until a new job resets it.
  */
 public class logreportstatus {
 
@@ -38,7 +37,7 @@ public class logreportstatus {
 
         if (header == null || env == null) return prop;
         final Switchboard sb = (Switchboard) env;
-        if (!sb.verifyAuthentication(header)) return prop;
+        if (!sb.verifyAuthentication(header)) { prop.authenticationRequired(); return prop; }
         prop.put("authorized", "1");
 
         final boolean running = LogReportService.isManualReportJobRunning();
@@ -46,7 +45,7 @@ public class logreportstatus {
         prop.putNum("elapsedSeconds", LogReportService.manualReportJobElapsedSeconds());
         prop.putJSON("partial", LogReportService.manualReportJobPartialReport());
         if (!running) {
-            final LogReportService.ManualJobResult result = LogReportService.consumeManualReportJobResult();
+            final LogReportService.ManualJobResult result = LogReportService.manualReportJobResult();
             if (result != null) {
                 prop.putNum("outcome", result.outcome);
                 prop.putJSON("message", result.message);

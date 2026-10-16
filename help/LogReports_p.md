@@ -71,3 +71,57 @@ Expect observations: counts, logs, queues, timing, network rows, thread states, 
 ## Related Pages
 
 - `LLMSelection_p.html`
+
+## Automatic reports, schedule and status
+
+**Automatic reports – settings** uses the existing `ai.logreport.enabled`,
+`ai.logreport.period_minutes` (default 60), and
+`ai.logreport.daily_compression.enabled` (default true). The new
+`ai.logreport.daily_time` defaults to `00:00` in the server/log timezone,
+which is displayed explicitly. A multi-hour interval schedules separate existing
+one-hour buckets, not a new aggregate format. DST gaps move the daily run forward;
+repeated local hours have one filename and are processed once. The existing
+scheduler checks due times every 30 seconds, without another service.
+
+Disable prevents new automatic model calls; an already running request may finish.
+Reports and raw logs are retained. Enabling, changing the schedule, and restarting
+open a fresh collection window instead of replaying missed hours. Existing daily
+reports prevent rebuilding their hours. A durable attempt journal in the report
+directory also prevents silent paid retries after deletion, failures, or interruption.
+An uncertain/failed attempt needs an explicit manual recreation. Journal entries are
+bounded to 90 days; automatic scheduling never reopens older windows. Manual
+requests older than that require the explicit recreation checkbox, even when
+historic files have been deleted.
+
+The page displays the assigned model, actual activation state, last successful/failed
+creation, result, and next due time separately for hourly and daily reports. Existing
+legacy reports do not retroactively acquire creation-status records. Daily
+consolidation retains hourly reports. Before consolidation, pending eligible hours
+are flushed; this may cause an hourly call at the daily due time as well as at its
+regular interval. There is no new aggregation pipeline.
+
+## Manual generation and protected writes
+
+Choose a local report hour and review the displayed one-hour period. The running
+hour contains only logs available so far. The explicit button may call the assigned
+`logreport` model even with automation off; API charges are possible. Recreating an
+already claimed/completed hour requires the separate recreation checkbox. A current
+hour written manually is not automatically rebuilt later. Missing logs/model or
+model failures are reported through the existing asynchronous job/status endpoint.
+
+All mutations require administrator authentication, **POST**, and the existing
+`transactionToken` obtained from this page. Form fields:
+
+- `saveReportSettings`, `automaticEnabled`, `dailyEnabled`, `periodMinutes`
+  (integer 1–1440), `dailyTime` (`HH:mm`);
+- `runReportNow`, `reportHour` (local ISO datetime), optional `recreateReport`;
+- `deleteReport` (strict report filename). Deletion via GET is rejected.
+
+The read-only feeds retain their existing interfaces and access policies.
+`api/logreportstatus.json` now challenges unauthenticated clients with HTTP 401
+instead of an unchallenged JSON error, so browsers can authenticate polling.
+A completed manual-job result remains readable until the next job; page rendering
+can no longer consume it before the polling client sees it. Settings use the existing atomic configuration persistence;
+the attempt/schedule journal is replaced atomically in the existing report directory.
+Trusted boolean/load configuration is included in the budgeted report prompt.
+Logs and old reports remain evidence, never operating instructions.

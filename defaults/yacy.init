@@ -1467,3 +1467,5 @@ ai.shield.all.per-day = 480
 
 # Scoped RAG synonym exclusions, directional query=alternative pairs.
 ai.rag.synonyms.blocked_pairs = beratung=besprechung;besprechung=beratung
+# Daily report time in the server/log timezone; retain hourly reports.
+ai.logreport.daily_time = 00:00
