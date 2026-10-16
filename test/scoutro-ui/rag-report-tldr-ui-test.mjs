@@ -27,6 +27,35 @@ try {
       assert(!overflow, `page overflow ${name} ${width}`); checks++;
       assert.equal(errors.length, 0, errors.join('; ')); checks++;
       if (name === 'LogReports_p') {
+        for (const mode of ['hourly', 'daily', 'weekly', 'monthly', 'off']) {
+          await page.locator('#scheduleMode').selectOption(mode);
+          assert.equal(await page.locator('[data-schedule="hourly"]').isVisible(), mode === 'hourly'); checks++;
+          assert.equal(await page.locator('[data-schedule="weekly"]').isVisible(), mode === 'weekly'); checks++;
+          assert.equal(await page.locator('[data-schedule="monthly"]').isVisible(), mode === 'monthly'); checks++;
+        }
+        await page.locator('#scheduleMode').selectOption('weekly');
+        await page.locator('#scheduleWeekday').selectOption('3');
+        await page.locator('#scheduleTime').fill('08:30');
+        await Promise.all([page.waitForNavigation({waitUntil: 'load'}), page.locator('button[name="saveReportSettings"]').click()]);
+        assert.equal(await page.locator('#scheduleMode').inputValue(), 'weekly'); checks++;
+        assert((await page.locator('#reportNextRun').innerText()).match(/\d{2}\.\d{2}\.\d{4}/)); checks++;
+        if (process.env.SCOUTRO_SCREENSHOTS) {
+          fs.mkdirSync(process.env.SCOUTRO_SCREENSHOTS, {recursive: true});
+          await page.screenshot({path: path.join(process.env.SCOUTRO_SCREENSHOTS, `schedule-weekly-${width}.png`), fullPage: true});
+        }
+        await page.locator('#scheduleMode').selectOption('monthly');
+        await page.locator('#scheduleMonthday').selectOption('31');
+        assert.equal(await page.locator('#scheduleMonthday').inputValue(), '31'); checks++;
+        await page.locator('#scheduleMonthday').selectOption('0');
+        await page.locator('#scheduleMode').selectOption('hourly');
+        await page.locator('#scheduleHours').selectOption('2');
+        await page.locator('#scheduleMode').selectOption('weekly');
+        await page.locator('#scheduleWeekday').selectOption('1');
+        await page.locator('#scheduleTime').fill('06:30');
+        await page.locator('#scheduleMode').selectOption('off');
+        await Promise.all([page.waitForNavigation({waitUntil: 'load'}), page.locator('button[name="saveReportSettings"]').click()]);
+        assert.equal(await page.locator('#scheduleMode').inputValue(), 'off'); checks++;
+        assert((await page.locator('#reportNextRun').innerText()).includes('Nicht geplant')); checks++;
         await page.locator('input[name="recreateReport"]').check();
         await page.locator('.logreport-message').evaluateAll(nodes => nodes.forEach(node => node.remove()));
         const started = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/LogReports_p.html');

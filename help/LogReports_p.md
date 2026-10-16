@@ -72,56 +72,122 @@ Expect observations: counts, logs, queues, timing, network rows, thread states, 
 
 - `LLMSelection_p.html`
 
-## Automatic reports, schedule and status
+## Flexible situation reports
 
-**Automatic reports – settings** uses the existing `ai.logreport.enabled`,
-`ai.logreport.period_minutes` (default 60), and
-`ai.logreport.daily_compression.enabled` (default true). The new
-`ai.logreport.daily_time` defaults to `00:00` in the server/log timezone,
-which is displayed explicitly. A multi-hour interval schedules separate existing
-one-hour buckets, not a new aggregate format. DST gaps move the daily run forward;
-repeated local hours have one filename and are processed once. The existing
-scheduler checks due times every 30 seconds, without another service.
+The existing scheduler checks one plan every 30 seconds. Each due interval produces
+**one aggregate report with at most one `logreport` model call**, never a fan-out of
+hourly calls. There is no automatic daily compression in parallel.
 
-Disable prevents new automatic model calls; an already running request may finish.
-Reports and raw logs are retained. Enabling, changing the schedule, and restarting
-open a fresh collection window instead of replaying missed hours. Existing daily
-reports prevent rebuilding their hours. A durable attempt journal in the report
-directory also prevents silent paid retries after deletion, failures, or interruption.
-An uncertain/failed attempt needs an explicit manual recreation. Journal entries are
-bounded to 90 days; automatic scheduling never reopens older windows. Manual
-requests older than that require the explicit recreation checkbox, even when
-historic files have been deleted.
+| Schedule | Report interval | Automatic model calls |
+| --- | --- | --- |
+| Off | None | 0 |
+| Hourly, 1 / 2 / 4 / 6 / 12 h | One elapsed interval ending at the due boundary | At most 1 per interval |
+| Daily | Previous local execution time to this execution time | At most 1 per day |
+| Weekly | Previous selected weekday/time to this weekday/time | At most 1 per week |
+| Monthly | Previous selected calendar day/time to this day/time | At most 1 per month |
 
-The page displays the assigned model, actual activation state, last successful/failed
-creation, result, and next due time separately for hourly and daily reports. Existing
-legacy reports do not retroactively acquire creation-status records. Daily
-consolidation retains hourly reports. Before consolidation, pending eligible hours
-are flushed; this may cause an hourly call at the daily due time as well as at its
-regular interval. There is no new aggregation pipeline.
+Default timezone is `Europe/Berlin`; valid IANA zone IDs and `UTC` are accepted.
+Calendar schedules use local wall time. DST gaps move forward; an overlapping local
+execution time runs once at its earlier offset. Hourly intervals count elapsed hours,
+anchored to the timezone's midnight on 1 January 1970; their local clock phase can
+shift at DST. Month days absent in a short month use that month's final day; `0`
+explicitly selects the final day. Calendar windows may therefore have different
+elapsed lengths. The requested interval is always stored as unambiguous instants.
+
+A future next run survives restart. A run already missed at startup is skipped.
+A delayed running scheduler processes only its latest completed interval, never a
+queue of missed intervals. Changing or enabling a schedule starts with its next
+future boundary. Existing reports and logs are never deleted by scheduling.
+An in-flight request can finish after disabling; no further automatic call starts.
+
+### Configuration and migration
+
+`ai.logreport.schedule` is a single versioned atomic configuration value:
+`1|mode|hours|HH:mm|weekday|monthday|zone`. The editor validates it before saving. The existing `ai.logreport.enabled=false` remains an emergency stop for automatic reports; saving an active/off schedule synchronizes that flag.
+The existing configuration writer persists it in `DATA/SETTINGS/yacy.conf`.
+The report directory remains `ai.logreport.dir` (`DATA/REPORTS/log` by default).
+
+An empty schedule migrates `ai.logreport.enabled` and the primary legacy
+`ai.logreport.period_minutes` (nearest supported hour interval) once. The old daily
+time is retained in the new editor. All legacy keys, existing reports, and the
+attempt journal are preserved. Since a single selected frequency now defines one
+period, the old optional parallel daily compression is no longer scheduled. The UI
+shows a migration notice; choose Daily explicitly if desired. Existing hourly and
+daily Markdown files remain readable through the page and feeds. New files use
+`report-period-<start epoch seconds>-<end epoch seconds>.md`.
+
+The existing atomic `.generation-state.properties` journal records the next run,
+claimed intervals, outcomes, and last completed interval. Claims are written before
+a model request. Interrupted/failed attempts and deleted files are not automatically
+retried. Explicit manual recreation is required. Attempt entries expire after 90
+days; old manual requests require the explicit recreation flag. Existing report
+files still prevent duplicates. Existing matching legacy hour/day files are also
+recognized. This provides at-most-once automatic attempts, not automatic retries.
+
+### Historical availability and bounded statistics
+
+The former source was the volatile `GuiHandler` buffer (default 100,000 entries).
+The default persistent FileHandler rotates 20 files of about 1 MiB each. Neither
+provides guaranteed weekly/monthly history. The new report source is a local compact
+statistics handler on the existing Java root logger, checkpointed by the existing
+scheduler every five minutes and on clean shutdown. No additional service/database
+or raw-log archive is introduced. Collection continues while report automation is
+off and itself makes no model calls.
+
+`.operational-statistics.gz` in the report directory retains **65 days**, capped at
+1,561 hourly buckets. Each bucket has minute counters for entries, warnings, errors,
+and monitored milliseconds, plus at most three error, three warning, and one other
+redacted/truncated event samples. Samples are representative, not a complete error
+listing. Stack traces and full raw logs are not archived. The uncompressed counter
+payload is bounded to about 3 MiB, plus bounded samples. Checkpoints are replaced
+atomically. Abrupt shutdown loses uncheckpointed statistics, normally up to five minutes; a long-running model call can delay the shared scheduler and extend this window.
+
+No old rotating logs are imported or guessed. Initial installation, offline time,
+restart gaps, missing checkpoints, and history outside retention stay unknown. Every
+report starts with deterministic requested/evaluated boundaries, available entry and
+warning/error counts, observed coverage bounds, monitored seconds, and a conservative
+unknown-coverage duration. Zero events are distinguished from absent monitoring.
+Heartbeat gaps over 90 seconds count as unknown coverage, including a scheduler delayed by a long model call. Time resolution is one
+minute; report start/end require whole minutes. A long interval remains one report.
+
+The LLM receives counters and only samples fitting the existing model context/output
+budget, prioritized errors then warnings then other events. Omitted samples are
+counted. If no counters or monitored coverage exist, a data-gap report is written
+without a paid call. The trusted Scoutro operating context remains in the prompt;
+log samples are untrusted evidence and cannot override operating instructions.
 
 ## Manual generation and protected writes
 
-Choose a local report hour and review the displayed one-hour period. The running
-hour contains only logs available so far. The explicit button may call the assigned
-`logreport` model even with automation off; API charges are possible. Recreating an
-already claimed/completed hour requires the separate recreation checkbox. A current
-hour written manually is not automatically rebuilt later. Missing logs/model or
-model failures are reported through the existing asynchronous job/status endpoint.
+Choose start and exclusive end in the displayed schedule timezone, review the shown
+period, and click **run report now**. The period must be past, minute-aligned, positive,
+and at most 65 days. Invalid intervals return HTTP 400 without starting a job or making a model call. Manual reports work with automation off. An explicit recreation
+checkbox permits another model call for an already attempted/completed period.
+API charges are possible. During DST overlap local manual times use the earlier
+offset; use a nonambiguous boundary when selecting a repeated hour.
 
-All mutations require administrator authentication, **POST**, and the existing
-`transactionToken` obtained from this page. Form fields:
+All mutations require admin authentication, **POST**, and the existing
+`transactionToken` from the page, including requests from localhost.
 
-- `saveReportSettings`, `automaticEnabled`, `dailyEnabled`, `periodMinutes`
-  (integer 1–1440), `dailyTime` (`HH:mm`);
-- `runReportNow`, `reportHour` (local ISO datetime), optional `recreateReport`;
-- `deleteReport` (strict report filename). Deletion via GET is rejected.
+| Action / parameter | Meaning |
+| --- | --- |
+| `saveReportSettings=1` | Validate and save a schedule; skip missed history |
+| `scheduleMode` | `off`, `hourly`, `daily`, `weekly`, `monthly` |
+| `scheduleHours` | `1`, `2`, `4`, `6`, `12` |
+| `scheduleTime` | `HH:mm` |
+| `scheduleWeekday` | Monday `1` through Sunday `7` |
+| `scheduleMonthday` | `1`–`31`, or `0` for last day |
+| `scheduleZone` | IANA zone, default `Europe/Berlin` |
+| `runReportNow=1`, `reportStart`, `reportEnd` | Start one asynchronous manual interval report; local ISO datetimes |
+| `recreateReport=on` | Explicitly allow another attempt |
+| `reportHour` | Compatibility-only manual one-hour request when `reportStart` is absent; uses original log source/format and the legacy server timezone |
+| `deleteReport` | Explicit individual deletion; strict legacy/period filename, POST only |
 
-The read-only feeds retain their existing interfaces and access policies.
-`api/logreportstatus.json` now challenges unauthenticated clients with HTTP 401
-instead of an unchallenged JSON error, so browsers can authenticate polling.
-A completed manual-job result remains readable until the next job; page rendering
-can no longer consume it before the polling client sees it. Settings use the existing atomic configuration persistence;
-the attempt/schedule journal is replaced atomically in the existing report directory.
-Trusted boolean/load configuration is included in the budgeted report prompt.
-Logs and old reports remain evidence, never operating instructions.
+Read-only admin feeds `api/logreports.json` and `.rss` retain their interface.
+The legacy JSON `daily` flag applies only to legacy daily reports; new arbitrary
+period reports have `daily=false`, identifiable by filename/title/content.
+`api/logreportstatus.json` is admin-only and returns the existing asynchronous job
+state, stable last result, duration, and partial generated text. It challenges
+unauthenticated clients with HTTP 401. The completed result remains until a new job.
+The page additionally displays effective state/model, next run, last completed
+period, and most recent successful/failed attempt. No discovery, crawling, RAG,
+TLDR, or knowledge-graph changes are made by these controls.

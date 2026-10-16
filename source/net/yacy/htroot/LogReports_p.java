@@ -14,10 +14,11 @@ package net.yacy.htroot;
 import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import net.yacy.data.TransactionManager;
-import net.yacy.ai.LogReportControl;
+import net.yacy.ai.LogReportSchedule;
+import java.time.Instant;
+import java.time.ZoneId;
 import net.yacy.ai.LLM;
 import java.util.List;
 
@@ -29,6 +30,12 @@ import net.yacy.server.serverObjects;
 import net.yacy.server.serverSwitch;
 
 public class LogReports_p {
+    private static String displayInstant(String value, ZoneId zone) {
+        if(value.isEmpty()) return "Noch nicht erfasst";
+        try { return Instant.parse(value).atZone(zone).format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm XXX")); }
+        catch(RuntimeException e) { return "Status nicht lesbar"; }
+    }
+
 
     public static serverObjects respond(@SuppressWarnings("unused") final RequestHeader header, final serverObjects post, final serverSwitch env) {
         final Switchboard sb = (Switchboard) env;
@@ -44,52 +51,37 @@ public class LogReports_p {
         prop.putHTML("settingsMessage", "");
         if (post != null && post.containsKey("saveReportSettings")) {
             try {
-                final long period = Long.parseLong(post.get("periodMinutes", "60"));
-                if (period < 1 || period > 1440) throw new IllegalArgumentException();
-                final String time = post.get("dailyTime", "00:00");
-                if (!time.matches("\\d{2}:\\d{2}")) throw new IllegalArgumentException();
-                LocalTime.parse(time);
-                synchronized (LogReportControl.LOCK) {
-                    sb.setConfig(LogReportService.CONFIG_ENABLED, false);
-                    sb.setConfig(LogReportService.CONFIG_PERIOD_MINUTES, period);
-                    sb.setConfig(LogReportService.CONFIG_DAILY_COMPRESSION_ENABLED, post.containsKey("dailyEnabled"));
-                    sb.setConfig(LogReportControl.DAILY_TIME, time);
-                    service.resetSchedule(period);
-                    sb.setConfig(LogReportService.CONFIG_ENABLED, post.containsKey("automaticEnabled"));
-                }
+                final LogReportSchedule plan=new LogReportSchedule(post.get("scheduleMode","off"),
+                        Integer.parseInt(post.get("scheduleHours","1")),post.get("scheduleTime","00:00"),
+                        Integer.parseInt(post.get("scheduleWeekday","1")),Integer.parseInt(post.get("scheduleMonthday","0")),
+                        post.get("scheduleZone","Europe/Berlin"));
+                service.saveSchedule(plan);
                 prop.putHTML("settingsMessage", "Einstellungen gespeichert. Alte Zeiträume werden nicht nachgeholt.");
-            } catch (final Exception e) { prop.putHTML("settingsMessage", "Einstellungen nicht aktiviert. Bitte gültiges Intervall und Uhrzeit prüfen; bei Speicherfehlern bleiben automatische Berichte aus."); }
+            } catch (final Exception e) { prop.putHTML("settingsMessage", "Ungültiger Zeitplan oder Speicherfehler. Die bisherigen Einstellungen bleiben erhalten; Status prüfen."); }
         }
-        prop.put("automaticEnabled", sb.getConfigBool(LogReportService.CONFIG_ENABLED, true));
-        prop.put("dailyEnabled", sb.getConfigBool(LogReportService.CONFIG_DAILY_COMPRESSION_ENABLED, true));
-        prop.putNum("periodMinutes", sb.getConfigLong(LogReportService.CONFIG_PERIOD_MINUTES, 60));
-        prop.putHTML("dailyTime", sb.getConfig(LogReportControl.DAILY_TIME, "00:00"));
-        prop.putHTML("reportZone", LogReportService.reportZone().toString());
-        final LLM.LLMModel reportModel = LLM.llmFromUsageQuiet(LLM.LLMUsage.logreport);
-        prop.putHTML("reportModel", reportModel == null ? "Kein Modell zugewiesen" : reportModel.model);
-        final boolean active = sb.getConfigBool(LogReportService.CONFIG_ENABLED, true) && reportModel != null && LogReportService.isSchedulerRunning();
-        prop.putHTML("hourlyState", active ? "Aktiv" : "Inaktiv");
-        prop.putHTML("dailyState", active && sb.getConfigBool(LogReportService.CONFIG_DAILY_COMPRESSION_ENABLED, true) ? "Aktiv" : "Inaktiv");
-        for (final String kind : new String[] {"hourly", "daily"}) {
-            for (final String event : new String[] {"success", "failure"}) {
-                String value = "Noch keine Erstellung erfasst";
-                try { final String recorded = service.control().value("last." + kind + "." + event);
-                    if (!recorded.isEmpty()) value = java.time.Instant.parse(recorded).atZone(LogReportService.reportZone()).format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss XXX"));
-                } catch (final Exception e) { value = "Status nicht lesbar"; }
-                prop.putHTML(kind + "_" + event, value);
-            }
-            String next = "Nicht geplant";
-            try { if (active && (!"daily".equals(kind) || sb.getConfigBool(LogReportService.CONFIG_DAILY_COMPRESSION_ENABLED, true))) {
-                final String value = service.control().value("next." + kind);
-                next = value.isEmpty() ? "Scheduler nicht bereit" : java.time.Instant.parse(value).atZone(LogReportService.reportZone()).format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss XXX"));
-            } } catch (final Exception e) { next = "Status nicht lesbar"; }
-            prop.putHTML(kind + "_next", next);
-            try { prop.putHTML(kind + "_message", service.control().value("last." + kind + ".message")); }
-            catch (final Exception e) { prop.putHTML(kind + "_message", "Status nicht lesbar"); }
+        final LogReportSchedule plan=service.schedule();
+        prop.putHTML("scheduleMode",plan.mode); prop.putNum("scheduleHours",plan.hours);
+        prop.putHTML("scheduleTime",plan.time.toString()); prop.putNum("scheduleWeekday",plan.weekday);
+        prop.putNum("scheduleMonthday",plan.monthday); prop.putHTML("reportZone",plan.zone.getId());
+        prop.put("migrationNotice",sb.getConfig(LogReportSchedule.CONFIG,"").isEmpty() ||
+                !service.controlValue("migration.legacy").isEmpty());
+        final LLM.LLMModel reportModel=LLM.llmFromUsageQuiet(LLM.LLMUsage.logreport);
+        prop.putHTML("reportModel",reportModel==null?"Kein Modell zugewiesen":reportModel.model);
+        final boolean enabled=!plan.mode.equals("off") && sb.getConfigBool(LogReportService.CONFIG_ENABLED,true);
+        final boolean active=enabled && reportModel!=null && LogReportService.isSchedulerRunning();
+        prop.putHTML("scheduleState",active?"Aktiv":!enabled?"Ausgeschaltet":"Nicht verfügbar (Modell oder Scheduler fehlt)");
+        for(String event:new String[]{"success","failure"}) {
+            prop.putHTML("scheduled_"+event,displayInstant(service.controlValue("last.scheduled."+event),plan.zone));
         }
-        final LocalDateTime currentHour = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS);
-        prop.putHTML("reportHour", currentHour.toString());
-        prop.putHTML("reportPeriod", currentHour + " bis " + currentHour.plusHours(1));
+        prop.putHTML("scheduled_next",active?displayInstant(service.controlValue("next.scheduled"),plan.zone):"Nicht geplant");
+        prop.putHTML("scheduled_message",service.controlValue("last.scheduled.message"));
+        final String completedStart=service.controlValue("last.completed.start"), completedEnd=service.controlValue("last.completed.end");
+        prop.putHTML("completedPeriod",completedStart.isEmpty()?"Noch kein Lagebericht abgeschlossen":displayInstant(completedStart,plan.zone)+" bis "+displayInstant(completedEnd,plan.zone));
+        final Instant manualEnd=Instant.now().truncatedTo(ChronoUnit.MINUTES);
+        final Instant manualStart=plan.mode.equals("off")?manualEnd.minus(1,ChronoUnit.HOURS):plan.previous(manualEnd.minusNanos(1));
+        prop.putHTML("reportStart",manualStart.atZone(plan.zone).toLocalDateTime().toString());
+        prop.putHTML("reportEnd",manualEnd.atZone(plan.zone).toLocalDateTime().toString());
+        prop.putHTML("reportPeriod",manualStart.atZone(plan.zone)+" bis "+manualEnd.atZone(plan.zone));
         final File reportDirectory = service.getReportDirectory();
 
         // fixed display limit; the navigation column shows at most this many reports
@@ -105,10 +97,20 @@ public class LogReports_p {
         prop.putNum("runReportResult_runReportDurationSeconds", 0);
         if (post != null && post.containsKey("runReportNow")) {
             try {
-                final LocalDateTime hour = LocalDateTime.parse(post.get("reportHour", currentHour.toString()));
-                if (hour.isAfter(LocalDateTime.now())) throw new IllegalArgumentException();
-                service.startManualReportJob(hour.truncatedTo(ChronoUnit.HOURS), post.containsKey("recreateReport"));
-            } catch (final RuntimeException e) { prop.putHTML("settingsMessage", "Ungültiger Berichtszeitraum."); }
+                if(post.containsKey("reportHour") && !post.containsKey("reportStart")) {
+                    // Compatibility for existing explicitly triggered one-hour clients.
+                    final LocalDateTime hour=LocalDateTime.parse(post.get("reportHour"));
+                    if(hour.isAfter(LocalDateTime.now())) throw new IllegalArgumentException();
+                    service.startManualReportJob(hour.truncatedTo(ChronoUnit.HOURS),post.containsKey("recreateReport"));
+                } else {
+                    final Instant start=LocalDateTime.parse(post.get("reportStart",manualStart.atZone(plan.zone).toLocalDateTime().toString())).atZone(plan.zone).toInstant();
+                    final Instant end=LocalDateTime.parse(post.get("reportEnd",manualEnd.atZone(plan.zone).toLocalDateTime().toString())).atZone(plan.zone).toInstant();
+                    service.startManualReportJob(start,end,post.containsKey("recreateReport"));
+                }
+            } catch (final RuntimeException e) {
+                throw new net.yacy.http.servlets.TemplateProcessingException(
+                        "Ungültiger Berichtszeitraum. Vergangenen Zeitraum von höchstens 65 Tagen mit Minutengenauigkeit wählen.",400);
+            }
         }
         final boolean reportRunning = LogReportService.isManualReportJobRunning();
         prop.put("reportRunning", reportRunning ? "1" : "0");
@@ -126,7 +128,7 @@ public class LogReports_p {
         // confirmation); the filename is strictly validated against the report
         // filename patterns, which excludes any path traversal
         final String deleteReport = post == null ? "" : post.get("deleteReport", "");
-        if (deleteReport.matches("report-\\d{4}-\\d{2}-\\d{2}(-\\d{2})?\\.md")) {
+        if (deleteReport.matches("report-(?:\\d{4}-\\d{2}-\\d{2}(-\\d{2})?|period-\\d{1,12}-\\d{1,12})\\.md")) {
             final File deleteFile = new File(reportDirectory, deleteReport);
             if (deleteFile.isFile() && !deleteFile.delete()) {
                 net.yacy.cora.util.ConcurrentLog.warn("LogReports", "could not delete log report " + deleteFile.getAbsolutePath());
@@ -164,7 +166,7 @@ public class LogReports_p {
             prop.put(p + TransactionManager.TRANSACTION_TOKEN_PARAM, prop.get(TransactionManager.TRANSACTION_TOKEN_PARAM));
             prop.putHTML(p + "title", report.title);
             prop.putHTML(p + "date", report.published.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-            prop.putHTML(p + "type", report.daily ? "daily" : "hourly");
+            prop.putHTML(p + "type", report.filename.startsWith("report-period-") ? "Lagebericht" : report.daily ? "daily" : "hourly");
             prop.put(p + "selected", report == selected ? "1" : "0");
         }
         prop.put("hasReports_reports", reports.size());
@@ -174,7 +176,7 @@ public class LogReports_p {
             prop.putHTML("hasReports_selectedReport_filename", selected.filename);
             prop.putHTML("hasReports_selectedReport_title", selected.title);
             prop.putHTML("hasReports_selectedReport_published", selected.published.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-            prop.putHTML("hasReports_selectedReport_type", selected.daily ? "daily" : "hourly");
+            prop.putHTML("hasReports_selectedReport_type", selected.filename.startsWith("report-period-") ? "Lagebericht" : selected.daily ? "daily" : "hourly");
             prop.putNum("hasReports_selectedReport_chars", selected.content.length());
             prop.putHTML("hasReports_selectedReport_content", selected.content);
         }

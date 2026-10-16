@@ -71,6 +71,28 @@ public final class LogReportControl {
         synchronized (LOCK) { final Properties p = read(); p.setProperty("next." + kind, next.toString()); write(p); }
     }
 
+    /** Keep future plans on restart; missed plans are skipped, never replayed. */
+    public void initialize(final LogReportSchedule schedule, final Instant now, final boolean changed) throws IOException {
+        synchronized (LOCK) {
+            final Properties p = read();
+            final String next = p.getProperty("next.scheduled", "");
+            if (!p.containsKey("schedule")) p.setProperty("migration.legacy", "Legacy values retained; primary hourly interval selected; parallel daily compression is no longer automatic.");
+            if (changed || !schedule.encode().equals(p.getProperty("schedule")) || next.isEmpty()
+                    || !Instant.parse(next).isAfter(now)) {
+                p.setProperty("schedule", schedule.encode());
+                p.setProperty("next.scheduled", schedule.mode.equals("off") ? "" : schedule.next(now).toString());
+                write(p);
+            }
+        }
+    }
+
+    public void completed(final Instant start, final Instant end) throws IOException {
+        synchronized (LOCK) {
+            final Properties p=read(); p.setProperty("last.completed.start",start.toString());
+            p.setProperty("last.completed.end",end.toString()); write(p);
+        }
+    }
+
     public boolean eligible(final LocalDateTime bucket) throws IOException {
         final String since = value("since");
         return !since.isEmpty() && !bucket.isBefore(LocalDateTime.parse(since));

@@ -4506,6 +4506,49 @@ Could not start report generation. Reload the page, check the login and selected
 Selected-hour report written:==Bericht für die gewählte Stunde erstellt:
 Generating report from the selected-hour log lines==Bericht für die gewählte Stunde wird erstellt
 
+# Flexible situation reports (long keys before shorter matches)
+Unavailable calendar days use the last day.==Nicht vorhandene Kalendertage verwenden den letzten Monatstag.
+Legacy settings are retained. The former primary interval is migrated to a single schedule; parallel daily consolidation is no longer automatic. Review the desired schedule.==Alte Einstellungen bleiben erhalten. Das bisherige Hauptintervall wird in einen einzelnen Zeitplan übernommen; die parallele Tagesverdichtung entfällt. Bitte den gewünschten Zeitplan prüfen.
+Calendar schedules follow local time with daylight saving changes. A missing local time moves forward; a repeated time runs once. Hourly intervals use elapsed hours.==Kalenderpläne folgen der Ortszeit einschließlich Sommer-/Winterzeit. Eine fehlende Uhrzeit wird vorgerückt; eine doppelte Uhrzeit wird einmal ausgeführt. Stundenintervalle zählen verstrichene Stunden.
+Manual generation works while automation is off. A model call may incur API charges. Select a past period of at most 65 days; coverage gaps are shown.==Manuelle Erstellung ist bei ausgeschalteter Automatik möglich. Ein Modellaufruf kann API-Kosten verursachen. Vergangenen Zeitraum von höchstens 65 Tagen wählen; Datenlücken werden ausgewiesen.
+Local counters retain 65 days and limited redacted event samples. No historical coverage is invented. Statistics collection makes no model calls.==Lokale Zähler speichern 65 Tage und wenige bereinigte Ereignisbeispiele. Historische Abdeckung wird nicht angenommen. Die Statistikerfassung ruft kein Modell auf.
+No catch-up of missed periods. Existing reports and logs are retained. Each report shows available entries and coverage gaps.==Verpasste Zeiträume werden nicht nachgeholt. Vorhandene Berichte und Logs bleiben erhalten. Jeder Bericht zeigt verfügbare Einträge und Datenlücken.
+The report directory does not exist yet. Reports will appear here after the first completed reporting period.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier nach dem ersten abgeschlossenen Berichtszeitraum.
+One report covers one selected interval. Weekly and monthly schedules do not generate hourly reports.==Ein Bericht umfasst genau ein gewähltes Intervall. Wochen- und Monatspläne erzeugen keine zusätzlichen Stundenberichte.
+No operational data were available for the selected period.==Für den gewählten Zeitraum waren keine Betriebsdaten verfügbar.
+Generating one situation report for the selected period==Ein Lagebericht für den gewählten Zeitraum wird erstellt
+Explicitly recreate an already processed period==Bereits verarbeiteten Zeitraum ausdrücklich neu erstellen
+Scoutro situation report (just generated)==Scoutro-Lagebericht (soeben erstellt)
+Selected-period report written:==Lagebericht für den gewählten Zeitraum erstellt:
+Period end (exclusive)==Zeitraum bis (ausschließlich)
+Last completed period==Zuletzt abgeschlossener Berichtszeitraum
+Last day of month==Letzter Monatstag
+situation report==Lagebericht
+Execution time==Uhrzeit
+Reports found:==Gefundene Berichte:
+Day of month==Kalendertag
+Last result:==Letztes Ergebnis:
+Period start==Zeitraum von
+Directory:==Verzeichnis:
+characters==Zeichen
+Wednesday==Mittwoch
+Schedule==Zeitplan
+Thursday==Donnerstag
+Saturday==Samstag
+Timezone==Zeitzone
+Monthly==Monatlich
+Weekday==Wochentag
+Tuesday==Dienstag
+seconds==Sekunden
+Hourly==Stündlich
+Weekly==Wöchentlich
+Monday==Montag
+Friday==Freitag
+Sunday==Sonntag
+Daily==Täglich
+Every==Alle
+Off==Ausgeschaltet
+
 #File: IndexFederated_p.html
 #---------------------------
 Tick this when the remote Solr server is password protected and is requested over HTTPS but provides only a self-signed certificate (not a validated one by an official Certificate Authority). The Solr URL could be for example something like <i>https://user:password@localhost:8984/solr</i>.==Aktivieren Sie dies, wenn der entfernte Solr-Server passwortgeschützt ist und über HTTPS angesprochen wird, aber nur ein selbstsigniertes Zertifikat bereitstellt (kein von einer offiziellen Zertifizierungsstelle validiertes). Die Solr-URL könnte zum Beispiel etwa so aussehen: <i>https://user:password@localhost:8984/solr</i>.

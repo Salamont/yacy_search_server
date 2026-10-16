@@ -1473,3 +1473,6 @@ ai.logreport.daily_time = 00:00
 ai.tldr.enabled = true
 # Explicitly enabled administrator content diagnostics expire after 15 minutes.
 ai.tldr.diagnostics_until = 0
+
+# One atomic versioned report schedule; empty migrates legacy settings once.
+ai.logreport.schedule=
