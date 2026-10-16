@@ -10,6 +10,25 @@ model, `/tools`, MCP and the `search` tool.
 
 ## 1. Retrieval flow
 
+The synonym correction uses the original prepared `RagQuery` through the production
+search handoff, scoring and excerpts. Expanded strings are not prepared a second
+time. `RagSynonyms` reads the active embedded schema/query fields and the existing
+YaCy synonym library; only actual document text can substantiate an alternative.
+Unknown/remote schemas do not receive guessed alternatives. The ambiguous
+Beratung/Besprechung pair is excluded. Each original concept counts once.
+
+Main's ranking comparator, selection stages, collection policy, candidate/source
+budgets, knowledge processing and TLDR fallback stay unchanged. Two-letter
+acronyms require complete word boundaries; longer terms retain main's prefix rules.
+No dictionary/schema, setting, model call or background task is added.
+
+`ant scoutro-rag-test` includes the embedded-Solr synonym regressions. The existing
+`test/scoutro-access/chat-rag-live-smoke.py` also checks TV/Television,
+Rechner/Computer, long expanded questions, negative cases and the actual outgoing
+model context on a disposable peer. Its tiny dictionary fixtures exist only in
+that temporary DATA directory; the assigned TLDR model must not receive an extra
+call when synonym retrieval succeeds.
+
 | | Before | Now |
 | --- | --- | --- |
 | Query | the whole question as typed, stopwords included (`welche`, `gibt`, `es`, `in` …); for long questions the tldr model was asked for search words | `RagQuery`: stopwords (YaCy and Solr lists, DE/EN) and chat filler words removed, quoted phrases kept, at most 8 terms (nouns and longer words first), generic words such as "Anbieter" marked weak. No LLM call |

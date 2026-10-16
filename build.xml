@@ -384,6 +384,7 @@
       </classpath>
     </javac>
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <arg value="net.yacy.ai.rag.RagSynonymsSolrTest" />
       <arg value="net.yacy.ai.rag.RagQueryTest" />
       <arg value="net.yacy.ai.rag.RagRetrieverTest" />
       <arg value="net.yacy.ai.rag.RagContextTest" />

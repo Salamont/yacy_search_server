@@ -71,6 +71,9 @@ public class RagQueryTest {
 
     @Test
     public void modifiersPhrasesAcronymsAndWeakWords() {
+        assertEquals(List.of("tv"), terms(RagQuery.prepare("TV")));
+        assertEquals(List.of("it"), terms(RagQuery.prepare("IT")));
+        assertTrue(RagQuery.prepare("WAS IST ES").isEmpty());
         RagQuery query = RagQuery.prepare("collection:stackfinder-web site:shop.example \"Shopware 6\" Agentur KI IT");
         assertEquals("stackfinder-web", query.questionCollection);
         assertEquals(List.of("site:shop.example"), query.modifiers);
@@ -83,5 +86,13 @@ public class RagQueryTest {
         assertNull(RagQuery.prepare("Pflegeheim").questionCollection);
         // other modifiers are not passed to the search
         assertEquals("pflegeheim", RagQuery.prepare("inurl:admin Pflegeheim").searchString(false));
+    }
+
+    @Test
+    public void shortAcronymsDoNotMatchWordPrefixes() {
+        assertFalse(RagCandidate.matches(RagQuery.prepare("KI").terms.get(0), RagQuery.fold("Kindertagesstätte")));
+        assertFalse(RagCandidate.matches(RagQuery.prepare("TV").terms.get(0), RagQuery.fold("TVxyz")));
+        // Preserve main's existing prefix treatment for longer terms.
+        assertTrue(RagCandidate.matches(RagQuery.prepare("Köln").terms.get(0), RagQuery.fold("Kölner Süden")));
     }
 }

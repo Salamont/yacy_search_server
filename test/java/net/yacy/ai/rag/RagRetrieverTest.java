@@ -132,4 +132,34 @@ public class RagRetrieverTest {
         // remote peers require every word; a collection keeps the search local
         assertEquals(List.of("pflegeheime köln @global", "pflegeheime pflegeheim köln"), seen);
     }
+
+    @Test
+    public void productionHandoffKeepsOriginalConceptsBeforeWordExpansion() {
+        for (final String question : List.of("TV", "Pflegeheime Seniorenheime Beratungen Automatisierungen Integrationen Anwendungen Dienstleistungen Rechner")) {
+            final RagQuery original = RagQuery.prepare(question);
+            final RagRetriever retriever = new RagRetriever((concepts, generated, collection, count, global) -> {
+                org.junit.Assert.assertSame(original, concepts);
+                assertEquals(original.searchString(true), generated);
+                assertEquals("stackfinder-web", collection);
+                assertEquals(30, count);
+                assertTrue(!global);
+                return List.of();
+            });
+            assertEquals("none", retriever.retrieve(original, "stackfinder-web", false, 8).stage);
+            assertEquals(question.equals("TV") ? 1 : 8, original.terms.size());
+        }
+    }
+
+    @Test
+    public void synonymCoverageKeepsMainsExistingRankingAndSourceBudget() {
+        final RagCandidate expanded = new RagCandidate("https://expanded.example/", "Test", "", "Computer", "expanded.example",
+                List.of("stackfinder-web"), 0, java.util.Map.of("rechner", java.util.Set.of("computer")));
+        final RagCandidate exact = new RagCandidate("https://exact.example/", "Test", "", "Rechner", "exact.example",
+                List.of("stackfinder-web"), 1);
+        final RagRetriever.Result result = new RagRetriever((q, c, n, g) -> List.of(expanded, exact))
+                .retrieve(RagQuery.prepare("Rechner"), "stackfinder-web", false, 1);
+        assertEquals("all", result.stage);
+        assertEquals(1, result.selected.size());
+        org.junit.Assert.assertSame(expanded, result.selected.get(0).candidate);
+    }
 }
