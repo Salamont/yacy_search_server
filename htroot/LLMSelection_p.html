@@ -5,7 +5,7 @@
     <title>YaCy '#[clientname]#': LLM Selection</title>
     #%env/templates/metas.template%#
   </head>
-  <body id="IndexControl" data-llm-service="#[llm_service]#" data-llm-hoststub="#[llm_hoststub]#" data-llm-apikey-set="#[llm_apikey_set]#" data-apikey-set-label="set" data-model-capabilities="#[model_capabilities]#" data-service-num-ctx="#[service_num_ctx_json]#">
+  <body id="IndexControl" data-settings-saved="#[settings_saved]#" data-settings-revision="#[settings_revision]#" data-llm-service="#[llm_service]#" data-llm-hoststub="#[llm_hoststub]#" data-llm-apikey-set="#[llm_apikey_set]#" data-apikey-set-label="set" data-model-capabilities="#[model_capabilities]#" data-service-num-ctx="#[service_num_ctx_json]#">
     #%env/templates/header.template%#
     #%env/templates/submenuAI.template%#
     <script src="env/scoutro/format-probe.js"></script>
@@ -59,6 +59,8 @@
       ]);
       // opt-in usages: never checked automatically for a new row, never handed to another row on undeploy
       const PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS = new Set([
+        11, // tldr-shortener
+        12, // log-report
         13  // knowledge (Scoutro knowledge graph extraction)
       ]);
       const PRODUCTION_MODEL_API_KEY_COLUMN_INDEX = 3;
@@ -85,6 +87,52 @@
         "format"
       ];
       const PRODUCTION_MODEL_SUBMIT_URL = "LLMSelection_p.html";
+      // One ordered stream for this page's existing saves. After any failure,
+      // discard queued snapshots and require a reload of authoritative settings.
+      // Never restore old checkboxes underneath a newer queued edit.
+      let modelSettingsSave = Promise.resolve();
+      let modelSettingsSaveFailed = false;
+      let modelSettingsPending = 0;
+      let modelSettingsRevision = document.body.dataset.settingsRevision;
+
+      function showModelSettingsSave(kind, detail = "") {
+        const status = document.getElementById("modelSettingsStatus");
+        if (!status) return;
+        status.style.display = "block";
+        status.className = kind === "error" ? "alert alert-danger" : kind === "saved" ? "alert alert-success" : "alert alert-info";
+        status.setAttribute("role", kind === "error" ? "alert" : "status");
+        status.textContent = status.dataset[kind] + (detail ? " (" + detail + ")" : "");
+      }
+
+      function persistModelSettings(payload) {
+        if (modelSettingsSaveFailed) return modelSettingsSave;
+        const body = JSON.stringify(payload);
+        modelSettingsPending++;
+        showModelSettingsSave("saving");
+        modelSettingsSave = modelSettingsSave.then(async () => {
+          if (modelSettingsSaveFailed) return;
+          let status = document.getElementById("modelSettingsStatus").dataset.networkError;
+          try {
+            const response = await fetch(PRODUCTION_MODEL_SUBMIT_URL, {
+              method: "POST", headers: { "Content-Type": "application/json", "If-Match": '"' + modelSettingsRevision + '"' }, body
+            });
+            status = "HTTP " + response.status;
+            if (!response.ok) throw new Error("save failed");
+            const result = new DOMParser().parseFromString(await response.text(), "text/html");
+            if (!result.body || result.body.dataset.settingsSaved !== "1") throw new Error("save not confirmed");
+            modelSettingsRevision = result.body.dataset.settingsRevision;
+          } catch (error) {
+            modelSettingsSaveFailed = true;
+            showModelSettingsSave("error", status);
+            document.querySelectorAll("fieldset input, fieldset select, fieldset button").forEach(control => { control.disabled = true; });
+          }
+        }).finally(() => {
+          modelSettingsPending--;
+          if (!modelSettingsSaveFailed && modelSettingsPending === 0) showModelSettingsSave("saved");
+        });
+        return modelSettingsSave;
+      }
+
       const TOOLING_EXPECTED_FUNCTION_NAME = "lightswitch";
       let cachedVisionTestImageBase64 = null;
       let cachedVisionTestImagePromise = null;
@@ -1145,12 +1193,7 @@
           api_key: apikeyInput ? apikeyInput.value : "", // empty keeps the stored key
           api_key_clear: apiKeyClearRequested()
         };
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ inference_system })
-        }).catch(err => {
-          console.error("Failed to persist inference system", err);
-        });
+        persistModelSettings({ inference_system });
       }
 
       const SERVICE_DEFAULT_NUM_CTX = 4096;
@@ -1233,12 +1276,7 @@
           const value = parseInt(sel.value, 10);
           if (hoststub && Number.isFinite(value) && value > 0) service_num_ctx[hoststub] = value;
         });
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ service_num_ctx })
-        }).catch(err => {
-          console.error("Failed to persist service context windows", err);
-        });
+        persistModelSettings({ service_num_ctx });
       }
 
       function ensureProductionRowUsageCells(row, defaultChecked) {
@@ -1425,12 +1463,7 @@
           api_key_clear: apiKeyClearRequested()
         };
 
-        fetch(PRODUCTION_MODEL_SUBMIT_URL, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ production_models: production_models_table, inference_system, model_capabilities: persistedModelCapabilities })
-        }).catch(err => {
-          console.error("Failed to persist production models", err);
-        });
+        persistModelSettings({ production_models: production_models_table, inference_system, model_capabilities: persistedModelCapabilities });
         updateAvailableModelButtons();
       }
 
@@ -2261,6 +2294,9 @@
     <a id="availableModelsAnchor"></a>
     <fieldset id="availableModelsContainer" style="display:none"><a name="availableModels"></a></fieldset>
 
+    <div id="modelSettingsStatus" role="status" style="display:none"
+         data-network-error="Network error" data-saving="Saving model settings…" data-saved="Model settings saved."
+         data-error="Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes."></div>
     <fieldset id="productionModelsContainer" style="display: block;"><a name="productionModels"></a><legend>Production Models Matrix</legend>
         <div id="testActivityContainer" style="display:none; margin-bottom:12px;">
             <div id="testActivityList"></div>

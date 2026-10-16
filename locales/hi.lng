@@ -2068,6 +2068,10 @@ words/minute==शब्द/minute
 #-----------------------------
 
 #File: LLMSelection_p.html
+Saving model settings…==मॉडल सेटिंग सहेजी जा रही हैं…
+Model settings saved.==मॉडल सेटिंग सहेजी गईं।
+Model settings could not be saved. Changes are not confirmed. Reload this page before making further changes.==मॉडल सेटिंग सहेजी नहीं जा सकीं। परिवर्तनों की पुष्टि नहीं हुई है। आगे बदलाव करने से पहले यह पृष्ठ फिर से लोड करें।
+Network error==नेटवर्क त्रुटि
 #---------------------------
 alt="info"==alt="जानकारी"
 LLM Selection==LLM चयन

@@ -309,6 +309,14 @@ public class serverSwitch {
         }
     }
 
+    /**
+     * Opt-in durable save for settings whose UI must report persistence failures.
+     * The regular setConfig/saveConfig paths intentionally remain unchanged.
+     */
+    public void setConfigChecked(final Map<String, String> changes) throws IOException {
+        FileUtils.saveMapChecked(this.configFile, this.configProps, changes, this.configComment);
+    }
+
     public void setConfig(final String key, final String[] value) {
         final StringBuilder sb = new StringBuilder();
         if (value != null) for (final String s: value) sb.append(',').append(s);

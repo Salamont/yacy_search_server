@@ -39,7 +39,7 @@ try {
         await page.route('**/LLMSelection_p.html', route => {
           if (route.request().method() !== 'POST') return route.continue();
           saves.push(route.request().postDataJSON());
-          return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+          return route.fulfill({ status: 200, contentType: 'text/html', body: '<body data-settings-saved="1" data-settings-revision="fixture"></body>' });
         });
         const discovery = page.waitForResponse(response => new URL(response.url()).pathname === '/api/tags');
         const response = await page.goto(`${base}/LLMSelection_p.html`, { waitUntil: 'load' });
@@ -122,6 +122,7 @@ try {
         if (language !== 'de') continue;
         check((await page.locator('h2').textContent()).trim() === 'LLM-Auswahl', `${width}: actual German translation`);
         await page.locator('#availableModelsContainer button[data-action="deploy-model"]').first().click();
+        await page.evaluate(async () => { await modelSettingsSave; });
         const matrixDisplay = await page.locator('#productionModelsTable').evaluate(table => {
           const ancestors = [];
           for (let node = table; node; node = node.parentElement) {
@@ -136,6 +137,7 @@ try {
         check(saves.some(save => save.production_models?.some(model => model.service === 'OLLAMA' && model.model === 'fixture-model:latest')), `${width}: canonical production model serialized`);
         const deployed = saves.at(-1).production_models.find(model => model.model === 'fixture-model:latest');
         check(deployed.knowledge === false, `${width}: the opt-in knowledge usage is not assigned automatically: ${JSON.stringify(deployed)}`);
+        check(deployed.tldr === false && deployed.logreport === false && deployed.chat === true, `${width}: deployed model keeps chat default and does not enable TLDR or reports`);
         check((await page.locator('#productionModelsTable thead').textContent()).includes('knowledge'), `${width}: knowledge column`);
         // Reflow must preserve the exact original controls and serialized grant.
         const beforeReflow = saves.at(-1).production_models;
