@@ -694,6 +694,12 @@ public final class Assessments {
 
     /** Stores a new assessment and applies it; returns the rule and what moved. */
     public static JSONObject create(final Connection tx, final KgConfig cfg, final Draft d, final long now) throws SQLException {
+        return create(tx, cfg, d, now, true);
+    }
+
+    /** As {@link #create(Connection, KgConfig, Draft, long)}; {@code event} false for a batch that writes one event itself. */
+    public static JSONObject create(final Connection tx, final KgConfig cfg, final Draft d, final long now, final boolean event)
+            throws SQLException {
         final Rule r = new Rule(newId(), d, now);
         try (PreparedStatement ps = tx.prepareStatement("INSERT INTO kg_assessment (public_id, action, scope_kind, scope, predicate, value,"
                 + " subject_id, tier, target_predicate, reason, basis, status, actor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
@@ -715,7 +721,7 @@ public final class Assessments {
             ps.executeUpdate();
         }
         final JSONObject applied = apply(tx, cfg, r, now);
-        KgStore.event(tx, 1, "assessment_created", r.id + " " + r.action + " " + r.predicate + " in " + r.scopeKind + " " + r.scope
+        if (event) KgStore.event(tx, 1, "assessment_created", r.id + " " + r.action + " " + r.predicate + " in " + r.scopeKind + " " + r.scope
                 + " by " + (r.actor == null ? "unknown" : r.actor) + ": " + applied.optInt("evidence") + " evidence rows, "
                 + applied.optInt("dependentEvidence") + " dependent", now);
         return KgJson.obj("assessment", r.toJson(), "applied", applied);

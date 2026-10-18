@@ -1288,6 +1288,29 @@ paths["/v1/kg/assessments/{id}/revoke"] = {"post": op("kg.assessments.revoke", "
     {**ok("Revoked assessment and what came back.", "KgAssessmentRevokeResult"), **errs("400", "401", "403", "404", "409", "415", "503")},
     params=[{"name": "id", "in": "path", "required": True, "description": "Assessment ID.", "schema": {"type": "string", "pattern": "^kga_[a-z2-7]{20}$"}}], mutating=True)}
 
+# Rule-based review of stored LLM facts (data quality programme WP-G): administrator only, never mirrored to agents.
+_review_desc = ("Administrator only (docs/SCOUTRO_KG_TIER3_REVIEW.md). Applies the current rules to stored LLM (tier-3) evidence without any model"
+    " request: price_role (a price quoted as a statutory benefit, a donation, a subsidy or an unclear amount), price_ungrounded (no amount"
+    " with a currency in the quote), vocabulary (a category, industry, industry group or audience segment the page's current vocabularies"
+    " do not contain). A dry run counts and samples; an applying run withdraws each finding by an automatic assessment (basis automatic,"
+    " reason reassessed_rule:<rule>), revocable with POST /v1/kg/assessments/{id}/revoke. Resumable: each step continues from the stored cursor.")
+schemas["KgTier3ReviewStep"] = {"type": "object", "additionalProperties": False, "properties": {
+    "apply": {"type": "boolean", "default": False, "description": "false: a dry run (nothing changes); true: withdraw the findings."},
+    "maxDocuments": {"type": "integer", "minimum": 1, "maximum": 5000, "default": 1000, "description": "Pages this step reads."},
+    "restart": {"type": "boolean", "default": False, "description": "Start again from the first page (totals reset)."}}}
+schemas["KgTier3ReviewProgress"] = {"type": "object", "additionalProperties": True, "properties": {
+    "rules": {"type": "string"}, "mode": {"type": "string", "enum": ["dry_run", "apply"]}, "cursor": {"type": "integer"},
+    "documents": {"type": "integer"}, "findings": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "assessments": {"type": "integer"}, "done": {"type": "boolean"}, "pendingDocuments": {"type": "integer"},
+    "sample": {"type": "array", "items": {"type": "object"}}, "step": {"type": "object"}}}
+schemas["KgTier3ReviewStatus"] = {"type": "object", "properties": {"rules": {"type": "string"}, "dryRun": ref("KgTier3ReviewProgress"),
+    "apply": ref("KgTier3ReviewProgress")}}
+paths["/v1/kg/tier3-review"] = {
+    "get": op("kg.tier3review.status", "Progress of the rule-based review of stored LLM facts", _review_desc, ["knowledge"],
+              {**ok("Dry and applying review.", "KgTier3ReviewStatus"), **errs("400", "401", "403", "503")}),
+    "post": op("kg.tier3review.step", "One step of the rule-based review of stored LLM facts", _review_desc + " 400 for another field or a value out of range, 503 while the graph is off.", ["knowledge"],
+              {**ok("Progress after the step, with a sample of at most 20 findings.", "KgTier3ReviewProgress"), **errs("400", "401", "403", "413", "415", "503")}, body="KgTier3ReviewStep", mutating=True)}
+
 # Existing Discovery V1 endpoints are generated here too (previously maintained manually).
 schemas["DiscoveryJob"] = {'type': 'object',
  'additionalProperties': False,
@@ -1744,6 +1767,8 @@ cli.update({'collections.decisions.list': 'HTTP GET /scoutro/api/v1/collections/
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'collections.reassign': 'scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)', 'collections.remove': 'browser: Dashboard > Scoutro Collections "−" (administrator); HTTP DELETE /scoutro/api/v1/collections/{id}', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
 mcp.update({'kg.assessments.list': None, 'kg.assessments.create': None, 'kg.assessments.revoke': None})  # administrator decisions, never an MCP tool
 cli.update({'kg.assessments.list': 'HTTP GET /scoutro/api/v1/kg/assessments[?status=active|revoked|all] (administrator)', 'kg.assessments.create': 'HTTP POST /scoutro/api/v1/kg/assessments (administrator; preview without token)', 'kg.assessments.revoke': 'HTTP POST /scoutro/api/v1/kg/assessments/{id}/revoke (administrator)'})
+mcp.update({'kg.tier3review.status': None, 'kg.tier3review.step': None})  # administrator maintenance, never an MCP tool
+cli.update({'kg.tier3review.status': 'HTTP GET /scoutro/api/v1/kg/tier3-review (administrator)', 'kg.tier3review.step': 'HTTP POST /scoutro/api/v1/kg/tier3-review {"apply":false} (administrator; dry run by default)'})
 mcp['collections.remove'] = None  # removing a collection is an administrator decision, never an agent or MCP tool
 for _op in ('collections.hide', 'collections.show', 'collections.delete-pages'):
     mcp[_op] = None  # 0.10.3: hiding, showing and deleting pages are administrator decisions, never agent or MCP tools

@@ -4,6 +4,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Rule-based review of stored LLM facts (data quality programme WP-G, not released): `GET|POST /v1/kg/tier3-review`
+  applies the current rules to tier-3 evidence without any model request (prices quoted as benefits, donations,
+  subsidies or unclear amounts; prices without an amount; vocabulary facts the page's vocabularies do not contain).
+  Dry run by default, resumable steps; applied findings are automatic assessments (revocable). See
+  [tier-3 review](docs/SCOUTRO_KG_TIER3_REVIEW.md).
+
 - Extraction semantics (data quality programme WP-F, not released; knowledge graph schema 8, vocabulary 4,
   extractors jsonld 6 and rule 7): `price` is only an offer price; statutory benefits, donations, subsidies and
   unclear amounts are `monetary_amount` with a `role` (one deterministic classifier for JSON-LD, rules and the LLM

@@ -626,10 +626,34 @@ public class KnowledgeApiTest {
     }
 
     @Test
+    public void theTier3ReviewDryRunsByDefaultAndValidatesItsBody() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r).actor("admin");
+            final String[] review = {"", "v1", "kg", "tier3-review"};
+            final java.util.Map<String, String> none = java.util.Collections.emptyMap();
+            final JSONObject step = api.route("POST", review, none, body("{}"));
+            assertEquals("dry_run", step.getString("mode"));
+            assertTrue(step.getBoolean("done"));
+            assertEquals(0, step.getLong("assessments"));
+            final JSONObject status = api.route("GET", review, none, body("{}"));
+            assertEquals("1", status.getString("rules"));
+            assertEquals(0, status.getJSONObject("apply").getLong("documents"));
+            for (final String bad : new String[] {"{\"apply\":\"yes\"}", "{\"maxDocuments\":0}", "{\"maxDocuments\":5001}", "{\"x\":1}"}) {
+                assertEquals(bad, 400, refusedAssessment(api, review, none, bad).status());
+            }
+        } finally {
+            r.close();
+        }
+    }
+
+    @Test
     public void servletRequiresTheAdministratorForAssessments() throws Exception {
         assertEquals(401, call("GET", "/v1/kg/assessments", false, null, null, null).status);
         assertEquals(401, call("POST", "/v1/kg/assessments", false, "application/json", null, "{}").status);
         assertEquals(401, call("POST", "/v1/kg/assessments/kga_aaaaaaaaaaaaaaaaaaaa/revoke", false, "application/json", null, "{}").status);
+        assertEquals(401, call("POST", "/v1/kg/tier3-review", false, "application/json", null, "{}").status);
+        assertEquals(401, call("GET", "/v1/kg/tier3-review", false, null, null, null).status);
         assertEquals(403, call("POST", "/v1/kg/assessments", true, "application/json", "https://evil.example", "{}").status);
         // the runtime is not started here: the graph counts as disabled
         assertEquals(409, call("GET", "/v1/kg/assessments", true, null, null, null).status);

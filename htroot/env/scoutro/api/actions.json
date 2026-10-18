@@ -6529,6 +6529,80 @@
       "agent": {
         "grantable": false
       }
+    },
+    {
+      "name": "kg.tier3review.status",
+      "description": "Administrator only (docs/SCOUTRO_KG_TIER3_REVIEW.md). Applies the current rules to stored LLM (tier-3) evidence without any model request: price_role (a price quoted as a statutory benefit, a donation, a subsidy or an unclear amount), price_ungrounded (no amount with a currency in the quote), vocabulary (a category, industry, industry group or audience segment the page's current vocabularies do not contain). A dry run counts and samples; an applying run withdraws each finding by an automatic assessment (basis automatic, reason reassessed_rule:<rule>), revocable with POST /v1/kg/assessments/{id}/revoke. Resumable: each step continues from the stored cursor.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/tier3-review",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "KgTier3ReviewStatus",
+      "errors": [
+        400,
+        401,
+        403,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/kg/tier3-review (administrator)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.tier3review.step",
+      "description": "Administrator only (docs/SCOUTRO_KG_TIER3_REVIEW.md). Applies the current rules to stored LLM (tier-3) evidence without any model request: price_role (a price quoted as a statutory benefit, a donation, a subsidy or an unclear amount), price_ungrounded (no amount with a currency in the quote), vocabulary (a category, industry, industry group or audience segment the page's current vocabularies do not contain). A dry run counts and samples; an applying run withdraws each finding by an automatic assessment (basis automatic, reason reassessed_rule:<rule>), revocable with POST /v1/kg/assessments/{id}/revoke. Resumable: each step continues from the stored cursor. 400 for another field or a value out of range, 503 while the graph is off.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/tier3-review",
+        "successStatus": 200
+      },
+      "parameters": {
+        "apply": {
+          "type": "boolean",
+          "default": false,
+          "description": "false: a dry run (nothing changes); true: withdraw the findings.",
+          "in": "body",
+          "required": false
+        },
+        "maxDocuments": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000,
+          "default": 1000,
+          "description": "Pages this step reads.",
+          "in": "body",
+          "required": false
+        },
+        "restart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start again from the first page (totals reset).",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "KgTier3ReviewProgress",
+      "errors": [
+        400,
+        401,
+        403,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/kg/tier3-review {\"apply\":false} (administrator; dry run by default)",
+      "agent": {
+        "grantable": false
+      }
     }
   ],
   "schemas": {

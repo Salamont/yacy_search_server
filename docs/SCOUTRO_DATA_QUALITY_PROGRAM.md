@@ -93,8 +93,8 @@ implemented decision of this programme, **[U]** open assumption.
 | WP-C | Discovery integration: deferred refusals, OSM match origin, classification after moves | `scoutro/r1-wp-c-discovery-decisions` | #80 (stacked on #78) | done, draft PR |
 | WP-D | Knowledge graph on a collection change, LLM priority and cap ([doc](SCOUTRO_KG_COLLECTION_MOVE.md)) | `scoutro/r2-wp-d-kg-collection-move` | #81 (stacked on #80) | done, draft PR |
 | WP-E | Assessments, retraction, replacement statements ([doc](SCOUTRO_KG_ASSESSMENTS.md)) | `scoutro/r2-wp-e-kg-assessments` | #82 (stacked on #81) | partial: withdraw, reclassify, revoke, publish protection, archive, carry done; replacement statements (tier 4) and UI open |
-| WP-F | Extraction semantics (money, roles, offers, identity) ([doc](SCOUTRO_KG_EXTRACTION_SEMANTICS.md)) | `scoutro/r3-wp-f-extraction-semantics` | stacked on #82 | partial: money roles, price evidence and validity, product roles, own-shop offers, offer cue/topics, price archive (schema 8), N16 done; `product_url` identity and the LLM provider `serviceKey` open |
-| WP-G | Rule-based review of stored LLM facts | – | – | open |
+| WP-F | Extraction semantics (money, roles, offers, identity) ([doc](SCOUTRO_KG_EXTRACTION_SEMANTICS.md)) | `scoutro/r3-wp-f-extraction-semantics` | #83 (stacked on #82) | partial: money roles, price evidence and validity, product roles, own-shop offers, offer cue/topics, price archive (schema 8), N16 done; `product_url` identity and the LLM provider `serviceKey` open |
+| WP-G | Rule-based review of stored LLM facts ([doc](SCOUTRO_KG_TIER3_REVIEW.md)) | `scoutro/r3-wp-g-tier3-review` | stacked on #83 | done |
 | WP-H | Correction automation (off/simulate/propose/apply) | – | – | open |
 
 Every PR lists its own tests; no PR changes production data, no merge or release is part of the programme.

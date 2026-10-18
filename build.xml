@@ -468,6 +468,7 @@
       <arg value="net.yacy.scoutro.knowledge.sync.CollectionMoveTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.LlmDailyCapTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.AssessmentsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.Tier3ReviewTest"/>
       <arg value="net.yacy.scoutro.knowledge.KgRuntimeTest"/>
       <arg value="net.yacy.scoutro.knowledge.KgSyncRuntimeTest"/>
       <arg value="net.yacy.scoutro.knowledge.KgBackupTest"/>
