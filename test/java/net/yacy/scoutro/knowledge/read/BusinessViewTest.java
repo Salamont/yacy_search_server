@@ -463,8 +463,9 @@ public class BusinessViewTest {
         // reproducible: the same graph gives the same metrics
         final JSONObject again = new QualityMetrics(this.store, () -> this.now).compute();
         assertEquals(m.toString(), again.getJSONObject("metrics").toString());
-        // a metric that exceeds its deadline reports its error, the others are still computed
-        final JSONObject tight = new QualityMetrics(this.store, () -> this.now, 0L).compute();
+        // a metric that exceeds its deadline reports its error, the others are still computed; a deadline already past at the
+        // first statement (a lease of 0 ms ends only once a millisecond has passed, which a fast run need not reach)
+        final JSONObject tight = new QualityMetrics(this.store, () -> this.now, -1L).compute();
         assertTrue(tight.getJSONArray("errors").length() > 0);
         for (final String k : tight.getJSONObject("metrics").keySet()) {
             final JSONObject one = tight.getJSONObject("metrics").getJSONObject(k);
