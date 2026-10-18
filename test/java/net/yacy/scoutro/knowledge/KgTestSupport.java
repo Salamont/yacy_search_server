@@ -75,4 +75,10 @@ public final class KgTestSupport {
     public static KgRuntime.Env env(final File dataRoot, final Map<String, String> settings, final StorageProbe probe) {
         return new KgRuntime.Env(dataRoot, settings::get, System::currentTimeMillis, probe, KgStore.SQLITE, false);
     }
+
+    /** One maintenance and one sync step, as the runtime's threads take them (no threads in tests). */
+    public static void step(final KgRuntime r) {
+        r.tick();
+        r.syncTick();
+    }
 }
