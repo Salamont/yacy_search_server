@@ -1421,7 +1421,7 @@
     },
     {
       "name": "kg.quality",
-      "description": "Administrator only, read only (docs/SCOUTRO_KG_QUALITY_METRICS.md). Counts of the live graph with their counting unit: organisations with or without a stated name and with explicit, only derived or no industry; services with or without a provider and with prices; duplicate candidates (same provider and normalised name); frequent service names; offers and price evidence by tier; empty evidence excerpts. Merged entities never count. Each metric runs in its own read transaction (60 s); one that fails reports its error and the others are still answered. A snapshot is reused for 10 minutes; ?refresh=true computes it again. 503 kg_unavailable when the graph does not run.",
+      "description": "Administrator only, read only (docs/SCOUTRO_KG_QUALITY_METRICS.md). Counts of the live graph with their counting unit: organisations with or without a stated name and with explicit, only derived or no industry; services with or without a provider and with prices; duplicate candidates (same provider and normalised name); frequent service names; offers and price evidence by tier (4: operator statements); empty evidence excerpts; and of the later work packages: entities in several collections, assessments (status, action, basis, review needed, claims held back), withdrawn evidence by tier, operator statements, monetary amounts by role, prices not yet valid, topic statements, services stating the same own page (product_url candidates), identity keys by scheme, and the collection decisions. Merged entities never count. Each metric runs in its own read transaction (60 s); one that fails reports its error and the others are still answered. A snapshot is reused for 10 minutes; ?refresh=true computes it again. 503 kg_unavailable when the graph does not run.",
       "mutating": false,
       "auth": "admin",
       "permission": "admin",
@@ -10968,6 +10968,13 @@
         },
         "note": {
           "type": "string"
+        },
+        "collection_decisions": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "WP-A: the durable collection decisions by status, and the active ones by basis, mode and application state, with those into the fallback collection; null without decisions."
         }
       }
     },

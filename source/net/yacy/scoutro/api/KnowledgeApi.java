@@ -160,7 +160,10 @@ final class KnowledgeApi {
                 final KgRuntime r = this.runtime.get();
                 if (r == null) throw new ApiException(503, "kg_unavailable", "The knowledge graph is not running.");
                 try {
-                    return r.quality("true".equals(query.get("refresh")) || "1".equals(query.get("refresh")));
+                    final JSONObject q = r.quality("true".equals(query.get("refresh")) || "1".equals(query.get("refresh")));
+                    final JSONObject out = new JSONObject(); // the snapshot is shared: never changed here
+                    for (final String k : q.keySet()) Json.put(out, k, q.opt(k));
+                    return Json.put(out, "collection_decisions", decisionMetrics());
                 } catch (final KgException e) {
                     throw toApi(e);
                 }
@@ -225,6 +228,29 @@ final class KnowledgeApi {
         } catch (final KgException e) {
             throw toApi(e);
         }
+    }
+
+    /**
+     * WP-A in the quality metrics: the durable collection decisions (outside the graph) by status, basis, mode and
+     * application state, and those moving domains into the fallback collection; null without decisions.
+     */
+    static JSONObject decisionMetrics() {
+        final net.yacy.scoutro.collections.CollectionDecisions d = net.yacy.scoutro.collections.CollectionDecisions.current();
+        if (d == null || !d.available()) return null;
+        final java.util.Map<String, Integer> status = new java.util.TreeMap<>(), basis = new java.util.TreeMap<>(), mode = new java.util.TreeMap<>(),
+                apply = new java.util.TreeMap<>();
+        int fallback = 0;
+        for (final net.yacy.scoutro.collections.CollectionDecision x : d.all()) {
+            status.merge(x.status.name().toLowerCase(java.util.Locale.ROOT), 1, Integer::sum);
+            if (x.status != net.yacy.scoutro.collections.CollectionDecision.Status.ACTIVE) continue;
+            basis.merge(x.basis.name().toLowerCase(java.util.Locale.ROOT), 1, Integer::sum);
+            mode.merge(x.mode.name().toLowerCase(java.util.Locale.ROOT), 1, Integer::sum);
+            apply.merge(x.apply.name().toLowerCase(java.util.Locale.ROOT), 1, Integer::sum);
+            if (x.collections.contains(d.fallback())) fallback++;
+        }
+        return Json.obj("unit", "collection decisions (DATA/SCOUTRO/collections)", "by_status", new JSONObject(status), "active_by_basis",
+                new JSONObject(basis), "active_by_mode", new JSONObject(mode), "active_by_apply", new JSONObject(apply), "active_to_fallback", fallback,
+                "fallback", d.fallback());
     }
 
     /** Fields of POST /v1/kg/assessments. */

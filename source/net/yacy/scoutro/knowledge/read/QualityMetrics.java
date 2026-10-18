@@ -91,6 +91,16 @@ public final class QualityMetrics {
         all.put("offers_evidence_by_tier", this::offersByTier);
         all.put("evidence_empty_excerpt", this::emptyExcerpts);
         all.put("price_statements_by_tier", this::pricesByTier);
+        // the corrections and semantics of the later work packages (data quality programme, integration of WP-B)
+        all.put("entities_in_several_collections", this::severalCollections);
+        all.put("assessments", this::assessments);
+        all.put("withdrawn_evidence", this::withdrawn);
+        all.put("operator_statements", this::operatorStatements);
+        all.put("monetary_amounts_by_role", this::amountsByRole);
+        all.put("prices_not_yet_valid", this::notYetValid);
+        all.put("topic_statements", (c, o) -> statements(c, o, "topic"));
+        all.put("service_product_page_duplicate_candidates", this::productPageDuplicates);
+        all.put("identity_keys", this::identityKeys);
         for (final Map.Entry<String, Metric> m : all.entrySet()) {
             final JSONObject into = new JSONObject();
             try {
@@ -211,7 +221,7 @@ public final class QualityMetrics {
                 + " WHERE s.pred = " + term(pred, 2) + " GROUP BY v.tier ORDER BY v.tier"); ResultSet r = p.executeQuery()) {
             while (r.next()) KgJson.put(by, "tier" + r.getInt(1), r.getLong(2));
         }
-        KgJson.put(into, "unit", "evidence rows of " + pred + " statements by tier (1 JSON-LD/metadata, 2 rules, 3 LLM)");
+        KgJson.put(into, "unit", "evidence rows of " + pred + " statements by tier (1 JSON-LD/metadata, 2 rules, 3 LLM, 4 operator)");
         KgJson.put(into, "by_tier", by);
     }
 
@@ -225,5 +235,111 @@ public final class QualityMetrics {
             while (r.next()) KgJson.put(by, "tier" + r.getInt(1), r.getLong(2));
         }
         KgJson.put(into, "by_tier", by);
+    }
+
+    // ------------------------------------------------- corrections and semantics (WP-A, WP-E, WP-F)
+
+    private static boolean table(final Connection c, final String name) throws SQLException {
+        try (PreparedStatement p = c.prepareStatement("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            p.setString(1, name);
+            try (ResultSet r = p.executeQuery()) {
+                return r.next();
+            }
+        }
+    }
+
+    private static JSONObject grouped(final Connection c, final String sql) throws SQLException {
+        final JSONObject by = new JSONObject();
+        try (PreparedStatement p = c.prepareStatement(sql); ResultSet r = p.executeQuery()) {
+            while (r.next()) KgJson.put(by, String.valueOf(r.getObject(1)), r.getLong(2));
+        }
+        return by;
+    }
+
+    /** WP-A/WP-H: active entities in more than one collection (multiple assignments, never corrected automatically). */
+    private void severalCollections(final Connection c, final JSONObject into) throws SQLException {
+        KgJson.put(into, "unit", "active entities with memberships in two or more collections");
+        KgJson.put(into, "total", KgStore.queryLong(c, "SELECT count(*) FROM (SELECT es.ent_rowid FROM kg_entity_scope es JOIN kg_entity e"
+                + " ON e.ent_rowid = es.ent_rowid WHERE e.status = 1 GROUP BY es.ent_rowid HAVING count(DISTINCT es.coll_id) > 1)"));
+    }
+
+    /** WP-E: assessments by status, action and basis; those marked for review. */
+    private void assessments(final Connection c, final JSONObject into) throws SQLException {
+        KgJson.put(into, "unit", "assessments");
+        if (!table(c, "kg_assessment")) {
+            KgJson.put(into, "total", 0);
+            return;
+        }
+        KgJson.put(into, "total", KgStore.queryLong(c, "SELECT count(*) FROM kg_assessment"));
+        KgJson.put(into, "by_status", grouped(c, "SELECT status, count(*) FROM kg_assessment GROUP BY status ORDER BY status"));
+        KgJson.put(into, "active_by_action", grouped(c, "SELECT action, count(*) FROM kg_assessment WHERE status = 'active' GROUP BY action ORDER BY action"));
+        KgJson.put(into, "active_by_basis", grouped(c, "SELECT basis, count(*) FROM kg_assessment WHERE status = 'active' GROUP BY basis ORDER BY basis"));
+        KgJson.put(into, "review_needed", KgStore.queryLong(c, "SELECT count(*) FROM kg_assessment WHERE status = 'active' AND review_needed = 1"));
+        KgJson.put(into, "claims_held_back", KgStore.queryLong(c, "SELECT coalesce(sum(blocked), 0) FROM kg_assessment WHERE status = 'active'"));
+    }
+
+    /** WP-E: the evidence active assessments withdrew or moved, by tier; dependent rows (derived industries) apart. */
+    private void withdrawn(final Connection c, final JSONObject into) throws SQLException {
+        KgJson.put(into, "unit", "evidence rows withdrawn or moved by active assessments");
+        if (!table(c, "kg_evidence_withdrawn")) {
+            KgJson.put(into, "total", 0);
+            return;
+        }
+        final String active = " FROM kg_evidence_withdrawn w JOIN kg_assessment a ON a.public_id = w.assessment_id WHERE a.status = 'active'";
+        KgJson.put(into, "total", KgStore.queryLong(c, "SELECT count(*)" + active));
+        KgJson.put(into, "moved", KgStore.queryLong(c, "SELECT count(*)" + active + " AND w.replaced_by IS NOT NULL"));
+        KgJson.put(into, "dependent", KgStore.queryLong(c, "SELECT count(*)" + active + " AND w.dependent = 1"));
+        KgJson.put(into, "by_tier", grouped(c, "SELECT 'tier' || w.tier, count(*)" + active + " GROUP BY w.tier ORDER BY w.tier"));
+    }
+
+    /** WP-E: operator statements (tier-4 evidence) and the statements they support. */
+    private void operatorStatements(final Connection c, final JSONObject into) throws SQLException {
+        KgJson.put(into, "unit", "tier-4 evidence rows (operator statements with a quote of their source)");
+        KgJson.put(into, "evidence", KgStore.queryLong(c, "SELECT count(*) FROM kg_evidence WHERE tier = 4"));
+        KgJson.put(into, "statements", KgStore.queryLong(c, "SELECT count(DISTINCT stmt_rowid) FROM kg_evidence WHERE tier = 4"));
+        KgJson.put(into, "only_operator", KgStore.queryLong(c, "SELECT count(*) FROM (SELECT stmt_rowid FROM kg_evidence GROUP BY stmt_rowid"
+                + " HAVING min(tier) = 4)"));
+    }
+
+    /** WP-F: monetary amounts that are no price, by role. */
+    private void amountsByRole(final Connection c, final JSONObject into) throws SQLException {
+        KgJson.put(into, "unit", "monetary_amount statements by role (statutory_benefit, donation, subsidy, unknown)");
+        KgJson.put(into, "by_role", grouped(c, "SELECT coalesce(json_extract(s.obj_val, '$.role'), 'unknown'), count(*) FROM kg_statement s"
+                + " WHERE s.pred = " + term("monetary_amount", 2) + " AND json_valid(s.obj_val) GROUP BY 1 ORDER BY 1"));
+        KgJson.put(into, "total", KgStore.queryLong(c, "SELECT count(*) FROM kg_statement WHERE pred = " + term("monetary_amount", 2)));
+    }
+
+    /** WP-F: prices valid only from a later day (never current). */
+    private void notYetValid(final Connection c, final JSONObject into) throws SQLException {
+        final String today = java.time.Instant.ofEpochMilli(this.clock.getAsLong()).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString();
+        KgJson.put(into, "unit", "price statements whose valid_from is after the day of computed_at");
+        KgJson.put(into, "total", KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s WHERE s.pred = " + term("price", 2)
+                + " AND json_valid(s.obj_val) AND json_extract(s.obj_val, '$.valid_from') > '" + today + "'"));
+    }
+
+    private static void statements(final Connection c, final JSONObject into, final String pred) throws SQLException {
+        KgJson.put(into, "unit", pred + " statements");
+        KgJson.put(into, "total", KgStore.queryLong(c, "SELECT count(*) FROM kg_statement WHERE pred = " + term(pred, 2)));
+    }
+
+    /**
+     * WP-F: services that state the same own page ({@code website}, without scheme, {@code www.} and a trailing slash):
+     * candidates of the {@code product_url} identity, which joins them only with the same name.
+     */
+    private void productPageDuplicates(final Connection c, final JSONObject into) throws SQLException {
+        final String page = "rtrim(replace(replace(replace(lower(w.obj_val), 'https://', ''), 'http://', ''), 'www.', ''), '/')";
+        final String groups = "SELECT " + page + " AS k, count(DISTINCT e.ent_rowid) AS n FROM kg_entity e JOIN kg_statement w ON w.subj = e.ent_rowid"
+                + " AND w.pred = " + term("website", 2) + " WHERE e.status = 1 AND e.type = " + term("service", 1) + " GROUP BY k HAVING n > 1";
+        KgJson.put(into, "unit", "groups of active services stating the same own page");
+        KgJson.put(into, "groups", KgStore.queryLong(c, "SELECT count(*) FROM (" + groups + ")"));
+        KgJson.put(into, "services", KgStore.queryLong(c, "SELECT coalesce(sum(n), 0) FROM (" + groups + ")"));
+    }
+
+    /** WP-F: keys of the switched identity changes ({@code product_url}; {@code service_name} of all origins). */
+    private void identityKeys(final Connection c, final JSONObject into) throws SQLException {
+        KgJson.put(into, "unit", "identity keys of active entities by scheme");
+        KgJson.put(into, "by_scheme", grouped(c, "SELECT v.name, count(*) FROM kg_entity_key k JOIN kg_vocab v ON v.term_id = k.scheme"
+                + " JOIN kg_entity e ON e.ent_rowid = k.ent_rowid WHERE e.status = 1 AND v.name IN ('product_url', 'service_name', 'ld_id',"
+                + " 'site_operator', 'domain_operator') GROUP BY v.name ORDER BY v.name"));
     }
 }

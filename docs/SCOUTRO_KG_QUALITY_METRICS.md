@@ -29,6 +29,26 @@ Administrator only, read only, never an agent route. Answer `scoutro.kg.quality.
 | `evidence_empty_excerpt` | evidence rows with an empty excerpt, of all rows, by tier |
 | `data_state` | documents, entities, merged entities, statements, evidence, documents without LLM status |
 
+### Metrics of the later work packages (integration on top of WP-A–WP-H)
+
+| Metric | Unit / meaning | Work package |
+|---|---|---|
+| `entities_in_several_collections` | active entities with memberships in two or more collections (multiple assignments; never corrected automatically) | A, H |
+| `collection_decisions` (top level) | durable collection decisions by status; active ones by basis (`manual`, `automatic`), mode, application state; `active_to_fallback`: decisions that put a domain into the fallback collection | A |
+| `assessments` | assessments by status; active ones by action (`withdraw`, `reclassify`, `assert`) and basis; `review_needed`; `claims_held_back` | E |
+| `withdrawn_evidence` | evidence rows active assessments withdrew or moved (`moved`), by tier; `dependent` (derived industries that went along) | E |
+| `operator_statements` | tier-4 evidence rows, the statements they support, and those supported by an operator statement only | E |
+| `monetary_amounts_by_role` | `monetary_amount` statements by role (`statutory_benefit`, `donation`, `subsidy`, `unknown`) | F |
+| `prices_not_yet_valid` | price statements whose `valid_from` is after the day of `computed_at` | F |
+| `topic_statements` | categories named without an offer (`topic`) | F |
+| `service_product_page_duplicate_candidates` | groups of active services stating the same own page (`website` without scheme, `www.` and trailing slash): candidates of the `product_url` identity, which joins only the same name | F |
+| `identity_keys` | keys of active entities by scheme (`product_url` exists only with `scoutro.kg.identity.productUrl`) | F |
+
+`offers_evidence_by_tier` and `price_statements_by_tier` include tier 4 (operator statements). The baseline procedure
+below now measures the corrections too: compare `withdrawn_evidence`, `monetary_amounts_by_role` and
+`service_duplicate_candidates` / `service_product_page_duplicate_candidates` before and after an assessment, the
+WP-F re-extraction or an identity switch.
+
 Entity metrics give `total` (distinct entities with at least one collection) and `by_collection` (memberships: an
 entity in two collections counts in both; the numbers do not add up). Merged entities (`status = 2`, merge
 redirects) never count. Every metric runs in its own read transaction with a deadline of 60 s; a metric that fails
@@ -64,4 +84,6 @@ answer; the answer is a projection, not a snapshot. A measurement on a productio
 
 `BusinessViewTest` (quality metrics: partitions add up, reproducible, per-metric errors; chunked derived projection
 equals one pass, facet counts agree), `KnowledgeApiTest` (route: 503 without graph, read only, unknown parameter),
-and the existing derived/suggestion/matching tests.
+`QualityMetricsIntegrationTest` (the metrics of WP-A/E/F on a graph with a multiple assignment, a withdrawal, an
+operator statement, a donation, a future price and two services of one page; every metric has its unit), and the
+existing derived/suggestion/matching tests.
