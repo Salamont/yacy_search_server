@@ -78,7 +78,7 @@ public final class KgReader {
 
     static final String[] QUALITY = {null, "supported", "uncertain", "conflicting", "stale"};
     static final String[] STATE = {null, "active", "unavailable", "gone", "expired"};
-    static final String[] KIND = {null, "jsonld", "metadata", "rule", "llm"};
+    static final String[] KIND = {null, "jsonld", "metadata", "rule", "llm", "operator"};
 
     private final KgStore store;
     private final KgConfig cfg;
@@ -313,7 +313,7 @@ public final class KgReader {
                     final Stat s = byRow.get(rs.getLong(1));
                     s.visible = true;
                     final int kind = rs.getInt(4);
-                    if (kind >= 1 && kind <= 4) {
+                    if (kind >= 1 && kind < KIND.length) {
                         s.kinds.add(KIND[kind]);
                     }
                     final long observed = rs.getLong(9);
@@ -970,7 +970,7 @@ public final class KgReader {
         final String url = rs.getString(3);
         return KgJson.obj("doc_id", rs.getString(2), "url", url, "host", host(url), "collections", docCollections(c, rs.getLong(1), v),
                 "state", state >= 1 && state <= 4 ? STATE[state] : null, "loaded_at", iso(rs.getObject(5) == null ? null : rs.getLong(5)),
-                "observed_at", iso(rs.getLong(6)), "kind", kind >= 1 && kind <= 4 ? KIND[kind] : null, "tier", rs.getInt(8),
+                "observed_at", iso(rs.getLong(6)), "kind", kind >= 1 && kind < KIND.length ? KIND[kind] : null, "tier", rs.getInt(8),
                 "certainty", rs.getInt(9) == 2 ? "hedged" : "stated", "extractor", extractor, "locator", rs.getString(10),
                 "excerpt", rs.getString(11));
     }
@@ -1081,7 +1081,7 @@ public final class KgReader {
                         final Stat s = stat(rs);
                         stats.add(s);
                         final int kind = rs.getInt(8);
-                        ev.put(s.rowid * 4 + rs.getInt(9), KgJson.obj("kind", kind >= 1 && kind <= 4 ? KIND[kind] : null,
+                        ev.put(s.rowid * 5 + rs.getInt(9), KgJson.obj("kind", kind >= 1 && kind < KIND.length ? KIND[kind] : null,
                                 "tier", rs.getInt(9), "certainty", rs.getInt(10) == 2 ? "hedged" : "stated", "locator", rs.getString(11),
                                 "excerpt", rs.getString(12)));
                     }
@@ -1094,7 +1094,7 @@ public final class KgReader {
             compute(c, unique.values(), v, now);
             final JSONArray items = new JSONArray();
             for (final Map.Entry<Long, JSONObject> e : ev.entrySet()) {
-                final Stat s = unique.get(e.getKey() / 4);
+                final Stat s = unique.get(e.getKey() / 5);
                 final JSONObject item = statementJson(c, s, v);
                 KgJson.put(item, "evidence", e.getValue());
                 items.put(item);

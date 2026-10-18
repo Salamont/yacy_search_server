@@ -624,13 +624,13 @@ schemas["KgStatement"] = {"type": "object", "required": ["id", "subject", "predi
     "subject": {"type": "string"}, "subject_name": {"type": ["string", "null"]}, **{"subject_" + k: v for k, v in KG_DISPLAY.items()}, "predicate": {"type": "string"},
     "object": {"type": "object", "description": "A relation ({entity, name, display_name, ...}) or a literal ({value, datatype}).", "properties": {"entity": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "value": {"type": "string"}, "datatype": {"type": "string", "enum": ["string", "phone", "email", "url", "address", "geo", "json", "date", "code"], "description": "json: a canonical JSON value (price, salary, contact_point, service_area); date: yyyy-mm-dd or yyyy-mm; code: a vocabulary code (NACE, service category, customer type, segment, size, employment type)."}}},
     "quality": KG_QUALITY, "certainty": {"type": "string", "enum": ["stated", "hedged"]},
-    "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}, "description": "Kinds of the visible evidence; [\"llm\"] alone marks a fact only the LLM tier read (then uncertain)."},
+    "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm", "operator"]}, "description": "Kinds of the visible evidence; [\"llm\"] alone marks a fact only the LLM tier read (then uncertain)."},
     "first_seen": KG_DT, "last_confirmed": KG_DT, "sources": {"type": "integer", "description": "Current visible source documents."},
     "evidence": {"type": "object", "description": "In a source view: the evidence of this page."}, "as_of": KG_AS_OF, "lag": KG_LAG, "redirect": {"type": "string"}}}
 schemas["KgEvidence"] = {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}, "host": {"type": ["string", "null"]},
     "collections": {"type": "array", "items": {"type": "string"}, "description": "Only the viewer's collections."},
     "state": {"type": "string", "enum": ["active", "unavailable", "gone", "expired"]}, "loaded_at": KG_DT, "observed_at": KG_DT,
-    "kind": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}, "tier": {"type": "integer", "minimum": 1, "maximum": 3},
+    "kind": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm", "operator"]}, "tier": {"type": "integer", "minimum": 1, "maximum": 4, "description": "4: an operator statement (WP-E)."},
     "certainty": {"type": "string", "enum": ["stated", "hedged"]}, "extractor": {"type": "string", "examples": ["llm/1 (OLLAMA/qwen3, prompt 3f2a9c1b)"]},
     "locator": {"type": ["string", "null"], "examples": ["jsonld:0/telephone", "text:1234+56"]}, "excerpt": {"type": ["string", "null"]}}}
 def kg_page(items, extra=None):
@@ -677,7 +677,7 @@ KG_BUSINESS_SCHEMA = {"type": "string", "enum": ["scoutro.kg.business.v1"]}
 KG_STATUS = {"type": "string", "enum": ["current", "uncertain", "conflicting", "stale", "expired"], "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."}
 KG_FACT = {"statement": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"}, "status": KG_STATUS, "quality": KG_QUALITY,
     "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."},
-    "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}}, "last_confirmed": KG_DT,
+    "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm", "operator"]}}, "last_confirmed": KG_DT,
     "sources": {"type": "integer"}, "source_docs": {"type": "array", "items": {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}}}, "description": "Up to 3 visible source pages."}}
 KG_REF = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "type": {"type": ["string", "null"]}}}
 KG_TARGET_REF = {"type": "object", "properties": {**KG_REF["properties"], "collections": {"type": "array", "items": {"type": "string"}, "description": "Authorized memberships only (suggestion targets)."},
@@ -1256,14 +1256,15 @@ _assess_desc = ("Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESS
     " backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies."
     " No model request, no Solr change.")
 schemas["KgAssessmentRequest"] = {"type": "object", "required": ["action", "scope", "predicate", "reason"], "additionalProperties": False, "properties": {
-    "action": {"type": "string", "enum": ["withdraw", "reclassify"]},
+    "action": {"type": "string", "enum": ["withdraw", "reclassify", "assert"], "description": "assert: an operator statement (tier 4, kind operator) on one source (scope source), for subject and value, with the source's quote; counts as stated evidence, survives re-extraction, purge, reset and rebuild, is revoked like any assessment."},
     "scope": {"type": "object", "minProperties": 1, "maxProperties": 1, "description": "Exactly one of source (document ID), host or domain (registrable).",
               "properties": {"source": {"type": "string", "pattern": "^[A-Za-z0-9_-]{12}$"}, "host": {"type": "string", "maxLength": 253}, "domain": {"type": "string", "maxLength": 253}}},
     "predicate": {"type": "string", "maxLength": 64}, "value": {"type": ["string", "null"], "maxLength": 1000},
     "subject": {"type": ["string", "null"], "pattern": "^kge_[a-z2-7]{20}$"}, "tier": {"type": ["integer", "null"], "minimum": 1, "maximum": 3},
     "targetPredicate": {"type": ["string", "null"], "maxLength": 64, "description": "reclassify only: a predicate with the same kind of object."},
     "reason": {"type": "string", "minLength": 1, "maxLength": 500, "description": "Why; no personal data."},
-    "token": {"type": ["string", "null"], "description": "The preview's token; without it nothing changes."}}}
+    "token": {"type": ["string", "null"], "description": "The preview's token; without it nothing changes."},
+    "quote": {"type": ["string", "null"], "maxLength": 1000, "description": "assert only: the source's words that state the statement."}}}
 schemas["KgAssessment"] = {"type": "object", "additionalProperties": True, "properties": {
     "id": {"type": "string", "pattern": "^kga_[a-z2-7]{20}$"}, "action": {"type": "string"}, "scope": {"type": "object"}, "predicate": {"type": "string"},
     "value": {"type": ["string", "null"]}, "subject": {"type": ["string", "null"]}, "tier": {"type": ["integer", "null"]}, "targetPredicate": {"type": ["string", "null"]},

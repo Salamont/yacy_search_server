@@ -244,6 +244,46 @@ public class ObservationStoreTest {
             assertEquals(2L,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));
         }
     }
+    /** WP-E: schema 6 -> 7 (and on to the current version) rebuilds kg_evidence for tier 4 without losing a row or a trigger. */
+    @Test public void realSchemaSixUpgradeKeepsEvidenceObservationsAndTheirTriggers() throws Exception {
+        publish(system("Wir nutzen SAP intern."));store.checkpoint();
+        final long evidence=count("SELECT count(*) FROM kg_evidence"), observations=count("SELECT count(*) FROM kg_observation");
+        assertTrue(evidence>0&&observations>0);
+        KgPaths oldPaths=new KgPaths(tmp.newFolder("schema-six"));oldPaths.dir.mkdirs();oldPaths.tmp.mkdirs();
+        try(java.sql.Connection c=java.sql.DriverManager.getConnection("jdbc:sqlite:"+oldPaths.db);Statement s=c.createStatement()) {
+            for(String ddl:KgSchema.DDL_V1)s.execute(ddl);
+            for(int i=0;i<5;i++)for(String ddl:KgSchema.MIGRATIONS[i])s.execute(ddl);
+            try(java.sql.PreparedStatement p=c.prepareStatement("ATTACH DATABASE ? AS fixture")){p.setString(1,paths.db.getAbsolutePath());p.execute();}
+            for(String table:List.of("kg_meta","kg_collection","kg_vocab","kg_extractor","kg_doc","kg_entity","kg_statement","kg_doc_collection","kg_observation"))
+                s.execute("INSERT INTO "+table+" SELECT * FROM fixture."+table);
+            s.execute("INSERT INTO kg_evidence SELECT stmt_rowid,doc_rowid,tier,ext_id,kind,certainty,confidence,locator,excerpt,observed_at,"
+                    +"source_revision,source_observed_at FROM fixture.kg_evidence");
+            s.execute("DELETE FROM kg_observation_event");s.execute("INSERT INTO kg_observation_event SELECT * FROM fixture.kg_observation_event");
+            s.execute("UPDATE kg_meta SET value='6' WHERE key='schema_version'");
+            // a schema-6 graph refuses tier 4
+            try{s.execute("INSERT INTO kg_evidence SELECT stmt_rowid,doc_rowid,4,ext_id,5,certainty,confidence,locator,excerpt,observed_at,"
+                    +"source_revision,source_observed_at FROM kg_evidence LIMIT 1");fail("schema 6 has no tier 4");}catch(java.sql.SQLException expected){}
+        }
+        try(KgStore upgraded=KgStore.open(oldPaths,cfg,new StorageGuard(cfg,oldPaths,new KgTestSupport.Probe(),()->processed),KgStore.SQLITE,()->processed)) {
+            assertEquals(KgSchema.CURRENT_VERSION,upgraded.schemaVersion());
+            assertEquals("no evidence row lost",evidence,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_evidence")));
+            assertEquals(observations,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));
+            for(String trigger:List.of("kg_observation_evidence_delete","kg_observation_evidence_update","kg_observation_statement_delete","kg_observation_doc_delete"))
+                assertEquals(trigger,1L,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name='"+trigger+"'")));
+            assertEquals(2L,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM sqlite_master WHERE type='index' AND name IN('kg_evidence_doc','kg_evidence_ext')")));
+            upgraded.write(WriteClass.MAINTENANCE,0,c->{try(Statement s=c.createStatement()){
+                // tier 4 is accepted now, the integrity check passes, and a delete still archives through the rebuilt table's trigger
+                s.execute("INSERT INTO kg_evidence SELECT stmt_rowid,doc_rowid,4,ext_id,5,certainty,confidence,'operator:test',excerpt,observed_at,"
+                        +"source_revision,source_observed_at FROM kg_evidence LIMIT 1");
+                assertEquals("ok",KgStore.queryString(c,"PRAGMA integrity_check"));
+                assertEquals(0L,KgStore.queryLong(c,"SELECT count(*) FROM pragma_foreign_key_check"));
+                s.execute("DELETE FROM kg_observation");
+                s.execute("DELETE FROM kg_evidence WHERE tier<4");
+            }return null;});
+            assertTrue("the delete trigger of the rebuilt table archived the evidence",
+                    upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation"))>0);
+        }
+    }
     @Test public void schemaFiveUpgradePreservesHistoryDatesIdsAndFeedHighWater()throws Exception {
         publish(system("Wir nutzen SAP intern."));store.checkpoint();String original=systemId();
         KgPaths oldPaths=new KgPaths(tmp.newFolder("schema-five"));oldPaths.dir.mkdirs();oldPaths.tmp.mkdirs();
