@@ -352,7 +352,31 @@ final class ScoutroActions {
      * index or another store is deleted.
      */
     JSONObject collectionRemove(final String id) throws ApiException {
-        return Json.obj("collection", this.catalog.remove(id, this.uses).json(), "removed", true);
+        // a collection that collection decisions put pages into is never removed: their pages would have no collection
+        return Json.obj("collection", this.catalog.remove(id, c -> withDecisions(c, this.uses.of(c))).json(), "removed", true);
+    }
+
+    /** {@code uses} with the active collection decisions that name {@code id} ({@code decisions}). */
+    private Map<String, Integer> withDecisions(final String id, final Map<String, Integer> uses) {
+        final int n = this.decisionUses.applyAsInt(id);
+        if (n == 0) return uses;
+        final Map<String, Integer> out = new java.util.TreeMap<>(uses);
+        out.merge("decisions", n, Integer::sum);
+        return out;
+    }
+
+    /** The active collection decisions that name a collection; the running peer's unless a test sets its own. */
+    java.util.function.ToIntFunction<String> decisionUses = ScoutroActions::activeDecisions;
+
+    static int activeDecisions(final String id) {
+        final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
+        int n = 0;
+        if (decisions != null) {
+            for (final net.yacy.scoutro.collections.CollectionDecision d : decisions.all()) {
+                if (d.active() && d.collections.contains(id)) n++;
+            }
+        }
+        return n;
     }
 
     /**
@@ -406,7 +430,9 @@ final class ScoutroActions {
             if (!"confirm".equals(key)) throw ApiException.invalid(key, "Unknown field.");
         }
         final Object confirm = body.opt("confirm");
-        final CollectionCatalog.Outcome o = this.catalog.deletePages(id, confirm instanceof String ? (String) confirm : null, this.uses);
+        // decisions keep their pages coming into the collection: it may lose its own pages, but not leave the lists
+        final CollectionCatalog.Outcome o = this.catalog.deletePages(id, confirm instanceof String ? (String) confirm : null, this.uses,
+                this.decisionUses.applyAsInt(id));
         return Json.put(o.json(), "graph", o.hidden ? switchGraphOff(id) : null);
     }
 
@@ -459,15 +485,9 @@ final class ScoutroActions {
         } catch (final net.yacy.scoutro.agents.AgentException e) {
             throw new ApiException(503, "collection_uses_unavailable", "It cannot be checked whether agents use this collection; nothing was removed.");
         }
-        final Map<String, Integer> out = collectionUses(id, accounts, agents, guest, loadCrawls().values());
-        // an active collection decision keeps its collections: hiding or removing one would orphan corrected pages
-        final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
-        if (decisions != null) {
-            for (final net.yacy.scoutro.collections.CollectionDecision d : decisions.all()) {
-                if (d.active() && d.collections.contains(id)) out.merge("decisions", 1, Integer::sum);
-            }
-        }
-        return out;
+        // collection decisions are no use that hiding is refused for (the pages stay, decisions go on applying); removing
+        // a collection and deleting all its pages check them ({@link #collectionRemove}, {@link #collectionDeletePages})
+        return collectionUses(id, accounts, agents, guest, loadCrawls().values());
     }
 
     /**
