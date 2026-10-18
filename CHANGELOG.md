@@ -26,7 +26,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   `brand` is `has_brand`; a priced product without seller is the declared operator's own offer (confidence 0.6).
   Outside services and prices pages a category needs an offer cue, otherwise it is a `topic`. Prices and amounts are
   archived observations; an identity merge keeps the evidence's source revision. The new versions re-read tiers 1
-  and 2 once (no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
+  and 2 once (no model). The business view shows the amounts that are no price with their role (`amounts`). Two
+  identity changes are switched, **off by default**: `scoutro.kg.identity.productUrl` (a service joins the one with
+  the same own product page and the same name) and `scoutro.kg.identity.providerServiceKey` (the service of a
+  provider named by JSON-LD `provider` or the LLM tier joins that provider's service); switched on, every page is
+  read again once with the rules. `POST /v1/kg/identity-preview` shows their effect on one domain in a rolled-back
+  transaction (nothing written, no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
 
 - Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
   administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally
@@ -34,8 +39,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   field by field, dependent derived industries go along, archived observations become `withdrawn`/`corrected`. The
   publisher holds covered claims back across re-extraction, the LLM cache and recrawls; a new source revision marks
   the assessment for review. Revoke restores the evidence exactly. Rebuilds carry assessments, backups contain them,
-  a full reset keeps them. New routes `/v1/kg/assessments*` (administrator only). Rollback to an earlier build
-  needs the upgrade copy taken before schema 7. See [assessments](docs/SCOUTRO_KG_ASSESSMENTS.md).
+  a full reset keeps them. An operator statement (`assert`) adds a missing fact for one source with a quote that must
+  be in the indexed text: evidence of tier 4 (kind `operator`) that counts as stated, survives re-extraction, purges
+  and rebuilds, is never withdrawn by a rule and marks itself for review when the source changes (`kg_evidence` is
+  rebuilt once by the schema step to allow tier 4). New routes `/v1/kg/assessments*` (administrator only) and an
+  **Assessments** view on the knowledge graph page. Rollback to an earlier build needs the upgrade copy taken before
+  schema 7. See [assessments](docs/SCOUTRO_KG_ASSESSMENTS.md).
 
 - Knowledge graph on a collection move (data quality programme WP-D, not released): when only a page's collections
   change and with them the vocabulary context, tiers 1 and 2 read that page again (rules, no model) and the LLM's
