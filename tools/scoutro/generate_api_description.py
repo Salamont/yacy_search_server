@@ -674,7 +674,7 @@ paths["/v1/kg/sources/{docId}"] = {"get": op("kg.source", "What the graph holds 
 
 # knowledge graph vocabulary 2 (package 6): business view, neighbourhood, comparison, derived rows, facets
 KG_BUSINESS_SCHEMA = {"type": "string", "enum": ["scoutro.kg.business.v1"]}
-KG_STATUS = {"type": "string", "enum": ["current", "uncertain", "conflicting", "stale", "expired"], "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."}
+KG_STATUS = {"type": "string", "enum": ["current", "uncertain", "conflicting", "stale", "expired", "not_yet_valid"], "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."}
 KG_FACT = {"statement": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"}, "status": KG_STATUS, "quality": KG_QUALITY,
     "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."},
     "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}}, "last_confirmed": KG_DT,

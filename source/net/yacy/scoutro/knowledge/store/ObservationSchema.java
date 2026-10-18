@@ -16,7 +16,7 @@ final class ObservationSchema {
     private static final String RELEVANT = "(p.name IN ('system_signal','business_need_signal','business_role_evidence','job_status')"
             + " OR (t.name = 'job' AND p.name IN ('name','hiring_organization','job_location','date_posted','valid_through',"
             + "'employment_type','occupational_field','start_date','advertised_by','recruiting_organization','deployment_organization'))"
-            + " OR (t.name = 'service' AND p.name IN ('name','category','description')) OR p.name='offers'"
+            + " OR (t.name = 'service' AND p.name IN ('name','category','description')) OR p.name IN ('offers','price','monetary_amount')"
             + " OR (t.name IN ('organization','facility') AND p.name='service_area'))";
 
     /** Only identity evidence from THIS document, never names or keys from another collection. */
@@ -166,6 +166,28 @@ final class ObservationSchema {
             + " AND kind IN ('scope_insert','scope_delete') AND after_value IS NOT NULL)),''),NEW.at"
             + " FROM kg_observation o WHERE o.public_id=NEW.observation_id; END",
         capture("1")
+    };
+
+    /**
+     * Schema 8 (data quality programme WP-F): prices and other amounts become archived observations before the new
+     * extraction semantics publish them; the capture triggers are created again with the wider rule, and the prices and
+     * amounts in the graph now are archived once (only those predicates: a bounded backfill).
+     */
+    static final String[] PRICES_V8 = {
+        "DROP TRIGGER kg_observation_evidence_delete",
+        "CREATE TRIGGER kg_observation_evidence_delete BEFORE DELETE ON kg_evidence BEGIN " + capture("e.doc_rowid=OLD.doc_rowid") + "; END",
+        "DROP TRIGGER kg_observation_evidence_update",
+        "CREATE TRIGGER kg_observation_evidence_update BEFORE UPDATE ON kg_evidence BEGIN " + capture("e.doc_rowid=OLD.doc_rowid") + "; END",
+        "DROP TRIGGER kg_observation_statement_delete",
+        "CREATE TRIGGER kg_observation_statement_delete BEFORE DELETE ON kg_statement BEGIN "
+            + capture("d.doc_rowid IN(SELECT doc_rowid FROM kg_evidence WHERE stmt_rowid=OLD.stmt_rowid)") + "; END",
+        "DROP TRIGGER kg_observation_doc_update",
+        "CREATE TRIGGER kg_observation_doc_update BEFORE UPDATE OF input_hash,content_hash,url ON kg_doc BEGIN "
+            + capture("d.doc_rowid=OLD.doc_rowid") + "; END",
+        "DROP TRIGGER kg_observation_doc_delete",
+        "CREATE TRIGGER kg_observation_doc_delete BEFORE DELETE ON kg_doc BEGIN " + capture("d.doc_rowid=OLD.doc_rowid") + ";"
+            + "UPDATE kg_observation SET source_status='removed' WHERE source_id=OLD.doc_id AND source_status<>'removed'; END",
+        capture("p.name IN ('price','monetary_amount')")
     };
 
     private static String scopeEvent(final String operation, final String row) {

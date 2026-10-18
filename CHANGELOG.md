@@ -4,6 +4,16 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Extraction semantics (data quality programme WP-F, not released; knowledge graph schema 8, vocabulary 4,
+  extractors jsonld 6 and rule 7): `price` is only an offer price; statutory benefits, donations, subsidies and
+  unclear amounts are `monetary_amount` with a `role` (one deterministic classifier for JSON-LD, rules and the LLM
+  tier, applied to cached LLM answers too, LLM extractor version unchanged). A price valid from a later date is
+  `not_yet_valid`. JSON-LD `seller`/`offeredBy` offer a product, `manufacturer` is `manufacturer_of`, a product's
+  `brand` is `has_brand`; a priced product without seller is the declared operator's own offer (confidence 0.6).
+  Outside services and prices pages a category needs an offer cue, otherwise it is a `topic`. Prices and amounts are
+  archived observations; an identity merge keeps the evidence's source revision. The new versions re-read tiers 1
+  and 2 once (no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
+
 - Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
   administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally
   value, subject, tier) after a preview; the same fact from an independent source stays. Withdrawn evidence is copied

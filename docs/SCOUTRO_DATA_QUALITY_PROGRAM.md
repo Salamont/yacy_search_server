@@ -77,6 +77,12 @@ implemented decision of this programme, **[U]** open assumption.
     large `kg_evidence` table (its tier CHECK constraint); WP-E ships withdraw and reclassify (which moves evidence
     to the right predicate) and leaves `assert` to a later schema change. The assessment API stays administrator
     only; a UI view is open.
+12. **Offer context of the rule tier** [E]: services and prices pages are the offer context of the categories they
+    name; elsewhere (home pages) a category needs an explicit offer cue, otherwise it is a `topic`. A care level
+    (Pflegegrad) or a service name (Verhinderungspflege) is no benefit cue, the customer's own share (Eigenanteil)
+    is always a price (found with the existing price tests).
+13. **Identity changes deferred** [E]: `product_url` keys and the LLM provider `serviceKey` change entity identities;
+    they need their own identity-rebuild preview and are not part of WP-F.
 
 ## 4. Work packages and progress
 
@@ -86,8 +92,8 @@ implemented decision of this programme, **[U]** open assumption.
 | WP-B | Quality metrics, derived facet (`docs/SCOUTRO_KG_QUALITY_METRICS.md` in its PR) | `scoutro/r1-wp-b-quality-derived` | #79 (base main, independent) | done, draft PR |
 | WP-C | Discovery integration: deferred refusals, OSM match origin, classification after moves | `scoutro/r1-wp-c-discovery-decisions` | #80 (stacked on #78) | done, draft PR |
 | WP-D | Knowledge graph on a collection change, LLM priority and cap ([doc](SCOUTRO_KG_COLLECTION_MOVE.md)) | `scoutro/r2-wp-d-kg-collection-move` | #81 (stacked on #80) | done, draft PR |
-| WP-E | Assessments, retraction, replacement statements ([doc](SCOUTRO_KG_ASSESSMENTS.md)) | `scoutro/r2-wp-e-kg-assessments` | stacked on #81 | partial: withdraw, reclassify, revoke, publish protection, archive, carry done; replacement statements (tier 4) and UI open |
-| WP-F | Extraction semantics (money, roles, offers, identity) | – | – | open |
+| WP-E | Assessments, retraction, replacement statements ([doc](SCOUTRO_KG_ASSESSMENTS.md)) | `scoutro/r2-wp-e-kg-assessments` | #82 (stacked on #81) | partial: withdraw, reclassify, revoke, publish protection, archive, carry done; replacement statements (tier 4) and UI open |
+| WP-F | Extraction semantics (money, roles, offers, identity) ([doc](SCOUTRO_KG_EXTRACTION_SEMANTICS.md)) | `scoutro/r3-wp-f-extraction-semantics` | stacked on #82 | partial: money roles, price evidence and validity, product roles, own-shop offers, offer cue/topics, price archive (schema 8), N16 done; `product_url` identity and the LLM provider `serviceKey` open |
 | WP-G | Rule-based review of stored LLM facts | – | – | open |
 | WP-H | Correction automation (off/simulate/propose/apply) | – | – | open |
 

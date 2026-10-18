@@ -1149,8 +1149,12 @@ public final class LlmExtractor {
             final List<String> parsed=signalPredicate(v.optString("predicate"))
                     ? BusinessSignals.read(v.optString("predicate"),v.optString("quote"),"text",actor.type,actor.name)
                     : read(v.optString("predicate"),v.optString("quote"),ctx);
+            // WP-F: an amount the quote shows as a statutory benefit, a donation or a subsidy is no price (read on application:
+            // also for cached answers, without a new extractor version)
+            final String role = Vocabulary.PRICE.equals(v.optString("predicate")) ? MoneyRoles.role(v.optString("quote")) : null;
             for (final String value : parsed) {
-                out.add(new Claim(s, v.optString("predicate"), null, signalPredicate(v.optString("predicate"))?BusinessSignals.located(value,locator(v)):value,
+                out.add(new Claim(s, role == null ? v.optString("predicate") : Vocabulary.MONETARY_AMOUNT, null,
+                        signalPredicate(v.optString("predicate"))?BusinessSignals.located(value,locator(v)):role == null ? value : MoneyRoles.withRole(value, role),
                         TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
             }
         }

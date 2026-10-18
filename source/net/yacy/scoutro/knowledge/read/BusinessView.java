@@ -527,7 +527,7 @@ public final class BusinessView {
         return o;
     }
 
-    /** Price items with their status (current, uncertain, stale, expired; conflicts are marked over the whole list). */
+    /** Price items with their status (current, uncertain, stale, expired, not_yet_valid; conflicts are marked over the whole list). */
     JSONArray priceItems(final List<Fact> facts, final String serviceId, final String serviceName, final Set<Integer> collections, final long now,
             final Set<String> docs) {
         final JSONArray out = new JSONArray();
@@ -557,8 +557,14 @@ public final class BusinessView {
             if (validThrough != null) {
                 KgJson.put(item, "valid_through", validThrough.toString());
             }
+            final LocalDate validFrom = Values.firstDay(value.optString("valid_from", null));
+            if (validFrom != null) {
+                KgJson.put(item, "valid_from", validFrom.toString());
+            }
             if (validThrough != null && validThrough.isBefore(today)) {
                 status = "expired"; // the source's own validity wins
+            } else if (validFrom != null && validFrom.isAfter(today)) {
+                status = "not_yet_valid"; // WP-F: a price announced for later is no current price yet
             } else if (validThrough == null && asOf != null && asOf.plusDays(staleDays).isBefore(today) && !"stale".equals(status)) {
                 status = "stale";
                 KgJson.put(item, "stale_since", asOf.plusDays(staleDays).toString());

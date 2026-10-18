@@ -268,7 +268,24 @@ public final class BusinessRules {
         final Map<String, Service> services = new LinkedHashMap<>();
         final List<int[]> positions = new ArrayList<>(); // {start, end, service index}
         final List<Service> list = new ArrayList<>();
+        // WP-F: a services or prices page is the offer context of the categories it names; elsewhere (the home page) a
+        // category named without an offer cue (an offer verb, an offer heading or list, a price after it) is a topic of
+        // the organisation, no service: no offers, no price, no derived industry
+        final boolean offerPage = run.kinds.contains(PageKind.SERVICES) || run.kinds.contains(PageKind.PRICES);
+        final Map<String, Boolean> offered = new LinkedHashMap<>();
         for (final TermMatcher.Hit<Categories.Entry> h : hits) {
+            if (!Boolean.TRUE.equals(offered.get(h.entry.id))) {
+                offered.put(h.entry.id, offerPage || ServiceEvidence.pricedEvidence(run.text, run.text.substring(h.start, h.end)) != null);
+            }
+        }
+        final java.util.Set<String> topics = new java.util.HashSet<>();
+        for (final TermMatcher.Hit<Categories.Entry> h : hits) {
+            if (!offered.get(h.entry.id)) {
+                if (topics.add(h.entry.id)) {
+                    claim(run, run.subject, Vocabulary.TOPIC, h.entry.id, h.start, h.end, confidence);
+                }
+                continue;
+            }
             Service s = services.get(h.entry.id);
             if (s == null) {
                 if (services.size() >= MAX_SERVICES) {
@@ -319,7 +336,9 @@ public final class BusinessRules {
                 }
             }
             double confidence = pricePage ? 0.7 : 0.6;
-            if (service == null && pricePage) {
+            // WP-F: a statutory benefit, a donation or a subsidy is no price of the service (and names no service)
+            final String role = MoneyRoles.role(run.text, p.start, p.end);
+            if (service == null && pricePage && role == null) {
                 // a price list line: "Grundpaket: 49 € / Monat"
                 final int from = Math.max(0, p.start - 64);
                 final Matcher lm = LABEL_BEFORE.matcher(run.text.substring(from, p.start));
@@ -354,7 +373,11 @@ public final class BusinessRules {
             if (through != null) {
                 f.put("valid_through", through);
             }
-            claimAround(run, service, Vocabulary.PRICE, Values.canonical(f), p.start, p.end, confidence);
+            if (role != null) {
+                f.put("role", role);
+            }
+            claimAround(run, service, role == null ? Vocabulary.PRICE : Vocabulary.MONETARY_AMOUNT, Values.canonical(f), p.start, p.end,
+                    confidence);
             n++;
         }
     }

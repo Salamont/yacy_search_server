@@ -574,8 +574,10 @@ public final class IdentityResolver {
                 targetId = rs.getString(1);
             }
         }
-        exec(tx, "INSERT OR IGNORE INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt, observed_at)"
-                + " SELECT ?, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt, observed_at FROM kg_evidence WHERE stmt_rowid = ?",
+        // the evidence moves with its source revision and source date (WP-F, N16): the archive dates it by them
+        exec(tx, "INSERT OR IGNORE INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt, observed_at,"
+                + " source_revision, source_observed_at) SELECT ?, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt, observed_at,"
+                + " source_revision, source_observed_at FROM kg_evidence WHERE stmt_rowid = ?",
                 existing, stmt);
         exec(tx, "UPDATE kg_statement_redirect SET target_rowid = ? WHERE target_rowid = ?", existing, stmt);
         agg.redirectedStatement(tx, stmt, targetId);
