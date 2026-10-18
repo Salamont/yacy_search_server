@@ -65,8 +65,10 @@ For every release:
 
 ## Residual risks
 
-- No measurement on a production-sized graph: the duration of the schema 7 copy and of the R3 re-extraction, and the
-  derived facet with chunked reads, are only measured on test data.
+- Measured on a synthetic graph of production size (160 000 pages, 602 MiB), not on production data: migration,
+  copy, abort, rollback, the R3 re-extraction (1 h 54 min, no model call, observations +85 %), load and the correction
+  automation in simulation; see the [acceptance](SCOUTRO_DATA_QUALITY_ACCEPTANCE.md) for the numbers, the estimates for
+  production and what synthetic data cannot show.
 - The text fit reads at most 8 pages of a domain; a site whose offers are not on its offer pages is judged on less.
 - OSM tags are kept by Discovery only for the keys a rule matched; the OSM verdict against a profile is limited to
   overlapping keys.
@@ -96,6 +98,31 @@ For every release:
 - Two CI-only findings fixed on #86 and merged up: the CI log now names failing tests (`42bccf2`), and the unchanged
   `KgSyncSchedulerTest` waited for a backup result instead of the free backup slot (`6df505e`, reproduced with a delay).
 - No data migration, crawl, model call or change on Olares was made; nothing is merged to `main`.
+
+## Isolated acceptance (2026-10-18)
+
+The decision paper with the release rating per release, measured resources, migration risks and what was tested
+locally, production-like (synthetic, production size) and not at all: [SCOUTRO_DATA_QUALITY_ACCEPTANCE.md](SCOUTRO_DATA_QUALITY_ACCEPTANCE.md).
+It found two code errors, both fixed and merged up the stack:
+
+- #83 (`d8b62c0`): the order to re-read every page after new extractor versions now survives a restart before that
+  re-extraction completed (`kg_meta.reextract_pending`).
+- #82 (`afb609f`): the partial copy of an upgrade killed during its copy is removed at the next start.
+
+| PR | Head after the acceptance | GitHub `Scoutro checks` |
+|---|---|---|
+| #86 CI, #78, #79, #80, #81 | unchanged (see above) | success |
+| #82 WP-E | `afb609f` | success |
+| #83 WP-F | `cae2b46` | success |
+| #84 WP-G | `ef46d99` | success |
+| #85 WP-H | `5835dcf` | success |
+| #87 integration | `e865f31` (this document's parent) | success; locally `scoutro-checks.sh all` 23/23 |
+
+The new end-to-end test `DrolshagensPilotTest` (in `scoutro-collection-decisions-test`) runs the pilot on isolated
+test data across A, C, D, E, F and H.
+
+Before R3, the operator decides on the disk reserve for the observation growth (estimated several hundred MB in
+production) and on letting the re-extraction run for hours in the background behind the load gate.
 
 ## Continuation
 
