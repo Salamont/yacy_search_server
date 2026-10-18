@@ -4,6 +4,17 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Durable collection decisions (data quality programme WP-A, not released): a decision fixes the collections of a
+  domain, host or path; every index write (all crawl paths, WorkTables replays, the recrawl job, error documents)
+  follows it, so a corrected wrong assignment is never restored by a crawl. The fallback collection `sonstige`
+  (`scoutro.collections.fallback`) takes already crawled pages only through a decision, never a new crawl. Fail-safe
+  files (checksums, backups, journal, marker): with unreadable decisions index writes and crawl starts are refused
+  until an administrator recovers them. New routes `/v1/collections/decisions*`; reassign records its moves as
+  decisions; crawl starts answer `collection_decided` / `collection_fallback_only`; Discovery no longer refuses a
+  decided multiple assignment. No schema change, no re-extraction, no LLM request.
+  See [collection decisions](docs/SCOUTRO_COLLECTION_DECISIONS.md) and the
+  [programme](docs/SCOUTRO_DATA_QUALITY_PROGRAM.md).
+
 ## 0.10.9 / 1.942-scoutro.33 — patch: service offer evidence before publication
 
 Release candidate stacked on application PR #73; not published.

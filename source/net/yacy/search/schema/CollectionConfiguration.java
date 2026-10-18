@@ -489,14 +489,21 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
         }
     }
 
+    /**
+     * @throws net.yacy.scoutro.collections.CollectionDecisions.Blocked if a collection decision forbids writing the page
+     *         (the caller then leaves the index as it is)
+     */
     public SolrVector yacy2solr(
             final Segment segment,
-            final Map<String, Pattern> collections, final ResponseHeader responseHeader,
+            final Map<String, Pattern> profileCollections, final ResponseHeader responseHeader,
             final Document document, final Condenser condenser, final DigestURL referrerURL, final String language, final boolean setUnique,
             final WebgraphConfiguration webgraph, final String sourceName) {
         // we use the SolrCell design as index schema
         final SolrVector doc = new SolrVector();
         final DigestURL digestURL = document.dc_source();
+        // Scoutro: durable collection decisions win over the crawl profile, for the page and its webgraph edges
+        final Map<String, Pattern> collections = net.yacy.scoutro.collections.CollectionDecisions.forIndexing(
+                digestURL.toNormalform(true), digestURL.getHost(), digestURL.getPath(), profileCollections);
         final boolean allAttr = this.isEmpty();
         final String url = this.addURIAttributes(doc, allAttr, digestURL);
         this.add(doc, CollectionSchema.content_type, new String[]{document.dc_format()}); // content_type (mime) is defined a schema field and we rely on it in some queries like imagequery (makes it mandatory, no need to check)
@@ -2295,9 +2302,12 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
             if (allAttr || configuration.contains(CollectionSchema.failreason_s)) configuration.add(doc, CollectionSchema.failreason_s, this.getFailReason());
             if (allAttr || configuration.contains(CollectionSchema.failtype_s)) configuration.add(doc, CollectionSchema.failtype_s, this.getFailType().name());
             if (allAttr || configuration.contains(CollectionSchema.httpstatus_i)) configuration.add(doc, CollectionSchema.httpstatus_i, this.getHttpstatus());
-            if (allAttr || configuration.contains(CollectionSchema.collection_sxt) && this.getCollections() != null && this.getCollections().size() > 0) {
+            // Scoutro: an error document follows the collection decisions like a page (it replaces the indexed page)
+            final Map<String, Pattern> decided = net.yacy.scoutro.collections.CollectionDecisions.forIndexing(
+                    this.digestURL.toNormalform(true), this.digestURL.getHost(), this.digestURL.getPath(), this.getCollections());
+            if (allAttr || configuration.contains(CollectionSchema.collection_sxt) && decided != null && decided.size() > 0) {
                 final List<String> cs = new ArrayList<>();
-                for (final Map.Entry<String, Pattern> e: this.getCollections().entrySet()) {
+                for (final Map.Entry<String, Pattern> e: decided.entrySet()) {
                     if (e.getValue().matcher(url).matches()) cs.add(e.getKey());
                 }
                 configuration.add(doc, CollectionSchema.collection_sxt, cs);

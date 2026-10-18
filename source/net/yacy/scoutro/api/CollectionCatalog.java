@@ -53,7 +53,7 @@ public final class CollectionCatalog {
     static final List<String> INTERNAL_PREFIXES = List.of("robot_");
     /** Names a new collection may not take: words with a meaning of their own in filters and YaCy's default crawl collection. */
     // "reassign" is a path of the collections API (POST /v1/collections/reassign), never a collection
-    static final Set<String> RESERVED = Set.of("all", "none", "default", "user", "any", "new", "reassign");
+    static final Set<String> RESERVED = Set.of("all", "none", "default", "user", "any", "new", "reassign", "decisions");
     public static final int MAX_NAME = 80;
     public static final int MAX_DESCRIPTION = 500;
     /** Alphabetical regardless of case, then by code point. */
@@ -129,9 +129,11 @@ public final class CollectionCatalog {
             if (this.created) sources.put("created");
             if (this.profile) sources.put("profile");
             final boolean use = selectable();
+            // the fallback collection (sonstige) takes corrected pages through collection decisions only, never a new crawl
+            final boolean fallback = this.id.equals(fallbackName());
             final JSONObject o = Json.obj("id", this.id, "name", this.name, "description", this.description, "documents", this.documents,
-                    "internal", internal(), "selectable", use, "chat", use, "knowledgeGraph", use, "crawlTarget", use, "sources", sources,
-                    "hidden", this.hidden);
+                    "internal", internal(), "selectable", use, "chat", use, "knowledgeGraph", use, "crawlTarget", use && !fallback,
+                    "sources", sources, "hidden", this.hidden, "role", fallback ? "fallback" : "regular");
             Json.put(o, "createdAt", this.createdAt);
             return o;
         }
@@ -191,6 +193,13 @@ public final class CollectionCatalog {
     /** {@code DATA/SCOUTRO/collections.json} below the peer's data path. */
     public static Path registryPath(final Path dataPath) {
         return dataPath.resolve("DATA").resolve("SCOUTRO").resolve("collections.json");
+    }
+
+    /** The name of the fallback collection ({@code scoutro.collections.fallback}, default sonstige). */
+    public static String fallbackName() {
+        final net.yacy.scoutro.collections.CollectionDecisions d = net.yacy.scoutro.collections.CollectionDecisions.current();
+        if (d != null) return d.fallback();
+        return net.yacy.scoutro.collections.CollectionDecisions.DEFAULT_FALLBACK;
     }
 
     public static boolean isInternal(final String id) {
@@ -468,6 +477,15 @@ public final class CollectionCatalog {
      * with shared pages left it is hidden. Irreversible; the knowledge graph drops the deleted pages through its sync.
      */
     public Outcome deletePages(final String id, final String confirm, final Uses uses) throws ApiException {
+        return deletePages(id, confirm, uses, 0);
+    }
+
+    /**
+     * {@link #deletePages(String, String, Uses)} for a collection that {@code decisions} active collection decisions name:
+     * refused before anything is deleted when no page of another collection would keep it in the lists (the decisions'
+     * pages would have no collection); with shared pages it is hidden as usual.
+     */
+    public Outcome deletePages(final String id, final String confirm, final Uses uses, final int decisions) throws ApiException {
         synchronized (this) {
             final Entry found = changeable(id, uses);
             if (!id.equals(confirm)) {
@@ -480,6 +498,17 @@ public final class CollectionCatalog {
                 if (exactCount(found) > 0) {
                     shared.putAll(this.index.sharedWith(id));
                     shared.remove(id);
+                }
+            } catch (final RuntimeException e) {
+                throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was deleted.");
+            }
+            if (decisions > 0 && shared.isEmpty()) {
+                throw new ApiException(409, "collection_in_use", "Collection decisions put pages into this collection; deleting all its pages"
+                        + " would take it from the lists. Revoke the decisions first (POST /v1/collections/decisions/revoke); nothing was deleted.",
+                        Json.obj("uses", Json.obj("decisions", decisions)));
+            }
+            try {
+                if (exactCount(found) > 0) {
                     deleted = this.index.deleteOnly(id, shared.keySet());
                 }
                 kept = this.index.count(id);

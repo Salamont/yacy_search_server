@@ -223,7 +223,7 @@ public class ScoutroApiServlet extends HttpServlet {
                     if (body.length() > 0) throw ApiException.invalid(body.keys().next(), "Unknown field.");
                     return this.actions.collectionRemove(parts[3]);
                 }
-                if (parts.length == 5 && !"reassign".equals(parts[3])
+                if (parts.length == 5 && !"reassign".equals(parts[3]) && !"decisions".equals(parts[3])
                         && ("hide".equals(parts[4]) || "show".equals(parts[4]) || "delete-pages".equals(parts[4]))) {
                     // 0.10.3: hide (pages stay), show again, delete the pages (confirmed with the id); each audited by its own path
                     expect(method, parts, 5, "POST");
@@ -231,6 +231,20 @@ public class ScoutroApiServlet extends HttpServlet {
                     if ("delete-pages".equals(parts[4])) return this.actions.collectionDeletePages(parts[3], body);
                     if (body.length() > 0) throw ApiException.invalid(body.keys().next(), "Unknown field.");
                     return "hide".equals(parts[4]) ? this.actions.collectionHide(parts[3]) : this.actions.collectionShow(parts[3]);
+                }
+                if (parts.length >= 4 && "decisions".equals(parts[3])) {
+                    // durable collection decisions (docs/SCOUTRO_COLLECTION_DECISIONS.md); administrator only, never an agent route
+                    final String actor = net.yacy.scoutro.access.Caller.of(request).actor();
+                    if (parts.length == 4 && "GET".equals(method)) return this.actions.collectionDecisions("list", queryParams(request), null, actor);
+                    if (parts.length == 4) {
+                        expect(method, parts, 4, "GET", "POST");
+                        return this.actions.collectionDecisions("decide", null, jsonBody(request, MAX_COLLECTION_BODY_BYTES), actor);
+                    }
+                    if (parts.length == 5 && ("apply".equals(parts[4]) || "revoke".equals(parts[4]) || "recover".equals(parts[4]))) {
+                        expect(method, parts, 5, "POST");
+                        return this.actions.collectionDecisions(parts[4], null, jsonBody(request, MAX_COLLECTION_BODY_BYTES), actor);
+                    }
+                    throw new ApiException(404, "not_found", "Unknown collection decision route.");
                 }
                 if (parts.length == 4 && "reassign".equals(parts[3])) {
                     // preview without "confirm", apply with the preview's token; one domain, same origin, small body
@@ -500,7 +514,7 @@ public class ScoutroApiServlet extends HttpServlet {
         for (int i = 3; i < parts.length && i < 7; i++) {
             final String seg = parts[i];
             // a collection id is the target, not part of the action (DELETE /v1/collections/{id})
-            final boolean collection = i == 3 && "collections".equals(parts[2]) && !"reassign".equals(seg);
+            final boolean collection = i == 3 && "collections".equals(parts[2]) && !"reassign".equals(seg) && !"decisions".equals(seg);
             if (!collection && seg.matches("[a-z][a-z-]{0,31}")) {
                 action.append('.').append(seg);
             } else if (seg.matches("[A-Za-z0-9_.:@-]{1,80}")) {

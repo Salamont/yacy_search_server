@@ -172,7 +172,7 @@
   const wanted = initial.get('collection') || '';
   ScoutroCollections.catalog().then(catalog => {
     if (!catalog.available) message(t('catalog_error'));
-    if (ScoutroCollections.fill($('collection'), catalog.ids, wanted) !== wanted && wanted) message(t('unknown_collection'));
+    if (ScoutroCollections.fill($('collection'), catalog.crawlIds || catalog.ids, wanted) !== wanted && wanted) message(t('unknown_collection'));
   });
   ScoutroCollections.offerCreate($('collection-new'), (entry, created) => ScoutroCollections.reload().then(ids => {
     ScoutroCollections.fill($('collection'), ids, entry.id);

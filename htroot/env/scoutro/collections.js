@@ -31,9 +31,12 @@
         .then(function (data) {
           var entries = ((data && data.collections) || []).filter(function (item) { return item && item.selectable !== false && !item.internal; });
           entries.forEach(function (item) { if (item.name && item.name !== item.id) names[item.id] = item.name; });
-          return { ids: sorted(entries.map(function (item) { return item.id; })), canCreate: !!(data && data.canCreate), available: !!data };
+          // crawlIds: the crawl targets; the fallback collection (role "fallback") takes corrected pages by decision only
+          var targets = entries.filter(function (item) { return item.crawlTarget !== false; });
+          return { ids: sorted(entries.map(function (item) { return item.id; })), crawlIds: sorted(targets.map(function (item) { return item.id; })),
+            canCreate: !!(data && data.canCreate), available: !!data };
         })
-        .catch(function () { return { ids: [], canCreate: false, available: false }; });
+        .catch(function () { return { ids: [], crawlIds: [], canCreate: false, available: false }; });
     }
     return pending;
   }

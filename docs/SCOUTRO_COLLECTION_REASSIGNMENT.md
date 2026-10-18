@@ -1,5 +1,11 @@
 # Moving a domain between collections (collections.reassign)
 
+> **2026-10-18 (WP-A):** an applied reassignment is now stored as a durable collection decision and every later
+> crawl of the domain follows it (the replacement described below no longer undoes the move); use
+> `POST /scoutro/api/v1/collections/decisions` for new corrections, paths and hosts. See
+> [SCOUTRO_COLLECTION_DECISIONS.md](SCOUTRO_COLLECTION_DECISIONS.md). The text below describes the behaviour
+> before that change and the yowea.com procedure of 2026-10-08.
+
 Status: 2026-10-08. Background: Discovery crawled `yowea.com`, a coaching consultancy, for the StackFinder profile, so
 its pages are in `stackfinder-web` although they belong to `checkthecoach-web`. The generic StackFinder OSM rule
 accepted `office=consulting` together with the word "consulting" (see

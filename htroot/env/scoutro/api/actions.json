@@ -4634,7 +4634,7 @@
     },
     {
       "name": "collections.reassign",
-      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph takes the new collections over through its sync (re-scoped; tiers 1 and 2 extracted again only if the extractors changed; LLM evidence is neither asked again nor corrected). A page whose version changed since (a new crawl) is never overwritten; a webgraph edge gets its page's collections only once the page has them (webgraphKept counts the others). Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 503 index_unavailable. A later crawl of the domain writes the collection of that crawl again; Discovery refuses such a crawl while the domain has pages in another collection (collection_conflict), and 'scoutro-discovery exclude' takes the domain out of the wrong profile. Agents cannot use it.",
+      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph takes the new collections over through its sync (re-scoped; tiers 1 and 2 extracted again only if the extractors changed; LLM evidence is neither asked again nor corrected). A page whose version changed since (a new crawl) is never overwritten; a webgraph edge gets its page's collections only once the page has them (webgraphKept counts the others). Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 422 target_not_followed (pages would leave the knowledge graph: let it follow the target collection first), 409 decision_exists (a collection decision governs the domain: change it with POST /v1/collections/decisions), 503 decisions_unavailable, 503 index_unavailable. An applied move is stored first as a durable collection decision (mode transform: the removed collections replaced by the added ones; returned as decision), so later crawls of the domain, also through the old profile, write the new collections (docs/SCOUTRO_COLLECTION_DECISIONS.md). Agents cannot use it.",
       "mutating": true,
       "auth": "admin",
       "permission": "admin",
@@ -4693,6 +4693,275 @@
       ],
       "cli": "scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)",
       "mcpTool": "scoutro_collections_reassign",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.list",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. The store's health and every decision (active and revoked); ?domain= filters.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/collections/decisions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "in": "query",
+          "required": false,
+          "description": "Only this registrable domain."
+        }
+      },
+      "returns": "CollectionDecisionList",
+      "errors": [
+        401,
+        403,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/collections/decisions[?domain=] (administrator)",
+      "mcpTool": "scoutro_collections_decisions_list",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.decide",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Without confirm a preview: the pages in scope, their collections before and after, a sample, an existing decision of the same scope and a token; nothing changes. With confirm set to that token the decision is stored first (write-ahead, a new revision of an existing one) and then applied to the indexed pages and their webgraph edges by Solr atomic updates in resumable batches (apply: applied or partial with a cursor). The knowledge graph re-scopes the pages; nothing is crawled or deleted and no LLM is asked. 400 invalid_request, 400 collection_unknown, 409 decision_preview_stale, 409 decision_exists, 422 fallback_needs_pages (fallback for a scope without indexed pages), 422 target_not_followed (pages would leave the knowledge graph: let it follow the target first), 422 decision_too_large (more than 50000 pages), 503 decisions_unavailable / decisions_unwritable / index_unavailable.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Exactly one registrable domain such as example.com; its subdomains are included.",
+          "in": "body",
+          "required": true
+        },
+        "host": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Narrows the scope to this exact host (the domain or a subdomain).",
+          "in": "body",
+          "required": false
+        },
+        "pathPrefix": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\").",
+          "in": "body",
+          "required": false
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "transform"
+          ],
+          "default": "exact",
+          "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment).",
+          "in": "body",
+          "required": false
+        },
+        "collections": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages.",
+          "in": "body",
+          "required": false
+        },
+        "denied": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "transform only: the collections the decision takes away.",
+          "in": "body",
+          "required": false
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$",
+          "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt.",
+          "in": "body",
+          "required": true
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Free references to the evidence (classification, documents).",
+          "in": "body",
+          "required": false
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The token of the preview; without it nothing is stored.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        422,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions (administrator; preview without confirm)",
+      "mcpTool": "scoutro_collections_decisions_decide",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.apply",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Continues a pending or partial decision from its cursor (after an interruption, more than 5000 pages, or pages a crawl changed meanwhile); idempotent.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions/apply",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kcd_[a-z0-9]{8,32}$",
+          "in": "body",
+          "required": true
+        },
+        "confirm": {
+          "type": "string",
+          "in": "body",
+          "required": false
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/apply {\"id\":...} (administrator)",
+      "mcpTool": "scoutro_collections_decisions_apply",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.revoke",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Preview without confirm; with the token the decision is revoked (a new revision): the pages keep their present collections, later crawls write their crawl profile's collections again.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions/revoke",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kcd_[a-z0-9]{8,32}$",
+          "in": "body",
+          "required": true
+        },
+        "confirm": {
+          "type": "string",
+          "in": "body",
+          "required": false
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/revoke (administrator; preview without confirm)",
+      "mcpTool": "scoutro_collections_decisions_revoke",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.recover",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Only while the store is unavailable: the preview lists the readable decisions and the problems; with the token they become the committed state (newer decisions are lost and must be decided again). 409 decisions_available otherwise.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions/recover",
+        "successStatus": 200
+      },
+      "parameters": {
+        "confirm": {
+          "type": "string",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/recover (administrator; preview without confirm)",
+      "mcpTool": "scoutro_collections_decisions_recover",
       "agent": {
         "grantable": false
       }
@@ -19968,6 +20237,10 @@
         "knowledgeGraph": {
           "type": "string"
         },
+        "decision": {
+          "type": "object",
+          "description": "After apply: the durable collection decision that records the move (docs/SCOUTRO_COLLECTION_DECISIONS.md)."
+        },
         "applied": {
           "type": "boolean"
         },
@@ -20151,6 +20424,151 @@
               "type": "integer"
             }
           }
+        }
+      }
+    },
+    "CollectionDecisionRequest": {
+      "type": "object",
+      "required": [
+        "domain",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Exactly one registrable domain such as example.com; its subdomains are included."
+        },
+        "host": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Narrows the scope to this exact host (the domain or a subdomain)."
+        },
+        "pathPrefix": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\")."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "transform"
+          ],
+          "default": "exact",
+          "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment)."
+        },
+        "collections": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages."
+        },
+        "denied": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "transform only: the collections the decision takes away."
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$",
+          "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Free references to the evidence (classification, documents)."
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The token of the preview; without it nothing is stored."
+        }
+      }
+    },
+    "CollectionDecisionResult": {
+      "type": "object",
+      "properties": {
+        "proposed": {
+          "type": "object"
+        },
+        "existing": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "preview": {
+          "type": "object"
+        },
+        "decision": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object"
+        },
+        "token": {
+          "type": "string"
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "store": {
+          "type": "object"
+        }
+      }
+    },
+    "CollectionDecisionList": {
+      "type": "object",
+      "properties": {
+        "store": {
+          "type": "object",
+          "description": "health (ok, recovered, unavailable), generation, markerGeneration, problems, fallback, active, refusedWrites, pendingApply."
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "CollectionDecisionId": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^kcd_[a-z0-9]{8,32}$"
+        },
+        "confirm": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "CollectionDecisionRecover": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "type": "string"
         }
       }
     },
