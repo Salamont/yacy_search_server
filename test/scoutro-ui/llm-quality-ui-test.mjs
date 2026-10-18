@@ -39,7 +39,8 @@ async function open(language, width, init) {
   await page.route('**/LLMSelection_p.html', route => {
     if (route.request().method() !== 'POST') return route.continue();
     saves.push(route.request().postDataJSON());
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    // the page confirms a save only by the settings page it gets back (as llm-selection-ui-test.mjs answers it)
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<body data-settings-saved="1" data-settings-revision="fixture"></body>' });
   });
   const response = await page.goto(`${base}/LLMSelection_p.html`, { waitUntil: 'load' });
   check(response.status() === 200, `${language}/${width}: page`);
