@@ -73,6 +73,10 @@ implemented decision of this programme, **[U]** open assumption.
     of the page's followed collections before and after; only a changed context re-reads tiers 1 and 2 of that page
     and checks its vocabulary-dependent LLM facts ([collection move](SCOUTRO_KG_COLLECTION_MOVE.md)). Schema 7 is
     left to WP-E (assessments).
+11. **Replacement statements deferred** [E, found during development]: an operator tier 4 needs a rebuild of the
+    large `kg_evidence` table (its tier CHECK constraint); WP-E ships withdraw and reclassify (which moves evidence
+    to the right predicate) and leaves `assert` to a later schema change. The assessment API stays administrator
+    only; a UI view is open.
 
 ## 4. Work packages and progress
 
@@ -81,8 +85,8 @@ implemented decision of this programme, **[U]** open assumption.
 | WP-A | Durable collection decisions, index hook, crawl starts, reassign recording, fallback role ([doc](SCOUTRO_COLLECTION_DECISIONS.md)) | `scoutro/r1-wp-a-collection-decisions` | #78 (base main) | done, draft PR |
 | WP-B | Quality metrics, derived facet (`docs/SCOUTRO_KG_QUALITY_METRICS.md` in its PR) | `scoutro/r1-wp-b-quality-derived` | #79 (base main, independent) | done, draft PR |
 | WP-C | Discovery integration: deferred refusals, OSM match origin, classification after moves | `scoutro/r1-wp-c-discovery-decisions` | #80 (stacked on #78) | done, draft PR |
-| WP-D | Knowledge graph on a collection change, LLM priority and cap ([doc](SCOUTRO_KG_COLLECTION_MOVE.md)) | `scoutro/r2-wp-d-kg-collection-move` | stacked on #80 | done |
-| WP-E | Assessments, retraction, replacement statements | – | – | open |
+| WP-D | Knowledge graph on a collection change, LLM priority and cap ([doc](SCOUTRO_KG_COLLECTION_MOVE.md)) | `scoutro/r2-wp-d-kg-collection-move` | #81 (stacked on #80) | done, draft PR |
+| WP-E | Assessments, retraction, replacement statements ([doc](SCOUTRO_KG_ASSESSMENTS.md)) | `scoutro/r2-wp-e-kg-assessments` | stacked on #81 | partial: withdraw, reclassify, revoke, publish protection, archive, carry done; replacement statements (tier 4) and UI open |
 | WP-F | Extraction semantics (money, roles, offers, identity) | – | – | open |
 | WP-G | Rule-based review of stored LLM facts | – | – | open |
 | WP-H | Correction automation (off/simulate/propose/apply) | – | – | open |

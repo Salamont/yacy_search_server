@@ -561,6 +561,80 @@ public class KnowledgeApiTest {
         assertEquals(405, call("GET", "/v1/kg/control", true, null, null, null).status);
     }
 
+    // --------------------------------------------------------- assessments (WP-E)
+
+    private static final String[] ASSESSMENTS = {"", "v1", "kg", "assessments"};
+
+    private static ApiException refusedAssessment(final KnowledgeApi api, final String[] parts, final java.util.Map<String, String> q,
+            final String json) throws IOException {
+        try {
+            api.route(json == null ? "GET" : "POST", parts, q, body(json == null ? "{}" : json));
+        } catch (final ApiException e) {
+            return e;
+        }
+        throw new AssertionError("accepted: " + json + " " + q);
+    }
+
+    @Test
+    public void assessmentsArePreviewedConfirmedListedAndRevokedByTheAdministrator() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r).actor("admin");
+            final java.util.Map<String, String> none = java.util.Collections.emptyMap();
+            final String request = "{\"action\":\"withdraw\",\"scope\":{\"domain\":\"muster-pflege.de\"},\"predicate\":\"price\","
+                    + "\"reason\":\"Sozialleistung, kein Angebotspreis\"";
+            final JSONObject preview = api.route("POST", ASSESSMENTS, none, body(request + "}"));
+            assertTrue(preview.getBoolean("preview"));
+            assertEquals(0, preview.getJSONObject("changes").getInt("evidence"));
+            final String token = preview.getString("token");
+            assertEquals("assessment_preview_stale", refusedAssessment(api, ASSESSMENTS, none, request + ",\"token\":\"0000\"}").code());
+            final JSONObject made = api.route("POST", ASSESSMENTS, none, body(request + ",\"token\":\"" + token + "\"}"));
+            final String id = made.getJSONObject("assessment").getString("id");
+            assertTrue(id, id.matches("kga_[a-z2-7]{20}"));
+            assertEquals("admin", made.getJSONObject("assessment").getString("actor"));
+            assertEquals("manual", made.getJSONObject("assessment").getString("basis"));
+            final JSONObject list = api.route("GET", ASSESSMENTS, none, body("{}"));
+            assertEquals(1, list.getLong("active"));
+            assertEquals(id, list.getJSONArray("items").getJSONObject(0).getString("id"));
+            final String[] revoke = {"", "v1", "kg", "assessments", id, "revoke"};
+            final JSONObject revoked = api.route("POST", revoke, none, body("{}"));
+            assertEquals("revoked", revoked.getJSONObject("assessment").getString("status"));
+            assertEquals("admin", revoked.getJSONObject("assessment").getString("revokedBy"));
+            assertEquals("assessment_not_active", refusedAssessment(api, revoke, none, "{}").code());
+            assertEquals(409, refusedAssessment(api, revoke, none, "{}").status());
+            assertEquals(404, refusedAssessment(api, new String[] {"", "v1", "kg", "assessments", "kga_aaaaaaaaaaaaaaaaaaaa", "revoke"}, none,
+                    "{}").status());
+            assertEquals(0, api.route("GET", ASSESSMENTS, none, body("{}")).getLong("active"));
+            assertEquals(1, api.route("GET", ASSESSMENTS, java.util.Map.of("status", "all"), body("{}")).getJSONArray("items").length());
+            // validation, before anything is read
+            for (final String bad : new String[] {
+                    "{\"action\":\"delete\",\"scope\":{\"domain\":\"muster-pflege.de\"},\"predicate\":\"price\",\"reason\":\"x\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{\"domain\":\"www.muster-pflege.de\"},\"predicate\":\"price\",\"reason\":\"x\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{},\"predicate\":\"price\",\"reason\":\"x\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{\"source\":\"short\"},\"predicate\":\"price\",\"reason\":\"x\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{\"host\":\"www.muster-pflege.de\"},\"predicate\":\"preis\",\"reason\":\"x\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{\"host\":\"www.muster-pflege.de\"},\"predicate\":\"price\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{\"host\":\"www.muster-pflege.de\"},\"predicate\":\"price\",\"reason\":\"x\",\"tier\":4}",
+                    "{\"action\":\"reclassify\",\"scope\":{\"host\":\"www.muster-pflege.de\"},\"predicate\":\"price\",\"reason\":\"x\"}",
+                    "{\"action\":\"withdraw\",\"scope\":{\"host\":\"www.muster-pflege.de\"},\"predicate\":\"price\",\"reason\":\"x\",\"x\":1}"}) {
+                assertEquals(bad, 400, refusedAssessment(api, ASSESSMENTS, none, bad).status());
+            }
+            assertEquals(400, refusedAssessment(api, ASSESSMENTS, java.util.Map.of("status", "gone"), null).status());
+        } finally {
+            r.close();
+        }
+    }
+
+    @Test
+    public void servletRequiresTheAdministratorForAssessments() throws Exception {
+        assertEquals(401, call("GET", "/v1/kg/assessments", false, null, null, null).status);
+        assertEquals(401, call("POST", "/v1/kg/assessments", false, "application/json", null, "{}").status);
+        assertEquals(401, call("POST", "/v1/kg/assessments/kga_aaaaaaaaaaaaaaaaaaaa/revoke", false, "application/json", null, "{}").status);
+        assertEquals(403, call("POST", "/v1/kg/assessments", true, "application/json", "https://evil.example", "{}").status);
+        // the runtime is not started here: the graph counts as disabled
+        assertEquals(409, call("GET", "/v1/kg/assessments", true, null, null, null).status);
+    }
+
     // --------------------------------------------------------- knowledge prompt
 
     private static final String[] PROMPT = {"", "v1", "kg", "prompt"};

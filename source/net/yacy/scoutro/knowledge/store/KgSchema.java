@@ -20,7 +20,7 @@ package net.yacy.scoutro.knowledge.store;
  * Schema of the knowledge graph store (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
  * section "Physical schema"): version 1 and the forward migrations to the
  * current version (2 and 3: packages 2a and 2b, 4: package 6, the business
- * graph). A database of a newer version is never opened.
+ * graph; 5 observations, 6 matching, 7 assessments). A database of a newer version is never opened.
  * <p>
  * Rules encoded here:
  * <ul>
@@ -39,7 +39,7 @@ package net.yacy.scoutro.knowledge.store;
  */
 public final class KgSchema {
 
-    public static final int CURRENT_VERSION = 6;
+    public static final int CURRENT_VERSION = 7;
 
     private KgSchema() {}
 
@@ -395,6 +395,8 @@ public final class KgSchema {
         },
         ObservationSchema.DDL,
         MatchingSchema.DDL,
+        // 6 -> 7 (data quality programme WP-E): assessments and the evidence they withdrew
+        AssessmentSchema.DDL,
     };
 
     /** Keys of kg_meta written by the store. */

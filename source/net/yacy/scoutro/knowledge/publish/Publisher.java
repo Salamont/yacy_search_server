@@ -102,6 +102,10 @@ public final class Publisher {
         public int entitiesCreated;
         public int merged;
         public int conflicts;
+        /** Claims an active assessment held back (WP-E): not published, copied for the record. */
+        public int held;
+        /** Claims an active assessment published under another predicate (WP-E). */
+        public int reclassified;
         /** LLM evidence rows withdrawn because the page's new vocabularies do not contain their value (WP-D). */
         public int tier3Revised;
 
@@ -498,6 +502,9 @@ public final class Publisher {
             e.getValue()[0] = live(tx, e.getValue()[0]);
             publicIds.put(e.getKey(), publicId(tx, e.getValue()[0]));
         }
+        // WP-E: what the active assessments of this source hold back or move, before anything is written
+        final Map<Claim, Assessments.Verdict> assessed = Assessments.assess(ex, Assessments.active(tx, doc.docId, doc.host),
+                c -> assessmentKey(c, ents, publicIds, replacedTiers));
         try (PreparedStatement find = tx.prepareStatement("SELECT stmt_rowid FROM kg_statement WHERE subj = ? AND pred = ? AND obj_key = ?");
                 PreparedStatement insStmt = tx.prepareStatement("INSERT INTO kg_statement (public_id, subj, pred, obj_ent, obj_val, obj_key,"
                         + " quality, current_sources, first_seen, last_confirmed) VALUES (?, ?, ?, ?, ?, ?, 4, 0, ?, NULL)");
@@ -526,7 +533,43 @@ public final class Publisher {
                     canonical = "v:" + p.datatype + ":" + compareForm(p.datatype, objVal);
                 }
                 final byte[] objKey = KgIds.objectKey(canonical);
-                final int pred = this.terms.predicate(c.predicate);
+                final Assessments.Verdict verdict = assessed.get(c);
+                final boolean held = verdict != null && (verdict.dependent || verdict.rule.withdraws());
+                final String predicate = verdict == null || held ? c.predicate : verdict.rule.targetPredicate;
+                final int extId = c.kind == Claim.KIND_LLM ? llmExtId : extractor(c);
+                final Double confidence = Math.round(c.effectiveConfidence() * 1000.0) / 1000.0;
+                final boolean durableSignal=Set.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS).contains(c.predicate);
+                final String excerpt = Normalizers.redactPersons(Normalizers.clip(c.excerpt, durableSignal?1000:Math.min(1000, this.cfg.extractMaxExcerptChars)));
+                final byte[] revisionHash=doc.contentHash!=null ? doc.contentHash : doc.inputHash;
+                final String revision = (revisionHash==null ? "unknown" : java.util.HexFormat.of().formatHex(revisionHash))+":"+(doc.loadedAt==null ? -1 : doc.loadedAt);
+                Assessments.Copy copy = null;
+                if (verdict != null) {
+                    copy = new Assessments.Copy();
+                    copy.statementId = KgIds.statementId(subjId, c.predicate, canonical);
+                    copy.subjectId = subjId;
+                    copy.predicate = c.predicate;
+                    copy.objectId = c.relation() ? publicIds.get(c.object) : null;
+                    copy.value = objVal;
+                    copy.objKey = objKey;
+                    copy.tier = c.tier;
+                    copy.extractor = Assessments.extractor(tx, extId);
+                    copy.kind = c.kind;
+                    copy.certainty = c.hedged ? 2 : 1;
+                    copy.confidence = confidence;
+                    copy.locator = c.locator;
+                    copy.excerpt = excerpt;
+                    copy.observedAt = now;
+                    copy.sourceRevision = revision;
+                    copy.sourceObservedAt = doc.loadedAt;
+                    copy.dependent = verdict.dependent;
+                }
+                if (held) {
+                    // the source still says it, the assessment holds: no fact of this source (a copy for the record)
+                    Assessments.held(tx, verdict.rule, doc.docId, copy, now);
+                    result.held++;
+                    continue;
+                }
+                final int pred = this.terms.predicate(predicate);
                 Long stmt = null;
                 find.setLong(1, subj);
                 find.setInt(2, pred);
@@ -537,7 +580,7 @@ public final class Publisher {
                     }
                 }
                 if (stmt == null) {
-                    insStmt.setString(1, KgIds.statementId(subjId, c.predicate, canonical));
+                    insStmt.setString(1, KgIds.statementId(subjId, predicate, canonical));
                     insStmt.setLong(2, subj);
                     insStmt.setInt(3, pred);
                     if (objEnt == null) {
@@ -557,19 +600,24 @@ public final class Publisher {
                 insEv.setLong(1, stmt);
                 insEv.setLong(2, rowid);
                 insEv.setInt(3, c.tier);
-                insEv.setInt(4, c.kind == Claim.KIND_LLM ? llmExtId : extractor(c));
+                insEv.setInt(4, extId);
                 insEv.setInt(5, c.kind);
                 insEv.setInt(6, c.hedged ? 2 : 1);
-                insEv.setDouble(7, Math.round(c.effectiveConfidence() * 1000.0) / 1000.0);
+                insEv.setDouble(7, confidence);
                 insEv.setString(8, c.locator);
-                final boolean durableSignal=Set.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS).contains(c.predicate);
-                insEv.setString(9, Normalizers.redactPersons(Normalizers.clip(c.excerpt, durableSignal?1000:Math.min(1000, this.cfg.extractMaxExcerptChars))));
+                insEv.setString(9, excerpt);
                 insEv.setLong(10, now);
-                final byte[] revision=doc.contentHash!=null ? doc.contentHash : doc.inputHash;
-                insEv.setString(11,(revision==null ? "unknown" : java.util.HexFormat.of().formatHex(revision))+":"+(doc.loadedAt==null ? -1 : doc.loadedAt));
+                insEv.setString(11, revision);
                 setNullable(insEv,12,doc.loadedAt);
-                if (insEv.executeUpdate() > 0) {
+                final boolean inserted = insEv.executeUpdate() > 0;
+                if (inserted) {
                     result.statements++;
+                }
+                if (copy != null) {
+                    // reclassified: the evidence supports the target statement; the copy remembers where it came from
+                    copy.replacedBy = inserted ? statementPublicId(tx, stmt) : null;
+                    Assessments.held(tx, verdict.rule, doc.docId, copy, now);
+                    result.reclassified++;
                 }
             }
         }
@@ -578,6 +626,25 @@ public final class Publisher {
         result.entitiesCreated = rc.created;
         result.merged = rc.merged;
         result.conflicts = rc.conflicts;
+    }
+
+    /** {subject public ID, object key} of a claim as the insert loop computes them; null if it is not published. */
+    private Object[] assessmentKey(final Claim c, final Map<String, long[]> ents, final Map<String, String> publicIds,
+            final int[] replacedTiers) {
+        final Vocabulary.Predicate p = Vocabulary.predicate(c.predicate);
+        if (p == null || p.relation != c.relation() || !replaced(replacedTiers, c.tier) || ents.get(c.subject) == null) {
+            return null;
+        }
+        final String canonical;
+        if (c.relation()) {
+            if (ents.get(c.object) == null || ents.get(c.object)[0] == ents.get(c.subject)[0]) {
+                return null;
+            }
+            canonical = "e:" + publicIds.get(c.object);
+        } else {
+            canonical = "v:" + p.datatype + ":" + compareForm(p.datatype, Normalizers.clip(c.value, 1000));
+        }
+        return new Object[] {publicIds.get(c.subject), KgIds.objectKey(canonical)};
     }
 
     private static boolean replaced(final int[] tiers, final int tier) {
@@ -733,6 +800,15 @@ public final class Publisher {
             }
         }
         return e;
+    }
+
+    private static String statementPublicId(final Connection tx, final long stmt) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT public_id FROM kg_statement WHERE stmt_rowid = ?")) {
+            ps.setLong(1, stmt);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
     }
 
     private static String publicId(final Connection tx, final long ent) throws SQLException {

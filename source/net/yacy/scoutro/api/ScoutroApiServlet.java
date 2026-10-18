@@ -333,7 +333,8 @@ public class ScoutroApiServlet extends HttpServlet {
                 }
                 // a knowledge prompt of up to 8000 characters needs more room than the other bodies (UTF-8, JSON escapes)
                 final int maxBody = parts.length == 4 && "prompt".equals(parts[3]) ? PROMPT_BODY_BYTES : MAX_BODY_BYTES;
-                return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request, maxBody));
+                return new KnowledgeApi(KgRuntime::current).actor(net.yacy.scoutro.access.Caller.of(request).actor())
+                        .route(method, parts, queryParams(request), () -> jsonBody(request, maxBody));
             case "crawls":
                 people.require(Permission.COLLECT);
                 if (parts.length == 3) {

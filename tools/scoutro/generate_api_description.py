@@ -1245,6 +1245,49 @@ for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v
         ["agent", "knowledge"], dict(sorted(responses.items())), params=o.get("parameters"), grants=[grant])}
 
 
+# Assessments of graph facts (data quality programme WP-E): administrator only, never mirrored to agents (they see the effect only).
+_assess_desc = ("Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of"
+    " statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value"
+    " (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source"
+    " stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements;"
+    " industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected"
+    " (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl);"
+    " a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments,"
+    " backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies."
+    " No model request, no Solr change.")
+schemas["KgAssessmentRequest"] = {"type": "object", "required": ["action", "scope", "predicate", "reason"], "additionalProperties": False, "properties": {
+    "action": {"type": "string", "enum": ["withdraw", "reclassify"]},
+    "scope": {"type": "object", "minProperties": 1, "maxProperties": 1, "description": "Exactly one of source (document ID), host or domain (registrable).",
+              "properties": {"source": {"type": "string", "pattern": "^[A-Za-z0-9_-]{12}$"}, "host": {"type": "string", "maxLength": 253}, "domain": {"type": "string", "maxLength": 253}}},
+    "predicate": {"type": "string", "maxLength": 64}, "value": {"type": ["string", "null"], "maxLength": 1000},
+    "subject": {"type": ["string", "null"], "pattern": "^kge_[a-z2-7]{20}$"}, "tier": {"type": ["integer", "null"], "minimum": 1, "maximum": 3},
+    "targetPredicate": {"type": ["string", "null"], "maxLength": 64, "description": "reclassify only: a predicate with the same kind of object."},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 500, "description": "Why; no personal data."},
+    "token": {"type": ["string", "null"], "description": "The preview's token; without it nothing changes."}}}
+schemas["KgAssessment"] = {"type": "object", "additionalProperties": True, "properties": {
+    "id": {"type": "string", "pattern": "^kga_[a-z2-7]{20}$"}, "action": {"type": "string"}, "scope": {"type": "object"}, "predicate": {"type": "string"},
+    "value": {"type": ["string", "null"]}, "subject": {"type": ["string", "null"]}, "tier": {"type": ["integer", "null"]}, "targetPredicate": {"type": ["string", "null"]},
+    "reason": {"type": "string"}, "basis": {"type": "string", "enum": ["manual", "automatic"]}, "status": {"type": "string", "enum": ["active", "revoked"]},
+    "actor": {"type": ["string", "null"]}, "createdAt": {"type": "integer"}, "revokedAt": {"type": ["integer", "null"]}, "revokedBy": {"type": ["string", "null"]},
+    "blockedClaims": {"type": "integer"}, "reviewNeeded": {"type": "boolean"}, "withdrawnEvidence": {"type": "integer"}, "dependentEvidence": {"type": "integer"}}}
+schemas["KgAssessmentList"] = {"type": "object", "properties": {"items": {"type": "array", "items": ref("KgAssessment")}, "active": {"type": "integer"},
+    "revoked": {"type": "integer"}, "reviewNeeded": {"type": "integer"}}}
+schemas["KgAssessmentResult"] = {"type": "object", "additionalProperties": True, "description": "A preview (preview, assessment, changes: evidence, dependentEvidence, statements, statementsLeaving, documents, observations, matchingContributions, tooLarge, maxEvidence, sample; token) or the stored assessment with applied (evidence, dependentEvidence, reclassified, statementsDeleted).",
+    "properties": {"preview": {"type": "boolean"}, "assessment": ref("KgAssessment"), "changes": {"type": "object"}, "token": {"type": "string"}, "applied": {"type": "object"}}}
+schemas["KgAssessmentRevokeResult"] = {"type": "object", "properties": {"assessment": ref("KgAssessment"), "restored": {"type": "integer"},
+    "notRestored": {"type": "integer", "description": "Copies whose source changed or whose entity is gone; a changed source of tiers 1 and 2 is read again by the rules (sourcesReadAgain), LLM evidence of a changed source returns only with a new LLM reading."},
+    "notRestoredSample": {"type": "array", "items": {"type": "object"}}, "sourcesReadAgain": {"type": "integer"}}}
+paths["/v1/kg/assessments"] = {
+    "get": op("kg.assessments.list", "List the assessments of graph facts", _assess_desc + " Newest first; status active (default), revoked or all; limit 1-500 (100).", ["knowledge"],
+              {**ok("Assessments.", "KgAssessmentList"), **errs("400", "401", "403", "503")},
+              params=[q("status", {"type": "string", "enum": ["active", "revoked", "all"], "default": "active"}, "Which assessments."),
+                      q("limit", {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}, "At most this many.")]),
+    "post": op("kg.assessments.create", "Preview or store an assessment of graph facts", _assess_desc + " Without token a preview: what it would change now, a sample of at most 20 rows and a token; nothing changes. With the token the assessment is stored and applied in one transaction. 400 invalid_request, 409 assessment_preview_stale (the graph changed since the preview), 409 assessment_too_large (more than 5000 evidence rows: narrow scope, value, subject or tier), 503 while the graph is off.", ["knowledge"],
+              {**ok("Preview or stored and applied assessment.", "KgAssessmentResult"), **errs("400", "401", "403", "409", "413", "415", "503")}, body="KgAssessmentRequest", mutating=True)}
+paths["/v1/kg/assessments/{id}/revoke"] = {"post": op("kg.assessments.revoke", "Revoke an assessment", _assess_desc + " Restores the copied evidence unchanged where the source is still the copied revision (a reclassification's moved row is removed again) and marks the observations recorded again; the assessment stays as revoked for the record. Empty body. 404 assessment_not_found, 409 assessment_not_active.", ["knowledge"],
+    {**ok("Revoked assessment and what came back.", "KgAssessmentRevokeResult"), **errs("400", "401", "403", "404", "409", "415", "503")},
+    params=[{"name": "id", "in": "path", "required": True, "description": "Assessment ID.", "schema": {"type": "string", "pattern": "^kga_[a-z2-7]{20}$"}}], mutating=True)}
+
 # Existing Discovery V1 endpoints are generated here too (previously maintained manually).
 schemas["DiscoveryJob"] = {'type': 'object',
  'additionalProperties': False,
@@ -1699,6 +1742,8 @@ mcp.update({'collections.decisions.list': 'scoutro_collections_decisions_list', 
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'collections.create': 'scoutro_collections_create', 'collections.reassign': 'scoutro_collections_reassign', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
 cli.update({'collections.decisions.list': 'HTTP GET /scoutro/api/v1/collections/decisions[?domain=] (administrator)', 'collections.decisions.decide': 'HTTP POST /scoutro/api/v1/collections/decisions (administrator; preview without confirm)', 'collections.decisions.apply': 'HTTP POST /scoutro/api/v1/collections/decisions/apply {"id":...} (administrator)', 'collections.decisions.revoke': 'HTTP POST /scoutro/api/v1/collections/decisions/revoke (administrator; preview without confirm)', 'collections.decisions.recover': 'HTTP POST /scoutro/api/v1/collections/decisions/recover (administrator; preview without confirm)'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'collections.reassign': 'scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)', 'collections.remove': 'browser: Dashboard > Scoutro Collections "−" (administrator); HTTP DELETE /scoutro/api/v1/collections/{id}', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
+mcp.update({'kg.assessments.list': None, 'kg.assessments.create': None, 'kg.assessments.revoke': None})  # administrator decisions, never an MCP tool
+cli.update({'kg.assessments.list': 'HTTP GET /scoutro/api/v1/kg/assessments[?status=active|revoked|all] (administrator)', 'kg.assessments.create': 'HTTP POST /scoutro/api/v1/kg/assessments (administrator; preview without token)', 'kg.assessments.revoke': 'HTTP POST /scoutro/api/v1/kg/assessments/{id}/revoke (administrator)'})
 mcp['collections.remove'] = None  # removing a collection is an administrator decision, never an agent or MCP tool
 for _op in ('collections.hide', 'collections.show', 'collections.delete-pages'):
     mcp[_op] = None  # 0.10.3: hiding, showing and deleting pages are administrator decisions, never agent or MCP tools

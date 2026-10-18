@@ -6328,6 +6328,207 @@
       "agent": {
         "grantable": false
       }
+    },
+    {
+      "name": "kg.assessments.list",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Newest first; status active (default), revoked or all; limit 1-500 (100).",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/assessments",
+        "successStatus": 200
+      },
+      "parameters": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked",
+            "all"
+          ],
+          "default": "active",
+          "in": "query",
+          "required": false,
+          "description": "Which assessments."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100,
+          "in": "query",
+          "required": false,
+          "description": "At most this many."
+        }
+      },
+      "returns": "KgAssessmentList",
+      "errors": [
+        400,
+        401,
+        403,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/kg/assessments[?status=active|revoked|all] (administrator)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.assessments.create",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Without token a preview: what it would change now, a sample of at most 20 rows and a token; nothing changes. With the token the assessment is stored and applied in one transaction. 400 invalid_request, 409 assessment_preview_stale (the graph changed since the preview), 409 assessment_too_large (more than 5000 evidence rows: narrow scope, value, subject or tier), 503 while the graph is off.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/assessments",
+        "successStatus": 200
+      },
+      "parameters": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "withdraw",
+            "reclassify"
+          ],
+          "in": "body",
+          "required": true
+        },
+        "scope": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "description": "Exactly one of source (document ID), host or domain (registrable).",
+          "properties": {
+            "source": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{12}$"
+            },
+            "host": {
+              "type": "string",
+              "maxLength": 253
+            },
+            "domain": {
+              "type": "string",
+              "maxLength": 253
+            }
+          },
+          "in": "body",
+          "required": true
+        },
+        "predicate": {
+          "type": "string",
+          "maxLength": 64,
+          "in": "body",
+          "required": true
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000,
+          "in": "body",
+          "required": false
+        },
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "body",
+          "required": false
+        },
+        "tier": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 3,
+          "in": "body",
+          "required": false
+        },
+        "targetPredicate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "description": "reclassify only: a predicate with the same kind of object.",
+          "in": "body",
+          "required": false
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Why; no personal data.",
+          "in": "body",
+          "required": true
+        },
+        "token": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The preview's token; without it nothing changes.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "KgAssessmentResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/kg/assessments (administrator; preview without token)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.assessments.revoke",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Restores the copied evidence unchanged where the source is still the copied revision (a reclassification's moved row is removed again) and marks the observations recorded again; the assessment stays as revoked for the record. Empty body. 404 assessment_not_found, 409 assessment_not_active.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/assessments/{id}/revoke",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kga_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Assessment ID."
+        }
+      },
+      "returns": "KgAssessmentRevokeResult",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/kg/assessments/{id}/revoke (administrator)",
+      "agent": {
+        "grantable": false
+      }
     }
   ],
   "schemas": {

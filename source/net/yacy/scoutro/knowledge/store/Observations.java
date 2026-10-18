@@ -144,6 +144,17 @@ public final class Observations {
                     }
                     KgStore.putMeta(c,"matching_work","{}");
                 }
+                if(KgStore.queryLong(c,"SELECT CAST(value AS INTEGER) FROM previous.kg_meta WHERE key='schema_version'")>=7) {
+                    // WP-E: assessments are durable decisions, never rebuilt from Solr; the rebuilt graph published what
+                    // they withdrew, so the next start applies the active ones again (Assessments.META_REAPPLY)
+                    s.executeUpdate("INSERT OR IGNORE INTO kg_assessment(public_id,action,scope_kind,scope,predicate,value,subject_id,tier,"
+                            +"target_predicate,reason,basis,status,actor,created_at,revoked_at,revoked_by,blocked,review_needed)"
+                            +" SELECT public_id,action,scope_kind,scope,predicate,value,subject_id,tier,target_predicate,reason,basis,status,"
+                            +"actor,created_at,revoked_at,revoked_by,blocked,review_needed FROM previous.kg_assessment ORDER BY assess_rowid");
+                    s.executeUpdate("INSERT OR IGNORE INTO kg_evidence_withdrawn SELECT * FROM previous.kg_evidence_withdrawn");
+                    if(KgStore.queryLong(c,"SELECT count(*) FROM kg_assessment WHERE status='active'")>0)
+                        KgStore.putMeta(c,net.yacy.scoutro.knowledge.publish.Assessments.META_REAPPLY,"1");
+                }
                 c.commit();
             } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
         }

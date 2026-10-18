@@ -4,6 +4,15 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
+  administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally
+  value, subject, tier) after a preview; the same fact from an independent source stays. Withdrawn evidence is copied
+  field by field, dependent derived industries go along, archived observations become `withdrawn`/`corrected`. The
+  publisher holds covered claims back across re-extraction, the LLM cache and recrawls; a new source revision marks
+  the assessment for review. Revoke restores the evidence exactly. Rebuilds carry assessments, backups contain them,
+  a full reset keeps them. New routes `/v1/kg/assessments*` (administrator only). Rollback to an earlier build
+  needs the upgrade copy taken before schema 7. See [assessments](docs/SCOUTRO_KG_ASSESSMENTS.md).
+
 - Knowledge graph on a collection move (data quality programme WP-D, not released): when only a page's collections
   change and with them the vocabulary context, tiers 1 and 2 read that page again (rules, no model) and the LLM's
   categories, industries and audience segments the new vocabularies do not contain are withdrawn (history kept);

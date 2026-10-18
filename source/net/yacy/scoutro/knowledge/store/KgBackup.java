@@ -148,7 +148,9 @@ public final class KgBackup {
                     "observation_scopes", v >= 5 ? longValue(c, "SELECT count(*) FROM kg_observation_scope") : 0,
                     "observation_events", v >= 5 ? longValue(c, "SELECT count(*) FROM kg_observation_event") : 0,
                     "match_contributions", v >= 6 ? longValue(c, "SELECT count(*) FROM kg_match_contribution") : 0,
-                    "derived_reasons", v >= 6 ? longValue(c, "SELECT count(*) FROM kg_derived_reason") : 0));
+                    "derived_reasons", v >= 6 ? longValue(c, "SELECT count(*) FROM kg_derived_reason") : 0,
+                    "assessments", v >= 7 ? longValue(c, "SELECT count(*) FROM kg_assessment") : 0,
+                    "withdrawn_evidence", v >= 7 ? longValue(c, "SELECT count(*) FROM kg_evidence_withdrawn") : 0));
         } catch (final SQLException e) {
             throw new KgException(KgException.BACKUP_INVALID, "unreadable", "the backup cannot be read: " + clip(e.getMessage()), e);
         }
