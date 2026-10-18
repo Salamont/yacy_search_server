@@ -601,9 +601,16 @@ public class Segment {
         final CollectionConfiguration collectionConfig = this.fulltext.getDefaultConfiguration();
         final String language = votedLanguage(url, url.toNormalform(true), document, condenser); // identification of the language
 
-		final CollectionConfiguration.SolrVector vector = collectionConfig.yacy2solr(this, collections, responseHeader,
-				document, condenser, referrerURL, language, crawlProfile.isPushCrawlProfile(),
-				this.fulltext().useWebgraph() ? this.fulltext.getWebgraphConfiguration() : null, sourceName);
+		final CollectionConfiguration.SolrVector vector;
+		try {
+			vector = collectionConfig.yacy2solr(this, collections, responseHeader,
+					document, condenser, referrerURL, language, crawlProfile.isPushCrawlProfile(),
+					this.fulltext().useWebgraph() ? this.fulltext.getWebgraphConfiguration() : null, sourceName);
+		} catch (final net.yacy.scoutro.collections.CollectionDecisions.Blocked blocked) {
+			// a collection decision forbids the write: the indexed page stays as it is
+			ConcurrentLog.fine("Segment", "not indexed " + url.toNormalform(true) + ": " + blocked.getMessage());
+			return null;
+		}
 
 		return storeDocument(url, crawlProfile, responseHeader, document, vector, language, condenser,
 				searchEvent, sourceName, storeToRWI);

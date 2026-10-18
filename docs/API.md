@@ -124,7 +124,7 @@ invalid name `400`.
 | `export` | `/v1/index/domains/export`, `/v1/kg/export`, `/v1/kg/export/download`, `/v1/kg/changes` | Also needs `read`. |
 | `collect` | `/v1/crawls*`, `/v1/reports/*`, `/v1/discovery/{catalog,status,jobs*}` | Crawls: only crawls of own collections (others `404 crawl_not_found`); a start needs an own collection, refuses `scope=wide` (`403 scope_not_allowed`) and hosts with documents outside the scope (`409 host_indexed_elsewhere`), and stays on exactly its host. Discovery: only jobs whose profile writes into an own collection (others `404 job_not_found`), no global action in `status`. Reports: as for agents. |
 | `chat` | `POST /v1/chat/completions` | One own collection (the only one, or `400 collection_required`); a foreign one `403 collection_not_allowed`; no peer-to-peer search; no `search` tool of the model without all collections; system questions `403 system_forbidden`. The account's session decides, not its address. |
-| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `DELETE /v1/collections/{id}`, `POST /v1/collections/{id}/{hide,show,delete-pages}`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}`, `/v1/discovery/attempts/{id}/defer` | `403 forbidden` for accounts. |
+| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `DELETE /v1/collections/{id}`, `POST /v1/collections/{id}/{hide,show,delete-pages}`, `/v1/collections/reassign`, `/v1/collections/decisions*`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}`, `/v1/discovery/attempts/{id}/defer` | `403 forbidden` for accounts. |
 
 Tools keep using HTTP Digest; the login page never answers them. Every
 changing `/v1` call of a person is written to the audit log
@@ -452,8 +452,21 @@ filters, crawl starts and agent grants all take their choices from it.
   curl --digest -u admin -X POST -H 'Content-Type: application/json' -d '{"confirm":"test-web"}' \
     http://scoutro:8090/scoutro/api/v1/collections/test-web/delete-pages
   ```
+- `GET|POST /v1/collections/decisions`, `POST /v1/collections/decisions/{apply,revoke,recover}`
+  (administrator, same-origin JSON, at most 4 KiB, never an agent route): durable
+  collection decisions of a domain, host or path. Every later index write (any
+  crawl, WorkTables replay, recrawl job, error document) gets the decision's
+  collections; the fallback collection (`sonstige`) takes pages only through a
+  decision. Preview without `confirm`, store (write-ahead) and apply with the
+  preview's token; resumable. If the decision files cannot be read reliably all
+  index writes and crawl starts answer `503 decisions_unavailable` until
+  `recover`. Details: [SCOUTRO_COLLECTION_DECISIONS.md](SCOUTRO_COLLECTION_DECISIONS.md).
+  Crawl starts additionally answer `409 collection_decided` and
+  `409 collection_fallback_only`.
 - `POST /v1/collections/reassign` (administrator, same-origin JSON, at most
-  4 KiB): moves the indexed pages of **one registrable domain** (and its
+  4 KiB): an applied move is also stored as a durable `transform` decision
+  (returned as `decision`); `409 decision_exists` for a decided domain,
+  `422 target_not_followed` for a move out of the knowledge graph. Moves the indexed pages of **one registrable domain** (and its
   subdomains) between collections without crawling them again, e.g. a domain
   Discovery put into the wrong collection. Details, safety and the operating
   procedure: [SCOUTRO_COLLECTION_REASSIGNMENT.md](SCOUTRO_COLLECTION_REASSIGNMENT.md).

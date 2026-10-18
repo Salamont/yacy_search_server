@@ -121,6 +121,9 @@ public class ErrorCache {
                         SolrInputDocument errorDoc = failDoc.toSolr(this.sb.index.fulltext().getDefaultConfiguration());
                         this.sb.index.fulltext().getDefaultConnector().add(errorDoc);
                     }
+                } catch (final net.yacy.scoutro.collections.CollectionDecisions.Blocked blocked) {
+                    // a collection decision forbids the write: the indexed page stays as it is
+                    log.fine("not storing error of " + url.toNormalform(true) + ": " + blocked.getMessage());
                 } catch (final IOException e) {
                     ConcurrentLog.warn("SOLR", "failed to send error " + url.toNormalform(true) + " to solr: " + e.getMessage());
                 }

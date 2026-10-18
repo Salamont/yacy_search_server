@@ -38,6 +38,13 @@ public final class DiscoveryGateway implements DiscoveryService.Backend {
                 }
             }
             final String collection = parameters.getString("collection");
+            // a durable collection decision governs this host: the index hook writes exactly its collections, so the
+            // replacement the checks below guard against cannot happen (and a decided multiple assignment is no conflict)
+            ScoutroActions.checkCollectionDecision(host, collection, true);
+            final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
+            if (decisions != null && decisions.find(host, "/") != null) {
+                return new JsonObject(this.actions.crawlStart(parameters, marker, true, true));
+            }
             if (this.actions.countHostOutside(host, List.of(collection)) > 0) {
                 throw new ApiException(409, "collection_conflict", "Candidate has documents outside the target collection.");
             }
@@ -51,7 +58,7 @@ public final class DiscoveryGateway implements DiscoveryService.Backend {
                 throw new ApiException(409, "collection_conflict", "Recrawl would replace other collection memberships.");
             }
             // the checks above cover exactly this host: the crawl must not follow YaCy's host prefix to other hosts
-            return new JsonObject(this.actions.crawlStart(parameters, marker, true));
+            return new JsonObject(this.actions.crawlStart(parameters, marker, true, true));
         }
     }
     @Override public JsonObject capacity() {

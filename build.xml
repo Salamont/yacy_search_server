@@ -570,6 +570,29 @@
     </java>
   </target>
 
+  <target name="scoutro-collection-decisions-test" depends="compile" description="durable collection decisions: store, index hook, crawl starts, apply and reassign (docs/SCOUTRO_COLLECTION_DECISIONS.md)">
+    <mkdir dir="build/scoutro-collection-decisions-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-collection-decisions-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/collections/**/*.java"/>
+      <include name="net/yacy/search/schema/CollectionDecisionIndexTest.java"/>
+      <include name="net/yacy/scoutro/api/CollectionDecisionsApiTest.java"/>
+      <include name="net/yacy/scoutro/api/CollectionReassignTest.java"/>
+      <include name="net/yacy/scoutro/api/DiscoveryGatewayTest.java"/>
+      <include name="net/yacy/scoutro/api/CrawlFlowTest.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-collection-decisions-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.collections.DecisionStoreTest"/>
+      <arg value="net.yacy.scoutro.collections.CollectionDecisionsTest"/>
+      <arg value="net.yacy.search.schema.CollectionDecisionIndexTest"/>
+      <arg value="net.yacy.scoutro.api.CollectionDecisionsApiTest"/>
+      <arg value="net.yacy.scoutro.api.CollectionReassignTest"/>
+      <arg value="net.yacy.scoutro.api.DiscoveryGatewayTest"/>
+      <arg value="net.yacy.scoutro.api.CrawlFlowTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-kg-observations-test" depends="compile" description="durable knowledge migration, lifecycle, context and access regressions">
     <mkdir dir="build/scoutro-kg-observations-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-observations-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

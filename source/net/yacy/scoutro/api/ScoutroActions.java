@@ -459,7 +459,15 @@ final class ScoutroActions {
         } catch (final net.yacy.scoutro.agents.AgentException e) {
             throw new ApiException(503, "collection_uses_unavailable", "It cannot be checked whether agents use this collection; nothing was removed.");
         }
-        return collectionUses(id, accounts, agents, guest, loadCrawls().values());
+        final Map<String, Integer> out = collectionUses(id, accounts, agents, guest, loadCrawls().values());
+        // an active collection decision keeps its collections: hiding or removing one would orphan corrected pages
+        final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
+        if (decisions != null) {
+            for (final net.yacy.scoutro.collections.CollectionDecision d : decisions.all()) {
+                if (d.active() && d.collections.contains(id)) out.merge("decisions", 1, Integer::sum);
+            }
+        }
+        return out;
     }
 
     /**
@@ -516,6 +524,39 @@ final class ScoutroActions {
             if (name != null && !name.isEmpty()) crawling.add(name.toLowerCase(java.util.Locale.ROOT));
         }
         return CollectionReassign.current(this.catalog).run(body, crawling::contains);
+    }
+
+    /**
+     * collections.decisions (administrator): list, decide (preview / store and apply), apply, revoke, recover
+     * ({@link CollectionDecisionsApi}, docs/SCOUTRO_COLLECTION_DECISIONS.md).
+     */
+    JSONObject collectionDecisions(final String action, final Map<String, String> query, final JSONObject body, final String actor)
+            throws ApiException {
+        final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
+        if (decisions == null) throw new ApiException(503, "decisions_unavailable", "Collection decisions need the running peer.");
+        final CollectionDecisionsApi api = new CollectionDecisionsApi(decisions,
+                new DecisionApply(CollectionReassign.embeddedIndex(), decisions.fallback(), graphFollows()), id -> {
+                    try {
+                        return this.catalog.known(id);
+                    } catch (final ApiException e) {
+                        return false;
+                    }
+                });
+        switch (action) {
+            case "list": return api.list(query);
+            case "decide": return api.decide(body, actor);
+            case "apply": return api.resume(body);
+            case "revoke": return api.revoke(body, actor);
+            case "recover": return api.recover(body, actor);
+            default: throw new ApiException(404, "not_found", "Unknown collection decision route.");
+        }
+    }
+
+    /** The collections the running knowledge graph follows; null if it is off (no graph data to protect). */
+    static java.util.function.Predicate<String> graphFollows() {
+        final net.yacy.scoutro.knowledge.KgRuntime kg = net.yacy.scoutro.knowledge.KgRuntime.current();
+        final net.yacy.scoutro.knowledge.KgConfig cfg = kg == null ? null : kg.config();
+        return cfg == null || !cfg.enabled ? null : cfg::follows;
     }
 
     /** index.lookup: is a URL indexed, or how many documents does a host have (embedded Solr). */
@@ -871,8 +912,13 @@ final class ScoutroActions {
      * {@code hostOnly} keeps the crawl on its start host (agents, Discovery).
      */
     JSONObject crawlStart(final JSONObject body, final String marker, final boolean hostOnly) throws ApiException {
+        return crawlStart(body, marker, hostOnly, false);
+    }
+
+    /** As {@link #crawlStart(JSONObject, String, boolean)}; {@code discovery}: started by Discovery (collection decisions). */
+    JSONObject crawlStart(final JSONObject body, final String marker, final boolean hostOnly, final boolean discovery) throws ApiException {
         final CrawlRequest request = hostOnly ? CrawlRequest.parse(body).hostOnly() : CrawlRequest.parse(body);
-        return startCrawl(request, marker, marker == null ? null : "marker:" + marker);
+        return startCrawl(request, marker, marker == null ? null : "marker:" + marker, discovery);
     }
 
     JSONObject crawlStartAdmin(final JSONObject body, final String key) throws ApiException {
@@ -893,6 +939,15 @@ final class ScoutroActions {
     }
 
     private JSONObject startCrawl(final CrawlRequest request, final String suppliedMarker, final String reference) throws ApiException {
+        return startCrawl(request, suppliedMarker, reference, false);
+    }
+
+    /**
+     * Every Scoutro crawl start (administrator, account, agent, Discovery) ends here: the durable collection decisions
+     * decide whether the crawl may write into its collection ({@link net.yacy.scoutro.collections.CollectionDecisions#checkCrawl}).
+     */
+    private JSONObject startCrawl(final CrawlRequest request, final String suppliedMarker, final String reference, final boolean discovery)
+            throws ApiException {
         if (suppliedMarker != null && !suppliedMarker.matches("[0-9a-f]{32}")) throw new IllegalArgumentException("invalid start marker");
         this.yacy.requireCollectionStorage();
         synchronized (CRAWL_START_LOCK) {
@@ -915,6 +970,7 @@ final class ScoutroActions {
                 // No blind replay even after a crash, unreadable answer or missing profile.
                 throw new ApiException(409, "crawl_start_unconfirmed", "This crawl start has an unconfirmed outcome; it will not be dispatched again.");
             }
+            checkCollectionDecision(request.host, request.collection, discovery);
             for (final JSONObject live : loadCrawls().values()) {
                 if (!"terminated".equals(live.optString("state")) && ScopedActions.sameHost(request.host, ScopedActions.crawlHost(live.optString("id"), live)))
                     throw new ApiException(409, "host_busy", "Another crawl is active on this host; its queued URLs must be retained.");
@@ -942,6 +998,17 @@ final class ScoutroActions {
                 throw new ApiException(503, "crawl_start_unconfirmed", "YaCy may have started the crawl; retry only with the same Idempotency-Key.");
             }
             return CrawlLedger.describe(created, record);
+        }
+    }
+
+    /** The collection decision for a crawl of {@code host} into {@code collection}; refused as an ApiException. */
+    static void checkCollectionDecision(final String host, final String collection, final boolean discovery) throws ApiException {
+        final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
+        if (decisions == null) return;
+        try {
+            decisions.checkCrawl(host, collection, discovery);
+        } catch (final net.yacy.scoutro.collections.CollectionDecisions.Refusal r) {
+            throw new ApiException(r.status, r.code, r.getMessage(), Json.obj("host", host, "collection", collection));
         }
     }
 
