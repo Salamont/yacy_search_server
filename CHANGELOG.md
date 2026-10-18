@@ -37,6 +37,9 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   provider named by JSON-LD `provider` or the LLM tier joins that provider's service); switched on, every page is
   read again once with the rules. `POST /v1/kg/identity-preview` shows their effect on one domain in a rolled-back
   transaction (nothing written, no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
+  Fix: the order to re-read every page after new extractor versions is stored (`kg_meta.reextract_pending`) until
+  that re-extraction completed; a stop before (an upgrade whose first start ended early) lost it before, and the
+  pages kept their old reading.
 
 - Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
   administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally

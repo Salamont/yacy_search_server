@@ -245,6 +245,66 @@ public class KgSyncRuntimeTest {
         assertEquals("extractor_changed", stringOf(r, "SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1"));
     }
 
+    /**
+     * New extractor versions are stored at the start; the order to extract every page again must survive a stop before
+     * that re-extraction completed (an upgrade whose first start ends early), or the pages keep their old reading.
+     */
+    @Test
+    public void aReextractionOrderSurvivesARestartBeforeItCompleted() throws Exception {
+        KgRuntime r = start(settings());
+        client().add(doc("AAAAAAhost01", "", org("A GmbH")));
+        client().commit();
+        settle(r);
+        KgRuntime.stop();
+        try (Connection c = KgStore.SQLITE.open(new KgPaths(this.data).db)) {
+            KgStore.putMeta(c, KgSchema.META_EXTRACTORS, "1:jsonld:2,1:metadata:1,2:rule:2");
+        }
+        // the first start after the upgrade: YaCy is busy (the gate holds the reconcile back) and the peer stops again
+        final Gates.Probe busy = new Gates.Probe() {
+            @Override
+            public int indexingQueue() {
+                return Integer.MAX_VALUE;
+            }
+            @Override
+            public double load() {
+                return -1d;
+            }
+            @Override
+            public long freeHeapBytes() {
+                return Long.MAX_VALUE;
+            }
+            @Override
+            public String onlineCaution() {
+                return null;
+            }
+        };
+        KgRuntime.start(new KgRuntime.Env(this.data, settings()::get, this.clock::get, new KgTestSupport.Probe(), KgStore.SQLITE, false,
+                () -> this.solr.getDefaultServer(), busy));
+        r = KgRuntime.current();
+        final KgRuntime first = r;
+        drive(r, () -> {
+            final JSONObject sync = first.status().optJSONObject("sync");
+            return sync != null && sync.optBoolean("initialized");
+        });
+        assertEquals("the new identity is stored at the start", net.yacy.scoutro.knowledge.sync.SolrDoc.extractors(),
+                stringOf(r, "SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_EXTRACTORS + "'"));
+        assertEquals("held back: no re-extraction ran", 0L, count(r, "SELECT count(*) FROM kg_scan WHERE reason = 'extractor_changed'"));
+        KgRuntime.stop();
+        r = start(settings());
+        settle(r);
+        assertEquals("extractor_changed", stringOf(r, "SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1"));
+        assertNull("done: the order is gone", stringOf(r, "SELECT value FROM kg_meta WHERE key = '"
+                + net.yacy.scoutro.knowledge.sync.Reconciler.META_REEXTRACT + "'"));
+        KgRuntime.stop();
+        r = start(settings());
+        final KgRuntime later = r;
+        drive(r, () -> {
+            final JSONObject sync = later.status().optJSONObject("sync");
+            return sync != null && sync.optBoolean("initialized");
+        });
+        assertFalse("a later start does not extract again", r.status().getJSONObject("sync").getJSONObject("reconcile").optBoolean("reextract"));
+    }
+
     private String stringClosed(final String key) throws Exception {
         try (Connection c = KgStore.SQLITE.open(new KgPaths(this.data).db)) {
             return KgStore.getMeta(c, key);
