@@ -1420,6 +1420,39 @@
       }
     },
     {
+      "name": "kg.quality",
+      "description": "Administrator only, read only (docs/SCOUTRO_KG_QUALITY_METRICS.md). Counts of the live graph with their counting unit: organisations with or without a stated name and with explicit, only derived or no industry; services with or without a provider and with prices; duplicate candidates (same provider and normalised name); frequent service names; offers and price evidence by tier; empty evidence excerpts. Merged entities never count. Each metric runs in its own read transaction (60 s); one that fails reports its error and the others are still answered. A snapshot is reused for 10 minutes; ?refresh=true computes it again. 503 kg_unavailable when the graph does not run.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/quality",
+        "successStatus": 200
+      },
+      "parameters": {
+        "refresh": {
+          "type": "boolean",
+          "in": "query",
+          "required": false,
+          "description": "Compute the snapshot again."
+        }
+      },
+      "returns": "KgQuality",
+      "errors": [
+        400,
+        401,
+        403,
+        405,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/kg/quality[?refresh=true] (administrator)",
+      "mcpTool": "scoutro_kg_quality",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "kg.control",
       "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"|\"delete_backup\"} (restore and delete_backup with \"backup\"); unknown fields are refused. delete_backup: 404 backup_not_found, 409 operation_running, 503 backup_delete_failed. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
       "mutating": true,
@@ -6059,39 +6092,6 @@
         "grantable": false
       },
       "permission": "admin"
-    },
-    {
-      "name": "kg.quality",
-      "description": "Administrator only, read only (docs/SCOUTRO_KG_QUALITY_METRICS.md). Counts of the live graph with their counting unit: organisations with or without a stated name and with explicit, only derived or no industry; services with or without a provider and with prices; duplicate candidates (same provider and normalised name); frequent service names; offers and price evidence by tier; empty evidence excerpts. Merged entities never count. Each metric runs in its own read transaction (60 s); one that fails reports its error and the others are still answered. A snapshot is reused for 10 minutes; ?refresh=true computes it again. 503 kg_unavailable when the graph does not run.",
-      "mutating": false,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "GET",
-        "path": "/scoutro/api/v1/kg/quality",
-        "successStatus": 200
-      },
-      "parameters": {
-        "refresh": {
-          "type": "boolean",
-          "in": "query",
-          "required": false,
-          "description": "Compute the snapshot again."
-        }
-      },
-      "returns": "KgQuality",
-      "errors": [
-        400,
-        401,
-        403,
-        405,
-        503
-      ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/quality[?refresh=true] (administrator)",
-      "mcpTool": "scoutro_kg_quality",
-      "agent": {
-        "grantable": false
-      }
     }
   ],
   "schemas": {
@@ -10030,6 +10030,45 @@
             "delete_backup"
           ],
           "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts exactly the chosen backup and its history in place with a new dataset epoch, without mixing newer observations, and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (live facts are extracted from current sources; durable observations, corrections and current classifications are carried after the old writer stops) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false. delete_backup (with backup, package 6.3) deletes one backup and its metadata file: only a name of GET /kg/backups, the file a regular file directly in DATA/SCOUTRO/knowledge/backup (no symbolic link), never the graph's own graph.db, WAL or SHM; the answer is the status with deleted and the backup state after it. 400 for anything but such a name, 404 backup_not_found, 409 operation_running while a backup, restore or rebuild swap holds the backup slot (nothing deleted), 503 backup_delete_failed. Restore and download of the other backups are unchanged."
+        }
+      }
+    },
+    "KgQuality": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "scoutro.kg.quality.v1"
+        },
+        "computed_at": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "data_state": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "description": "unit and total / by_collection (memberships: an entity in two collections counts in both), or by_tier, or top, or error"
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "units": {
+          "type": "object"
+        },
+        "note": {
+          "type": "string"
         }
       }
     },
