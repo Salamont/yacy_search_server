@@ -89,6 +89,13 @@ public final class KgConfig {
     public static final String GATE_MIN_FREE_HEAP_MB = "scoutro.kg.gate.minFreeHeapMB";
     public static final String LLM_COLLECTIONS = "scoutro.kg.llm.collections";
     public static final String LLM_PARALLEL = "scoutro.kg.llm.parallel";
+    /**
+     * WP-D: model requests the LLM tier may start per UTC day (0: no cap). A simple verifiable consumption limit inside the
+     * existing tier; requests above it wait for the next day (waiting reason {@code daily_request_cap}).
+     */
+    public static final String LLM_MAX_REQUESTS_PER_DAY = "scoutro.kg.llm.maxRequestsPerDay";
+    /** WP-D: relative share of a collection in each scan of the LLM tier ({@code .<collection>}, 1-10, default 1). */
+    public static final String LLM_WEIGHT_PREFIX = "scoutro.kg.llm.weight.";
     public static final String LLM_TIMEOUT_SECONDS = "scoutro.kg.llm.timeoutSeconds";
     public static final String LLM_MAX_ATTEMPTS = "scoutro.kg.llm.maxAttempts";
     /** Tokens of the context window kept free for the answer (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3). */
@@ -220,6 +227,10 @@ public final class KgConfig {
     public final Set<String> llmCollections;
     public final boolean llmAllCollections;
     public final int llmParallel;
+    /** Model requests per UTC day, 0 = no cap ({@link #LLM_MAX_REQUESTS_PER_DAY}). */
+    public final long llmMaxRequestsPerDay;
+    /** Scan weight per collection; absent = 1 ({@link #LLM_WEIGHT_PREFIX}). Not part of any identity. */
+    public final Map<String, Integer> llmWeights;
     public final long llmTimeoutMillis;
     public final int llmMaxAttempts;
     public final int llmAnswerReserveTokens;
@@ -342,6 +353,20 @@ public final class KgConfig {
         llm.remove(ALL_COLLECTIONS);
         this.llmCollections = Collections.unmodifiableSet(llm);
         this.llmParallel = (int) p.longValue(LLM_PARALLEL, 1, 1, 2);
+        this.llmMaxRequestsPerDay = p.longValue(LLM_MAX_REQUESTS_PER_DAY, 0, 0, 10_000_000);
+        // the named collections, and with the set keys any other one (as for the other per-collection keys)
+        final Set<String> weighted = new TreeSet<>(this.collections);
+        weighted.addAll(this.llmCollections);
+        for (final String k : p.keys) {
+            if (k.startsWith(LLM_WEIGHT_PREFIX) && COLLECTION_NAME.matcher(k.substring(LLM_WEIGHT_PREFIX.length())).matches()) {
+                weighted.add(k.substring(LLM_WEIGHT_PREFIX.length()));
+            }
+        }
+        final Map<String, Integer> weights = new TreeMap<>();
+        for (final String c : weighted) {
+            if (p.raw(LLM_WEIGHT_PREFIX + c) != null) weights.put(c, (int) p.longValue(LLM_WEIGHT_PREFIX + c, 1, 1, 10));
+        }
+        this.llmWeights = Collections.unmodifiableMap(weights);
         this.llmTimeoutMillis = 1000L * p.longValue(LLM_TIMEOUT_SECONDS, 120, 5, 600);
         this.llmMaxAttempts = (int) p.longValue(LLM_MAX_ATTEMPTS, 2, 1, 10);
         this.llmAnswerReserveTokens = (int) p.longValue(LLM_ANSWER_RESERVE_TOKENS, 1200, 256, 32_768);
@@ -670,6 +695,12 @@ public final class KgConfig {
     /** Stable description of what the extraction reads per collection (vocabularies, jobs): part of the extractor identity. */
     public String extractionKey() {
         return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections))+"|"+this.jobsExtractOverrides;
+    }
+
+    /** The scan weight of a collection (1 unless set). */
+    public int llmWeight(final String collection) {
+        final Integer w = this.llmWeights.get(collection);
+        return w == null ? 1 : w;
     }
 
     /**

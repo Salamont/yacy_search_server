@@ -64,6 +64,12 @@ public final class Publisher {
 
     /** A source document as read from Solr. */
     public static final class Doc {
+        /**
+         * Set when only the collections changed and with them the extraction context (WP-D): the LLM tier's evidence of
+         * vocabulary-dependent predicates is checked against this context and withdrawn where the new vocabularies do not
+         * contain its value. No model is asked.
+         */
+        public net.yacy.scoutro.knowledge.extract.ExtractContext reviseTier3;
         public String docId;
         public String url;
         public String host;
@@ -96,6 +102,8 @@ public final class Publisher {
         public int entitiesCreated;
         public int merged;
         public int conflicts;
+        /** LLM evidence rows withdrawn because the page's new vocabularies do not contain their value (WP-D). */
+        public int tier3Revised;
 
         Result(final Outcome outcome) {
             this.outcome = outcome;
@@ -202,6 +210,9 @@ public final class Publisher {
             result = new Result(Outcome.PUBLISHED);
             replaceEvidence(tx, doc, rowid, extraction, agg, result, now);
             replaceLinks(tx, rowid, doc.linkDomains);
+            if (doc.reviseTier3 != null) {
+                result.tier3Revised = Tier3Revision.revise(tx, rowid, doc.reviseTier3);
+            }
         } else {
             result = new Result(collectionsChanged || stateChanged ? Outcome.LIFECYCLE : Outcome.UNCHANGED);
             // A genuinely newer source load of identical content is a new observation.
@@ -219,11 +230,30 @@ public final class Publisher {
                 net.yacy.scoutro.knowledge.store.Observations.capture(tx,rowid);
             }
         }
+        if (collectionsChanged && cur != null) {
+            reopenForLlm(tx, rowid, doc.collections);
+        }
         if (doc.accessCollections != null) {
             net.yacy.scoutro.knowledge.store.Observations.classify(tx,doc.docId,doc.accessCollections);
         }
         agg.finish(tx);
         return result;
+    }
+
+    /**
+     * WP-D: a page the LLM tier skipped only because its collections were not selected for it ({@code not_selected})
+     * becomes a candidate again when it moves into a collection the LLM tier follows. That is its first enrichment, not a
+     * new one: pages already read keep their result, and nothing is asked because of a move alone.
+     */
+    private void reopenForLlm(final Connection tx, final long rowid, final List<String> collections) throws SQLException {
+        boolean llm = false;
+        for (final String c : collections) llm |= this.cfg.llmFollows(c);
+        if (!llm) return;
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = NULL WHERE doc_rowid = ?"
+                + " AND llm_status = 3 AND llm_reason = 'not_selected'")) { // LlmQueue.STATUS_SKIPPED
+            ps.setLong(1, rowid);
+            ps.executeUpdate();
+        }
     }
 
     private static long insert(final Connection tx, final Doc doc, final int tiers, final long now) throws SQLException {

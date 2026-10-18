@@ -4,6 +4,15 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Knowledge graph on a collection move (data quality programme WP-D, not released): when only a page's collections
+  change and with them the vocabulary context, tiers 1 and 2 read that page again (rules, no model) and the LLM's
+  categories, industries and audience segments the new vocabularies do not contain are withdrawn (history kept);
+  relations, names and identities stay. A page skipped as `not_selected` gets its first enrichment when it enters an
+  LLM collection; a move alone never asks the model. New settings `scoutro.kg.llm.maxRequestsPerDay` (daily request
+  cap, off by default) and `scoutro.kg.llm.weight.<collection>` (scan share); status `llm.dailyRequests`,
+  `llm.weights`, `sync.processed.rescopedExtractions`. No schema change, no global re-extraction.
+  See [collection move](docs/SCOUTRO_KG_COLLECTION_MOVE.md).
+
 - Discovery and collection decisions (data quality programme WP-C, not released): a pair refused by a decision or a
   collection conflict waits (`deferred`) instead of being tried in every batch; such refusals are definite outcomes,
   never unknown starts; OSM candidates keep the matching rule and tags (`osm_match`); `classify` finds the pages of a
