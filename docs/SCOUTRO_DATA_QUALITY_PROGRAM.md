@@ -73,9 +73,9 @@ implemented decision of this programme, **[U]** open assumption.
 
 | WP | Content | Branch | PR | Status |
 |---|---|---|---|---|
-| WP-A | Durable collection decisions, index hook, crawl starts, reassign recording, fallback role ([doc](SCOUTRO_COLLECTION_DECISIONS.md)) | `scoutro/r1-wp-a-collection-decisions` | – | in progress |
-| WP-B | Quality metrics, derived facet | – | – | open |
-| WP-C | Discovery integration | – | – | open |
+| WP-A | Durable collection decisions, index hook, crawl starts, reassign recording, fallback role ([doc](SCOUTRO_COLLECTION_DECISIONS.md)) | `scoutro/r1-wp-a-collection-decisions` | #78 (base main) | done, draft PR |
+| WP-B | Quality metrics, derived facet (`docs/SCOUTRO_KG_QUALITY_METRICS.md` in its PR) | `scoutro/r1-wp-b-quality-derived` | #79 (base main, independent) | done, draft PR |
+| WP-C | Discovery integration: deferred refusals, OSM match origin, classification after moves | `scoutro/r1-wp-c-discovery-decisions` | stacked on #78 | done |
 | WP-D | Knowledge graph on a collection change, LLM priority and cap | – | – | open |
 | WP-E | Assessments, retraction, replacement statements | – | – | open |
 | WP-F | Extraction semantics (money, roles, offers, identity) | – | – | open |

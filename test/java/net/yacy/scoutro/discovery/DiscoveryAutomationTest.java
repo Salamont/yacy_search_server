@@ -654,8 +654,40 @@ public class DiscoveryAutomationTest {
         assertEquals("submitted_unknown",answer.getString("error"));assertEquals(1,starts[0]);
         assertTrue(Files.readString(this.state.resolve("state.json")).contains("submitted_unknown"));
     }
+    /** WP-C: a refusal by a durable collection decision is a definite outcome, never an unknown start to reconcile. */
+    @Test public void collectionDecisionRefusalIsDefinite() throws Exception {
+        this.backend.refuse = "collection_decided";
+        open(); create("Job"); enable(); this.service.advance();
+        final JsonObject run = active();
+        if (run != null && run.has("attempts") && run.getJSONArray("attempts").length() > 0) {
+            assertEquals("not_submitted", run.getJSONArray("attempts").getJSONObject(0).getString("state"));
+        }
+        assertFalse(run != null && "submitted_unknown".equals(run.optString("error")));
+        assertFalse(run != null && "needs_review".equals(run.optString("phase")));
+    }
+    /** WP-C, real bridge: Python defers the refused pairs (state.json) instead of trying them in every batch. */
+    @Test public void realBridgeDecisionRefusalDefersThePair() throws Exception {
+        final java.util.List<String> started = new java.util.ArrayList<>();
+        final Path bridge = bridgeFixture();
+        final DiscoveryProcess.Handler refuse = (action,params) -> {
+            if ("search".equals(action)) return bridgeSearch();
+            if ("admission".equals(action)) return new JsonObject().put("allowed", true);
+            if ("crawl".equals(action)) { started.add(params.getString("domain")); throw new ApiException(409,"collection_decided","decided into sonstige"); }
+            return new JsonObject();
+        };
+        JsonObject answer = DiscoveryProcess.run(bridge, this.state, this.config, bridgeInit(), refuse, 10);
+        assertFalse(answer.toString(), answer.has("error"));
+        final String state = Files.readString(this.state.resolve("state.json"));
+        assertTrue(state, state.contains("\"deferred\"") && state.contains("collection_decided"));
+        assertFalse(state.contains("submitted_unknown"));
+        final java.util.List<String> first = new java.util.ArrayList<>(started);
+        assertEquals(2, first.size());
+        answer = DiscoveryProcess.run(bridge, this.state, this.config, bridgeInit(), refuse, 10);
+        assertFalse(answer.toString(), answer.has("error"));
+        for (final String d : started.subList(first.size(), started.size())) assertFalse("deferred pair started again: " + d, first.contains(d));
+    }
     private static class FakeBackend implements DiscoveryService.Backend {
-        int starts; boolean allowed = true, loseReply, retain = true; Runnable before; RuntimeException crawlFailure;
+        int starts; boolean allowed = true, loseReply, retain = true; Runnable before; RuntimeException crawlFailure; String refuse;
         JsonArray crawls = new JsonArray();
         public JsonObject capacity() { return new JsonObject().put("allowed", allowed).put("reason", "capacity"); }
         public JsonArray crawls() {
@@ -665,6 +697,7 @@ public class DiscoveryAutomationTest {
         public JsonObject search(JsonObject p) { throw new AssertionError("Unexpected source call"); }
         public JsonObject start(JsonObject p, String marker) throws ApiException {
             if (before != null) before.run(); starts++;
+            if (refuse != null) throw new ApiException("decisions_unavailable".equals(refuse) ? 503 : 409, refuse, "refused by a collection decision");
             JsonObject crawl = new JsonObject().put("id", "crawl-" + starts).put("state", "running").put("startMarker", marker);
             if (retain) crawls.put(crawl);
             if (loseReply) throw new ApiException(503, "upstream_unavailable", "lost reply");

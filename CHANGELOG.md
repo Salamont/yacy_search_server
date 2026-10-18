@@ -4,6 +4,11 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Discovery and collection decisions (data quality programme WP-C, not released): a pair refused by a decision or a
+  collection conflict waits (`deferred`) instead of being tried in every batch; such refusals are definite outcomes,
+  never unknown starts; OSM candidates keep the matching rule and tags (`osm_match`); `classify` finds the pages of a
+  moved domain; the agent bridge reads the runtime profiles. No change to the state file version.
+
 - Durable collection decisions (data quality programme WP-A, not released): a decision fixes the collections of a
   domain, host or path; every index write (all crawl paths, WorkTables replays, the recrawl job, error documents)
   follows it, so a corrected wrong assignment is never restored by a crawl. The fallback collection `sonstige`

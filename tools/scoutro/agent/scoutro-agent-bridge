@@ -937,7 +937,12 @@ def build_worker(args, environ=os.environ):
     clustro = Clustro(secret["clustroBaseUrl"], secret["clustroAgentKey"], secret["clustroWorkspaceId"],
                       secret["clustroConnectionId"])
     llm = sc.LlmConfig.from_env(environ)
+    # the runtime profiles (SCOUTRO_CONFIG_ROOT), as the Discovery automation reads them; the repository file only
+    # without one (WP-C: the repository copy can differ from the runtime rules)
+    config_root = environ.get("SCOUTRO_CONFIG_ROOT")
+    runtime_profiles = os.path.join(config_root, "profiles.json") if config_root else None
     worker = Worker(scoutro, clustro, Journal(state_dir), llm, discovery_dir,
+                    profiles_path=runtime_profiles if runtime_profiles and os.path.exists(runtime_profiles) else None,
                     poll=float(environ.get("SCOUTRO_AGENT_POLL", "15")))
     worker.lock = lock
     return worker
