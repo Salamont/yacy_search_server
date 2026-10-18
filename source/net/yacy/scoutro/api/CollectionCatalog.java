@@ -53,7 +53,7 @@ public final class CollectionCatalog {
     static final List<String> INTERNAL_PREFIXES = List.of("robot_");
     /** Names a new collection may not take: words with a meaning of their own in filters and YaCy's default crawl collection. */
     // "reassign" is a path of the collections API (POST /v1/collections/reassign), never a collection
-    static final Set<String> RESERVED = Set.of("all", "none", "default", "user", "any", "new", "reassign", "decisions");
+    static final Set<String> RESERVED = Set.of("all", "none", "default", "user", "any", "new", "reassign", "decisions", "autocorrect");
     public static final int MAX_NAME = 80;
     public static final int MAX_DESCRIPTION = 500;
     /** Alphabetical regardless of case, then by code point. */

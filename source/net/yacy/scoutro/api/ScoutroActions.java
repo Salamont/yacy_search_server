@@ -572,6 +572,72 @@ final class ScoutroActions {
         }
     }
 
+    private static volatile net.yacy.scoutro.collections.AutoCorrect autocorrect;
+
+    private static synchronized net.yacy.scoutro.collections.AutoCorrect autocorrect() throws ApiException {
+        if (autocorrect == null) {
+            final net.yacy.search.Switchboard sb = net.yacy.search.Switchboard.getSwitchboard();
+            if (sb == null) throw new ApiException(503, "autocorrect_unavailable", "The correction automation needs the running peer.");
+            autocorrect = new net.yacy.scoutro.collections.AutoCorrect(sb.getDataPath().toPath().resolve("DATA").resolve("SCOUTRO")
+                    .resolve("collections").resolve("autocorrect.json").toFile(), System::currentTimeMillis);
+        }
+        return autocorrect;
+    }
+
+    /** The correction automation (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md); administrator only, off by default. */
+    JSONObject collectionAutocorrect(final String action, final Map<String, String> query, final JSONObject body, final String actor)
+            throws ApiException {
+        final net.yacy.scoutro.collections.CollectionDecisions decisions = net.yacy.scoutro.collections.CollectionDecisions.current();
+        if (decisions == null) throw new ApiException(503, "decisions_unavailable", "Collection decisions need the running peer.");
+        final java.util.function.Predicate<String> known = id -> {
+            try {
+                return this.catalog.known(id);
+            } catch (final ApiException e) {
+                return false;
+            }
+        };
+        final CollectionDecisionsApi decide = new CollectionDecisionsApi(decisions,
+                new DecisionApply(CollectionReassign.embeddedIndex(), decisions.fallback(), graphFollows()), known);
+        final net.yacy.search.Switchboard sb = net.yacy.search.Switchboard.getSwitchboard();
+        final net.yacy.scoutro.knowledge.KgRuntime kg = net.yacy.scoutro.knowledge.KgRuntime.current();
+        final AutoCorrectApi.Graph graph = kg == null ? null : new AutoCorrectApi.Graph() {
+            private java.util.List<String> ids(final String current) {
+                final java.util.List<String> ids = new java.util.ArrayList<>();
+                try {
+                    for (final CollectionCatalog.Entry e : ScoutroActions.this.catalog.entries(false)) ids.add(e.id);
+                } catch (final ApiException e) {
+                    return null; // no catalog, no graph signal
+                }
+                if (!ids.contains(current)) ids.add(current);
+                return ids;
+            }
+
+            @Override
+            public java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> structured(final String domain, final String current) {
+                final java.util.List<String> ids = ids(current);
+                return ids == null ? java.util.List.of()
+                        : AutoCorrectApi.structuredSignals(domain, current, kg.structuredIndustries(domain), kg.collectionNace(ids));
+            }
+
+            @Override
+            public java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> textFit(final String domain, final String current) {
+                final java.util.List<String> ids = ids(current);
+                return ids == null ? java.util.List.of() : AutoCorrectApi.textFitSignals(domain, current, kg.textFit(domain, ids));
+            }
+        };
+        final AutoCorrectApi api = new AutoCorrectApi(autocorrect(), decisions, decide, key -> sb == null ? null : sb.getConfig(key, null),
+                known, graph);
+        switch (action) {
+            case "report": return api.report(query);
+            case "evaluate": return api.evaluate(body, actor);
+            case "review": return api.review(body, actor);
+            case "accept": return api.accept(body, actor);
+            case "breaker-reset": return api.breakerReset(body, actor);
+            case "sample": return api.sample(body, actor);
+            default: throw new ApiException(404, "not_found", "Unknown correction automation route.");
+        }
+    }
+
     /** The collections the running knowledge graph follows; null if it is off (no graph data to protect). */
     static java.util.function.Predicate<String> graphFollows() {
         final net.yacy.scoutro.knowledge.KgRuntime kg = net.yacy.scoutro.knowledge.KgRuntime.current();

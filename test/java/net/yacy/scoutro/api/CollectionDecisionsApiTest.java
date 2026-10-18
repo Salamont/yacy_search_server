@@ -450,4 +450,125 @@ public class CollectionDecisionsApiTest {
         assertTrue(api().recover(body("confirm", preview.getString("token")), "admin").getBoolean("applied"));
         assertTrue(this.decisions.available());
     }
+
+    // ------------------------------------------------------------------------------------- correction automation (WP-H)
+
+    private AutoCorrectApi autocorrect(final Map<String, String> settings, final AutoCorrectApi.Graph graph) {
+        final net.yacy.scoutro.collections.AutoCorrect engine = new net.yacy.scoutro.collections.AutoCorrect(
+                this.decisionDir.resolve("autocorrect.json").toFile(), this.clock::get);
+        return new AutoCorrectApi(engine, this.decisions, api(), settings::get, KNOWN::contains, graph);
+    }
+
+    private static JSONObject evaluateBody(final String domain, final String collection, final String... signals) throws Exception {
+        final JSONArray a = new JSONArray();
+        for (final String s : signals) a.put(new JSONObject(s));
+        return Json.obj("domain", domain, "collection", collection, "signals", a, "graph", false);
+    }
+
+    private static final String STRUCTURED_AGAINST = "{\"family\":\"structured\",\"verdict\":\"against\",\"collection\":\"bauteamcheck-web\","
+            + "\"kind\":\"jsonld_type\",\"evidence\":\"JSON-LD @type Store, nut specialities\",\"revision\":\"r1\"}";
+    private static final String OSM_AGAINST = "{\"family\":\"origin\",\"verdict\":\"against\",\"collection\":\"bauteamcheck-web\","
+            + "\"origin\":\"osm:node/42\",\"kind\":\"osm_tag\",\"evidence\":\"shop=confectionery\",\"revision\":\"t1\"}";
+
+    @Test
+    public void theCorrectionAutomationIsOffByDefaultAndProposesBeforeAnythingIsApplied() throws Exception {
+        final Map<String, String> settings = new java.util.HashMap<>();
+        AutoCorrectApi ac = autocorrect(settings, null);
+        assertEquals("off", ac.settings().getString("mode"));
+        JSONObject r = ac.evaluate(evaluateBody("drolshagens.de", "bauteamcheck-web", STRUCTURED_AGAINST, OSM_AGAINST), "admin");
+        assertEquals("none", r.getString("action"));
+        assertEquals("correct", r.getJSONObject("outcome").getString("result"));
+        assertEquals(List.of("bauteamcheck-web"), collections("collection1", "AAAAAAdrols1"));
+        // an absence is no signal, and an OSM tag alone never corrects
+        try {
+            ac.evaluate(evaluateBody("drolshagens.de", "bauteamcheck-web", "{\"family\":\"text_fit\",\"verdict\":\"against\","
+                    + "\"collection\":\"bauteamcheck-web\",\"kind\":\"missing_industry\",\"evidence\":\"no construction category\"}"), "admin");
+            fail("an absence is no signal");
+        } catch (final ApiException e) {
+            assertEquals(400, e.status());
+        }
+        settings.put(AutoCorrectApi.MODE_KEY, "apply");
+        ac = autocorrect(settings, null);
+        assertEquals("review", ac.evaluate(evaluateBody("drolshagens.de", "bauteamcheck-web", OSM_AGAINST), "admin")
+                .getJSONObject("outcome").getString("result"));
+        // apply mode without an acceptance only proposes
+        r = ac.evaluate(evaluateBody("drolshagens.de", "bauteamcheck-web", STRUCTURED_AGAINST, OSM_AGAINST), "admin");
+        assertEquals("proposed", r.getString("action"));
+        assertEquals("not_accepted", r.getJSONObject("case").getString("held"));
+        assertEquals(List.of("bauteamcheck-web"), collections("collection1", "AAAAAAdrols1"));
+        try {
+            ac.accept(new JSONObject(), "admin");
+            fail("no acceptance without reviewed cases");
+        } catch (final ApiException e) {
+            assertEquals("acceptance_not_met", e.code());
+        }
+        // the administrator approves: a manual decision moves the domain to the fallback collection
+        final JSONObject reviewed = ac.review(Json.obj("domain", "drolshagens.de", "verdict", "approve", "note", "a confectioner"), "admin");
+        assertEquals("approved", reviewed.getJSONObject("case").getString("status"));
+        assertEquals("manual", reviewed.getJSONObject("case").getJSONObject("decision").getString("basis"));
+        assertEquals(List.of("sonstige"), collections("collection1", "AAAAAAdrols1"));
+        final CollectionDecision d = this.decisions.activeOf("drolshagens.de").get(0);
+        assertEquals(CollectionDecision.Basis.MANUAL, d.basis);
+        assertEquals("autocorrect_review", d.reason);
+        // the manual decision wins over every later automatic evaluation
+        r = ac.evaluate(evaluateBody("drolshagens.de", "bauteamcheck-web", STRUCTURED_AGAINST, OSM_AGAINST.replace("t1", "t2")), "admin");
+        assertEquals("manual_decision", r.getJSONObject("outcome").getString("reason"));
+        assertEquals(1, ac.report(Map.of()).getJSONObject("stats").getInt("reviewed"));
+    }
+
+    @Test
+    public void theTextFitSpeaksAgainstOnlyWhereAnotherVocabularyFits() throws Exception {
+        final JSONObject fit = new JSONObject("{\"pages\":5,\"collections\":{"
+                + "\"edelsenior-web\":{\"vocabulary\":\"care\",\"categories\":[],\"pages\":0},"
+                + "\"bauteamcheck-web\":{\"vocabulary\":\"construction\",\"categories\":[\"construction.dach\",\"construction.zimmerei\"],\"pages\":3}}}");
+        List<net.yacy.scoutro.collections.AutoCorrect.Signal> s = AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit);
+        assertEquals(2, s.size());
+        assertEquals("for", s.get(0).verdict);
+        assertEquals("bauteamcheck-web", s.get(0).collection);
+        assertEquals("text_fit", s.get(0).family);
+        assertEquals("against", s.get(1).verdict);
+        assertEquals("edelsenior-web", s.get(1).collection);
+        assertEquals("fits_other_vocabulary", s.get(1).kind);
+        assertEquals("website:dach-muster.de", s.get(1).origin);
+        assertTrue(s.get(1).evidence, s.get(1).evidence.contains("construction.dach"));
+        // an absence alone is no signal: no other vocabulary fits, or one category on one page only
+        fit.getJSONObject("collections").getJSONObject("bauteamcheck-web").put("pages", 1);
+        assertTrue(AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit).isEmpty());
+        // too few pages with text: nothing
+        fit.put("pages", 2).getJSONObject("collections").getJSONObject("bauteamcheck-web").put("pages", 2);
+        assertTrue(AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit).isEmpty());
+        // offers of the current vocabulary speak for it
+        fit.put("pages", 4).getJSONObject("collections").getJSONObject("edelsenior-web").put("categories", new JSONArray().put("care.ambulant"))
+                .put("pages", 1);
+        s = AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit);
+        assertTrue(s.stream().anyMatch(x -> "for".equals(x.verdict) && "edelsenior-web".equals(x.collection)));
+        assertTrue(s.stream().noneMatch(x -> "against".equals(x.verdict)));
+    }
+
+    @Test
+    public void theDefaultAcceptanceIsTheTargetOf99Percent() throws Exception {
+        final AutoCorrectApi ac = autocorrect(new java.util.HashMap<>(), null);
+        assertEquals(299, ac.settings().getInt("minReviewed"));
+        assertEquals(0.99, ac.settings().getDouble("minLowerBound"), 0.0);
+        assertEquals(0.1, ac.settings().getDouble("auditRate"), 0.0);
+        assertEquals(0.99, ac.settings().getDouble("target"), 0.0);
+    }
+
+    @Test
+    public void theGraphsJsonLdTypesAreStructuredSignals() {
+        final Map<String, Set<String>> nace = new TreeMap<>(Map.of("bauteamcheck-web", Set.of("43.22", "F"), "edelsenior-web", Set.of("87.10", "88.10"),
+                "sonstige", Set.of()));
+        final List<net.yacy.scoutro.collections.AutoCorrect.Signal> s = AutoCorrectApi.structuredSignals("pflege-muster.de", "bauteamcheck-web",
+                List.of(new String[] {"87.10", "AAAAAApfleg1"}, new String[] {"87.10", "BBBBBBpfleg2"}), nace);
+        assertEquals("one signal per code and collection, the code counted once", 2, s.size());
+        assertEquals("against", s.get(0).verdict);
+        assertEquals("bauteamcheck-web", s.get(0).collection);
+        assertEquals("website:pflege-muster.de", s.get(0).origin);
+        assertEquals("for", s.get(1).verdict);
+        assertEquals("edelsenior-web", s.get(1).collection);
+        // a fitting code speaks for the current collection; a collection without codes is never judged
+        assertEquals("for", AutoCorrectApi.structuredSignals("bau.de", "bauteamcheck-web", List.<String[]>of(new String[] {"43.29", "x"}), nace)
+                .get(0).verdict);
+        assertTrue(AutoCorrectApi.structuredSignals("x.de", "sonstige", List.<String[]>of(new String[] {"10.82", "x"}), nace).isEmpty());
+    }
 }

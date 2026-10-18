@@ -7173,6 +7173,61 @@ Who may use a collection is set per account under <a href="ScoutroUsers_p.html">
 >Off<==>Aus<
 >Websites<==>Websites<
 >Collection created.<==>Collection angelegt.<
+>Correction proposals<==>Korrekturvorschläge<
+>The correction automation checks whether a website is in the wrong specialist collection, from independent signals only (the website's structured data and text, the Discovery classification, OpenStreetMap). It is off unless switched on in the settings; it changes a collection automatically only after a statistical acceptance of a random sample of reviewed proposals. Approving a proposal is a manual collection decision.<==>Die Korrekturautomatik prüft, ob eine Website in der falschen Fach-Collection liegt, und zwar nur anhand unabhängiger Signale (strukturierte Daten und Text der Website, Discovery-Klassifikation, OpenStreetMap). Sie ist aus, solange sie nicht in den Einstellungen eingeschaltet wird; automatisch ändert sie eine Collection erst nach einer statistischen Abnahme an einer Zufallsstichprobe geprüfter Vorschläge. Einen Vorschlag zu bestätigen ist eine manuelle Collection-Entscheidung.<
+>Sample size<==>Stichprobengröße<
+>Draw a random sample<==>Zufallsstichprobe ziehen<
+>Check the acceptance<==>Abnahme prüfen<
+>Close the breaker<==>Sicherung schließen<
+>Only drawn cases<==>Nur gezogene Fälle<
+>Website<==>Website<
+>Proposal<==>Vorschlag<
+>Signals<==>Signale<
+>Status<==>Status<
+>Review<==>Prüfung<
+>Mode<==>Modus<
+>off<==>aus<
+>simulate (recorded only)<==>simulieren (nur aufgezeichnet)<
+>propose (to this list)<==>vorschlagen (in diese Liste)<
+>apply (after the acceptance)<==>anwenden (nach der Abnahme)<
+>Breaker<==>Sicherung<
+>open: applies nothing<==>offen: wendet nichts an<
+>closed<==>geschlossen<
+>Random sample<==>Zufallsstichprobe<
+>%1 reviewed, %2 right, %3 still to review<==>%1 geprüft, %2 richtig, %3 noch zu prüfen<
+>Lower bound (95 % confidence)<==>Untere Grenze (95 % Konfidenz)<
+>Error-free reviews still needed for 99 %<==>Noch nötige fehlerfreie Prüfungen für 99 %<
+>out of reach with these errors<==>mit diesen Fehlern nicht erreichbar<
+>All reviewed corrections<==>Alle geprüften Korrekturen<
+>Not accepted: the apply mode only proposes.<==>Nicht abgenommen: Der Anwendungsmodus schlägt nur vor.<
+>Interim stage 95 % accepted: not the operator release of the 99 % target.<==>Zwischenstufe 95 % abgenommen: keine Betreiberfreigabe für das 99-%-Ziel.<
+>Accepted for the 99 % target.<==>Für das 99-%-Ziel abgenommen.<
+>No proposals.<==>Keine Vorschläge.<
+>The correction state cannot be read: nothing is recorded or applied.<==>Der Korrekturstand ist nicht lesbar: Es wird nichts aufgezeichnet oder angewendet.<
+>The proposals could not be read.<==>Die Vorschläge konnten nicht gelesen werden.<
+>Approve<==>Bestätigen<
+>Reject<==>Ablehnen<
+>Right<==>Richtig<
+>Wrong<==>Falsch<
+>Target collection<==>Ziel-Collection<
+>drawn<==>gezogen<
+>audit<==>Kontrolle<
+>to<==>nach<
+>needs a review<==>braucht eine Prüfung<
+>proposed<==>vorgeschlagen<
+>recorded<==>aufgezeichnet<
+>applied automatically<==>automatisch angewendet<
+>approved<==>bestätigt<
+>rejected<==>abgelehnt<
+>right<==>richtig<
+>wrong<==>falsch<
+>held: %1<==>zurückgehalten: %1<
+>%1 cases drawn at random from %2 open corrections.<==>%1 Fälle zufällig aus %2 offenen Korrekturen gezogen.<
+>Accepted.<==>Abgenommen.<
+>Not accepted: %1<==>Nicht abgenommen: %1<
+>Saved.<==>Gespeichert.<
+>The breaker is closed.<==>Die Sicherung ist geschlossen.<
+>Approve this proposal? It becomes a manual collection decision and moves the website.<==>Diesen Vorschlag bestätigen? Er wird zu einer manuellen Collection-Entscheidung und verschiebt die Website.<
 #-----------------------------
 
 #File: scoutro-forbidden.html

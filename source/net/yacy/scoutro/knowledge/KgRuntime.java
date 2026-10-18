@@ -1550,6 +1550,148 @@ public final class KgRuntime {
                 tx -> net.yacy.scoutro.knowledge.publish.Tier3Review.step(tx, this.config, apply, maxDocuments, restart, now));
     }
 
+    // ------------------------------------------------------------ correction automation (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md)
+
+    /** The explicit NACE codes the JSON-LD types of a domain's pages state: {code, document ID}; empty while the graph is off. */
+    public java.util.List<String[]> structuredIndustries(final String domain) {
+        final java.util.List<String[]> out = new java.util.ArrayList<>();
+        if (this.state != State.RUNNING || this.store == null || domain == null) return out;
+        try {
+            return this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT DISTINCT s.obj_val, d.doc_id, d.url FROM kg_evidence e"
+                        + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab p ON p.term_id = s.pred AND p.kind = 2"
+                        + " AND p.name = 'industry' JOIN kg_doc d ON d.doc_rowid = e.doc_rowid WHERE e.tier = 1 AND e.locator LIKE '%/@type'"
+                        + " AND d.state = 1 AND d.url LIKE ? LIMIT 2000")) {
+                    ps.setString(1, "%" + domain.replace("%", "").replace("_", "") + "%");
+                    try (java.sql.ResultSet r = ps.executeQuery()) {
+                        while (r.next()) {
+                            String host = null;
+                            try {
+                                host = new java.net.URI(r.getString(3)).getHost();
+                            } catch (final java.net.URISyntaxException e) {
+                                host = null;
+                            }
+                            if (host != null && (host.equalsIgnoreCase(domain) || host.toLowerCase(java.util.Locale.ROOT).endsWith("." + domain))) {
+                                out.add(new String[] {r.getString(1), r.getString(2)});
+                            }
+                        }
+                    }
+                }
+                return out;
+            });
+        } catch (final KgException e) {
+            return out; // no graph signal is no signal
+        }
+    }
+
+    /** Pages of a domain the text fit reads at most (WP-H); the offer pages first. */
+    static final int TEXT_FIT_PAGES = 8;
+    private static final java.util.regex.Pattern OFFER_PAGE = java.util.regex.Pattern.compile(
+            "(?i)leistung|angebot|service|produkt|sortiment|preis|ueber-uns|uber-uns|about|unternehmen");
+
+    /**
+     * The text fit of a domain (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): the categories the rules of tier 2 read as
+     * offered on up to {@link #TEXT_FIT_PAGES} of its active pages (the indexed text, no model), counted per collection
+     * through the collection's vocabulary; all vocabularies are read at once, so every collection is judged on the same
+     * text. {@code {"pages": pages with text, "collections": {c: {"vocabulary", "categories": [...], "pages"}}}}; a collection
+     * without a vocabulary is not in it. Empty while the graph or its Solr synchronisation is off.
+     */
+    public org.json.JSONObject textFit(final String domain, final java.util.Collection<String> collections) {
+        final org.json.JSONObject out = new org.json.JSONObject();
+        final EmbeddedSolrSource s = this.source;
+        if (this.state != State.RUNNING || this.store == null || s == null || domain == null) return KgJson.put(out, "pages", 0);
+        final java.util.List<String[]> pages = new java.util.ArrayList<>();
+        try {
+            this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT doc_id, url FROM kg_doc WHERE state = 1 AND url LIKE ?"
+                        + " ORDER BY doc_rowid LIMIT 2000")) {
+                    ps.setString(1, "%" + domain.replace("%", "").replace("_", "") + "%");
+                    try (java.sql.ResultSet r = ps.executeQuery()) {
+                        while (r.next()) {
+                            String host;
+                            try {
+                                host = new java.net.URI(r.getString(2)).getHost();
+                            } catch (final java.net.URISyntaxException e) {
+                                host = null;
+                            }
+                            if (host != null && domain.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT)))) {
+                                pages.add(new String[] {r.getString(1), r.getString(2), host});
+                            }
+                        }
+                    }
+                }
+                return null;
+            });
+        } catch (final KgException e) {
+            return KgJson.put(out, "pages", 0); // no graph, no signal
+        }
+        pages.sort(java.util.Comparator.comparing((String[] p) -> OFFER_PAGE.matcher(p[1]).find() ? 0 : 1));
+        // every collection's vocabulary at once
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        final java.util.Map<String, String> vocabularyOf = new java.util.TreeMap<>();
+        for (final String c : collections) {
+            final String v = this.config.vocabularyOf(c, vocab.categories.collections);
+            if (v != null && vocab.categories.vocabulary(v) != null) vocabularyOf.put(c, v);
+        }
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = new net.yacy.scoutro.knowledge.extract.ExtractContext(vocab,
+                new java.util.TreeSet<>(vocabularyOf.values()), false, false, vocabularyOf.keySet());
+        final net.yacy.scoutro.knowledge.extract.RuleExtractor rules = new net.yacy.scoutro.knowledge.extract.RuleExtractor(
+                this.config.extractMaxExcerptChars, this.config.extractMaxRuleInputChars);
+        final java.util.Map<String, java.util.Set<String>> categories = new java.util.TreeMap<>();
+        final java.util.Map<String, Integer> pagesOf = new java.util.TreeMap<>();
+        int read = 0;
+        for (final String[] p : pages) {
+            if (read >= TEXT_FIT_PAGES) break;
+            final String text;
+            try {
+                text = s.text(p[0]);
+            } catch (final java.io.IOException e) {
+                continue;
+            }
+            if (text == null || text.isBlank()) continue;
+            read++;
+            final net.yacy.scoutro.knowledge.extract.Extraction ex = new net.yacy.scoutro.knowledge.extract.Extraction(
+                    this.config.extractMaxStatementsPerDoc);
+            rules.extract(text, p[1], p[2], "de", ex, ctx, java.util.List.of(), java.util.List.of());
+            final java.util.Set<String> here = new java.util.TreeSet<>();
+            for (final net.yacy.scoutro.knowledge.extract.Claim c : ex.claims()) {
+                if (!net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate) || c.value == null) continue;
+                for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : ctx.vocabularies) {
+                    if (v.categories.containsKey(c.value)) {
+                        categories.computeIfAbsent(v.name, k -> new java.util.TreeSet<>()).add(c.value);
+                        here.add(v.name);
+                    }
+                }
+            }
+            for (final String v : here) pagesOf.merge(v, 1, Integer::sum);
+        }
+        final org.json.JSONObject byCollection = new org.json.JSONObject();
+        for (final java.util.Map.Entry<String, String> e : vocabularyOf.entrySet()) {
+            KgJson.put(byCollection, e.getKey(), KgJson.obj("vocabulary", e.getValue(), "categories",
+                    new org.json.JSONArray(categories.getOrDefault(e.getValue(), java.util.Set.of())), "pages", pagesOf.getOrDefault(e.getValue(), 0)));
+        }
+        return KgJson.obj("pages", read, "collections", byCollection);
+    }
+
+    /** The NACE codes of each collection's vocabulary (none for a collection without one). */
+    public java.util.Map<String, java.util.Set<String>> collectionNace(final java.util.Collection<String> collections) {
+        final java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        for (final String c : collections) {
+            final java.util.List<String> one = java.util.List.of(c);
+            final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = new net.yacy.scoutro.knowledge.extract.ExtractContext(vocab,
+                    this.config.vocabulariesOf(one, vocab.categories.collections), false, false, one);
+            final java.util.Set<String> codes = new java.util.TreeSet<>();
+            for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : ctx.vocabularies) {
+                for (final net.yacy.scoutro.knowledge.vocab.Categories.Entry e : v.categories.values()) {
+                    if (e.nace != null) codes.add(e.nace);
+                }
+            }
+            out.put(c, codes);
+        }
+        return out;
+    }
+
     /** Quality metrics of the live graph (WP-B): a snapshot of at most ten minutes, computed again with {@code refresh}. */
     public org.json.JSONObject quality(final boolean refresh) throws KgException {
         requireRunning();

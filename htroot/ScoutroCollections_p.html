@@ -24,6 +24,26 @@
       </div>
       <p class="scoutro-note">Who may use a collection is set per account under <a href="ScoutroUsers_p.html">Users</a> and per agent under <a href="ScoutroAgents_p.html">Agents</a>. Knowledge-graph settings per collection: <a href="ScoutroKnowledge_p.html?view=settings">Knowledge graph operations</a>.</p>
     </section>
+    <section class="scoutro-card" id="sca" aria-labelledby="sca-title">
+      <h2 id="sca-title">Correction proposals</h2>
+      <p class="scoutro-note">The correction automation checks whether a website is in the wrong specialist collection, from independent signals only (the website's structured data and text, the Discovery classification, OpenStreetMap). It is off unless switched on in the settings; it changes a collection automatically only after a statistical acceptance of a random sample of reviewed proposals. Approving a proposal is a manual collection decision.</p>
+      <dl class="scoutro-facts" id="sca-status"></dl>
+      <p class="scoutro-note" id="sca-acceptance"></p>
+      <div class="scoutro-actions">
+        <label for="sca-size">Sample size<input class="form-control" id="sca-size" type="number" min="1" max="1000" value="50" /></label>
+        <button type="button" class="btn btn-default" id="sca-sample">Draw a random sample</button>
+        <button type="button" class="btn btn-default" id="sca-accept">Check the acceptance</button>
+        <button type="button" class="btn btn-default" id="sca-breaker" hidden>Close the breaker</button>
+        <label for="sca-drawn"><input type="checkbox" id="sca-drawn" />Only drawn cases</label>
+      </div>
+      <p id="sca-message" class="scoutro-status" role="status" aria-live="polite"></p>
+      <div class="scoutro-table-wrap">
+        <table class="table scoutro-table scoutro-cards" id="sca-table">
+          <thead><tr><th scope="col">Website</th><th scope="col">Proposal</th><th scope="col">Signals</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
   </main>
   <div hidden>
     <span data-sco-label="loading">Loading …</span>
@@ -37,9 +57,53 @@
     <span data-sco-label="kg_none">—</span>
     <span data-sco-label="websites">Websites</span>
     <span data-sco-label="created">Collection created.</span>
+    <span data-sco-label="ac_mode">Mode</span>
+    <span data-sco-label="ac_mode_off">off</span>
+    <span data-sco-label="ac_mode_simulate">simulate (recorded only)</span>
+    <span data-sco-label="ac_mode_propose">propose (to this list)</span>
+    <span data-sco-label="ac_mode_apply">apply (after the acceptance)</span>
+    <span data-sco-label="ac_breaker">Breaker</span>
+    <span data-sco-label="ac_breaker_open">open: applies nothing</span>
+    <span data-sco-label="ac_breaker_closed">closed</span>
+    <span data-sco-label="ac_sample">Random sample</span>
+    <span data-sco-label="ac_sample_value">%1 reviewed, %2 right, %3 still to review</span>
+    <span data-sco-label="ac_bound">Lower bound (95 % confidence)</span>
+    <span data-sco-label="ac_needed">Error-free reviews still needed for 99 %</span>
+    <span data-sco-label="ac_out_of_reach">out of reach with these errors</span>
+    <span data-sco-label="ac_all">All reviewed corrections</span>
+    <span data-sco-label="ac_stage_none">Not accepted: the apply mode only proposes.</span>
+    <span data-sco-label="ac_stage_interim_95">Interim stage 95 % accepted: not the operator release of the 99 % target.</span>
+    <span data-sco-label="ac_stage_target_99">Accepted for the 99 % target.</span>
+    <span data-sco-label="ac_none">No proposals.</span>
+    <span data-sco-label="ac_unavailable">The correction state cannot be read: nothing is recorded or applied.</span>
+    <span data-sco-label="ac_error">The proposals could not be read.</span>
+    <span data-sco-label="ac_approve">Approve</span>
+    <span data-sco-label="ac_reject">Reject</span>
+    <span data-sco-label="ac_right">Right</span>
+    <span data-sco-label="ac_wrong">Wrong</span>
+    <span data-sco-label="ac_target">Target collection</span>
+    <span data-sco-label="ac_drawn">drawn</span>
+    <span data-sco-label="ac_audit">audit</span>
+    <span data-sco-label="ac_to">to</span>
+    <span data-sco-label="ac_review_case">needs a review</span>
+    <span data-sco-label="ac_st_proposed">proposed</span>
+    <span data-sco-label="ac_st_simulated">recorded</span>
+    <span data-sco-label="ac_st_applied">applied automatically</span>
+    <span data-sco-label="ac_st_approved">approved</span>
+    <span data-sco-label="ac_st_rejected">rejected</span>
+    <span data-sco-label="ac_st_correct">right</span>
+    <span data-sco-label="ac_st_wrong">wrong</span>
+    <span data-sco-label="ac_held">held: %1</span>
+    <span data-sco-label="ac_drawn_done">%1 cases drawn at random from %2 open corrections.</span>
+    <span data-sco-label="ac_accepted">Accepted.</span>
+    <span data-sco-label="ac_not_accepted">Not accepted: %1</span>
+    <span data-sco-label="ac_saved">Saved.</span>
+    <span data-sco-label="ac_breaker_closed_done">The breaker is closed.</span>
+    <span data-sco-label="ac_approve_question">Approve this proposal? It becomes a manual collection decision and moves the website.</span>
   </div>
   #%env/templates/scoutro/collection-create.template%#
   <script src="env/scoutro/collections.js"></script>
+  <script src="env/scoutro/collections-autocorrect.js"></script>
   <script>
     /* Scoutro: catalog of Settings > Collections (GET /scoutro/api/v1/collections, administrator). */
     (function () {

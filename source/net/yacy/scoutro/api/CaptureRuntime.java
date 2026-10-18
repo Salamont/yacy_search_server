@@ -191,6 +191,20 @@ public final class CaptureRuntime {
                 if (sb == null || sb.tables == null) throw new IOException("tables unavailable");
                 return CaptureRuntime.outcomes(new DomainTable(sb.tables), collection, hosts);
             }
+
+            @Override public boolean autocorrectActive() {
+                final Switchboard sb = Switchboard.getSwitchboard();
+                final String mode = sb == null ? null : sb.getConfig(AutoCorrectApi.MODE_KEY, null);
+                return mode != null && !mode.isBlank() && !"off".equalsIgnoreCase(mode.trim());
+            }
+
+            @Override public JsonObject autocorrect(final String collection, final String domain, final net.yacy.scoutro.discovery.JsonArray memberships,
+                    final net.yacy.scoutro.discovery.JsonArray signals) throws ApiException {
+                if (!autocorrectActive()) return null;
+                final org.json.JSONObject body = Json.obj("domain", domain, "collection", collection, "memberships",
+                        memberships == null ? new org.json.JSONArray() : memberships, "signals", signals);
+                return new JsonObject(new ScoutroActions().collectionAutocorrect("evaluate", null, body, "discovery"));
+            }
         };
     }
 

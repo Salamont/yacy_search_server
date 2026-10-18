@@ -65,12 +65,20 @@ final class CollectionDecisionsApi {
 
     /** Preview, or store and apply with {@code confirm}. */
     JSONObject decide(final JSONObject body, final String actor) throws ApiException {
+        return decide(body, actor, CollectionDecision.Basis.MANUAL);
+    }
+
+    /** As {@link #decide(JSONObject, String)} with the decision's basis (automatic: the correction automation, WP-H). */
+    JSONObject decide(final JSONObject body, final String actor, final CollectionDecision.Basis basis) throws ApiException {
         for (final String key : body.keySet()) {
             if (!FIELDS.contains(key)) throw ApiException.invalid(key, "Unknown field.");
         }
         requireAvailable();
-        final CollectionDecision proposed = proposal(body, actor);
+        final CollectionDecision proposed = proposal(body, actor, basis);
         final CollectionDecision existing = this.decisions.byScope(proposed.domain, proposed.host, proposed.pathPrefix);
+        if (basis == CollectionDecision.Basis.AUTOMATIC && existing != null && existing.active() && existing.basis == CollectionDecision.Basis.MANUAL) {
+            throw new ApiException(409, "decision_manual", "A manual decision governs this scope; an automatic one never replaces it.");
+        }
         final DecisionApply.Result preview = this.apply.preview(proposed, MAX_PREVIEW);
         if (!preview.done) throw new ApiException(422, "decision_too_large", "More than " + MAX_PREVIEW + " pages in this scope.");
         if (proposed.collections.contains(this.decisions.fallback()) && preview.pages == 0) {
@@ -196,7 +204,7 @@ final class CollectionDecisionsApi {
         }
     }
 
-    private CollectionDecision proposal(final JSONObject body, final String actor) throws ApiException {
+    private CollectionDecision proposal(final JSONObject body, final String actor, final CollectionDecision.Basis basis) throws ApiException {
         final CollectionDecision.Builder b = new CollectionDecision.Builder();
         b.id = CollectionDecisions.newId();
         b.domain = lower(body.optString("domain", ""));
@@ -213,7 +221,7 @@ final class CollectionDecisionsApi {
         b.reason = body.optString("reason", "");
         b.note = body.has("note") ? body.optString("note", "") : null;
         b.evidence = body.optJSONObject("evidence");
-        b.basis = CollectionDecision.Basis.MANUAL;
+        b.basis = basis;
         b.decidedAt = this.decisions.now();
         b.decidedBy = actor;
         try {

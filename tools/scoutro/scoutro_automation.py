@@ -5,6 +5,7 @@ The parent supplies a frozen config directory and an allowlisted JSON RPC peer;
 no password, HTTP endpoint, command or arbitrary job path is accepted here.
 """
 import copy
+import hashlib
 import json
 import os
 import re
@@ -149,6 +150,104 @@ def apply_outcomes(engine, state, rpc, job, now):
         if updated:
             state.save()
     return retries
+
+
+def _slug(value, size):
+    return re.sub(r"[^a-z0-9._/-]", "-", str(value or "unknown").lower())[:size] or "unknown"
+
+
+def autocorrect_signals(engine, root, rules, osm_cfg, profile):
+    """The stored Discovery results about one domain as signals for the correction automation (WP-H,
+    docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). Read from the state only: no model call, no fetch.
+
+    - llm: each profile's classification by the model (website origin): PASS for, FAIL against its collection; UNSURE,
+      a heuristic or a failed reading is no signal.
+    - origin (osm:<region>): the OSM object a profile's rule matched speaks for that profile's collection; it speaks
+      against the current profile only when it matched another profile by its tags, those tags cover a key of the
+      current profile's OSM rule, and that rule does not match them (a text match of the name is no verdict on others).
+    """
+    profiles = (rules or {}).get("profiles") or {}
+    out = []
+    for name, rec in sorted((root.get("classifications") or {}).items()):
+        if name not in profiles or not rec:
+            continue
+        cl = rec.get("classifier") or {}
+        verdict = rec.get("verdict")
+        if cl.get("backend") != "llm" or cl.get("error") or verdict not in ("PASS", "FAIL"):
+            continue
+        reasons = rec.get("reasons") or []
+        why = (reasons[0].get("code", "") + ": " + reasons[0].get("text", "")) if reasons else verdict
+        out.append({"family": "llm", "verdict": "for" if verdict == "PASS" else "against",
+                    "collection": profiles[name]["collection"], "kind": "discovery_classification",
+                    "evidence": ("Discovery %s %s (%.2f): %s" % (name, verdict, float(rec.get("confidence", 0)), why))[:500],
+                    "revision": str(rec.get("classified_at", ""))[:80], "criteria": str(cl.get("criteria_version", ""))[:40]})
+    osm_rules = (osm_cfg or {}).get("profiles") or {}
+    current_rule = osm_rules.get(profile)
+    entries = root.get("profiles") or {}
+    current_matched = bool((entries.get(profile) or {}).get("osm_match"))
+    for name, pe in sorted(entries.items()):
+        match = (pe or {}).get("osm_match")
+        if not match or name not in profiles:
+            continue
+        origin = "osm:" + _slug(match.get("source_region"), 100)
+        tags = {k: v for k, v in (match.get("tags") or {}).items() if k != "name"}
+        described = ", ".join("%s=%s" % (k, v) for k, v in sorted(tags.items())) or "name"
+        out.append({"family": "origin", "verdict": "for", "collection": profiles[name]["collection"], "origin": origin,
+                    "kind": "osm_rule", "evidence": ("OSM %s of %s matched: %s" % (match.get("rule", ""), name, described))[:500]})
+        if name == profile or current_matched or not current_rule or not str(match.get("rule", "")).startswith("tags["):
+            continue
+        keys = {k for r in current_rule.get("tags", []) for k in r if not k.startswith("_") and k not in engine.OSM_TEXT_KEYS}
+        if tags and keys & set(tags) and not engine.osm_matches(dict(tags), current_rule):
+            out.append({"family": "origin", "verdict": "against", "collection": profiles[profile]["collection"], "origin": origin,
+                        "kind": "osm_rule_mismatch",
+                        "evidence": ("OSM tags %s match %s, not the OSM rule of %s" % (described, name, profile))[:500]})
+    return out
+
+
+def submit_autocorrect(engine, state, rpc, init, config, now):
+    """WP-H: the batch reports the stored signals of its crawled domains to the correction automation, which decides; only
+    while the automation is on (init.autocorrect), at most init.autocorrect_batch domains, each again only when its
+    signals changed. Best effort: an error stops the reports, never the batch."""
+    if not init.get("autocorrect"):
+        return None
+    profile = init["job"]["profile"]
+    rules = engine.load_rules(config)
+    path = os.path.join(config, "osm_profiles.json")
+    osm_cfg = engine.load_osm_config(path) if os.path.isfile(path) else {}
+    profiles = rules.get("profiles") or {}
+    limit = int(init.get("autocorrect_batch") or 10)
+    report = {"submitted": 0, "actions": {}}
+    for domain in sorted(state.data["domains"]):
+        if report["submitted"] >= limit:
+            break
+        root = state.data["domains"][domain]
+        pentry = (root.get("profiles") or {}).get(profile) or {}
+        if pentry.get("status") != "crawled":
+            continue
+        signals = autocorrect_signals(engine, root, rules, osm_cfg, profile)
+        if not signals:
+            continue
+        memberships = sorted({profiles[p]["collection"] for p, pe in (root.get("profiles") or {}).items()
+                              if p in profiles and (pe or {}).get("status") == "crawled"})
+        fingerprint = json.dumps([init["collection"], memberships, signals], sort_keys=True)
+        fingerprint = str(len(fingerprint)) + ":" + hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:24]
+        if pentry.get("autocorrect_reported") == fingerprint:
+            continue
+        try:
+            answer = rpc.call("autocorrect", {"domain": domain, "memberships": memberships, "signals": signals})
+        except engine.ApiError as exc:
+            report["error"] = exc.code
+            break
+        action = answer.get("skipped") or answer.get("action") or "unknown"
+        report["actions"][action] = report["actions"].get(action, 0) + 1
+        report["submitted"] += 1
+        entry = copy.deepcopy(state.profile_entry(domain, profile))
+        entry["autocorrect_reported"] = fingerprint
+        state.put_profile_entry(domain, profile, entry, now)
+        state.save()
+        if answer.get("skipped") == "off":
+            break  # switched off during the batch
+    return report
 
 
 def origins(entry):
@@ -418,6 +517,9 @@ def execute(engine, state, init, rpc, config, workdir):
         report["processed"] += 1
         # Admission is checked again after every delay; YaCy's own per-host delay is independent.
         time.sleep(job["batch"]["seed_delay_seconds"])
+    corrections = submit_autocorrect(engine, state, rpc, init, config, int(time.time()))
+    if corrections is not None:
+        report["autocorrect"] = corrections
     return report
 
 

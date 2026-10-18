@@ -38,7 +38,17 @@ public final class DiscoveryService implements AutoCloseable {
                 final String result, final String detail) throws Exception { }
         /** Recorded current crawl per host of a collection: {host: {crawl_id, outcome, ended_at}}; hosts without one are left out. */
         default JsonObject outcomes(final String collection, final java.util.List<String> hosts) throws Exception { return new JsonObject(); }
+        /** True while the correction automation is on (WP-H): only then the batch submits its stored signals. */
+        default boolean autocorrectActive() { return false; }
+        /**
+         * The stored Discovery signals of a domain (LLM classifications, OSM matches) for the correction automation (WP-H): its
+         * outcome and action; null while the automation is off. Never a crawl or a model call.
+         */
+        default JsonObject autocorrect(final String collection, final String domain, final JsonArray memberships, final JsonArray signals)
+                throws Exception { return null; }
     }
+    /** Domains a batch submits to the correction automation at most. */
+    static final int AUTOCORRECT_BATCH = 10;
     static final int OUTCOME_BATCH = 200;
     /** Attempt states whose outcome is open: they keep the batch in reconciliation or review. */
     static final java.util.Set<String> UNRESOLVED = java.util.Set.of("prepared", "submitted_unknown");
@@ -362,8 +372,15 @@ public final class DiscoveryService implements AutoCloseable {
     private JsonObject initialization(final JsonObject run, final String operation) {
         final JsonArray definitions = new JsonArray();
         for (final Object value : this.store.read().getJSONArray("jobs")) definitions.put(((JsonObject) value).getJSONObject("definition"));
+        boolean autocorrect = false;
+        try {
+            autocorrect = this.observer.autocorrectActive();
+        } catch (final RuntimeException e) {
+            autocorrect = false; // the automation is optional: a batch never depends on it
+        }
         return new JsonObject().put("operation", operation).put("job", run.getJSONObject("job"))
-                .put("collection", run.getString("collection")).put("regions", run.getJSONObject("regions")).put("jobs", definitions);
+                .put("collection", run.getString("collection")).put("regions", run.getJSONObject("regions")).put("jobs", definitions)
+                .put("autocorrect", autocorrect).put("autocorrect_batch", AUTOCORRECT_BATCH);
     }
     private JsonObject request(final String runId, final String action, final JsonObject params) throws Exception {
         final JsonObject root = this.store.read(), run = root.getJSONObject("active_run"), job = run.getJSONObject("job");
@@ -424,6 +441,16 @@ public final class DiscoveryService implements AutoCloseable {
                     ConcurrentLog.warn("ScoutroDiscovery", "crawl report outcomes unavailable: " + e.getClass().getSimpleName());
                     return new JsonObject().put("outcomes", new JsonObject()).put("unavailable", true);
                 }
+            case "autocorrect":
+                // WP-H: the stored signals of one domain of this run's collection; the automation decides, Python only reports
+                JobSchema.keys(params, "domain", "memberships", "signals");
+                final String judged = params.getString("domain");
+                if (!judged.matches("[a-z0-9.-]{3,253}")) throw ApiException.invalid("domain", "Expected a registrable domain.");
+                final JsonArray signals = params.optJSONArray("signals"), memberships = params.optJSONArray("memberships");
+                if (signals == null || signals.length() > 50) throw ApiException.invalid("signals", "Expected at most 50 signals.");
+                if (memberships != null && memberships.length() > 20) throw ApiException.invalid("memberships", "Expected at most 20 collections.");
+                final JsonObject judgement = this.observer.autocorrect(run.getString("collection"), judged, memberships, signals);
+                return judgement == null ? new JsonObject().put("skipped", "off") : judgement;
             case "crawl":
                 JobSchema.keys(params, "domain", "url");
                 final String domain = params.getString("domain"), url = params.getString("url");
