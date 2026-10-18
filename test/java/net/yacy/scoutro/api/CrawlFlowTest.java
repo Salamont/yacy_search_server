@@ -125,4 +125,26 @@ public class CrawlFlowTest {
   try{new CrawlLedger(()->path).find("admin:key");fail();}catch(ApiException e){assertEquals("crawl_store_unavailable",e.code());}
   assertArrayEquals(before,Files.readAllBytes(path));
  }
+ @After public void forgetDecisions() { net.yacy.scoutro.collections.CollectionDecisions.install(null); }
+ /** Every Scoutro crawl start (here the administrator's) follows the durable collection decisions. */
+ @Test public void adminCrawlStartFollowsCollectionDecisions() throws Exception {
+  final Path root=tmp.newFolder("decisions").toPath();
+  final net.yacy.scoutro.collections.CollectionDecisions d=new net.yacy.scoutro.collections.CollectionDecisions(
+   new net.yacy.scoutro.collections.DecisionStore(root.resolve("c"),root.resolve("m")),"sonstige",false,()->1L);
+  final net.yacy.scoutro.collections.CollectionDecision.Builder b=new net.yacy.scoutro.collections.CollectionDecision.Builder();
+  b.id=net.yacy.scoutro.collections.CollectionDecisions.newId(); b.domain="example.com"; b.collections=List.of("sonstige"); b.reason="fachlich_falsch";
+  d.put(b.build(),"decide");
+  net.yacy.scoutro.collections.CollectionDecisions.install(d);
+  Path path=tmp.newFolder().toPath().resolve("DATA/SCOUTRO/crawls.json");
+  FakeUpstream yacy=new FakeUpstream(){ @Override public Path crawlMetadataPath(){return path;} };
+  ScoutroActions actions=new ScoutroActions(yacy);
+  try { actions.crawlStartAdmin(request(),"run-d"); fail("crawl into a collection the decision excludes"); }
+  catch(ApiException e){assertEquals("collection_decided",e.code()); assertEquals(409,e.status());}
+  assertEquals(0,yacy.calls("Crawler_p.json").size());
+  // a new crawl into the fallback collection is never allowed without a decision of its domain
+  JSONObject other=Json.obj("url","https://other.example/","collection","sonstige","scope","domain","depth",1,"maxPages",5);
+  try { actions.crawlStartAdmin(other,"run-e"); fail("new crawl into the fallback collection"); }
+  catch(ApiException e){assertTrue(e.code(), "collection_fallback_only".equals(e.code())||"collection_unknown".equals(e.code()));}
+  assertEquals(0,yacy.calls("Crawler_p.json").size());
+ }
 }

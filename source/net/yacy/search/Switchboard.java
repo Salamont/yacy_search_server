@@ -3365,9 +3365,16 @@ public final class Switchboard extends serverSwitch {
         final CollectionConfiguration collectionConfig = this.index.fulltext().getDefaultConfiguration();
         final String language = Segment.votedLanguage(url, url.toNormalform(true), document, condenser); // identification of the language
 
-        final CollectionConfiguration.SolrVector vector = collectionConfig.yacy2solr(this.index, collections, queueEntry.getResponseHeader(),
-                document, condenser, referrerURL, language, profile.isPushCrawlProfile(),
-                this.index.fulltext().useWebgraph() ? this.index.fulltext().getWebgraphConfiguration() : null, sourceName);
+        final CollectionConfiguration.SolrVector vector;
+        try {
+            vector = collectionConfig.yacy2solr(this.index, collections, queueEntry.getResponseHeader(),
+                    document, condenser, referrerURL, language, profile.isPushCrawlProfile(),
+                    this.index.fulltext().useWebgraph() ? this.index.fulltext().getWebgraphConfiguration() : null, sourceName);
+        } catch (final net.yacy.scoutro.collections.CollectionDecisions.Blocked blocked) {
+            // a collection decision forbids the write: the indexed page stays as it is (no error document either)
+            if (this.log.isFine()) this.log.fine("Not indexed " + url.toNormalform(true) + ": " + blocked.getMessage());
+            return;
+        }
 
         /*
          * One last posible filtering step before adding to index : using the eventual

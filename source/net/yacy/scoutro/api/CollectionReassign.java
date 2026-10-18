@@ -86,6 +86,10 @@ final class CollectionReassign {
     private final Index index;
     private final Predicate<String> known;
     private final int maxDocuments;
+    /** Where an applied reassignment is recorded as a durable decision; null: not recorded (tests of the move alone). */
+    private net.yacy.scoutro.collections.CollectionDecisions decisions;
+    /** Collections the knowledge graph follows; null: graph off. */
+    private Predicate<String> followed;
 
     CollectionReassign(final Index index, final Predicate<String> known) {
         this(index, known, MAX_DOCUMENTS);
@@ -100,6 +104,27 @@ final class CollectionReassign {
 
     /** The running peer's embedded index; the catalog decides which collections exist. */
     static CollectionReassign current(final CollectionCatalog catalog) throws ApiException {
+        return new CollectionReassign(embeddedIndex(), id -> {
+            try {
+                return catalog.known(id);
+            } catch (final ApiException e) {
+                return false;
+            }
+        }).withDecisions(net.yacy.scoutro.collections.CollectionDecisions.current(), ScoutroActions.graphFollows());
+    }
+
+    /**
+     * Records every applied reassignment as a durable decision ({@code transform}: the removed collections replaced by
+     * the added ones, also for later crawls), and refuses a move that would take pages out of the knowledge graph.
+     */
+    CollectionReassign withDecisions(final net.yacy.scoutro.collections.CollectionDecisions decisions, final Predicate<String> followed) {
+        this.decisions = decisions;
+        this.followed = followed;
+        return this;
+    }
+
+    /** The running peer's embedded collection1 and webgraph cores. */
+    static Index embeddedIndex() throws ApiException {
         final Switchboard sb = Switchboard.getSwitchboard();
         if (sb == null || sb.index == null || sb.index.fulltext().getDefaultEmbeddedConnector() == null) {
             throw new ApiException(503, "index_unavailable", "The local embedded index is unavailable.");
@@ -144,13 +169,7 @@ final class CollectionReassign {
                         && connector(core) != null;
             }
         };
-        return new CollectionReassign(index, id -> {
-            try {
-                return catalog.known(id);
-            } catch (final ApiException e) {
-                return false;
-            }
-        });
+        return index;
     }
 
     /** An atomic "set" of collection_sxt with optimistic concurrency: Solr refuses it if the page has another version. */
@@ -220,6 +239,8 @@ final class CollectionReassign {
         if (hostBusy) {
             throw new ApiException(409, "host_busy", "A crawl of the domain is running; it would write the old collection again.");
         }
+        // write-ahead: the decision is durable (and governs every later crawl) before the index is changed
+        net.yacy.scoutro.collections.CollectionDecision decision = recordDecision(plan);
         int updated = 0;
         int edges = 0;
         int edgesKept = 0;
@@ -257,8 +278,10 @@ final class CollectionReassign {
         }
         ConcurrentLog.info("SCOUTRO-API", "event=collections.reassign domain=" + plan.domain + " add=" + plan.add + " remove=" + plan.remove
                 + " updated=" + updated + " webgraphEdges=" + edges + " webgraphKept=" + edgesKept + " failed=" + failed.length());
+        if (decision != null) decision = finishDecision(decision, updated, edges, failed.length());
         final JSONObject out = describe(plan, false);
         Json.put(out, "applied", true);
+        if (decision != null) Json.put(out, "decision", decision.toJson());
         Json.put(out, "updated", updated);
         Json.put(out, "webgraphUpdated", edges);
         Json.put(out, "webgraphKept", edgesKept);
@@ -290,8 +313,60 @@ final class CollectionReassign {
                         Json.obj("url", c.url));
             }
         }
+        if (this.followed != null) {
+            int leaving = 0;
+            for (final Change c : plan.pages) {
+                if (c.before.stream().anyMatch(this.followed) && c.after.stream().noneMatch(this.followed)) leaving++;
+            }
+            if (leaving > 0) {
+                throw new ApiException(422, "target_not_followed", leaving + " pages would leave the knowledge graph: let the graph follow"
+                        + " the target collection first (PATCH /scoutro/api/v1/kg/collections/{collection}).", Json.obj("pages", leaving));
+            }
+        }
+        if (this.decisions != null) {
+            if (!this.decisions.available()) {
+                throw new ApiException(503, "decisions_unavailable", "Collection decisions cannot be read reliably; recover them first.");
+            }
+            if (!this.decisions.activeOf(plan.domain).isEmpty()) {
+                throw new ApiException(409, "decision_exists", "A collection decision governs " + plan.domain
+                        + "; change it with POST /scoutro/api/v1/collections/decisions instead.",
+                        Json.obj("decisions", net.yacy.scoutro.collections.CollectionDecisions.toJson(this.decisions.activeOf(plan.domain))));
+            }
+        }
         plan.token = token(plan);
         return plan;
+    }
+
+    private net.yacy.scoutro.collections.CollectionDecision recordDecision(final Plan plan) throws ApiException {
+        if (this.decisions == null || plan.pages.isEmpty()) return null;
+        final net.yacy.scoutro.collections.CollectionDecision.Builder b = new net.yacy.scoutro.collections.CollectionDecision.Builder();
+        b.id = net.yacy.scoutro.collections.CollectionDecisions.newId();
+        b.domain = plan.domain;
+        b.mode = net.yacy.scoutro.collections.CollectionDecision.Mode.TRANSFORM;
+        b.collections = new ArrayList<>(plan.add);
+        b.denied = new ArrayList<>(plan.remove);
+        b.reason = "reassign";
+        b.decidedAt = this.decisions.now();
+        b.apply = net.yacy.scoutro.collections.CollectionDecision.Apply.PENDING;
+        b.evidence = Json.obj("token", plan.token, "documents", plan.pages.size());
+        try {
+            return this.decisions.put(b.build(), "reassign");
+        } catch (final net.yacy.scoutro.collections.CollectionDecisions.Refusal r) {
+            throw new ApiException(r.status, r.code, r.getMessage());
+        }
+    }
+
+    private net.yacy.scoutro.collections.CollectionDecision finishDecision(final net.yacy.scoutro.collections.CollectionDecision d,
+            final int updated, final int edges, final int failed) throws ApiException {
+        final net.yacy.scoutro.collections.CollectionDecision.Builder b = d.toBuilder();
+        b.apply = failed == 0 ? net.yacy.scoutro.collections.CollectionDecision.Apply.APPLIED
+                : net.yacy.scoutro.collections.CollectionDecision.Apply.PARTIAL;
+        b.applyState = Json.obj("updated", updated, "webgraphUpdated", edges, "failed", failed, "lastRunAt", this.decisions.now());
+        try {
+            return this.decisions.put(b.build(), "apply");
+        } catch (final net.yacy.scoutro.collections.CollectionDecisions.Refusal r) {
+            throw new ApiException(r.status, r.code, r.getMessage());
+        }
     }
 
     private static String domain(final Object raw) throws ApiException {
