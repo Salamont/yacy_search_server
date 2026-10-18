@@ -1999,6 +1999,20 @@ for _action in catalog.get("actions", []) if isinstance(catalog, dict) else []:
     if "permission" not in _action and isinstance(_action.get("http"), dict) and _action["http"].get("path", "").startswith("/scoutro/api/v1/"):
         _action["permission"] = scoutro_permission(_action["http"]["path"][len("/scoutro/api"):], _action["http"]["method"].lower()) \
             if _action.get("auth") == "admin" else None
+# The model quality check routes (docs/SCOUTRO_LLM_QUALITY_CHECK.md) were maintained by hand in openapi.json; they are kept
+# verbatim in api_llm_quality_paths.json and placed where they were, so this generator reproduces the committed files.
+import os as _os
+with open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "api_llm_quality_paths.json"), encoding="utf-8") as _f:
+    _llm_quality = json.load(_f)
+_ordered = {}
+for _k, _v in openapi["paths"].items():
+    if _k in _llm_quality:
+        continue
+    _ordered[_k] = _v
+    if _k == "/v1/chat/completions":
+        _ordered.update(_llm_quality)
+openapi["paths"].clear()
+openapi["paths"].update(_ordered)
 for name, value in [("openapi",openapi),("actions",catalog)]:
     with open(out + "/" + name + ".json", "w", encoding="utf-8") as file:
         json.dump(value, file, indent=2, ensure_ascii=False)
