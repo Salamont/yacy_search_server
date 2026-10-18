@@ -114,7 +114,17 @@ automatic backfill, no recrawl and no re-extraction; a recrawl for this purpose 
 - **Knowledge graph:** schema 8 → 9 at start, with the upgrade copy of the R2 mechanism.
   - The migration recreates seven triggers and runs a bounded backfill of a predicate no graph has yet. It copies no table.
   - Per technology and host: one statement; per page one evidence row and, on a change, one observation.
-  - The measurements on the synthetic production-size graph are in the PR and in [the acceptance](SCOUTRO_DATA_QUALITY_ACCEPTANCE.md).
+  - **Measured on the synthetic graph of production size** (the 160 000-page graph of the R1–R4 acceptance, schema 8, 835 MB, 4 cores; synthetic, not production data):
+
+    | Step | Result |
+    |---|---|
+    | Migration 8 → 9 | synchronous start 11.5 s, including the verified copy (834 MB); counts unchanged |
+    | Recrawl of 10 % of the hosts (543 hosts, 15 801 pages) with 5 technologies each | 2 715 statements, 79 005 evidence rows, 79 005 observations; `graph.db` +221 MB (about 2.8 KB per technology and page, evidence and archive together); 550 s until the graph caught up (about 29 pages/s); 0 model calls |
+    | The same pages again, identical markup, newer load | technology observations unchanged (79 005); the other archived predicates record the newer load as before |
+    | Half of the pages with another plugin | +7 791 observations (one per changed page), statements unchanged in number (the old plugin's lose their evidence) |
+    | Backup / restore on schema 9 | 12.7 s / 5.0 s, evidence equal before and after |
+
+  - **Estimate for production (not measured):** about 2.8 KB per technology hit. Example: 60 000 pages with 5 technologies each is about 0.8 GB more in the graph, spread over the recrawls that bring the technologies. Stopping it is the switch, not a code change.
 - **Off:** `scoutro.kg.technology.enabled=false` stops reading. Existing statements remain, and an assessment can withdraw them.
 - **Rollback:** an R4 build does not open schema 9.
   - Restore the upgrade copy (`graph-<UTC>-before-upgrade.db`) or the full backup with the previous image.
