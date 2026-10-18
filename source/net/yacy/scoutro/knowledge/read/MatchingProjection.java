@@ -102,6 +102,10 @@ public final class MatchingProjection {
             }}
         }return out;
     }
+    /** The projection of the current row of a {@code SELECT * FROM kg_match_contribution}; null if invisible or stale. */
+    public static JSONObject recordRow(Connection c,ResultSet r,Viewer permitted,KgConfig cfg)throws SQLException {
+        return record(c,r,permitted,cfg);
+    }
     public static List<JSONObject> all(Connection c,Viewer permitted,KgConfig cfg)throws SQLException {
         List<JSONObject> out=new ArrayList<>();
         try(Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT * FROM kg_match_contribution ORDER BY public_id")) {
