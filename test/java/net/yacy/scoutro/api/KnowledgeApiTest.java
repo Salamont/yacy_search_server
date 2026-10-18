@@ -828,4 +828,36 @@ public class KnowledgeApiTest {
         assertEquals("the other routes keep their limit", 413, call("POST", "/v1/kg/control", true, "application/json", null,
                 new JSONObject().put("action", "pause").put("x", longText + longText).toString()).status);
     }
+
+    @Test
+    public void qualityMetricsRouteIsReadOnlyAndNeedsTheRunningGraph() throws Exception {
+        final String[] quality = {"", "v1", "kg", "quality"};
+        try {
+            new KnowledgeApi(() -> null).route("GET", quality, java.util.Map.of(), body("{}"));
+            fail("quality without a graph");
+        } catch (final ApiException e) {
+            assertEquals(503, e.status());
+        }
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            final JSONObject q = api.route("GET", quality, java.util.Map.of("refresh", "true"), body("{}"));
+            assertEquals("scoutro.kg.quality.v1", q.getString("schema"));
+            assertEquals(0L, q.getJSONObject("metrics").getJSONObject("organizations").getLong("total"));
+            try {
+                api.route("POST", quality, java.util.Map.of(), body("{}"));
+                fail("quality is read only");
+            } catch (final ApiException e) {
+                assertEquals(405, e.status());
+            }
+            try {
+                api.route("GET", quality, java.util.Map.of("collection", "x"), body("{}"));
+                fail("unknown parameter accepted");
+            } catch (final ApiException e) {
+                assertEquals(400, e.status());
+            }
+        } finally {
+            r.close();
+        }
+    }
 }

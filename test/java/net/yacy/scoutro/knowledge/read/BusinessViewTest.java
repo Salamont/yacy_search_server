@@ -390,6 +390,88 @@ public class BusinessViewTest {
         }
     }
 
+    /**
+     * WP-B: the derived projection read in chunks, with kind and entity filtered in SQL, gives exactly the result of one
+     * pass over everything (here: chunks of one row against the default), for every viewer, kind and entity filter.
+     */
+    @Test
+    public void chunkedDerivedProjectionEqualsOnePass() throws Exception {
+        final int d = BusinessGraph.DERIVED_CHUNK, m = BusinessGraph.CONTRIBUTION_CHUNK;
+        final List<Viewer> viewers = List.of(viewer("stackfinder-web"), viewer("edelsenior-web"), viewer("stackfinder-web", "edelsenior-web"));
+        for (final Viewer v : viewers) {
+            final JSONObject all = new BusinessGraph(this.reader).derived(null, null, 0, 100, v);
+            final java.util.Map<String, String> byKind = new java.util.HashMap<>();
+            final java.util.Map<String, String> byEntity = new java.util.HashMap<>();
+            final JSONArray items = all.getJSONArray("items");
+            for (int i = 0; i < items.length(); i++) {
+                final String k = items.getJSONObject(i).getString("kind");
+                byKind.put(k, new BusinessGraph(this.reader).derived(k, null, 0, 100, v).getJSONArray("items").toString());
+                final String e = items.getJSONObject(i).getJSONObject("subject").getString("id");
+                byEntity.put(e, new BusinessGraph(this.reader).derived(null, e, 0, 100, v).getJSONArray("items").toString());
+            }
+            try {
+                BusinessGraph.DERIVED_CHUNK = 1;
+                BusinessGraph.CONTRIBUTION_CHUNK = 1;
+                assertEquals(all.toString(), new BusinessGraph(this.reader).derived(null, null, 0, 100, v).toString());
+                for (final java.util.Map.Entry<String, String> e : byKind.entrySet()) {
+                    assertEquals(e.getValue(), new BusinessGraph(this.reader).derived(e.getKey(), null, 0, 100, v).getJSONArray("items").toString());
+                }
+                for (final java.util.Map.Entry<String, String> e : byEntity.entrySet()) {
+                    assertEquals(e.getValue(), new BusinessGraph(this.reader).derived(null, e.getKey(), 0, 100, v).getJSONArray("items").toString());
+                }
+            } finally {
+                BusinessGraph.DERIVED_CHUNK = d;
+                BusinessGraph.CONTRIBUTION_CHUNK = m;
+            }
+            // the kind filter selects exactly the rows of that kind of the unfiltered projection
+            for (final java.util.Map.Entry<String, String> e : byKind.entrySet()) {
+                final JSONArray filtered = new JSONArray(e.getValue());
+                int expected = 0;
+                for (int i = 0; i < items.length(); i++) if (e.getKey().equals(items.getJSONObject(i).getString("kind"))) expected++;
+                assertEquals(e.getKey(), expected, filtered.length());
+            }
+            // the facet counts (cached) agree with the projection
+            final JSONObject counts = new BusinessGraph(this.reader).facets(v).getJSONObject("counts").getJSONObject("derived");
+            for (final String k : byKind.keySet()) assertEquals(k, new JSONArray(byKind.get(k)).length(), counts.getInt(k));
+        }
+        assertEquals(0, new BusinessGraph(this.reader).derived("no_such_kind", null, 0, 100, viewers.get(2)).getInt("total"));
+    }
+
+    /** WP-B: quality metrics with counting units, consistent partitions and a per-metric error instead of a failed request. */
+    @Test
+    public void qualityMetricsAreConsistentAndBounded() throws Exception {
+        final JSONObject q = new QualityMetrics(this.store, () -> this.now).compute();
+        assertEquals(QualityMetrics.SCHEMA, q.getString("schema"));
+        assertEquals(q.toString(), 0, q.getJSONArray("errors").length());
+        final JSONObject m = q.getJSONObject("metrics");
+        final long orgs = m.getJSONObject("organizations").getLong("total");
+        assertTrue(orgs > 0);
+        assertEquals("named + unnamed = all organisations", orgs, m.getJSONObject("organizations_with_stated_name").getLong("total")
+                + m.getJSONObject("organizations_without_stated_name").getLong("total"));
+        assertEquals("explicit + derived only + none = all organisations", orgs,
+                m.getJSONObject("organizations_with_explicit_industry").getLong("total")
+                        + m.getJSONObject("organizations_with_derived_industry_only").getLong("total")
+                        + m.getJSONObject("organizations_without_industry").getLong("total"));
+        final long services = m.getJSONObject("services").getLong("total");
+        assertTrue(services > 0);
+        assertTrue(m.getJSONObject("services_with_price").getLong("total") > 0);
+        assertTrue(m.getJSONObject("services_without_provider").getLong("total") <= services);
+        assertTrue(m.getJSONObject("services").getJSONObject("by_collection").has("edelsenior-web"));
+        assertTrue(m.getJSONObject("offers_evidence_by_tier").getJSONObject("by_tier").length() > 0);
+        assertTrue(m.getJSONObject("evidence_empty_excerpt").getLong("of") > 0);
+        assertNotNull(q.getJSONObject("data_state"));
+        // reproducible: the same graph gives the same metrics
+        final JSONObject again = new QualityMetrics(this.store, () -> this.now).compute();
+        assertEquals(m.toString(), again.getJSONObject("metrics").toString());
+        // a metric that exceeds its deadline reports its error, the others are still computed
+        final JSONObject tight = new QualityMetrics(this.store, () -> this.now, 0L).compute();
+        assertTrue(tight.getJSONArray("errors").length() > 0);
+        for (final String k : tight.getJSONObject("metrics").keySet()) {
+            final JSONObject one = tight.getJSONObject("metrics").getJSONObject(k);
+            assertTrue(k, one.has("error") || one.has("unit"));
+        }
+    }
+
     private static BusinessGraph.Query q(final boolean weak, final boolean suggested) {
         final BusinessGraph.Query q = new BusinessGraph.Query();
         q.weak = weak;
