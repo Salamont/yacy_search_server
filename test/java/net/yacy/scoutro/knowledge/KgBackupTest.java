@@ -184,6 +184,61 @@ public class KgBackupTest {
         assertTrue(last.getLong("bytes") > (4L << 20));
     }
 
+    private JSONObject assess(final String action, final String predicate, final String value, final String subject, final String quote)
+            throws Exception {
+        final net.yacy.scoutro.knowledge.publish.Assessments.Draft d = new net.yacy.scoutro.knowledge.publish.Assessments.Draft();
+        d.action = action;
+        d.scopeKind = net.yacy.scoutro.knowledge.publish.Assessments.SOURCE;
+        d.scope = "AAAAAAhost01";
+        d.predicate = predicate;
+        d.value = value;
+        d.subjectId = subject;
+        d.quote = quote;
+        d.reason = "backup test";
+        d.actor = "admin";
+        assertNull(java.util.Arrays.toString(d.validate()), d.validate());
+        final KgConfig cfg = KgTestSupport.config(KgTestSupport.enabled());
+        return KgTestSupport.store(this.runtime).write(WriteClass.MAINTENANCE, 1L << 20,
+                tx -> net.yacy.scoutro.knowledge.publish.Assessments.create(tx, cfg, d, this.now.get()));
+    }
+
+    /** WP-E: assessments, the evidence they withdrew and operator statements are part of the graph's file. */
+    @Test
+    public void assessmentsAndOperatorStatementsComeBackWithTheBackup() throws Exception {
+        final String org = KgTestSupport.store(this.runtime).read(c -> {
+            try (Statement st = c.createStatement(); java.sql.ResultSet rs = st.executeQuery("SELECT public_id FROM kg_entity WHERE status = 1"
+                    + " AND type = (SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = 'organization')")) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        });
+        assess("withdraw", "phone", null, null, null);
+        final String operator = assess("assert", "legal_form", "gGmbH", org, "Muster Pflege gGmbH").getJSONObject("assessment").getString("id");
+        final long withdrawn = count("SELECT count(*) FROM kg_evidence_withdrawn");
+        assertTrue("the phone evidence was withdrawn", withdrawn > 0);
+        assertEquals(1, count("SELECT count(*) FROM kg_evidence WHERE tier = 4 AND locator = 'operator:" + operator + "'"));
+        final String file = backup().getString("file");
+        KgBackup.verify(new File(dir(), file), KgSchema.CURRENT_VERSION); // a verified copy of schema 7 with the assessment tables
+        // after the backup: revoked, the operator statement goes, the phone comes back
+        KgTestSupport.store(this.runtime).write(WriteClass.MAINTENANCE, 1L << 20,
+                tx -> net.yacy.scoutro.knowledge.publish.Assessments.revoke(tx, KgTestSupport.config(KgTestSupport.enabled()), operator, "admin",
+                        this.now.get()));
+        assertEquals(0, count("SELECT count(*) FROM kg_evidence WHERE tier = 4"));
+        this.now.addAndGet(5000L);
+        this.runtime.restore(file);
+        assertEquals(KgRuntime.State.RUNNING, this.runtime.state());
+        assertEquals("both assessments are active again", 2, count("SELECT count(*) FROM kg_assessment WHERE status = 'active'"));
+        assertEquals(withdrawn, count("SELECT count(*) FROM kg_evidence_withdrawn"));
+        assertEquals(1, count("SELECT count(*) FROM kg_evidence WHERE tier = 4 AND kind = 5 AND locator = 'operator:" + operator + "'"));
+        assertEquals(0, count("SELECT count(*) FROM kg_statement s JOIN kg_evidence e ON e.stmt_rowid = s.stmt_rowid"
+                + " WHERE s.pred = (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'phone')"));
+        // and the graph keeps working: a new reading of the page keeps the operator statement and the withdrawal
+        publish("AAAAAAhost01", "https://www.muster.de/", "{\"@type\":\"Organization\",\"name\":\"Muster Pflege gGmbH\","
+                + "\"url\":\"https://www.muster.de/\",\"telephone\":\"030 1234567\"}");
+        assertEquals(1, count("SELECT count(*) FROM kg_evidence WHERE tier = 4 AND locator = 'operator:" + operator + "'"));
+        assertEquals(0, count("SELECT count(*) FROM kg_statement s JOIN kg_evidence e ON e.stmt_rowid = s.stmt_rowid"
+                + " WHERE s.pred = (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'phone')"));
+    }
+
     @Test
     public void aRestorePutsTheBackupBackWithANewEpochAndKeepsThePreviousGraph() throws Exception {
         final String file = backup().getString("file");
