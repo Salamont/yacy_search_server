@@ -65,6 +65,8 @@ public final class Terms {
             extractor(ps, 1, JsonLdExtractor.NAME, JsonLdExtractor.VERSION);
             extractor(ps, 1, MetadataExtractor.NAME, MetadataExtractor.VERSION);
             extractor(ps, 2, RuleExtractor.NAME, RuleExtractor.VERSION);
+            extractor(ps, 1, net.yacy.scoutro.knowledge.extract.WebsiteTechnology.NAME,
+                    net.yacy.scoutro.knowledge.extract.WebsiteTechnology.VERSION);
         }
         load(tx);
     }

@@ -153,6 +153,11 @@ public final class Vocabulary {
     public static final String SYSTEM_SIGNAL="system_signal";
     public static final String BUSINESS_NEED_SIGNAL="business_need_signal";
     public static final String BUSINESS_ROLE_EVIDENCE="business_role_evidence";
+    /**
+     * A technology the site's pages integrate, read from their technical markup (Scoutro R5, {@link WebsiteTechnology}):
+     * a website observation, never internal use, an offer or a customer project.
+     */
+    public static final String WEBSITE_TECHNOLOGY="website_technology";
     public static final String JOB_STATUS="job_status";
     public static final String ADVERTISED_BY="advertised_by";
     public static final String RECRUITING_ORGANIZATION="recruiting_organization";
@@ -313,6 +318,7 @@ public final class Vocabulary {
         literal(p,SYSTEM_SIGNAL,false,T_JSON);
         literal(p,BUSINESS_NEED_SIGNAL,false,T_JSON);
         literal(p,BUSINESS_ROLE_EVIDENCE,false,T_JSON);
+        literal(p,WEBSITE_TECHNOLOGY,false,T_JSON);
         literal(p,JOB_STATUS,false,T_CODE);
         relation(p,ADVERTISED_BY);relation(p,RECRUITING_ORGANIZATION);relation(p,DEPLOYMENT_ORGANIZATION);
         literal(p, CUSTOMER_TYPE, false, T_CODE);

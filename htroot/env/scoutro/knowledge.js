@@ -1088,7 +1088,7 @@
     li.append(dl);
     return li;
   }
-  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'audiences', 'matches', 'sources', 'facts'];
+  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'website_technologies', 'audiences', 'matches', 'sources', 'facts'];
   // a software or system mention with its context and source (0.10.2): a requirement is no proof of use, client work is the client's
   function systemItem(x) {
     const head = node('div', null, 'skg-statement-head');
@@ -1096,6 +1096,15 @@
       ' · ', node('span', t('src_' + x.source), 'sseo-note'));
     if (x.asserted_date) head.append(' · ', node('span', x.asserted_date, 'sseo-note'));
     const li = factItem(head, x); li.dataset.context = x.context; li.dataset.source = x.source; return li;
+  }
+  /** One website technology (R5): name and edition, category, host, a stated version with its source; a website observation. */
+  function technologyItem(x) {
+    const head = node('div', null, 'skg-statement-head');
+    head.append(node('span', x.name + (x.variant ? ' ' + x.variant : ''), 'skg-value'), ' · ',
+      node('span', t('techcat_' + x.category), 'skg-predicate skg-tech-' + x.category));
+    if (x.host) head.append(' · ', node('span', x.host, 'sseo-note'));
+    if (x.version) head.append(' · ', node('span', t('tech_version').replace('%1', x.version).replace('%2', t('vsrc_' + x.version_source)), 'sseo-note'));
+    const li = factItem(head, x); li.dataset.technology = x.technology; li.dataset.category = x.category; return li;
   }
   function businessInto(b) {
     const box = $('business'); box.replaceChildren();
@@ -1136,6 +1145,8 @@
     if (jobs.length || b.jobs?.hidden_ended) box.append(section('jobs', jobs.length ? list(jobs, jobItem) : null,
       b.jobs?.hidden_ended ? node('p', t('hidden_ended').replace('%1', fmt(b.jobs.hidden_ended)), 'sseo-note') : null));
     if (b.systems?.length) box.append(section('systems', node('p', t('systems_note'), 'sseo-note'), list(b.systems, systemItem)));
+    if (b.website_technologies?.length) box.append(section('website_technologies', node('p', t('website_technologies_note'), 'sseo-note'),
+      list(b.website_technologies, technologyItem)));
     if (b.audiences) {
       const a = b.audiences, parts = [];
       const declared = []; for (const [p, l] of Object.entries(a.declared || {})) for (const i of l) declared.push([p, i]);

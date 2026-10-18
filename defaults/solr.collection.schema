@@ -545,6 +545,9 @@ host_extent_i
 ## number of matching title expressions
 #ext_title_val
 
+## website technologies found by the signatures of defaults/parser.tech.properties in the technical markup (generator, script, stylesheet, iframe, inline code, comment; never the running text): id|rule version|element|matches|excerpt (Scoutro R5)
+website_technology_sxt
+
 ## collection of all vocabulary names that have a matcher in the document - use this to boost with vocabularies
 vocabularies_sxt
     

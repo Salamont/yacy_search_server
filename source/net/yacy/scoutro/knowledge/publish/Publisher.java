@@ -669,6 +669,10 @@ public final class Publisher {
     }
 
     private int extractor(final Claim c) {
+        if (Vocabulary.WEBSITE_TECHNOLOGY.equals(c.predicate)) {
+            return this.terms.extractor(1, net.yacy.scoutro.knowledge.extract.WebsiteTechnology.NAME,
+                    net.yacy.scoutro.knowledge.extract.WebsiteTechnology.VERSION);
+        }
         switch (c.kind) {
             case Claim.KIND_JSONLD:
                 return this.terms.extractor(1, JsonLdExtractor.NAME, JsonLdExtractor.VERSION);

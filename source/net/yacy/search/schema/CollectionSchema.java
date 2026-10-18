@@ -254,6 +254,7 @@ public enum CollectionSchema implements SchemaDeclaration {
     ext_tracker_val(SolrType.num_integer, true, true, true, false, false, "number of attribute counts in ext_tracker_txt"),
     ext_title_txt(SolrType.text_general, true, true, true, false, false, "names matching title expressions"),
     ext_title_val(SolrType.num_integer, true, true, true, false, false, "number of matching title expressions"),
+    website_technology_sxt(SolrType.string, true, true, true, false, false, "website technologies found by the signatures of defaults/parser.tech.properties in the page's technical markup (generator, script, stylesheet, iframe, inline code, comment; never the running text), one entry per technology: id|rule version|element|matches|excerpt"),
     vocabularies_sxt(SolrType.string, true, true, true, false, false, "collection of all vocabulary names that have a matcher in the document - use this to boost with vocabularies");
 
     public final static String CORE_NAME = "collection1"; // this was the default core name up to Solr 4.4.0. This default name was stored in CoreContainer.DEFAULT_DEFAULT_CORE_NAME but was removed in Solr 4.5.0

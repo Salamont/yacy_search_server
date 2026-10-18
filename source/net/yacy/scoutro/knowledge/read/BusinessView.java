@@ -382,6 +382,12 @@ public final class BusinessView {
         if (systems.length() > 0) {
             KgJson.put(out, "systems", systems);
         }
+        // website technologies (Scoutro R5): what the site's pages integrate, by their technical markup; a section of its
+        // own, never mixed with the systems above (internal use, competence, offers, customer projects)
+        final JSONArray technologies = websiteTechnologies(byPredicate.get(Vocabulary.WEBSITE_TECHNOLOGY), docs);
+        if (technologies.length() > 0) {
+            KgJson.put(out, "website_technologies", technologies);
+        }
         // audiences: declared, observed, suggested; never mixed
         final JSONObject declared = new JSONObject();
         for (final String p : DECLARED_AUDIENCE) {
@@ -747,6 +753,40 @@ public final class BusinessView {
         for (final JSONObject item : items.subList(0, Math.min(items.size(), MAX_SYSTEMS))) {
             out.put(item);
             collect(factOf.get(item), docs); // the sources of what is shown
+        }
+        return out;
+    }
+
+    /** Website technologies one business view lists at most. */
+    static final int MAX_TECHNOLOGIES = 50;
+
+    /**
+     * The website technologies of an entity (Scoutro R5): technology, variant, category, host, a version only where a
+     * generator or the product's own comment states it, with its evidence; sorted by host, category and name. A website
+     * observation: it says nothing about the company's internal software, its offers or its customers.
+     */
+    private static JSONArray websiteTechnologies(final List<Fact> facts, final Set<String> docs) {
+        final List<JSONObject> items = new ArrayList<>();
+        final Map<JSONObject, Fact> factOf = new java.util.IdentityHashMap<>();
+        for (final Fact f : facts == null ? List.<Fact>of() : facts) {
+            final JSONObject value = Values.json(f.stat.objVal);
+            if (value == null || value.optString("technology", "").isEmpty()) {
+                continue;
+            }
+            final JSONObject item = KgJson.obj("statement", f.stat.publicId, "technology", value.optString("technology"), "name",
+                    value.optString("name"), "variant", value.opt("variant"), "category", value.optString("category"), "host",
+                    value.opt("host"), "version", value.opt("version"), "version_source", value.opt("version_source"), "meaning",
+                    "website_integration");
+            fact(item, f);
+            items.add(item);
+            factOf.put(item, f);
+        }
+        items.sort(java.util.Comparator.comparing((JSONObject x) -> x.optString("host")).thenComparing(x -> x.optString("category"))
+                .thenComparing(x -> x.optString("name")).thenComparing(x -> x.optString("variant")).thenComparing(x -> x.optString("statement")));
+        final JSONArray out = new JSONArray();
+        for (final JSONObject item : items.subList(0, Math.min(items.size(), MAX_TECHNOLOGIES))) {
+            out.put(item);
+            collect(factOf.get(item), docs);
         }
         return out;
     }

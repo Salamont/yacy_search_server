@@ -4,6 +4,19 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Website technologies (Scoutro R5, not released; knowledge graph schema 9): the signatures of
+  `defaults/parser.tech.properties` (WordPress, Elementor, Elementor Pro, Yoast SEO, Yoast SEO Premium, WP Rocket, Google
+  Tag Manager, Pardot; Google Analytics for comparison) read a page's technical markup - generator, script and stylesheet
+  paths, iframes, inline code, comments; never its text, links or code shown as text - through YaCy's HTML evaluation
+  into the new index field `website_technology_sxt` (rule version, element, excerpt). The graph keeps them as
+  `website_technology` statements about the site's operator (tier 1, extractor `technology/1`): a website observation,
+  never internal use, an offer or a collection; an edition only from its own signature, a version only from a generator
+  or the product's comment. A changed plugin with the same text is read again; pages without technologies keep their
+  hash (no re-extraction at the upgrade), the LLM tier never sees the markup. Archived as observations when they
+  change (schema 9; the matching ignores them); WP-E assessments apply unchanged. The business view lists them in a
+  section of their own. No backfill: technologies appear with future crawls. Switch `scoutro.kg.technology.enabled`
+  (default on). `Evaluation` names a rule version, keeps where a subject matched, skips an unknown element instead of
+  failing and lets DATA/SETTINGS replace a default model. See [website technologies](docs/SCOUTRO_WEBSITE_TECHNOLOGY.md).
 - Correction automation of collection assignments (data quality programme WP-H, not released, **off by
   default**): modes off/simulate/propose/apply (`scoutro.collections.autocorrect.mode`). A correction needs two
   independent origins against the current collection, one with a structured or text-fit signal; the website's own
