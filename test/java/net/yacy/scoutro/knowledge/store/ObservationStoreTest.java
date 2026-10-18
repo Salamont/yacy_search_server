@@ -258,7 +258,7 @@ public class ObservationStoreTest {
             s.execute("UPDATE sqlite_sequence SET seq=500 WHERE name='kg_change'");
         }
         try(KgStore upgraded=KgStore.open(oldPaths,cfg,new StorageGuard(cfg,oldPaths,new KgTestSupport.Probe(),()->processed),KgStore.SQLITE,()->processed)) {
-            assertEquals(6,upgraded.schemaVersion());
+            assertEquals(KgSchema.CURRENT_VERSION,upgraded.schemaVersion());
             assertTrue(upgraded.read(c->KgStore.queryLong(c,"SELECT seq FROM sqlite_sequence WHERE name='kg_change'"))>=500);
             JSONObject preserved=new ObservationHistory(new KgReader(upgraded,cfg,()->processed)).detail(original,new KgReader(upgraded,cfg,()->processed).viewer(List.of("a")));
             assertEquals("Wir nutzen SAP intern.",preserved.getString("quote"));assertTrue(preserved.getString("observed_at").startsWith("2023"));
