@@ -12404,9 +12404,10 @@
             "uncertain",
             "conflicting",
             "stale",
-            "expired"
+            "expired",
+            "not_yet_valid"
           ],
-          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
         },
         "quality": {
           "type": "string",
@@ -12596,9 +12597,10 @@
             "uncertain",
             "conflicting",
             "stale",
-            "expired"
+            "expired",
+            "not_yet_valid"
           ],
-          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
         },
         "quality": {
           "type": "string",
@@ -14088,9 +14090,10 @@
                   "uncertain",
                   "conflicting",
                   "stale",
-                  "expired"
+                  "expired",
+                  "not_yet_valid"
                 ],
-                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
               },
               "quality": {
                 "type": "string",
@@ -14398,9 +14401,10 @@
                       "uncertain",
                       "conflicting",
                       "stale",
-                      "expired"
+                      "expired",
+                      "not_yet_valid"
                     ],
-                    "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                    "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
                   },
                   "quality": {
                     "type": "string",
@@ -14595,9 +14599,10 @@
                   "uncertain",
                   "conflicting",
                   "stale",
-                  "expired"
+                  "expired",
+                  "not_yet_valid"
                 ],
-                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
               },
               "sources": {
                 "type": "integer"
@@ -14638,9 +14643,10 @@
                       "uncertain",
                       "conflicting",
                       "stale",
-                      "expired"
+                      "expired",
+                      "not_yet_valid"
                     ],
-                    "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                    "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
                   },
                   "quality": {
                     "type": "string",
@@ -15033,9 +15039,10 @@
                   "uncertain",
                   "conflicting",
                   "stale",
-                  "expired"
+                  "expired",
+                  "not_yet_valid"
                 ],
-                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
               },
               "as_of": {
                 "type": [
