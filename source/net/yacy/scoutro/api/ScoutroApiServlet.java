@@ -223,7 +223,7 @@ public class ScoutroApiServlet extends HttpServlet {
                     if (body.length() > 0) throw ApiException.invalid(body.keys().next(), "Unknown field.");
                     return this.actions.collectionRemove(parts[3]);
                 }
-                if (parts.length == 5 && !"reassign".equals(parts[3]) && !"decisions".equals(parts[3])
+                if (parts.length == 5 && !"reassign".equals(parts[3]) && !"decisions".equals(parts[3]) && !"autocorrect".equals(parts[3])
                         && ("hide".equals(parts[4]) || "show".equals(parts[4]) || "delete-pages".equals(parts[4]))) {
                     // 0.10.3: hide (pages stay), show again, delete the pages (confirmed with the id); each audited by its own path
                     expect(method, parts, 5, "POST");
@@ -245,6 +245,19 @@ public class ScoutroApiServlet extends HttpServlet {
                         return this.actions.collectionDecisions(parts[4], null, jsonBody(request, MAX_COLLECTION_BODY_BYTES), actor);
                     }
                     throw new ApiException(404, "not_found", "Unknown collection decision route.");
+                }
+                if (parts.length >= 4 && "autocorrect".equals(parts[3])) {
+                    // the correction automation (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md); administrator only, never an agent route
+                    final String actor = net.yacy.scoutro.access.Caller.of(request).actor();
+                    if (parts.length == 4) {
+                        expect(method, parts, 4, "GET");
+                        return this.actions.collectionAutocorrect("report", queryParams(request), null, actor);
+                    }
+                    if (parts.length == 5 && java.util.Set.of("evaluate", "review", "accept", "breaker-reset").contains(parts[4])) {
+                        expect(method, parts, 5, "POST");
+                        return this.actions.collectionAutocorrect(parts[4], null, jsonBody(request, MAX_BODY_BYTES), actor);
+                    }
+                    throw new ApiException(404, "not_found", "Unknown correction automation route.");
                 }
                 if (parts.length == 4 && "reassign".equals(parts[3])) {
                     // preview without "confirm", apply with the preview's token; one domain, same origin, small body
@@ -515,7 +528,8 @@ public class ScoutroApiServlet extends HttpServlet {
         for (int i = 3; i < parts.length && i < 7; i++) {
             final String seg = parts[i];
             // a collection id is the target, not part of the action (DELETE /v1/collections/{id})
-            final boolean collection = i == 3 && "collections".equals(parts[2]) && !"reassign".equals(seg) && !"decisions".equals(seg);
+            final boolean collection = i == 3 && "collections".equals(parts[2]) && !"reassign".equals(seg) && !"decisions".equals(seg)
+                    && !"autocorrect".equals(seg);
             if (!collection && seg.matches("[a-z][a-z-]{0,31}")) {
                 action.append('.').append(seg);
             } else if (seg.matches("[A-Za-z0-9_.:@-]{1,80}")) {

@@ -4,6 +4,14 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Correction automation of collection assignments (data quality programme WP-H, not released, **off by
+  default**): modes off/simulate/propose/apply (`scoutro.collections.autocorrect.mode`). A correction needs two
+  independent origins against the current collection, one with a structured or text-fit signal; the website's own
+  signals are one origin, OSM or an LLM verdict never suffice, absences and crawl errors are no signals; manual
+  decisions always win. Fingerprint, hysteresis, daily limit, breaker; apply acts only after a statistical acceptance
+  (Clopper-Pearson lower bound). Routes `/v1/collections/autocorrect*` (administrator). See
+  [autocorrect](docs/SCOUTRO_COLLECTION_AUTOCORRECT.md).
+
 - Rule-based review of stored LLM facts (data quality programme WP-G, not released): `GET|POST /v1/kg/tier3-review`
   applies the current rules to tier-3 evidence without any model request (prices quoted as benefits, donations,
   subsidies or unclear amounts; prices without an amount; vocabulary facts the page's vocabularies do not contain).

@@ -589,6 +589,7 @@
       <classpath><pathelement location="build/scoutro-collection-decisions-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
       <arg value="net.yacy.scoutro.collections.DecisionStoreTest"/>
       <arg value="net.yacy.scoutro.collections.CollectionDecisionsTest"/>
+      <arg value="net.yacy.scoutro.collections.AutoCorrectTest"/>
       <arg value="net.yacy.search.schema.CollectionDecisionIndexTest"/>
       <arg value="net.yacy.scoutro.api.CollectionDecisionsApiTest"/>
       <arg value="net.yacy.scoutro.api.CollectionReassignTest"/>
