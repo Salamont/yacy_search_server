@@ -4746,6 +4746,63 @@
       }
     },
     {
+      "name": "kg.identity.preview",
+      "description": "Administrator only (WP-F, docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md). Extracts tiers 1 and 2 of up to 200 active pages of the domain from Solr and publishes them twice in one write transaction, with the configured identity and with the previewed one, then rolls back: nothing is written, no model is called, the graph's writes wait for the few seconds it takes. Switch scoutro.kg.identity.* only after this preview; switching re-extracts every page once (rules, no LLM). 400 invalid_request, 503 sync_unavailable without the Solr synchronisation.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/identity-preview",
+        "successStatus": 200
+      },
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "description": "A registrable domain (example.de), not a host or an address.",
+          "in": "body",
+          "required": true
+        },
+        "productUrl": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview scoutro.kg.identity.productUrl: services join by the canonical address of their own product page (same name only).",
+          "in": "body",
+          "required": false
+        },
+        "providerServiceKey": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview scoutro.kg.identity.providerServiceKey: a service of a provider named by JSON-LD provider or by the LLM tier joins that provider's service of the same category or name.",
+          "in": "body",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 200,
+          "description": "Active pages of the domain in the sample, oldest first.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "KgIdentityPreview",
+      "errors": [
+        400,
+        401,
+        403,
+        405,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/kg/identity-preview (administrator; dry run, writes nothing)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "host.resolve",
       "description": "Normalize a host or URL and look up indexed records within the requested scope. Unknown hosts return indexed=false, HTTP 200. Index failures remain errors. canRequest is permission information, not proof that crawl preflight will pass. Collection is required on the subsequent crawl start.",
       "mutating": false,
@@ -13015,6 +13072,108 @@
         }
       }
     },
+    "KgAmount": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "pattern": "^kgs_[a-z2-7]{20}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "current",
+            "uncertain",
+            "conflicting",
+            "stale",
+            "expired",
+            "not_yet_valid"
+          ],
+          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed; not_yet_valid: a price whose stated valid_from lies in the future (listed as uncertain, never current)."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "uncertain",
+            "conflicting",
+            "stale"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "jsonld",
+              "metadata",
+              "rule",
+              "llm",
+              "operator"
+            ]
+          }
+        },
+        "last_confirmed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "sources": {
+          "type": "integer"
+        },
+        "source_docs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "doc_id": {
+                "type": "string"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "description": "Up to 3 visible source pages."
+        },
+        "service": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "service_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "statutory_benefit",
+            "donation",
+            "subsidy",
+            "unknown"
+          ],
+          "description": "statutory_benefit: paid by a care or health insurance or by law (Entlastungsbetrag); donation; subsidy (Zuschuss, Förderung); unknown: the sentence names an offer price and such an amount at once."
+        },
+        "value": {
+          "$ref": "#/components/schemas/KgPriceValue"
+        }
+      }
+    },
     "KgDerived": {
       "type": "object",
       "description": "A derived row, never a fact: a weak link signal, a shared operator or a suggested match. Visible only to a viewer who sees both collections it was computed from.",
@@ -14673,6 +14832,10 @@
               },
               "prices": {
                 "type": "integer"
+              },
+              "amounts": {
+                "type": "integer",
+                "description": "Amounts of this service that are no price (in amounts)."
               }
             }
           }
@@ -14682,6 +14845,13 @@
           "items": {
             "$ref": "#/components/schemas/KgPrice"
           }
+        },
+        "amounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgAmount"
+          },
+          "description": "Amounts that are no price of the business (WP-F): statutory benefits, donations, subsidies and amounts of unclear role, each with its role; never counted as a price."
         },
         "contacts": {
           "type": "object",
@@ -20521,6 +20691,166 @@
         },
         "apply": {
           "$ref": "#/components/schemas/KgTier3ReviewProgress"
+        }
+      }
+    },
+    "KgIdentityPreviewRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain"
+      ],
+      "properties": {
+        "domain": {
+          "type": "string",
+          "description": "A registrable domain (example.de), not a host or an address."
+        },
+        "productUrl": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview scoutro.kg.identity.productUrl: services join by the canonical address of their own product page (same name only)."
+        },
+        "providerServiceKey": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview scoutro.kg.identity.providerServiceKey: a service of a provider named by JSON-LD provider or by the LLM tier joins that provider's service of the same category or name."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 200,
+          "description": "Active pages of the domain in the sample, oldest first."
+        }
+      }
+    },
+    "KgIdentityPreview": {
+      "type": "object",
+      "properties": {
+        "domain": {
+          "type": "string"
+        },
+        "identity": {
+          "type": "object",
+          "properties": {
+            "productUrl": {
+              "type": "boolean"
+            },
+            "providerServiceKey": {
+              "type": "boolean"
+            }
+          }
+        },
+        "sample": {
+          "type": "object",
+          "properties": {
+            "documents": {
+              "type": "integer"
+            },
+            "skipped": {
+              "type": "integer",
+              "description": "Pages absent from Solr, out of the followed collections or not active."
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          }
+        },
+        "baseline": {
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "integer"
+            },
+            "services": {
+              "type": "integer"
+            },
+            "merges": {
+              "type": "integer"
+            },
+            "conflicts": {
+              "type": "integer"
+            },
+            "published": {
+              "type": "integer"
+            }
+          },
+          "description": "The sample published again with the configured identity."
+        },
+        "preview": {
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "integer"
+            },
+            "services": {
+              "type": "integer"
+            },
+            "merges": {
+              "type": "integer"
+            },
+            "conflicts": {
+              "type": "integer"
+            },
+            "published": {
+              "type": "integer"
+            }
+          },
+          "description": "The same sample with the previewed identity."
+        },
+        "documentsChanged": {
+          "type": "integer",
+          "description": "Pages whose facts would be on other entities."
+        },
+        "merges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entity merges only the preview makes (merged -> survivor), at most 20."
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Merges the preview blocks (a discriminator, a product page of another name), at most 20."
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "joined": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "llm": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "providerServiceKey only: the model's services of the sample that would get a key (an estimate from the stored offers; no model call): services, joinExisting, joinEachOther."
+        },
+        "written": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
         }
       }
     },

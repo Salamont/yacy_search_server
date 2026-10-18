@@ -81,8 +81,9 @@ implemented decision of this programme, **[U]** open assumption.
     name; elsewhere (home pages) a category needs an explicit offer cue, otherwise it is a `topic`. A care level
     (Pflegegrad) or a service name (Verhinderungspflege) is no benefit cue, the customer's own share (Eigenanteil)
     is always a price (found with the existing price tests).
-13. **Identity changes deferred** [E]: `product_url` keys and the LLM provider `serviceKey` change entity identities;
-    they need their own identity-rebuild preview and are not part of WP-F.
+13. **Identity changes switched** [E, revised 2026-10-18]: `product_url` keys and the provider `serviceKey` (JSON-LD
+    `provider`, LLM offers) change entity identities; they are in WP-F behind two switches that are off by default, with
+    a dry-run preview per domain (`POST /v1/kg/identity-preview`) that writes nothing and calls no model.
 
 ## 4. Work packages and progress
 

@@ -76,6 +76,11 @@ Further settings of the business facts (defaults in brackets):
 - `scoutro.kg.derived.enabled` (`true`) and
   `scoutro.kg.derived.intervalMinutes` (60): the derived layer. Switched
   off, one pass removes its rows, and the change feed reports each removal.
+- `scoutro.kg.identity.productUrl` (`false`) and
+  `scoutro.kg.identity.providerServiceKey` (`false`): the WP-F identity changes
+  (product page address; service key of a provider outside the rules). Check them
+  with `POST /v1/kg/identity-preview` first; switching re-extracts every page once
+  (rules, no LLM).
 - `scoutro.kg.matches.maxPerEntity` (20) and `scoutro.kg.matches.max`
   (50 000): caps for suggested matches.
 - `scoutro.kg.sameOperator.maxGroup` (12): the largest group of facilities

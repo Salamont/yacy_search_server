@@ -98,17 +98,37 @@ public final class IdentityResolver {
 
     private final Terms terms;
     private final Counters counters = new Counters();
+    /** WP-F identity changes, both off by default: {@code scoutro.kg.identity.productUrl} and {@code .providerServiceKey}. */
+    private final boolean productUrl;
+    private final boolean providerServiceKey;
 
     public IdentityResolver(final Terms terms) {
+        this(terms, false, false);
+    }
+
+    public IdentityResolver(final Terms terms, final boolean productUrl, final boolean providerServiceKey) {
         this.terms = terms;
+        this.productUrl = productUrl;
+        this.providerServiceKey = providerServiceKey;
     }
 
     public Counters counters() {
         return this.counters;
     }
 
-    /** The keys of a mention in the order of their strength. */
+    /** The keys of a mention in the order of their strength, without the WP-F identity changes. */
     static List<Key> keys(final Mention m, final String docId, final String host, final String domain) {
+        return keys(m, docId, host, domain, false, false);
+    }
+
+    /**
+     * The keys of a mention in the order of their strength.
+     *
+     * @param productUrl         with the {@code product_url} key of a service
+     * @param providerServiceKey with the {@code service_name} key a provider outside the rules gave ({@link Mention#providerServiceKey})
+     */
+    static List<Key> keys(final Mention m, final String docId, final String host, final String domain, final boolean productUrl,
+            final boolean providerServiceKey) {
         final List<Key> out = new ArrayList<>();
         for (final String scheme : Vocabulary.STRONG_SCHEMES) {
             final String v = m.strongKeys.get(scheme);
@@ -137,7 +157,10 @@ public final class IdentityResolver {
         if (Vocabulary.PLACE.equals(m.type) && m.placeKey != null) {
             out.add(new Key(Vocabulary.PLACE_NAME, m.type, Normalizers.clip(m.placeKey, 300)));
         }
-        if (Vocabulary.SERVICE.equals(m.type) && m.serviceKey != null && domain != null) {
+        if (productUrl && Vocabulary.SERVICE.equals(m.type) && m.productUrl != null && domain != null) {
+            out.add(new Key(Vocabulary.PRODUCT_URL, m.type + "@" + domain, Normalizers.clip(m.productUrl, 500)));
+        }
+        if (Vocabulary.SERVICE.equals(m.type) && m.serviceKey != null && domain != null && (providerServiceKey || !m.providerServiceKey)) {
             out.add(new Key(Vocabulary.SERVICE_NAME, m.type + "@" + domain, Normalizers.clip(m.serviceKey, 500)));
         }
         if (Vocabulary.JOB.equals(m.type) && m.jobKey != null && domain != null) {
@@ -157,7 +180,7 @@ public final class IdentityResolver {
      */
     public long resolve(final Connection tx, final Mention m, final String docId, final String host, final String domain,
             final Aggregates agg) throws SQLException {
-        final List<Key> keys = keys(m, docId, host, domain);
+        final List<Key> keys = keys(m, docId, host, domain, this.productUrl, this.providerServiceKey);
         final Map<Key, Long> found = new LinkedHashMap<>();
         for (final Key k : keys) {
             // an operator name looks for the declared operator only, never for another holder of the name
@@ -171,8 +194,14 @@ public final class IdentityResolver {
         }
         // the first candidate that does not contradict the mention is the primary
         Long primary = null;
-        for (final Long ent : found.values()) {
+        for (final Map.Entry<Key, Long> f : found.entrySet()) {
+            final Long ent = f.getValue();
             if (primary != null && primary.equals(ent)) {
+                continue;
+            }
+            if (Vocabulary.PRODUCT_URL.equals(f.getKey().scheme) && !sameName(tx, ent, m)) {
+                // a page address alone never joins two names: a list page or a reused address would merge different products
+                conflict(tx, agg, ent, null, m, "product page of another name");
                 continue;
             }
             if (!compatible(tx, ent, m, keys)) {
@@ -341,6 +370,27 @@ public final class IdentityResolver {
         return kind == null || m.subkind == null || kind.equals(m.subkind);
     }
 
+    /** True if the entity has a name or alias of the mention's name ({@link Normalizers#key}); false without names. */
+    private boolean sameName(final Connection tx, final long ent, final Mention m) throws SQLException {
+        final String key = Normalizers.key(m.name);
+        if (key == null) {
+            return false;
+        }
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred IN (?, ?) AND obj_val IS NOT NULL")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.predicate(Vocabulary.NAME));
+            ps.setInt(3, this.terms.predicate(Vocabulary.ALIAS));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    if (key.equals(Normalizers.key(rs.getString(1)))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     /** Two entities may merge if none of their discriminators conflict. */
     private boolean mergeable(final Connection tx, final long a, final long b) throws SQLException {
         if (!Objects.equals(type(tx, a), type(tx, b))) {
@@ -450,7 +500,8 @@ public final class IdentityResolver {
                 }
                 if (Vocabulary.STRONG_SCHEMES.contains(k.scheme) || Vocabulary.LD_ID.equals(k.scheme)
                         || Vocabulary.FACILITY_ADDRESS.equals(k.scheme) || Vocabulary.JOB_POSTING.equals(k.scheme)
-                        || Vocabulary.PLACE_NAME.equals(k.scheme) || Vocabulary.SERVICE_NAME.equals(k.scheme)) {
+                        || Vocabulary.PLACE_NAME.equals(k.scheme) || Vocabulary.SERVICE_NAME.equals(k.scheme)
+                        || Vocabulary.PRODUCT_URL.equals(k.scheme)) {
                     final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
                     if (existing != null && !existing.contains(k.value)) {
                         continue; // a second value of a discriminating scheme is never attached
