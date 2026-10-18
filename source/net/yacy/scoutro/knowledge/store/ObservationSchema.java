@@ -13,7 +13,7 @@ package net.yacy.scoutro.knowledge.store;
 final class ObservationSchema {
     private ObservationSchema() { }
 
-    private static final String RELEVANT = "(p.name IN ('system_signal','business_need_signal','business_role_evidence','job_status')"
+    private static final String RELEVANT = "(p.name IN ('system_signal','business_need_signal','business_role_evidence','job_status','website_technology')"
             + " OR (t.name = 'job' AND p.name IN ('name','hiring_organization','job_location','date_posted','valid_through',"
             + "'employment_type','occupational_field','start_date','advertised_by','recruiting_organization','deployment_organization'))"
             + " OR (t.name = 'service' AND p.name IN ('name','category','description')) OR p.name IN ('offers','price','monetary_amount')"
@@ -66,7 +66,9 @@ final class ObservationSchema {
                 + " JOIN kg_vocab t ON t.term_id=en.type JOIN kg_vocab p ON p.term_id=s.pred"
                 + " JOIN kg_extractor x ON x.ext_id=e.ext_id WHERE " + RELEVANT + " AND (" + condition + ")"
                 + " AND NOT EXISTS(SELECT 1 FROM kg_observation saved WHERE saved.source_id=d.doc_id"
-                + " AND saved.content_revision=coalesce(e.source_revision,'legacy-unknown') AND (saved.subject_id=en.public_id"
+                // a website technology is archived when it changes, not again with every load of the same markup (R5)
+                + " AND (saved.content_revision=coalesce(e.source_revision,'legacy-unknown') OR p.name='website_technology')"
+                + " AND (saved.subject_id=en.public_id"
                 + " OR EXISTS(SELECT 1 FROM kg_entity_redirect er WHERE er.public_id=saved.subject_id AND er.target_rowid=s.subj)"
                 + " OR EXISTS(SELECT 1 FROM kg_entity old WHERE old.public_id=saved.subject_id AND old.merged_into=s.subj))"
                 + " AND saved.predicate=p.name AND saved.value=coalesce(s.obj_val,(SELECT public_id FROM kg_entity WHERE ent_rowid=s.obj_ent),'')"
@@ -189,6 +191,24 @@ final class ObservationSchema {
             + "UPDATE kg_observation SET source_status='removed' WHERE source_id=OLD.doc_id AND source_status<>'removed'; END",
         capture("p.name IN ('price','monetary_amount')")
     };
+
+    /**
+     * Schema 9 (Scoutro R5): website technologies become archived observations, so a plugin that a later crawl no longer
+     * finds stays in the history (as not observed again, never as uninstalled). The capture triggers are created again
+     * with the wider rule; the matching triggers no longer react to technology observations (the matching never reads
+     * them). The backfill is bounded to the new predicate, which no graph holds before this version.
+     */
+    static final String[] TECHNOLOGY_V9 = technologyV9();
+
+    private static String[] technologyV9() {
+        final java.util.List<String> s = new java.util.ArrayList<>();
+        for (int i = 0; i < PRICES_V8.length - 1; i++) {
+            s.add(PRICES_V8[i]); // the five capture triggers, created again with the current rule
+        }
+        s.addAll(MatchingSchema.withoutTechnology());
+        s.add(capture("p.name='website_technology'"));
+        return s.toArray(new String[0]);
+    }
 
     private static String scopeEvent(final String operation, final String row) {
         return "CREATE TRIGGER kg_observation_scope_" + operation.toLowerCase(java.util.Locale.ROOT)

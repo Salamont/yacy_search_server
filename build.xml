@@ -453,6 +453,27 @@
     </junit>
   </target>
 
+  <target name="scoutro-kg-technology-test" depends="compile" description="website technologies (Scoutro R5): signatures, index field, graph statements, change detection, schema 9 (docs/SCOUTRO_WEBSITE_TECHNOLOGY.md)">
+    <mkdir dir="build/scoutro-kg-technology-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-technology-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/document/parser/html/EvaluationTest.java"/>
+      <include name="net/yacy/search/schema/WebsiteTechnologyIndexTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/sync/SolrDocTechnologyTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/store/TechnologySchemaTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/WebsiteTechnologyGraphTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/WebsiteTechnologyPipelineTest.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-technology-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.document.parser.html.EvaluationTest"/>
+      <arg value="net.yacy.search.schema.WebsiteTechnologyIndexTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.SolrDocTechnologyTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.TechnologySchemaTest"/>
+      <arg value="net.yacy.scoutro.knowledge.WebsiteTechnologyGraphTest"/>
+      <arg value="net.yacy.scoutro.knowledge.WebsiteTechnologyPipelineTest"/>
+    </java>
+  </target>
   <target name="scoutro-kg-sync-test" depends="compile" description="Sync task termination, long-text extraction, reconcile, queue and lifecycle regressions">
     <mkdir dir="build/scoutro-kg-sync-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-sync-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

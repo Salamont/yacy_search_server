@@ -1536,6 +1536,29 @@ public class ContentScraper extends AbstractScraper implements Scraper {
         return a.toArray(new String[a.size()]);
     }
 
+    /** The evaluation model of website technologies ({@code defaults/parser.tech.properties}, Scoutro R5). */
+    public static final String TECHNOLOGY_MODEL = "tech";
+
+    /**
+     * The website technologies the {@link #TECHNOLOGY_MODEL} found in this page's technical markup, one entry per
+     * technology in decreasing order of matches: {@code id|rule version|element|matches|excerpt} (the first match's
+     * element and at most {@link Evaluation#MAX_LOCATOR} characters of what it matched); empty without the model.
+     */
+    public String[] getTechnologies() {
+        final ClusteredScoreMap<String> scores = this.evaluationScores.getScores(TECHNOLOGY_MODEL);
+        if (scores == null) return new String[0];
+        final String version = Evaluation.modelVersion(TECHNOLOGY_MODEL);
+        final List<String> out = new ArrayList<>();
+        final Iterator<String> i = scores.keys(false);
+        while (i.hasNext()) {
+            final String id = i.next();
+            final String[] at = this.evaluationScores.getLocator(TECHNOLOGY_MODEL, id);
+            out.add(id + "|" + (version == null ? "" : version) + "|" + (at == null ? "" : at[0]) + "|" + scores.get(id) + "|"
+                    + (at == null ? "" : at[1].replace('\n', ' ')));
+        }
+        return out.toArray(new String[out.size()]);
+    }
+
     public Integer[] getEvaluationModelScoreCounts(final String modelName, final String[] a) {
         final ClusteredScoreMap<String> scores = this.evaluationScores.getScores(modelName);
         final Integer[] counter = new Integer[a.length];

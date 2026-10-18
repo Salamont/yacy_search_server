@@ -86,6 +86,10 @@ final class BaseTiers {
         this.metadata.extract(d.publisher, d.coordinates(), ex);
         this.rules.extract(text.get(), d.url, host, d.language, ex, ctx, d.titles, d.outbound);
         net.yacy.scoutro.knowledge.extract.BusinessFacts.industriesFromServices(ex, ctx, 2, this.cfg.extractMaxExcerptChars);
+        if (this.cfg.technologyEnabled) {
+            // after the rules: the subject is the site's operator they found (or the domain's)
+            net.yacy.scoutro.knowledge.extract.WebsiteTechnology.extract(d.technologies, host, ex, this.cfg.extractMaxExcerptChars);
+        }
         return ex;
     }
 

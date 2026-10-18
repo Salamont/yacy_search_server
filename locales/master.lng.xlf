@@ -19069,6 +19069,42 @@
     <trans-unit id="66828b6d" xml:space="preserve" approved="no" translate="yes">
        <source>from a job advertisement</source>
     </trans-unit>
+    <trans-unit id="c19b7a2f" xml:space="preserve" approved="no" translate="yes">
+       <source>Website technologies</source>
+    </trans-unit>
+    <trans-unit id="56539adb" xml:space="preserve" approved="no" translate="yes">
+       <source>Technologies the site's pages integrate, read from their technical markup (generator, scripts, stylesheets, plugin comments). A website observation: no proof of the company's internal software, of an offer or of a customer project. A technology a later crawl no longer finds is not observed again, which is not the same as removed.</source>
+    </trans-unit>
+    <trans-unit id="73fbccc5" xml:space="preserve" approved="no" translate="yes">
+       <source>content management system</source>
+    </trans-unit>
+    <trans-unit id="9ad5ef0a" xml:space="preserve" approved="no" translate="yes">
+       <source>page builder</source>
+    </trans-unit>
+    <trans-unit id="9acd4876" xml:space="preserve" approved="no" translate="yes">
+       <source>SEO plugin</source>
+    </trans-unit>
+    <trans-unit id="ef7752c9" xml:space="preserve" approved="no" translate="yes">
+       <source>cache and performance</source>
+    </trans-unit>
+    <trans-unit id="01eb2c89" xml:space="preserve" approved="no" translate="yes">
+       <source>tag management</source>
+    </trans-unit>
+    <trans-unit id="0bcf71ba" xml:space="preserve" approved="no" translate="yes">
+       <source>web analytics</source>
+    </trans-unit>
+    <trans-unit id="6d3eef51" xml:space="preserve" approved="no" translate="yes">
+       <source>marketing automation</source>
+    </trans-unit>
+    <trans-unit id="dcb617a0" xml:space="preserve" approved="no" translate="yes">
+       <source>version %1 (%2)</source>
+    </trans-unit>
+    <trans-unit id="805799ac" xml:space="preserve" approved="no" translate="yes">
+       <source>generator meta tag</source>
+    </trans-unit>
+    <trans-unit id="675c911e" xml:space="preserve" approved="no" translate="yes">
+       <source>the product's HTML comment</source>
+    </trans-unit>
     <trans-unit id="5e35f599" xml:space="preserve" approved="no" translate="yes">
        <source>from a reference page</source>
     </trans-unit>

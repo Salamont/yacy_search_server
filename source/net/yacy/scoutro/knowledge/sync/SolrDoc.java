@@ -61,6 +61,8 @@ public final class SolrDoc {
     public static final String SIZE = "size_i";
     /** Outbound links without the protocol ({@code host/path}); the registrable domains feed the weak relation linked_to. */
     public static final String OUTBOUND = "outboundlinks_urlstub_sxt";
+    /** Website technologies of the page's technical markup (Scoutro R5): {@code id|rule version|element|matches|excerpt}. */
+    public static final String TECHNOLOGY = "website_technology_sxt";
     /** Outbound links a document keeps at most (distinct registrable domains). */
     public static final int MAX_LINK_DOMAINS = 50;
 
@@ -69,7 +71,7 @@ public final class SolrDoc {
 
     /** Fields of a real-time get for processing (the text is read separately, for tier 2 candidates only). */
     public static final List<String> PROCESS_FIELDS = List.of(ID, VERSION, SKU, HOST, HOST_ID, HTTPSTATUS, FAILTYPE, SIGNATURE,
-            COLLECTIONS, LANGUAGE, LOAD_DATE, LD_JSON, TITLE, DESCRIPTION, PUBLISHER, COORDINATE, OUTBOUND, SIZE);
+            COLLECTIONS, LANGUAGE, LOAD_DATE, LD_JSON, TITLE, DESCRIPTION, PUBLISHER, COORDINATE, OUTBOUND, SIZE, TECHNOLOGY);
 
     /** The extractor versions of schema 3 (package 5): a document the LLM tier read under them has the same content. */
     static final String EXTRACTORS_V1 = "jsonld/2,metadata/1,rule/2";
@@ -126,6 +128,8 @@ public final class SolrDoc {
     public List<String> outbound = Collections.emptyList();
     /** {@link #SIZE}; null if Solr has none. */
     public Integer htmlBytes;
+    /** {@link #TECHNOLOGY}; empty if Solr has none. */
+    public List<String> technologies = Collections.emptyList();
 
     /** Reads a Solr document given as a field map (SolrDocument implements {@code Map<String, Object>}). */
     public static SolrDoc of(final Map<String, Object> d) {
@@ -157,6 +161,7 @@ public final class SolrDoc {
         s.outbound = strings(d.get(OUTBOUND));
         final Object size = d.get(SIZE);
         s.htmlBytes = size instanceof Number ? ((Number) size).intValue() : null;
+        s.technologies = strings(d.get(TECHNOLOGY));
         return s;
     }
 
@@ -280,6 +285,10 @@ public final class SolrDoc {
         if (job != null) {
             update(md, job);
         }
+        final String technology = technologyComponent(jobs);
+        if (technology != null) {
+            update(md, technology);
+        }
         return Arrays.copyOf(md.digest(), 16);
     }
 
@@ -296,6 +305,31 @@ public final class SolrDoc {
         final List<String> followed = followed(cfg);
         final boolean objects = cfg.jobsFor(followed), hints = cfg.jobSignalsFor(followed);
         return objects == hints ? null : objects ? "jobs:objects" : "jobs:signals";
+    }
+
+    /**
+     * The website technologies in the input hash (Scoutro R5), only where a page has some and the graph reads them: a
+     * changed script or plugin is a new reading even with the same text, a page without technologies keeps its hash (no
+     * re-extraction at the upgrade), and a new catalog version reads exactly the pages with technologies again. The
+     * match counts are left out (they change nothing the graph keeps); not part of {@link #contentHash()}, so the LLM tier
+     * never reads a page again for its markup.
+     */
+    String technologyComponent(final KgConfig cfg) {
+        if (this.technologies.isEmpty() || (cfg != null && !cfg.technologyEnabled)) {
+            return null;
+        }
+        final List<String> parts = new java.util.ArrayList<>();
+        for (final String t : this.technologies) {
+            final net.yacy.scoutro.knowledge.extract.WebsiteTechnology.Found f = net.yacy.scoutro.knowledge.extract.WebsiteTechnology.Found.parse(t);
+            if (f != null) {
+                parts.add(f.id + "|" + f.ruleVersion + "|" + f.element + "|" + f.excerpt);
+            }
+        }
+        if (parts.isEmpty()) {
+            return null;
+        }
+        java.util.Collections.sort(parts);
+        return "technology:" + net.yacy.scoutro.knowledge.extract.WebsiteTechnology.VERSION + "\u0004" + String.join("\u0004", parts);
     }
 
     /** A page that may hold job advertisements: a careers page by its address or title, or JSON-LD that names a JobPosting. */

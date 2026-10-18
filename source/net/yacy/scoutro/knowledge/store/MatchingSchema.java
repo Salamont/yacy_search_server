@@ -74,6 +74,21 @@ final class MatchingSchema {
         for(String sql:ObservationSchema.DDL)if(sql.startsWith("CREATE TRIGGER kg_observation_feed "))return sql;
         throw new IllegalStateException("observation feed trigger missing");
     }
+    /**
+     * Schema 9 (Scoutro R5): the two observation triggers of the matching, created again so that a website technology
+     * observation touches no contribution (the matching reads only system and need signals and service areas).
+     */
+    static java.util.List<String> withoutTechnology() {
+        return java.util.List.of("DROP TRIGGER kg_match_observation_state",
+            "CREATE TRIGGER kg_match_observation_state AFTER UPDATE OF assertion_status,organization_id,source_status ON kg_observation"
+                +" WHEN NEW.predicate<>'website_technology' BEGIN "
+                + touch("m.public_id IN(SELECT contribution_id FROM kg_match_ref WHERE observation_id=NEW.public_id)"
+                +" OR m.candidate_id IN(OLD.organization_id,NEW.organization_id) OR m.provider_id IN(OLD.organization_id,NEW.organization_id)")+" END",
+            "DROP TRIGGER kg_match_observation_insert",
+            "CREATE TRIGGER kg_match_observation_insert AFTER INSERT ON kg_observation WHEN NEW.predicate<>'website_technology' BEGIN "
+                + touch("m.candidate_id=NEW.organization_id OR m.provider_id=NEW.organization_id")+" END");
+    }
+
     private static String scopeTrigger(String operation,String row) {
         return "CREATE TRIGGER kg_match_scope_"+operation.toLowerCase(java.util.Locale.ROOT)+" AFTER "+operation+" ON kg_observation_scope BEGIN "
             +touch("m.public_id IN(SELECT r.contribution_id FROM kg_match_ref r JOIN kg_observation o ON o.public_id=r.observation_id"

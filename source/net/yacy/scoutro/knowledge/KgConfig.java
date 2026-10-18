@@ -59,6 +59,8 @@ public final class KgConfig {
     public static final String READ_MAX_TRANSACTION_MILLIS = "scoutro.kg.read.maxTransactionMillis";
     public static final String INTEGRITY_MAX_MILLIS = "scoutro.kg.integrity.maxMillis";
     public static final String JSONLD_ENABLED = "scoutro.kg.jsonld.enabled";
+    /** Read the index field website_technology_sxt into website_technology statements (Scoutro R5); default on. */
+    public static final String TECHNOLOGY_ENABLED = "scoutro.kg.technology.enabled";
     public static final String JSONLD_MAX_BYTES_PER_DOC = "scoutro.kg.jsonld.maxBytesPerDoc";
     public static final String JSONLD_MAX_BLOCKS_PER_DOC = "scoutro.kg.jsonld.maxBlocksPerDoc";
     public static final String JSONLD_MAX_TOTAL_BYTES = "scoutro.kg.jsonld.maxTotalBytes";
@@ -203,6 +205,7 @@ public final class KgConfig {
     /** Deadline of the integrity check (quick_check) after an unclean shutdown. */
     public final long integrityMaxMillis;
     public final boolean jsonldEnabled;
+    public final boolean technologyEnabled;
     public final long jsonldMaxBytesPerDoc;
     public final int jsonldMaxBlocksPerDoc;
     public final long jsonldMaxTotalBytes;
@@ -327,6 +330,7 @@ public final class KgConfig {
         this.readMaxTransactionMillis = p.longValue(READ_MAX_TRANSACTION_MILLIS, 5000, 100, 60000);
         this.integrityMaxMillis = p.longValue(INTEGRITY_MAX_MILLIS, 120_000, 100, 3_600_000);
         this.jsonldEnabled = p.bool(JSONLD_ENABLED, false);
+        this.technologyEnabled = p.bool(TECHNOLOGY_ENABLED, true);
         this.jsonldMaxBytesPerDoc = p.longValue(JSONLD_MAX_BYTES_PER_DOC, 16 * KIB, KIB, 64 * KIB);
         this.jsonldMaxBlocksPerDoc = (int) p.longValue(JSONLD_MAX_BLOCKS_PER_DOC, 8, 1, 32);
         this.jsonldMaxTotalBytes = p.longValue(JSONLD_MAX_TOTAL_BYTES, 2 * GIB, MIB, 16 * TIB);

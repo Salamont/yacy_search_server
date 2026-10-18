@@ -894,6 +894,7 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
 
             // generic evaluation pattern
             for (final String model: html.getEvaluationModelNames()) {
+                if (ContentScraper.TECHNOLOGY_MODEL.equals(model)) continue; // its own field below
                 if (allAttr || this.contains("ext_" + model + "_txt")) {
                     final String[] scorenames = html.getEvaluationModelScoreNames(model);
                     if (scorenames.length > 0) {
@@ -901,6 +902,12 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
                         this.add(doc, CollectionSchema.valueOf("ext_" + model + "_val"), html.getEvaluationModelScoreCounts(model, scorenames));
                     }
                 }
+            }
+
+            // website technologies (Scoutro R5): technical markers with the rule version and where they were found
+            if (allAttr || this.contains(CollectionSchema.website_technology_sxt)) {
+                final String[] technologies = html.getTechnologies();
+                if (technologies.length > 0) this.add(doc, CollectionSchema.website_technology_sxt, technologies);
             }
 
             // response time

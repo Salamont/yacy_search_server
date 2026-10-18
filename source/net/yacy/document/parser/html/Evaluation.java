@@ -25,10 +25,14 @@
 package net.yacy.document.parser.html;
 
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -55,10 +59,18 @@ import net.yacy.kelondro.util.MemoryControl;
  * starts with the word "parser." and must end with ".properties"
  * everything between this is a name for a solr multi-value field where
  * the collected subject names are stored to
+ * <p>
+ * A file may name its rule version with the key {@code version} (no element); every
+ * match remembers the first content it matched per subject (the element and the
+ * matched value), so a result can say where a subject was found. A later file of
+ * the same name replaces an earlier one (DATA/SETTINGS overrides defaults).
  */
 public class Evaluation {
 
-    private static List<Model> models = new ArrayList<Model>(); // the list of all models that shall be applied
+    private static final List<Model> models = new java.util.concurrent.CopyOnWriteArrayList<Model>(); // the list of all models that shall be applied
+
+    /** The longest matched content a locator keeps (characters). */
+    public static final int MAX_LOCATOR = 240;
 
     public static enum Element {
         text,
@@ -94,6 +106,7 @@ public class Evaluation {
     private static class Model {
 
         private final String modelName;
+        private final String version; // the rule version a file names with the key "version", or null
         private final Map<Element, List<Attribute>> elementMatcher; // a mapping from element-names to lists of Attributes
 
         public Model(final File patternProperties) throws IOException {
@@ -106,7 +119,11 @@ public class Evaluation {
 
             // load the file
             final Properties p = new Properties();
-            p.load(new FileReader(patternProperties));
+            try (Reader r = new InputStreamReader(new FileInputStream(patternProperties), StandardCharsets.UTF_8)) {
+                p.load(r);
+            }
+            final String v0 = p.getProperty("version");
+            this.version = v0 == null || v0.trim().isEmpty() ? null : v0.trim();
 
             // iterate through the properties and generate method patterns
             this.elementMatcher = new HashMap<Element, List<Attribute>>();
@@ -116,6 +133,7 @@ public class Evaluation {
             for (final Map.Entry<Object, Object> entry: p.entrySet()) {
                 final String k = (String) entry.getKey();
                 final String v = (String) entry.getValue();
+                if ("version".equals(k)) continue;
                 final int w = k.indexOf('_');
                 if (w < 0) {
                     ConcurrentLog.severe("PatternAnalysis", "wrong configuration in " + name + ": separator '_' missing: " + k);
@@ -129,8 +147,9 @@ public class Evaluation {
                     ConcurrentLog.severe("PatternAnalysis", "bad pattern in " + name + ": '" + k + "=" + v + "' - " + e.getDescription());
                     continue;
                 }
-                element = Element.valueOf(elementName);
-                if (element == null) {
+                try {
+                    element = Element.valueOf(elementName);
+                } catch (final IllegalArgumentException e) {
                     ConcurrentLog.severe("PatternAnalysis", "unknown element in " + name + ": " + elementName);
                     continue;
                 }
@@ -147,6 +166,10 @@ public class Evaluation {
             return this.modelName;
         }
 
+        public String getVersion() {
+            return this.version;
+        }
+
         /**
          * match elementContents for a specific elementName
          * @param element - the name of the element as Element enum type
@@ -154,12 +177,32 @@ public class Evaluation {
          * @return a list of subject names that match with the element
          */
         public ClusteredScoreMap<String> match(final Element element, final CharSequence content) {
+            return match(element, content, null);
+        }
+
+        /**
+         * As {@link #match(Element, CharSequence)}; with {@code starts}, also where in the content each subject's pattern
+         * matched: the start of its named group {@code at} if the pattern has one, else 0.
+         */
+        ClusteredScoreMap<String> match(final Element element, final CharSequence content, final Map<String, Integer> starts) {
             final ClusteredScoreMap<String> subjects = new ClusteredScoreMap<String>(false);
             final List<Attribute> patterns = this.elementMatcher.get(element);
             if (patterns == null) return subjects;
             for (final Attribute attribute: patterns) {
-                if (attribute.pattern.matcher(content).matches()) {
+                final java.util.regex.Matcher m = attribute.pattern.matcher(content);
+                if (m.matches()) {
                     subjects.inc(attribute.subject);
+                    if (starts != null && !starts.containsKey(attribute.subject)) {
+                        int at = 0;
+                        if (attribute.pattern.pattern().contains("(?<at>")) {
+                            try {
+                                at = Math.max(0, m.start("at"));
+                            } catch (final IllegalArgumentException e) {
+                                at = 0;
+                            }
+                        }
+                        starts.put(attribute.subject, at);
+                    }
                 }
             }
             return subjects;
@@ -173,9 +216,11 @@ public class Evaluation {
     }
 
     private final Map<String, ClusteredScoreMap<String>> modelMap; // a map from model names to attribute scores
+    private final Map<String, Map<String, String[]>> locators; // model name -> subject -> {element, first matched content}
 
     public Evaluation() {
         this.modelMap = new HashMap<String, ClusteredScoreMap<String>>();
+        this.locators = new HashMap<String, Map<String, String[]>>();
     }
 
     @Override
@@ -208,7 +253,34 @@ public class Evaluation {
      */
     public static void add(final File f) throws IOException {
         final Model pattern = new Model(f);
+        for (final Model m : models) {
+            if (m.getName().equals(pattern.getName())) models.remove(m);
+        }
         models.add(pattern);
+    }
+
+    /** Removes a loaded model (tests). */
+    static void remove(final String modelName) {
+        for (final Model m : models) {
+            if (m.getName().equals(modelName)) models.remove(m);
+        }
+    }
+
+    /** The rule version a loaded model's file names, or null (no such model, or no version). */
+    public static String modelVersion(final String modelName) {
+        for (final Model m : models) {
+            if (m.getName().equals(modelName)) return m.getVersion();
+        }
+        return null;
+    }
+
+    /**
+     * Where a subject of a model was found first: {element name, matched content (at most {@link #MAX_LOCATOR}
+     * characters)}; null if it was not found.
+     */
+    public String[] getLocator(final String modelName, final String subject) {
+        final Map<String, String[]> m = this.locators.get(modelName);
+        return m == null ? null : m.get(subject);
     }
 
     /**
@@ -221,14 +293,36 @@ public class Evaluation {
         if (models.isEmpty()) return; // fast return if this feature is not used
         ClusteredScoreMap<String> newScores, oldScores;
         for (final Model pattern: models) {
-            newScores = pattern.match(element, content);
+            final Map<String, Integer> starts = new HashMap<String, Integer>();
+            newScores = pattern.match(element, content, starts);
             oldScores = getScores(pattern.getName());
             if (oldScores == null) {
                 oldScores = new ClusteredScoreMap<String>(false);
                 this.modelMap.put(pattern.getName(), oldScores);
             }
             oldScores.inc(newScores);
+            if (!newScores.isEmpty()) {
+                Map<String, String[]> first = this.locators.get(pattern.getName());
+                if (first == null) {
+                    first = new LinkedHashMap<String, String[]>();
+                    this.locators.put(pattern.getName(), first);
+                }
+                final java.util.Iterator<String> subjects = newScores.keys(false);
+                while (subjects.hasNext()) {
+                    final String subject = subjects.next();
+                    if (!first.containsKey(subject)) {
+                        first.put(subject, new String[] {element.name(), window(content, starts.getOrDefault(subject, 0))});
+                    }
+                }
+            }
         }
+    }
+
+    /** At most {@link #MAX_LOCATOR} characters of the content from shortly before {@code at}, whitespace collapsed. */
+    static String window(final CharSequence content, final int at) {
+        final int from = Math.max(0, Math.min(content.length(), at) - 40);
+        final int to = Math.min(content.length(), from + MAX_LOCATOR);
+        return content.subSequence(from, to).toString().replaceAll("\\s+", " ").trim();
     }
 
     public void match(final Element element, final char[] content) {
