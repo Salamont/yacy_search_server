@@ -12,7 +12,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   `brand` is `has_brand`; a priced product without seller is the declared operator's own offer (confidence 0.6).
   Outside services and prices pages a category needs an offer cue, otherwise it is a `topic`. Prices and amounts are
   archived observations; an identity merge keeps the evidence's source revision. The new versions re-read tiers 1
-  and 2 once (no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
+  and 2 once (no model). The business view shows the amounts that are no price with their role (`amounts`). Two
+  identity changes are switched, **off by default**: `scoutro.kg.identity.productUrl` (a service joins the one with
+  the same own product page and the same name) and `scoutro.kg.identity.providerServiceKey` (the service of a
+  provider named by JSON-LD `provider` or the LLM tier joins that provider's service); switched on, every page is
+  read again once with the rules. `POST /v1/kg/identity-preview` shows their effect on one domain in a rolled-back
+  transaction (nothing written, no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
 
 - Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
   administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally
