@@ -627,6 +627,8 @@
       <arg value="net.yacy.scoutro.knowledge.read.KgReaderTest"/>
       <arg value="net.yacy.scoutro.knowledge.read.BusinessViewTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.BusinessExtractionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.ExtractionSemanticsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.PriceSemanticsTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.KnowledgePromptTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorInvalidReasonTest"/>

@@ -43,7 +43,7 @@ import java.util.TreeSet;
  */
 public final class Vocabulary {
 
-    public static final String VERSION = "3";
+    public static final String VERSION = "4";
 
     // entity types (kg_vocab kind 1)
     public static final String ORGANIZATION = "organization";
@@ -83,6 +83,22 @@ public final class Vocabulary {
     public static final String DESCRIPTION = "description";
     /** A published price ({@link #T_JSON}): amount or range, currency, unit, kind, conditions; never estimated. */
     public static final String PRICE = "price";
+
+    // version 4 (data quality programme WP-F): money by meaning, product roles, topics
+    /**
+     * An amount that is no offer price ({@link #T_JSON} like {@link #PRICE}, plus {@code role}: {@code statutory_benefit},
+     * {@code donation}, {@code subsidy} or {@code unknown} when the source does not make clear what it is).
+     */
+    public static final String MONETARY_AMOUNT = "monetary_amount";
+    /** "A manufacturer_of B": organisation A makes product B; a manufacturer is never a provider of it by itself. */
+    public static final String MANUFACTURER_OF = "manufacturer_of";
+    /** "A has_brand B": product or service A carries brand B. */
+    public static final String HAS_BRAND = "has_brand";
+    /**
+     * A service category the page names without offering it (the rule tier without an offer cue): a topic of the
+     * organisation, no service, no {@code offers}, no derived industry ({@link #T_CODE}, a category id).
+     */
+    public static final String TOPIC = "topic";
 
     // version 2: relations between organisations (D), all directed as stated by the source
     public static final String PARENT_OF = "parent_of";
@@ -182,6 +198,12 @@ public final class Vocabulary {
      * operator on the prices page and on the services page is one service (so two prices of it can conflict).
      */
     public static final String SERVICE_NAME = "service_name";
+    /**
+     * A product or service by the canonical address of its own page within the registrable domain (WP-F): the product on
+     * the home page and on its product page is one product. A discriminator like every key: a service with another product
+     * page is another service; joins only services of the same name.
+     */
+    public static final String PRODUCT_URL = "product_url";
 
     // literal datatypes
     public static final String T_STRING = "string";
@@ -203,7 +225,7 @@ public final class Vocabulary {
     public static final Set<String> STRONG_SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK);
 
     public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, OPERATOR_NAME, FACILITY_ADDRESS,
-            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME);
+            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL);
 
     /** Relations between organisations (version 2, part D). */
     public static final Set<String> BUSINESS_RELATIONS = set(PARENT_OF, SUBSIDIARY_OF, CARRIER_OF, MEMBER_OF, ASSOCIATION_MEMBER,
@@ -301,6 +323,11 @@ public final class Vocabulary {
         literal(p, SERVICE_AREA, false, T_JSON);
         relation(p, SERVES_PLACE);
         literal(p, NEED, false, T_STRING);
+        // version 4
+        literal(p, MONETARY_AMOUNT, false, T_JSON);
+        relation(p, MANUFACTURER_OF);
+        relation(p, HAS_BRAND);
+        literal(p, TOPIC, false, T_CODE);
         PREDICATES = Collections.unmodifiableMap(p);
         final Map<String, String> ids = new LinkedHashMap<>();
         ids.put(REGISTER, ID_REGISTER);

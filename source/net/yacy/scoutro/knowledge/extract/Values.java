@@ -630,6 +630,27 @@ public final class Values {
     }
 
     /** The last day a stored date covers ({@code 2026-03} -> 2026-03-31, {@code 2026} -> 2026-12-31); null if unreadable. */
+    /** The first day a date of 10, 7 or 4 characters stands for (a price valid from it); null if unreadable (WP-F). */
+    public static LocalDate firstDay(final String date) {
+        if (date == null) {
+            return null;
+        }
+        try {
+            switch (date.length()) {
+                case 10:
+                    return LocalDate.parse(date);
+                case 7:
+                    return LocalDate.parse(date + "-01");
+                case 4:
+                    return LocalDate.of(Integer.parseInt(date), 1, 1);
+                default:
+                    return null;
+            }
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
     public static LocalDate lastDay(final String date) {
         if (date == null) {
             return null;

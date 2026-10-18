@@ -60,7 +60,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class JsonLdExtractor {
 
     public static final String NAME = "jsonld";
-    public static final String VERSION = "5";
+    public static final String VERSION = "6"; // 6: money roles, product roles, own-shop offers (WP-F)
 
     private final int maxExcerpt;
 
@@ -83,6 +83,8 @@ public final class JsonLdExtractor {
         final Map<String, String> refById = new HashMap<>();
         /** The names of the organisations and sites the blocks describe, and of the site's domain, as keys: no position title. */
         final Set<String> names = new HashSet<>();
+        /** Products and services a seller of the page offers (WP-F): no own-shop offer of the operator. */
+        final Set<String> sold = new HashSet<>();
 
         Run(final String pageUrl, final String host, final String language, final Extraction out, final ExtractContext ctx) {
             this.pageUrl = pageUrl;
@@ -127,8 +129,28 @@ public final class JsonLdExtractor {
                 top(run, root, "jsonld:" + i);
             }
         }
+        ownOffers(run);
+        uniqueProductUrls(out);
         BusinessFacts.ownPlaces(out, host, 1);
         out.ranTier(1);
+    }
+
+    /**
+     * A product page names one product (WP-F): a page address that several services of this page declare (a list page, the
+     * page itself) is no product page and no {@code product_url} key of any of them.
+     */
+    static void uniqueProductUrls(final Extraction out) {
+        final Map<String, Integer> seen = new HashMap<>();
+        for (final Mention m : out.mentions()) {
+            if (m.productUrl != null) {
+                seen.merge(m.productUrl, 1, Integer::sum);
+            }
+        }
+        for (final Mention m : out.mentions()) {
+            if (m.productUrl != null && seen.get(m.productUrl) > 1) {
+                m.productUrl = null;
+            }
+        }
     }
 
     /** Collects nodes with an {@code @id}, so that bare references can be followed. */
@@ -504,6 +526,9 @@ public final class JsonLdExtractor {
         }
         for (final String u : strings(o.opt("url"))) {
             literal(run, m, Vocabulary.WEBSITE, Normalizers.url(absolute(run, u)), p + "/url", "url: " + u);
+            if (Vocabulary.SERVICE.equals(m.type) && m.productUrl == null) {
+                m.productUrl = Normalizers.productUrl(absolute(run, u), run.domain); // WP-F: its own page, if it is on this site
+            }
         }
         for (final String h : strings(o.opt("openingHours"))) {
             literal(run, m, Vocabulary.OPENING_HOURS, Normalizers.clip(h, 200), p + "/openingHours", "openingHours: " + h);
@@ -653,6 +678,11 @@ public final class JsonLdExtractor {
                 final Mention pm = provider == null ? null : run.out.mention(provider);
                 if (pm != null && (Vocabulary.ORGANIZATION.equals(pm.type) || Vocabulary.FACILITY.equals(pm.type))) {
                     relation(run, provider, Vocabulary.OFFERS, m.ref, p + "/provider");
+                    if (m.serviceKey == null && m.name != null && Mention.providerKey(pm) != null) {
+                        // WP-F: the service of its declared provider, as an offer of the provider is (identity change, switched)
+                        m.serviceKey = serviceKey(run.ctx, Mention.providerKey(pm), m.name);
+                        m.providerServiceKey = true;
+                    }
                 }
             }
         }
@@ -669,18 +699,27 @@ public final class JsonLdExtractor {
         if (sm != null && Vocabulary.SERVICE.equals(sm.type) && sm.name != null) {
             relation(run, m.ref, Vocabulary.OFFERS, ref, p);
             final String provider = Mention.providerKey(m);
-            if (sm.serviceKey == null && provider != null) {
+            if ((sm.serviceKey == null || sm.providerServiceKey) && provider != null) {
                 // the same service of the same provider on another page of the site is the same service
-                final java.util.List<net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry>> cat
-                        = BusinessFacts.categories(run.ctx, sm.name, 0, sm.name.length());
-                sm.serviceKey = provider + "|" + (cat.size() == 1 && Normalizers.key(sm.name).equals(Normalizers.key(cat.get(0).entry.de))
-                        ? cat.get(0).entry.id : "label:" + Normalizers.key(sm.name));
+                sm.serviceKey = serviceKey(run.ctx, provider, sm.name);
+                sm.providerServiceKey = false;
             }
             if (item instanceof JSONObject) {
                 prices(run, sm, offer, p); // the offer's price is the service's price
             }
             audience(run, sm, offer, p);
         }
+    }
+
+    /**
+     * The {@code service_name} key of a service of {@code provider} ({@link Mention#providerKey}): its category if its name is
+     * the category's name, else its name.
+     */
+    public static String serviceKey(final ExtractContext ctx, final String provider, final String name) {
+        final java.util.List<net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry>> cat
+                = BusinessFacts.categories(ctx == null ? ExtractContext.none() : ctx, name, 0, name.length());
+        return provider + "|" + (cat.size() == 1 && Normalizers.key(name).equals(Normalizers.key(cat.get(0).entry.de))
+                ? cat.get(0).entry.id : "label:" + Normalizers.key(name));
     }
 
     // ------------------------------------------------------------ vocabulary 2
@@ -727,15 +766,81 @@ public final class JsonLdExtractor {
             if (o.has("price") || o.has("priceSpecification")) {
                 prices(run, m, o, p); // a node that is an Offer itself
             }
-            for (final Object v : values(o.opt("offers"))) {
-                if (v instanceof JSONObject) {
-                    prices(run, m, (JSONObject) v, p + "/offers");
+            final List<Object> productOffers = values(o.opt("offers"));
+            for (int i = 0; i < productOffers.size(); i++) {
+                if (productOffers.get(i) instanceof JSONObject) {
+                    final JSONObject offer = (JSONObject) productOffers.get(i);
+                    final String at = p + "/offers" + (productOffers.size() == 1 ? "" : "/" + i);
+                    prices(run, m, offer, at);
+                    sellers(run, m, offer, at, depth); // WP-F: the seller offers it
                 }
             }
+            sellers(run, m, o, p, depth);
+            // WP-F: the maker and the brand of a product are never its providers
+            organisations(run, m, o.opt("manufacturer"), p + "/manufacturer", depth, Vocabulary.MANUFACTURER_OF, true);
+            organisations(run, m, o.opt("brand"), p + "/brand", depth, Vocabulary.HAS_BRAND, false);
             audience(run, m, o, p);
         }
         if (Vocabulary.JOB.equals(m.type)) {
             job(run, m, o, p, depth);
+        }
+    }
+
+    /** {@code seller} and {@code offeredBy} of an offer (or a node that is an offer): organisations and facilities that offer it. */
+    private void sellers(final Run run, final Mention product, final JSONObject offer, final String p, final int depth) {
+        for (final String key : new String[] {"seller", "offeredBy"}) {
+            final List<Object> items = values(offer.opt(key));
+            for (int i = 0; i < items.size(); i++) {
+                if (!(items.get(i) instanceof JSONObject)) {
+                    continue;
+                }
+                final String at = p + "/" + key + (items.size() == 1 ? "" : "/" + i);
+                final String ref = node(run, (JSONObject) items.get(i), at, depth + 1, Vocabulary.ORGANIZATION);
+                final Mention sm = ref == null ? null : run.out.mention(ref);
+                if (sm != null && sm.name != null && (Vocabulary.ORGANIZATION.equals(sm.type) || Vocabulary.FACILITY.equals(sm.type))) {
+                    relation(run, ref, Vocabulary.OFFERS, product.ref, at);
+                    run.sold.add(product.ref);
+                }
+            }
+        }
+    }
+
+    /**
+     * Own-shop offers (WP-F): a product or service of the page with a price that no organisation offers is offered by the
+     * site's declared operator, if the page declares exactly one, with a lower confidence and that reason as the excerpt.
+     * A manufacturer or a brand never becomes a provider this way (a stated manufacturer does not stop the shop's offer).
+     */
+    private void ownOffers(final Run run) {
+        Mention operator = null;
+        for (final Mention m : run.out.mentions()) {
+            if (m.siteOperator && m.name != null && (Vocabulary.ORGANIZATION.equals(m.type) || Vocabulary.FACILITY.equals(m.type))) {
+                if (operator != null && !operator.ref.equals(m.ref)) {
+                    return; // two operators: whose offer is it?
+                }
+                operator = m;
+            }
+        }
+        if (operator == null) {
+            return;
+        }
+        final java.util.Set<String> offered = new java.util.HashSet<>(), priced = new java.util.LinkedHashSet<>();
+        for (final Claim c : run.out.claims()) {
+            if (c.tier != 1) {
+                continue;
+            }
+            if (Vocabulary.OFFERS.equals(c.predicate) && c.object != null) {
+                offered.add(c.object);
+            } else if (Vocabulary.PRICE.equals(c.predicate)) {
+                priced.add(c.subject);
+            }
+        }
+        for (final String ref : priced) {
+            final Mention sm = run.out.mention(ref);
+            if (offered.contains(ref) || run.sold.contains(ref) || sm == null || !Vocabulary.SERVICE.equals(sm.type) || sm.name == null) {
+                continue;
+            }
+            run.out.add(new Claim(operator.ref, Vocabulary.OFFERS, ref, null, 1, Claim.KIND_JSONLD, false, "jsonld:own_offer",
+                    Normalizers.clip("own offer: " + sm.name + " (priced on the operator's page, no seller stated)", this.maxExcerpt), 0.6));
         }
     }
 
@@ -766,6 +871,10 @@ public final class JsonLdExtractor {
                 : string(offer.opt("validThrough")));
         final String validFrom = Values.date(string(offer.opt("validFrom")));
         final String eligible = customerTypes(offer.opt("eligibleCustomerType"));
+        // WP-F: what the amount is, from the names and descriptions around it (a benefit, a donation, a subsidy is no price)
+        final String context = String.join(" ", java.util.Arrays.asList(service.name, string(offer.opt("name")),
+                string(offer.opt("description")), string(offer.opt("category"))).stream().filter(java.util.Objects::nonNull)
+                .toArray(String[]::new));
         final List<JSONObject> specs = new ArrayList<>();
         for (final Object v : values(offer.opt("priceSpecification"))) {
             if (v instanceof JSONObject) {
@@ -836,18 +945,28 @@ public final class JsonLdExtractor {
                 f.put("conditions", Normalizers.clip(conditions, 140));
             }
             f.put("eligible", eligible);
-            literal(run, service, Vocabulary.PRICE, Values.canonical(f), p + (spec == offer ? "/price" : "/priceSpecification"),
-                    priceExcerpt(spec, currency));
+            final String role = MoneyRoles.role(spec == offer ? context : context + " " + java.util.Objects.toString(string(spec.opt("name")), "")
+                    + " " + java.util.Objects.toString(string(spec.opt("description")), ""));
+            if (role != null) {
+                f.put("role", role);
+            }
+            literal(run, service, role == null ? Vocabulary.PRICE : Vocabulary.MONETARY_AMOUNT, Values.canonical(f),
+                    p + (spec == offer ? "/price" : "/priceSpecification"), priceExcerpt(service, offer, spec, currency));
         }
     }
 
-    private static String priceExcerpt(final JSONObject spec, final String currency) {
+    /** What the source states for a price: the product or service it is for, the amount, its terms and validity (WP-F). */
+    private static String priceExcerpt(final Mention service, final JSONObject offer, final JSONObject spec, final String currency) {
         final StringBuilder sb = new StringBuilder();
+        if (service.name != null) {
+            sb.append("name: ").append(service.name);
+        }
         for (final String k : new String[] {"price", "minPrice", "maxPrice", "lowPrice", "highPrice", "priceCurrency", "unitCode", "unitText",
-            "valueAddedTaxIncluded", "validThrough"}) {
-            final Object v = spec.opt(k);
+            "valueAddedTaxIncluded", "validFrom", "validThrough", "priceValidUntil", "description"}) {
+            final Object v = spec.opt(k) != null ? spec.opt(k) : spec != offer && !"price".equals(k) && !"priceCurrency".equals(k)
+                    && !"description".equals(k) ? offer.opt(k) : null;
             if (v != null && !(v instanceof JSONObject) && !(v instanceof JSONArray)) {
-                sb.append(sb.length() == 0 ? "" : ", ").append(k).append(": ").append(v);
+                sb.append(sb.length() == 0 ? "" : ", ").append(k).append(": ").append(Normalizers.clip(String.valueOf(v), 120));
             }
         }
         if (!spec.has("priceCurrency")) {

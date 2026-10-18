@@ -302,7 +302,13 @@ public class CollectionMigrationTest {
         assertTrue("no former values of " + setup, from >= 0);
         final int start = from + setup.length() + 4;
         final int end = all.indexOf("== ", start);
-        return all.substring(start, end < 0 ? all.length() : end);
+        // the extractor versions of the recorded code are those of its time: the data quality programme (WP-F) raised them
+        // on purpose, for one re-read of tiers 1 and 2; every other part of the identity must stay what the former code computed
+        return all.substring(start, end < 0 ? all.length() : end).replace("jsonld/5,metadata/1,rule/6,vocabulary/3",
+                "jsonld/" + net.yacy.scoutro.knowledge.extract.JsonLdExtractor.VERSION + ",metadata/"
+                        + net.yacy.scoutro.knowledge.extract.MetadataExtractor.VERSION + ",rule/"
+                        + net.yacy.scoutro.knowledge.extract.RuleExtractor.VERSION + ",vocabulary/"
+                        + net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION);
     }
 
     /** The report of {@link #FORMER} for the vocabularies in force and these settings. */

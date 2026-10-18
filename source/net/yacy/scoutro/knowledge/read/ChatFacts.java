@@ -616,8 +616,8 @@ public final class ChatFacts {
         ordered.sort((a, b) -> Boolean.compare("stale".equals(a.optString("status")), "stale".equals(b.optString("status"))));
         for (final org.json.JSONObject p : ordered) {
             final String status = p.optString("status");
-            if ("expired".equals(status)) {
-                continue;
+            if ("expired".equals(status) || "not_yet_valid".equals(status)) {
+                continue; // no longer or not yet a price of the service
             }
             final Long row = row(c, p.optString("statement"));
             if (row == null) {

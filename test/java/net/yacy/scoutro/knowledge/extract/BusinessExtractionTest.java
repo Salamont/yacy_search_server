@@ -336,9 +336,14 @@ public class BusinessExtractionTest {
         final Extraction ex = rules("Willkommen. Jetzt nur 2 € für den Newsletter-Versand. Tagespflege gibt es auch.",
                 "https://www.sonnenschein-pflege.de/", care(false), List.of());
         assertTrue(values(ex, Vocabulary.PRICE).isEmpty());
-        final Mention tages = named(ex, Vocabulary.SERVICE, "Tagespflege");
+        // WP-F: a home page that names a category without an offer cue gives a topic, no service (no offers, no industry)
+        assertNull(named(ex, Vocabulary.SERVICE, "Tagespflege"));
+        assertTrue(values(ex, Vocabulary.TOPIC).contains("care/tagespflege"));
+        // with an offer cue the home page's service keeps its weak confidence
+        final Extraction offered = rules("Willkommen. Wir bieten Tagespflege an.", "https://www.sonnenschein-pflege.de/", care(false), List.of());
+        final Mention tages = named(offered, Vocabulary.SERVICE, "Tagespflege");
         assertNotNull(tages);
-        for (final Claim c : ex.claims()) {
+        for (final Claim c : offered.claims()) {
             if (c.subject.equals(tages.ref)) {
                 assertEquals("a home page alone is a weak signal", 0.5, c.effectiveConfidence(), 1e-9);
             }

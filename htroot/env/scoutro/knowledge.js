@@ -1053,6 +1053,22 @@
     }
     return node('div', null, 'sseo-scroll').appendChild(table).parentNode;
   }
+  // amounts that are no price (WP-F): a statutory benefit, a donation, a subsidy or an amount of unclear role, never a price
+  function amountTable(amounts) {
+    const table = node('table', null, 'table table-striped scoutro-cards skg-amounts');
+    const cols = ['sec_services', 'amt_amount', 'amt_role', 'status', 'sources'];
+    const head = table.createTHead().insertRow(); for (const c of cols) head.append(node('th', t(c)));
+    const body = table.createTBody();
+    for (const a of amounts) {
+      const row = body.insertRow(); row.dataset.role = a.role;
+      const ev = node('span'); ev.append(fmt(a.sources) + ' ', ...evidenceToggle(a.statement));
+      const service = a.service ? link(a.service_name || t('unnamed_service'), { view: 'object', id: a.service }) : node('span', t('amt_general'));
+      const role = t('amt_role_' + a.role) !== 'amt_role_' + a.role ? t('amt_role_' + a.role) : a.role;
+      const cells = [service, money(a.value), role, statusBadge(a.status), ev];
+      cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = t(cols[i]); if (c instanceof Node) td.append(c); else td.textContent = c; });
+    }
+    return node('div', null, 'sseo-scroll').appendChild(table).parentNode;
+  }
   function jobItem(j) {
     const li = node('li', null, 'skg-statement skg-job');
     const head = node('div', null, 'skg-statement-head');
@@ -1072,7 +1088,7 @@
     li.append(dl);
     return li;
   }
-  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'contacts', 'relations', 'jobs', 'systems', 'audiences', 'matches', 'sources', 'facts'];
+  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'audiences', 'matches', 'sources', 'facts'];
   // a software or system mention with its context and source (0.10.2): a requirement is no proof of use, client work is the client's
   function systemItem(x) {
     const head = node('div', null, 'skg-statement-head');
@@ -1105,6 +1121,7 @@
       return li;
     })));
     if (b.prices?.length) box.append(section('prices', priceTable(b.prices)));
+    if (b.amounts?.length) box.append(section('amounts', node('p', t('amt_note'), 'sseo-note'), amountTable(b.amounts)));
     if (b.contacts && Object.keys(b.contacts).length) {
       const items = []; for (const [p, l] of Object.entries(b.contacts)) for (const i of l) items.push([p, i]);
       box.append(section('contacts', list(items, ([p, i]) => literalItem(p, i))));

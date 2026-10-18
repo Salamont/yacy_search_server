@@ -464,6 +464,46 @@ public final class Normalizers {
         }
     }
 
+    /** Query parameters that track a visit and never name a product. */
+    private static final Pattern TRACKING = Pattern.compile("^(?:utm_[a-z_]*|gclid|gbraid|wbraid|fbclid|msclkid|mc_cid|mc_eid|_ga|_gl|srsltid|ref|referrer)$");
+
+    /**
+     * The value of a {@code product_url} identity key (WP-F): the address of a product or service page within the
+     * registrable domain {@code domain}, without scheme, {@code www.}, fragment, tracking parameters and a trailing slash
+     * ({@code shop.example.de/produkt/x?size=2}); null for another domain, the site's root or no address.
+     */
+    public static String productUrl(final String s, final String domain) {
+        final String url = url(s);
+        if (url == null || domain == null) {
+            return null;
+        }
+        final URI u = URI.create(url);
+        String host = u.getHost();
+        if (!domain.equals(registrableDomain(host))) {
+            return null;
+        }
+        if (host.startsWith("www.")) {
+            host = host.substring(4);
+        }
+        String path = u.getRawPath() == null ? "" : u.getRawPath();
+        while (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        final StringBuilder query = new StringBuilder();
+        if (u.getRawQuery() != null) {
+            for (final String p : u.getRawQuery().split("&")) {
+                final String name = (p.indexOf('=') < 0 ? p : p.substring(0, p.indexOf('='))).toLowerCase(Locale.ROOT);
+                if (!p.isEmpty() && !TRACKING.matcher(name).matches()) {
+                    query.append(query.length() == 0 ? "?" : "&").append(p);
+                }
+            }
+        }
+        if (path.isEmpty() && query.length() == 0) {
+            return null; // the home page names the site, not a product
+        }
+        return clip(host + (u.getPort() > 0 ? ":" + u.getPort() : "") + path + query, 500);
+    }
+
     /** "52.520008,13.404954", or null for coordinates out of range or (0,0). */
     public static String geo(final double lat, final double lon) {
         if (Double.isNaN(lat) || Double.isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180 || (lat == 0 && lon == 0)) {

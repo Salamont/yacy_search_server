@@ -6875,6 +6875,32 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >The source's text cannot be read.<==>Der Text der Quelle kann nicht gelesen werden.<
 >The assessment is revoked already.<==>Die Bewertung ist bereits widerrufen.<
 >Check the fields.<==>Bitte die Felder prüfen.<
+>Other amounts<==>Weitere Beträge<
+>Amounts the sources name that are no price of this business: benefits of an insurance, donations, subsidies. They are never counted as prices.<==>Beträge, die die Quellen nennen und die kein Preis dieses Unternehmens sind: Leistungen einer Kasse, Spenden, Zuschüsse. Sie zählen nie als Preis.<
+>Amount<==>Betrag<
+>Role<==>Rolle<
+>The business<==>Das Unternehmen<
+>Statutory benefit<==>Gesetzliche Leistung<
+>Donation<==>Spende<
+>Subsidy<==>Zuschuss<
+>Role unclear<==>Rolle unklar<
+>Identity change preview<==>Vorschau einer Identitätsänderung<
+>Before an identity change is switched on in the settings: what it would do to the entities of one domain. A dry run of up to 200 pages with the rules: nothing is written and no model is called.<==>Bevor eine Identitätsänderung in den Einstellungen eingeschaltet wird: was sie mit den Entitäten einer Domain machen würde. Ein Probelauf über bis zu 200 Seiten mit den Regeln: Es wird nichts geschrieben und kein Modell aufgerufen.<
+>Same product page, same name<==>Gleiche Produktseite, gleicher Name<
+>Services of a provider from structured data or AI<==>Leistungen eines Anbieters aus strukturierten Daten oder KI<
+>Preview identity change<==>Identitätsänderung prüfen<
+>Pages in the sample<==>Seiten in der Stichprobe<
+>Pages whose facts move<==>Seiten, deren Fakten wandern<
+>Entities (now → with the change)<==>Entitäten (jetzt → mit Änderung)<
+>Services (now → with the change)<==>Leistungen (jetzt → mit Änderung)<
+>Merges<==>Zusammenführungen<
+>Blocked merges<==>Verhinderte Zusammenführungen<
+>AI services that would get a key (estimate)<==>KI-Leistungen, die einen Schlüssel erhielten (Schätzung)<
+>would join an existing service<==>würden einer vorhandenen Leistung zugeordnet<
+>Only part of the domain was read: narrow it down or preview again.<==>Nur ein Teil der Domain wurde gelesen: eingrenzen oder erneut prüfen.<
+>Nothing was written.<==>Es wurde nichts geschrieben.<
+>Choose at least one identity change.<==>Bitte mindestens eine Identitätsänderung wählen.<
+>The knowledge graph does not follow the search index here.<==>Der Wissensgraph folgt hier nicht dem Suchindex.<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

@@ -90,6 +90,8 @@ public final class Reconciler {
      * their job pages are extracted again (SolrDoc.jobComponent), the others keep their result.
      */
     public static final String META_JOB_RECHECK = "job_recheck";
+    /** Set with new extractor versions, removed when the re-extraction of every page completed: survives a restart before. */
+    public static final String META_REEXTRACT = "reextract_pending";
     public static final String REASON_QUERY_DELETE = "query_delete";
     public static final String REASON_OVERFLOW = "overflow";
     public static final String REASON_QUEUE_FULL = "queue_full";
@@ -750,6 +752,9 @@ public final class Reconciler {
             KgStore.putMeta(tx, KgSchema.META_RECONCILE_REQUIRED, "0");
             if (!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) {
                 KgStore.deleteMeta(tx, META_JOB_RECHECK);
+            }
+            if (REASON_EXTRACTORS.equals(r.reason)) {
+                KgStore.deleteMeta(tx, META_REEXTRACT);
             }
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_scan WHERE run_id NOT IN"
                     + " (SELECT run_id FROM kg_scan ORDER BY run_id DESC LIMIT " + KEEP_RUNS + ")")) {

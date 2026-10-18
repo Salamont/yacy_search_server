@@ -420,9 +420,9 @@ public final class ServiceGroups {
         return n;
     }
 
-    /** The list a price status belongs to: stale and expired are outdated. */
+    /** The list a price status belongs to: stale and expired are outdated; a price announced for later is uncertain (WP-F). */
     static String bucket(final String status) {
-        return "stale".equals(status) || "expired".equals(status) ? "outdated" : status;
+        return "stale".equals(status) || "expired".equals(status) ? "outdated" : "not_yet_valid".equals(status) ? "uncertain" : status;
     }
 
     /**

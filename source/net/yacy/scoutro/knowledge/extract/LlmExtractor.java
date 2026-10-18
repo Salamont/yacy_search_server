@@ -1134,6 +1134,14 @@ public final class LlmExtractor {
                         raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null) {
                     continue;
                 }
+                final Mention service = out.mention(o);
+                final String provider = Mention.providerKey(out.mention(s));
+                if (service.tier == TIER && service.serviceKey == null && service.name != null && provider != null) {
+                    // WP-F: the model's service of a named provider is that provider's service on every page of the site, as an
+                    // offer of the rules is; it joins the rules' entity only with scoutro.kg.identity.providerServiceKey
+                    service.serviceKey = JsonLdExtractor.serviceKey(ctx, provider, service.name);
+                    service.providerServiceKey = true;
+                }
             }
             out.add(new Claim(s, c.optString("predicate"), o, null, TIER, Claim.KIND_LLM, c.optBoolean("hedged"), locator(c),
                     c.optString("quote")));
@@ -1149,8 +1157,12 @@ public final class LlmExtractor {
             final List<String> parsed=signalPredicate(v.optString("predicate"))
                     ? BusinessSignals.read(v.optString("predicate"),v.optString("quote"),"text",actor.type,actor.name)
                     : read(v.optString("predicate"),v.optString("quote"),ctx);
+            // WP-F: an amount the quote shows as a statutory benefit, a donation or a subsidy is no price (read on application:
+            // also for cached answers, without a new extractor version)
+            final String role = Vocabulary.PRICE.equals(v.optString("predicate")) ? MoneyRoles.role(v.optString("quote")) : null;
             for (final String value : parsed) {
-                out.add(new Claim(s, v.optString("predicate"), null, signalPredicate(v.optString("predicate"))?BusinessSignals.located(value,locator(v)):value,
+                out.add(new Claim(s, role == null ? v.optString("predicate") : Vocabulary.MONETARY_AMOUNT, null,
+                        signalPredicate(v.optString("predicate"))?BusinessSignals.located(value,locator(v)):role == null ? value : MoneyRoles.withRole(value, role),
                         TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
             }
         }
