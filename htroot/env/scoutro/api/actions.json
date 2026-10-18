@@ -8745,7 +8745,7 @@
               "additionalProperties": {
                 "type": "integer"
               },
-              "description": "Counters: published, unchanged, lifecycle, removed, untracked, abortedSuperseded, abortedGeneration, abortedOlder, notYetVisible, deferred, growthRefused, maintenanceRefused, drainRefused, queueDropped, solrErrors, failedDocs, drained, fullResets."
+              "description": "Counters: published, unchanged, lifecycle, removed, untracked, abortedSuperseded, abortedGeneration, abortedOlder, notYetVisible, deferred, growthRefused, maintenanceRefused, drainRefused, queueDropped, solrErrors, failedDocs, drained, fullResets, rescopedExtractions (pages whose collections alone changed and moved to another vocabulary context: tiers 1 and 2 read again, no model request)."
             },
             "versionCheckpoint": {
               "type": [
@@ -9032,6 +9032,31 @@
             },
             "maxInputChars": {
               "type": "integer"
+            },
+            "dailyRequests": {
+              "type": "object",
+              "description": "The daily cap on model requests (scoutro.kg.llm.maxRequestsPerDay, 0: none): requests started on the current UTC day; above the cap the tier waits (reason daily_request_cap) until the next day.",
+              "properties": {
+                "cap": {
+                  "type": "integer"
+                },
+                "today": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "day": {
+                  "type": "string"
+                }
+              }
+            },
+            "weights": {
+              "type": "object",
+              "description": "Scan weights per collection (scoutro.kg.llm.weight.<collection>, 1-10; a collection not listed has weight 1): a collection's share of each scan batch.",
+              "additionalProperties": {
+                "type": "integer"
+              }
             },
             "queue": {
               "type": "object",
