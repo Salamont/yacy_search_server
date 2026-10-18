@@ -13,12 +13,12 @@
   const de = String(lang || '').toLowerCase().startsWith('de');
   const pct = v => v == null ? t('missing') : Math.round(v * 100) + ' %';
   const ROOT = '/scoutro/api/v1/kg/';
-  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'prices', 'source', 'history', 'settings'];
+  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'prices', 'source', 'history', 'settings', 'assessments'];
   // Scoutro accounts (docs/SCOUTRO_USERS_ACCESS.md): status, controls and settings ("Knowledge graph operations",
   // ?view=operations) are for administrators; downloads need the export right. The API refuses them anyway.
   const ADMIN = document.body.dataset.scoutroAdmin === '1';
   const EXPORT = document.body.dataset.scoutroExport === '1';
-  const OPERATIONS = ['overview', 'settings'];
+  const OPERATIONS = ['overview', 'settings', 'assessments'];
   function viewOf(requested) {
     const v = requested === 'operations' ? 'overview' : requested;
     if (!ADMIN) return VIEWS.includes(v) && !OPERATIONS.includes(v) ? v : 'objects';
@@ -2131,6 +2131,7 @@
     else if (view === 'prices') guarded(() => pricesView(p));
     else if (view === 'source') guarded(() => source(p.get('doc') || ''));
     else if (view === 'history') guarded(() => historyView(p));
+    else if (view === 'assessments') guarded(() => window.ScoutroAssessments.show(t));
     else guarded(settings);
   }
 

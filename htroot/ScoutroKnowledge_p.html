@@ -9,7 +9,7 @@
 <main class="sseo-main skg-main">
 <h1>Knowledge graph</h1>
 <nav class="sseo-views" aria-label="Views">
-<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-prices" href="ScoutroKnowledge_p.html?view=prices" data-skg-view="prices">Prices</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
+<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-prices" href="ScoutroKnowledge_p.html?view=prices" data-skg-view="prices">Prices</a><a id="skg-view-assessments" href="ScoutroKnowledge_p.html?view=assessments" data-skg-view="assessments">Assessments</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
 </nav>
 <p><a href="ScoutroKnowledge_p.html?view=history" data-skg-view="history">System and need history</a></p>
 <form id="skg-scope" class="sseo-search skg-scope">
@@ -251,7 +251,69 @@
 </section>
 </section>
 
+<section id="skg-assessments" hidden aria-labelledby="skg-assessments-title">
+<h2 id="skg-assessments-title">Assessments</h2>
+<p class="sseo-note">An assessment corrects what one source, host or domain supports: it withdraws its evidence for a predicate, moves the evidence to another predicate, or adds an operator statement with the source's own words. The same fact from an independent source stays. Every assessment holds across new readings, the AI cache and recrawls, is shown here with its effect and is undone with Revoke. Nothing is sent to a model and nothing in the index changes.</p>
+<form id="skg-asm-form" class="sseo-search skg-asm-form">
+<label for="skg-asm-action">Action<select class="form-control" id="skg-asm-action"><option value="withdraw">Withdraw evidence</option><option value="reclassify">Move to another predicate</option><option value="assert">Operator statement</option></select></label>
+<label for="skg-asm-scope-kind">Scope<select class="form-control" id="skg-asm-scope-kind"><option value="source">Source (document ID)</option><option value="host">Host</option><option value="domain">Domain</option></select></label>
+<label for="skg-asm-scope">Document ID, host or domain<input class="form-control" id="skg-asm-scope" type="text" maxlength="253" required autocomplete="off" /></label>
+<label for="skg-asm-predicate">Predicate<input class="form-control" id="skg-asm-predicate" type="text" maxlength="64" required autocomplete="off" placeholder="price" /></label>
+<label for="skg-asm-value">Value<input class="form-control" id="skg-asm-value" type="text" maxlength="1000" autocomplete="off" /></label>
+<label for="skg-asm-subject">Subject (entity ID)<input class="form-control" id="skg-asm-subject" type="text" maxlength="24" autocomplete="off" placeholder="kge_…" /></label>
+<label for="skg-asm-tier">Tier<select class="form-control" id="skg-asm-tier"><option value="">Every tier</option><option value="1">1 – structured data</option><option value="2">2 – rules</option><option value="3">3 – AI enrichment</option></select></label>
+<label for="skg-asm-target">Target predicate<input class="form-control" id="skg-asm-target" type="text" maxlength="64" autocomplete="off" /></label>
+<label for="skg-asm-quote">Quote of the source<textarea class="form-control" id="skg-asm-quote" maxlength="1000" rows="2"></textarea></label>
+<label for="skg-asm-reason">Reason (no personal data)<input class="form-control" id="skg-asm-reason" type="text" maxlength="500" required autocomplete="off" /></label>
+<button type="submit" class="btn btn-default" id="skg-asm-preview-button">Preview</button>
+</form>
+<p class="sseo-note">Withdraw: value, subject and tier narrow it down (without them every value of the predicate in the scope). Move: needs a target predicate with the same kind of value. Operator statement: one source, a subject, a value and a quote that is in the source's text.</p>
+<section class="sseo-panel" id="skg-asm-preview" hidden aria-labelledby="skg-asm-preview-title"><h3 id="skg-asm-preview-title">What it changes now</h3><dl id="skg-asm-changes" class="sseo-stats"></dl><div class="sseo-scroll" id="skg-asm-sample"></div><button type="button" class="btn btn-primary" id="skg-asm-confirm">Store and apply</button></section>
+<p id="skg-asm-message" role="status" aria-live="polite"></p>
+<h3 id="skg-asm-list-title">Stored assessments</h3>
+<label for="skg-asm-status">Show<select class="form-control" id="skg-asm-status"><option value="active">Active</option><option value="revoked">Revoked</option><option value="all">All</option></select></label>
+<dl id="skg-asm-counts" class="sseo-stats"></dl>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-asm-list" aria-labelledby="skg-asm-list-title"><thead><tr><th>Assessment</th><th>Scope</th><th>Predicate and value</th><th>Reason</th><th>Effect</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+</section>
+
 <div hidden id="skg-labels">
+<!-- assessments (WP-E) -->
+<span data-skg-label="asm_withdraw">Withdraw</span>
+<span data-skg-label="asm_reclassify">Move</span>
+<span data-skg-label="asm_assert">Operator statement</span>
+<span data-skg-label="asm_active">active</span>
+<span data-skg-label="asm_revoked">revoked</span>
+<span data-skg-label="asm_review">review: the source changed</span>
+<span data-skg-label="asm_revoke">Revoke</span>
+<span data-skg-label="asm_revoke_question">Revoke this assessment? Its evidence comes back where the source is unchanged.</span>
+<span data-skg-label="asm_evidence">Evidence rows</span>
+<span data-skg-label="asm_dependent">Derived rows that go along</span>
+<span data-skg-label="asm_statements">Statements</span>
+<span data-skg-label="asm_leaving">Statements that leave the graph</span>
+<span data-skg-label="asm_documents">Sources</span>
+<span data-skg-label="asm_observations">Archived observations</span>
+<span data-skg-label="asm_contributions">Matching contributions</span>
+<span data-skg-label="asm_too_large">Too many evidence rows for one assessment: narrow it down.</span>
+<span data-skg-label="asm_existing">Existing statement</span>
+<span data-skg-label="asm_subject_found">Subject found</span>
+<span data-skg-label="asm_source_in_graph">Source in the graph</span>
+<span data-skg-label="asm_yes">yes</span>
+<span data-skg-label="asm_no">no</span>
+<span data-skg-label="asm_stored">Stored and applied.</span>
+<span data-skg-label="asm_revoked_done">Revoked.</span>
+<span data-skg-label="asm_withdrawn_rows">withdrawn</span>
+<span data-skg-label="asm_held">held back</span>
+<span data-skg-label="asm_by">by</span>
+<span data-skg-label="asm_count_active">Active</span>
+<span data-skg-label="asm_count_revoked">Revoked</span>
+<span data-skg-label="asm_count_review">To review</span>
+<span data-skg-label="asm_none">No assessments.</span>
+<span data-skg-label="asm_e_assessment_preview_stale">The graph changed since the preview: preview again.</span>
+<span data-skg-label="asm_e_assessment_too_large">Too many evidence rows for one assessment: narrow it down.</span>
+<span data-skg-label="asm_e_assessment_quote_not_in_source">The quote is not in the source's text.</span>
+<span data-skg-label="asm_e_assessment_source_unavailable">The source's text cannot be read.</span>
+<span data-skg-label="asm_e_assessment_not_active">The assessment is revoked already.</span>
+<span data-skg-label="asm_e_invalid_request">Check the fields.</span>
 <!-- the process display (Status): steps, states, units and time bases -->
 <span data-skg-label="pr_unit_pages_one">1 page</span>
 <span data-skg-label="pr_unit_changes_one">1 page change</span>
@@ -1204,5 +1266,6 @@
 </main>
 #%env/templates/footer.template%#
 <script src="env/scoutro/collections.js"></script>
+<script src="env/scoutro/knowledge-assessments.js"></script>
 <script src="env/scoutro/knowledge.js"></script>
 </body></html>

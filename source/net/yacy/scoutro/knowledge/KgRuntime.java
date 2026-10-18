@@ -1446,8 +1446,32 @@ public final class KgRuntime {
     /** What a new assessment would change now, with the token its confirmation needs; writes nothing. */
     public JSONObject assessmentPreview(final net.yacy.scoutro.knowledge.publish.Assessments.Draft d) throws KgException {
         requireRunning();
+        requireQuote(d);
         final net.yacy.scoutro.knowledge.publish.Assessments.Rule r = net.yacy.scoutro.knowledge.publish.Assessments.draft(d);
         return this.store.read(c -> net.yacy.scoutro.knowledge.publish.Assessments.preview(c, r));
+    }
+
+    /**
+     * An operator statement's provenance (WP-E): its quote must be in the source's text as Solr holds it now, so the
+     * statement is bound to what the source says. Without the Solr synchronisation no statement is accepted.
+     */
+    private void requireQuote(final net.yacy.scoutro.knowledge.publish.Assessments.Draft d) throws KgException {
+        if (!net.yacy.scoutro.knowledge.publish.Assessments.ASSERT.equals(d.action)) return;
+        final EmbeddedSolrSource s = this.source;
+        String text = null;
+        try {
+            text = s == null ? null : s.text(d.scope);
+        } catch (final java.io.IOException e) {
+            text = null;
+        }
+        if (text == null) {
+            throw new KgException(KgException.ASSESSMENT, "assessment_source_unavailable", "the text of source " + d.scope
+                    + " cannot be read (no Solr synchronisation, or the document is not indexed)", null);
+        }
+        if (!net.yacy.scoutro.knowledge.publish.Assessments.quoteInSource(text, d.quote)) {
+            throw new KgException(KgException.ASSESSMENT, "assessment_quote_not_in_source", "the quote is not in the text of source "
+                    + d.scope, null);
+        }
     }
 
     /**
@@ -1457,6 +1481,7 @@ public final class KgRuntime {
     public synchronized JSONObject assessmentCreate(final net.yacy.scoutro.knowledge.publish.Assessments.Draft d, final String token)
             throws KgException {
         requireRunning();
+        requireQuote(d);
         final long now = this.env.clock.getAsLong();
         final net.yacy.scoutro.knowledge.publish.Assessments.Rule draft = net.yacy.scoutro.knowledge.publish.Assessments.draft(d);
         final JSONObject[] out = new JSONObject[2];

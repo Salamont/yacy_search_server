@@ -24974,7 +24974,8 @@
                 "jsonld",
                 "metadata",
                 "rule",
-                "llm"
+                "llm",
+                "operator"
               ]
             },
             "description": "Kinds of the visible evidence; [\"llm\"] alone marks a fact only the LLM tier read (then uncertain)."
@@ -25114,13 +25115,15 @@
               "jsonld",
               "metadata",
               "rule",
-              "llm"
+              "llm",
+              "operator"
             ]
           },
           "tier": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 3
+            "maximum": 4,
+            "description": "4: an operator statement (WP-E)."
           },
           "certainty": {
             "type": "string",
@@ -25647,7 +25650,8 @@
                 "jsonld",
                 "metadata",
                 "rule",
-                "llm"
+                "llm",
+                "operator"
               ]
             }
           },
@@ -25840,7 +25844,8 @@
                 "jsonld",
                 "metadata",
                 "rule",
-                "llm"
+                "llm",
+                "operator"
               ]
             }
           },
@@ -27333,7 +27338,8 @@
                       "jsonld",
                       "metadata",
                       "rule",
-                      "llm"
+                      "llm",
+                      "operator"
                     ]
                   }
                 },
@@ -27644,7 +27650,8 @@
                           "jsonld",
                           "metadata",
                           "rule",
-                          "llm"
+                          "llm",
+                          "operator"
                         ]
                       }
                     },
@@ -27886,7 +27893,8 @@
                           "jsonld",
                           "metadata",
                           "rule",
-                          "llm"
+                          "llm",
+                          "operator"
                         ]
                       }
                     },
@@ -33102,8 +33110,10 @@
             "type": "string",
             "enum": [
               "withdraw",
-              "reclassify"
-            ]
+              "reclassify",
+              "assert"
+            ],
+            "description": "assert: an operator statement (tier 4, kind operator) on one source (scope source), for subject and value, with the source's quote; counts as stated evidence, survives re-extraction, purge, reset and rebuild, is revoked like any assessment."
           },
           "scope": {
             "type": "object",
@@ -33171,6 +33181,14 @@
               "null"
             ],
             "description": "The preview's token; without it nothing changes."
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000,
+            "description": "assert only: the source's words that state the statement."
           }
         }
       },
