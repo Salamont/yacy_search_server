@@ -477,6 +477,15 @@ public final class CollectionCatalog {
      * with shared pages left it is hidden. Irreversible; the knowledge graph drops the deleted pages through its sync.
      */
     public Outcome deletePages(final String id, final String confirm, final Uses uses) throws ApiException {
+        return deletePages(id, confirm, uses, 0);
+    }
+
+    /**
+     * {@link #deletePages(String, String, Uses)} for a collection that {@code decisions} active collection decisions name:
+     * refused before anything is deleted when no page of another collection would keep it in the lists (the decisions'
+     * pages would have no collection); with shared pages it is hidden as usual.
+     */
+    public Outcome deletePages(final String id, final String confirm, final Uses uses, final int decisions) throws ApiException {
         synchronized (this) {
             final Entry found = changeable(id, uses);
             if (!id.equals(confirm)) {
@@ -489,6 +498,17 @@ public final class CollectionCatalog {
                 if (exactCount(found) > 0) {
                     shared.putAll(this.index.sharedWith(id));
                     shared.remove(id);
+                }
+            } catch (final RuntimeException e) {
+                throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was deleted.");
+            }
+            if (decisions > 0 && shared.isEmpty()) {
+                throw new ApiException(409, "collection_in_use", "Collection decisions put pages into this collection; deleting all its pages"
+                        + " would take it from the lists. Revoke the decisions first (POST /v1/collections/decisions/revoke); nothing was deleted.",
+                        Json.obj("uses", Json.obj("decisions", decisions)));
+            }
+            try {
+                if (exactCount(found) > 0) {
                     deleted = this.index.deleteOnly(id, shared.keySet());
                 }
                 kept = this.index.count(id);

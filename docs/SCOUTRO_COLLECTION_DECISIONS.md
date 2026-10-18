@@ -70,8 +70,10 @@ YaCy's own crawl pages are not refused (they are no Scoutro route) but their pag
 `crawlTarget: false` (the crawl page does not offer it); search, chat and the knowledge graph treat it like any
 other collection. It must be created once in the catalog (`POST /scoutro/api/v1/collections`) and followed by the
 knowledge graph before the first decision moves pages into it. A decision may name it only for a scope that has
-indexed pages (`422 fallback_needs_pages`). While an active decision names a collection it cannot be hidden or
-removed (`collection_in_use`, use `decisions`).
+indexed pages (`422 fallback_needs_pages`). While an active decision names a collection it cannot be removed, and
+its pages cannot all be deleted (`409 collection_in_use`, use `decisions`; nothing is deleted): the decision's pages
+would have no collection. Hiding stays possible (the pages stay and the decision goes on applying), and deleting the
+pages of a collection that keeps shared pages hides it as before. Revoke the decisions first to remove it.
 
 ## Files and failure safety
 
