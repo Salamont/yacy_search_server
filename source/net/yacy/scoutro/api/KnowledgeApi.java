@@ -151,6 +151,20 @@ final class KnowledgeApi {
             case "status":
                 allow(method, "GET");
                 return status();
+            case "quality": {
+                // quality metrics of the live graph (docs/SCOUTRO_KG_QUALITY_METRICS.md); administrator only, read only
+                allow(method, "GET");
+                for (final String key : query.keySet()) {
+                    if (!"refresh".equals(key)) throw ApiException.invalid(key, "Unknown parameter.");
+                }
+                final KgRuntime r = this.runtime.get();
+                if (r == null) throw new ApiException(503, "kg_unavailable", "The knowledge graph is not running.");
+                try {
+                    return r.quality("true".equals(query.get("refresh")) || "1".equals(query.get("refresh")));
+                } catch (final KgException e) {
+                    throw toApi(e);
+                }
+            }
             case "backups":
                 allow(method, "GET");
                 if (!query.isEmpty()) {

@@ -277,9 +277,19 @@ public final class Suggestions {
         return legacyRecord(c,id,v,reader,true);
     }
     static JSONObject legacyRecord(Connection c,String id,Viewer v,KgReader reader,boolean preview)throws SQLException {
+        return legacyRecord(c,id,v,reader,preview,null);
+    }
+    /**
+     * As {@link #legacyRecord(Connection, String, Viewer, KgReader, boolean)}; {@code memo} keeps the groups of each origin
+     * entity for one projection (WP-B: the groups of an origin were computed again for every one of its rows).
+     */
+    static JSONObject legacyRecord(Connection c,String id,Viewer v,KgReader reader,boolean preview,java.util.Map<Long,List<Group>> memo)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT a_ent,b_ent,kind FROM kg_derived WHERE public_id=?")) {
             p.setString(1,id);try(ResultSet r=p.executeQuery()){if(!r.next()||r.getInt(3)<3)return null;
-                long origin=r.getLong(1);for(Group g:groups(c,origin,v,v,reader)) {
+                long origin=r.getLong(1);
+                List<Group> originGroups=memo==null?null:memo.get(origin);
+                if(originGroups==null){originGroups=groups(c,origin,v,v,reader);if(memo!=null)memo.put(origin,originGroups);}
+                for(Group g:originGroups) {
                     List<JSONObject> mine=new ArrayList<>();for(JSONObject reason:g.contributions)if(id.equals(reason.optString("id")))mine.add(reason);
                     if(mine.isEmpty())continue;
                     JSONObject item=itemForLegacy(reader,c,origin,g,v,mine);KgJson.put(item,"id",id);

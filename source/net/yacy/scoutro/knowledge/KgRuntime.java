@@ -1550,6 +1550,12 @@ public final class KgRuntime {
                 tx -> net.yacy.scoutro.knowledge.publish.Tier3Review.step(tx, this.config, apply, maxDocuments, restart, now));
     }
 
+    /** Quality metrics of the live graph (WP-B): a snapshot of at most ten minutes, computed again with {@code refresh}. */
+    public org.json.JSONObject quality(final boolean refresh) throws KgException {
+        requireRunning();
+        return new net.yacy.scoutro.knowledge.read.QualityMetrics(this.store, this.env.clock).current(refresh);
+    }
+
     private void requireRunning() throws KgException {
         if (this.state == State.DISABLED) {
             throw new KgException(KgException.DISABLED, "the knowledge graph is disabled (" + KgConfig.ENABLED + "=false)");
