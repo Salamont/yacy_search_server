@@ -11,8 +11,11 @@ checkthecoach-web, indexes pages through YaCy's parser and index path (api/push_
 4. applies it: only the domain's pages change their collection, their text and JSON-LD stay, other domains and the
    page of another collection keep theirs;
 5. the knowledge graph takes it over through its capture: the domain's organisation is visible in checkthecoach-web,
-   no longer in stackfinder-web, without a new extraction; the other domain's organisation stays in stackfinder-web;
-6. a second preview finds nothing more to move.
+   no longer in stackfinder-web, without a new extraction; the other domain's organisation stays in stackfinder-web.
+   The two collections have different vocabulary contexts, so the graph reads the moved pages again with its rules
+   (WP-D, docs/SCOUTRO_KG_COLLECTION_MOVE.md: rescopedExtractions); with the same context it would update the
+   memberships only (lifecycle);
+6. the applied move is a durable decision (WP-A): a second move of the domain answers 409 decision_exists and names it.
 
 Run after `ant compile`:  python3 test/scoutro-api/collections-reassign-live-smoke.py
 GPL-2.0-or-later.
@@ -247,12 +250,16 @@ with tempfile.TemporaryDirectory(prefix="scoutro-reassign-") as temporary:
             wait("the domain in checkthecoach-web", lambda: visible("yowea.com", "checkthecoach-web") and not visible("yowea.com", "stackfinder-web"))
             assert visible("notyowea.com", "stackfinder-web") and not visible("notyowea.com", "checkthecoach-web")
             processed = kg_status()["sync"]["processed"]
-            assert processed["extractions"] == extractions and processed["lifecycle"] >= 2, processed
+            # only the moved pages are read again, by the rules: the extractions grow by the re-scoped ones, no model is asked
+            rescoped = processed.get("rescopedExtractions", 0)
+            assert processed["extractions"] == extractions + rescoped and processed["lifecycle"] + rescoped >= 2, processed
+            assert (kg_status().get("llm", {}).get("dailyRequests") or {}).get("today", 0) == 0, kg_status().get("llm")
             checks += 3
 
-            # 6. nothing more to move
+            # 6. the move is a decision now: the domain is changed through the decisions, not moved again
             status, again = call(admin(), "POST", REASSIGN, body)
-            assert status == 200 and again["documents"] == 0, again
+            assert status == 409 and again["error"]["code"] == "decision_exists", (status, again)
+            assert [d["id"] for d in again["error"]["details"]["decisions"]] == [applied["decision"]["id"]], (again, applied)
             checks += 1
             print(f"PASS: {checks} live collection reassignment checks", flush=True)
         except BaseException:
