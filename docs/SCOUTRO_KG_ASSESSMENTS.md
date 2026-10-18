@@ -12,7 +12,7 @@ The **support of a statement by evidence**, never the statement as such. An asse
 
 | Field | Meaning |
 |---|---|
-| `action` | `withdraw` (the evidence is no fact of the source) or `reclassify` (it supports `targetPredicate` instead) |
+| `action` | `withdraw` (the evidence is no fact of the source), `reclassify` (it supports `targetPredicate` instead) or `assert` (an operator statement, see below) |
 | `scope` | exactly one of `source` (a document ID), `host`, `domain` (registrable domain, its hosts included); required |
 | `predicate` | a predicate of the graph vocabulary; required |
 | `value` | optional: the literal (compared in the graph's compare form) or, for a relation, the object's entity ID |
@@ -89,12 +89,32 @@ POST /scoutro/api/v1/kg/assessments
   (`POST /v1/kg/control {"action":"restore", ...}` of that backup), or revoke the assessments first and keep
   schema 7 with the new build. Single assessments are undone with revoke.
 
+## Operator statements (tier 4)
+
+`assert` adds what a source states and the extraction missed or read wrongly, as **evidence of tier 4** (kind
+`operator`, extractor `operator/1`, locator `operator:<assessment id>`):
+
+- bound to **one source** (`scope.source`), a **subject** (entity ID), a **value** (a literal as stated, or the
+  object's entity ID for a relation) and a **quote** that must be in the source's text as Solr holds it now
+  (checked when previewing and storing; `422 assessment_quote_not_in_source`, without the Solr synchronisation
+  `409 assessment_source_unavailable`). Provenance: source, quote, actor, time and reason;
+- counts as **stated** evidence (supported, like tiers 1 and 2); the extraction never replaces tier 4, and a
+  withdraw assessment never matches it (operator statements are revoked, not withdrawn);
+- **durable**: every publication of its source states it again if it is missing (after a retention purge, a full
+  reset, or a rebuild, where the carried assessments are applied again); a new revision of the source keeps it and
+  sets `reviewNeeded` (event `assessment_review`); revoking removes it.
+
+Schema 7 rebuilds `kg_evidence` once (the same rows; the CHECKs allow tier 4 and kind 5; indexes and the archive
+triggers are created again) inside the upgrade transaction, after the verified upgrade copy.
+
+## Administration page
+
+`ScoutroKnowledge_p.html?view=assessments` (administrators only): the form for all three actions, the preview of
+what an assessment changes now with **Store and apply**, the stored assessments with their effect and review
+hints, and **Revoke** (help: `help/ScoutroKnowledge_p.md`, German texts in `locales/de.lng`).
+
 ## Not part of WP-E (plan deviations)
 
-- **Replacement statements** (`assert`, an operator tier 4): `kg_evidence` allows tiers 1–3 by a CHECK constraint
-  of a large WITHOUT ROWID table; a tier 4 needs a rebuild of that table. Left for a later schema change.
-  `reclassify` covers moving evidence to the right predicate.
-- **UI**: the assessments are an API; a view in the knowledge graph UI is open.
 - **Derived relations** (`kg_derived`) are recomputed by the next derivation run, not immediately.
 
 ## Tests
@@ -105,3 +125,10 @@ POST /scoutro/api/v1/kg/assessments
   industries go with their category; reclassification moves evidence, marks the archive `corrected` and is undone;
   validation; a rebuild carries the assessments and the next start applies them again.
 - `KnowledgeApiTest`: preview, token, stale token, list, revoke, double revoke, unknown ID, validation, 401/403.
+- `AssessmentsTest` (operator statements): stated and supported; kept across re-extraction, a purge with the next
+  reading, a withdraw of the predicate and a new revision (review marked); revoked and not stated again; a full
+  reset and the reapply after a rebuild state it again.
+- `ObservationStoreTest.realSchemaSixUpgradeKeepsEvidenceObservationsAndTheirTriggers`: a real schema-6 graph is
+  upgraded with every evidence row, observation, index and trigger; tier 4 is accepted afterwards, the integrity and
+  foreign-key checks pass and the rebuilt table's delete trigger archives.
+- `knowledge-assessments-ui-test.mjs` (offline, Playwright): the view in English and German on desktop and mobile.

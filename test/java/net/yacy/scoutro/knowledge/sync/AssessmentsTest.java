@@ -300,4 +300,93 @@ public class AssessmentsTest extends LlmFixture {
             this.store = null;
         }
     }
+
+    // ------------------------------------------------------------------------------------- operator statements (tier 4)
+
+    private String operator() {
+        return strings("SELECT e.public_id FROM kg_entity e JOIN kg_statement s ON s.subj = e.ent_rowid JOIN kg_vocab v ON v.term_id = s.pred"
+                + " WHERE v.name = 'name' AND s.obj_val = 'Muster Pflege gGmbH' AND e.status = 1").get(0);
+    }
+
+    private long operatorEvidence(final String id) {
+        return count("SELECT count(*) FROM kg_evidence WHERE tier = 4 AND kind = 5 AND locator = 'operator:" + id + "'");
+    }
+
+    @Test
+    public void anOperatorStatementIsStatedEvidenceAndSurvivesReextractionPurgeAndARevision() throws Exception {
+        add(A, URL_A, "c1", LD, TEXT, "Leistungen");
+        settleSync();
+        final Assessments.Draft d = draft(Assessments.ASSERT, Assessments.SOURCE, A, "operates");
+        d.subjectId = operator();
+        // a literal the extraction missed: the legal form the page states
+        d.predicate = "legal_form";
+        d.value = "gGmbH";
+        d.quote = "Die Muster Pflege gGmbH betreibt das Haus Lindenhof";
+        assertTrue(Assessments.quoteInSource(TEXT, d.quote));
+        assertTrue("a quote that is not in the source is refused by the runtime", !Assessments.quoteInSource(TEXT, "Die Muster AG betreibt"));
+        final JSONObject p = preview(d);
+        assertEquals(1, p.getInt("evidence"));
+        assertTrue(p.getBoolean("subjectFound"));
+        final String id = create(d).getJSONObject("assessment").getString("id");
+        assertEquals(1, operatorEvidence(id));
+        assertEquals("stated by the operator: supported", 1, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                + " WHERE v.name = 'legal_form' AND s.obj_val = 'gGmbH' AND s.quality = 1"));
+        // the rules read the page again: tier 4 is no tier the extraction replaces
+        readAgain(A);
+        assertEquals(1, operatorEvidence(id));
+        // a purge of the page's evidence (retention) and the next reading: the statement is stated again
+        exec("DELETE FROM kg_evidence WHERE doc_rowid = (SELECT doc_rowid FROM kg_doc WHERE doc_id = '" + A + "')");
+        assertEquals(0, operatorEvidence(id));
+        readAgain(A);
+        assertEquals(1, operatorEvidence(id));
+        // withdrawing the predicate never removes an operator statement (it is revoked)
+        create(draft(Assessments.WITHDRAW, Assessments.SOURCE, A, "legal_form"));
+        assertEquals(1, operatorEvidence(id));
+        // a new revision of the source: the statement holds, the assessment is marked for review
+        this.clock.addAndGet(60_000L);
+        add(A, URL_A, "c1", LD, TEXT + " Neu: Kurzzeitpflege.", "Leistungen");
+        settleSync();
+        assertEquals(1, operatorEvidence(id));
+        assertTrue(this.store.read(c -> Assessments.get(c, id)).reviewNeeded);
+        // revoked: gone, and not stated again
+        final JSONObject r = revoke(id);
+        assertEquals(1, r.getInt("removedOperatorEvidence"));
+        assertEquals(0, operatorEvidence(id));
+        readAgain(A);
+        assertEquals(0, operatorEvidence(id));
+        // validation: only a source, with subject, value and quote
+        final Assessments.Draft bad = draft(Assessments.ASSERT, Assessments.HOST, "www.muster-pflege.de", "legal_form");
+        bad.subjectId = d.subjectId;
+        bad.value = "gGmbH";
+        bad.quote = "x";
+        assertEquals("scope", bad.validate()[0]);
+        final Assessments.Draft noQuote = draft(Assessments.ASSERT, Assessments.SOURCE, A, "legal_form");
+        noQuote.subjectId = d.subjectId;
+        noQuote.value = "gGmbH";
+        assertEquals("quote", noQuote.validate()[0]);
+    }
+
+    @Test
+    public void aRebuildStatesTheOperatorStatementsAgain() throws Exception {
+        add(A, URL_A, "c1", LD, TEXT, "Leistungen");
+        settleSync();
+        final Assessments.Draft d = draft(Assessments.ASSERT, Assessments.SOURCE, A, "legal_form");
+        d.subjectId = operator();
+        d.value = "gGmbH";
+        d.quote = "Die Muster Pflege gGmbH";
+        final String id = create(d).getJSONObject("assessment").getString("id");
+        // the graph reset by a full reset: documents and evidence gone, the assessment kept; the next publication states it
+        exec("DELETE FROM kg_doc");
+        assertEquals(0, operatorEvidence(id));
+        assertEquals(1, count("SELECT count(*) FROM kg_assessment WHERE status = 'active'"));
+        this.clock.addAndGet(60_000L);
+        add(A, URL_A, "c1", LD, TEXT, "Leistungen");
+        settleSync();
+        assertEquals(1, operatorEvidence(id));
+        // reapplying (after a rebuild carry) finds it present and changes nothing
+        final JSONObject again = this.store.write(StorageGuard.WriteClass.MAINTENANCE, 16L << 20,
+                tx -> Assessments.reapplyAll(tx, this.cfg, this.clock.get()));
+        assertEquals(1, again.getInt("assessments"));
+        assertEquals(1, operatorEvidence(id));
+    }
 }

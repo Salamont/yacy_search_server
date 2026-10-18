@@ -28,9 +28,11 @@ import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.extract.Claim;
 import net.yacy.scoutro.knowledge.extract.Extraction;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
+import net.yacy.scoutro.knowledge.extract.Values;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.store.KgStore;
+import net.yacy.scoutro.knowledge.store.Observations;
 
 /**
  * Durable assessments of graph facts (data quality programme WP-E, docs/SCOUTRO_KG_ASSESSMENTS.md).
@@ -53,6 +55,15 @@ public final class Assessments {
 
     public static final String WITHDRAW = "withdraw";
     public static final String RECLASSIFY = "reclassify";
+    /** An operator statement (tier 4): bound to one source and a quote of it; counts as stated evidence. */
+    public static final String ASSERT = "assert";
+    /** The evidence tier and kind of operator statements. */
+    public static final int TIER_OPERATOR = 4;
+    public static final int KIND_OPERATOR = 5;
+    /** The extractor row of operator statements (kg_extractor allows tiers 1-3 only: the row's tier is 1, its name tells). */
+    public static final String OPERATOR = "operator";
+    public static final String OPERATOR_VERSION = "1";
+    static final String LOCATOR_PREFIX = "operator:";
     public static final String SOURCE = "source";
     public static final String HOST = "host";
     public static final String DOMAIN = "domain";
@@ -87,6 +98,8 @@ public final class Assessments {
         public final String revokedBy;
         public final long blocked;
         public final boolean reviewNeeded;
+        /** The source's quote of an operator statement; null otherwise. */
+        public final String quote;
 
         Rule(final ResultSet r) throws SQLException {
             this.id = r.getString("public_id");
@@ -109,6 +122,7 @@ public final class Assessments {
             this.revokedBy = r.getString("revoked_by");
             this.blocked = r.getLong("blocked");
             this.reviewNeeded = r.getInt("review_needed") == 1;
+            this.quote = r.getString("quote");
         }
 
         private Rule(final String id, final Draft d, final long now) {
@@ -130,10 +144,15 @@ public final class Assessments {
             this.revokedBy = null;
             this.blocked = 0;
             this.reviewNeeded = false;
+            this.quote = d.quote;
         }
 
         boolean withdraws() {
             return WITHDRAW.equals(this.action);
+        }
+
+        boolean asserts() {
+            return ASSERT.equals(this.action);
         }
 
         /** The object key the rule's value stands for (null: every value). */
@@ -166,7 +185,7 @@ public final class Assessments {
                     this.predicate, "value", this.value, "subject", this.subjectId, "tier", this.tier, "targetPredicate",
                     this.targetPredicate, "reason", this.reason, "basis", this.basis, "status", this.status, "actor", this.actor,
                     "createdAt", this.createdAt, "revokedAt", this.revokedAt, "revokedBy", this.revokedBy, "blockedClaims",
-                    this.blocked, "reviewNeeded", this.reviewNeeded);
+                    this.blocked, "reviewNeeded", this.reviewNeeded, "quote", this.quote);
         }
     }
 
@@ -183,10 +202,14 @@ public final class Assessments {
         public String reason;
         public String basis = "manual";
         public String actor;
+        /** assert: the quote of the source that states the replacement statement. */
+        public String quote;
 
         /** Null if valid, else {field, message}. */
         public String[] validate() {
-            if (!WITHDRAW.equals(this.action) && !RECLASSIFY.equals(this.action)) return new String[] {"action", "withdraw or reclassify."};
+            if (!WITHDRAW.equals(this.action) && !RECLASSIFY.equals(this.action) && !ASSERT.equals(this.action)) {
+                return new String[] {"action", "withdraw, reclassify or assert."};
+            }
             if (this.scopeKind == null || this.scope == null) return new String[] {"scope", "One of source, host or domain is required."};
             final Vocabulary.Predicate p = this.predicate == null ? null : Vocabulary.predicate(this.predicate);
             if (p == null) return new String[] {"predicate", "A predicate of the graph vocabulary."};
@@ -199,7 +222,27 @@ public final class Assessments {
             } else if (this.targetPredicate != null) {
                 return new String[] {"targetPredicate", "Only for reclassify."};
             }
-            if (this.value != null) {
+            if (ASSERT.equals(this.action)) {
+                // an operator statement names exactly what it states, on one source, with the source's words
+                if (!SOURCE.equals(this.scopeKind)) return new String[] {"scope", "An operator statement is bound to one source (scope source)."};
+                if (this.subjectId == null || !KgIds.isEntityId(this.subjectId)) return new String[] {"subject", "The subject's entity ID (kge_...)."};
+                if (this.value == null) return new String[] {"value", "The value the statement states."};
+                if (this.tier != null) return new String[] {"tier", "An operator statement is tier 4 by itself."};
+                if (p.relation) {
+                    if (!KgIds.isEntityId(this.value)) return new String[] {"value", "The object's entity ID (kge_...) for a relation."};
+                } else {
+                    final String clipped = Normalizers.clip(this.value.trim(), 1000);
+                    if (clipped == null || clipped.isEmpty()) return new String[] {"value", "A non-empty value."};
+                    if (Vocabulary.T_JSON.equals(p.datatype) && Values.json(clipped) == null) return new String[] {"value", "A JSON value for " + p.name + "."};
+                    this.value = clipped; // stated as given; compared in its compare form
+                }
+                final String q = this.quote == null ? null : Normalizers.clip(this.quote.trim(), 1000);
+                if (q == null || q.isEmpty()) return new String[] {"quote", "The source's words that state it (1 to 1000 characters)."};
+                this.quote = q;
+            } else if (this.quote != null) {
+                return new String[] {"quote", "Only for assert."};
+            }
+            if (this.value != null && !ASSERT.equals(this.action)) {
                 if (p.relation) {
                     if (!KgIds.isEntityId(this.value)) return new String[] {"value", "The object's entity ID (kge_...) for a relation."};
                 } else {
@@ -471,7 +514,7 @@ public final class Assessments {
                 + " e.source_revision, e.source_observed_at, s.subj, s.obj_ent FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab p ON p.term_id = s.pred AND p.kind = 2"
                 + " JOIN kg_doc d ON d.doc_rowid = e.doc_rowid JOIN kg_entity en ON en.ent_rowid = s.subj"
-                + " LEFT JOIN kg_entity oe ON oe.ent_rowid = s.obj_ent WHERE p.name = ?");
+                + " LEFT JOIN kg_entity oe ON oe.ent_rowid = s.obj_ent WHERE p.name = ? AND e.tier < 4"); // operator statements are revoked, never withdrawn
         final List<Object> args = new ArrayList<>();
         args.add(r.predicate);
         if (r.value != null) {
@@ -618,6 +661,7 @@ public final class Assessments {
 
     /** What applying a rule would change now: counts, a sample and the confirmation token. */
     public static JSONObject preview(final Connection c, final Rule r) throws SQLException {
+        if (r.asserts()) return assertPreview(c, r);
         final List<Copy> rows = matching(c, r, MAX_APPLY);
         final boolean tooLarge = rows.size() > MAX_APPLY;
         final Set<Long> stmts = new TreeSet<>(), docs = new TreeSet<>(), leaving = new TreeSet<>();
@@ -702,8 +746,8 @@ public final class Assessments {
             throws SQLException {
         final Rule r = new Rule(newId(), d, now);
         try (PreparedStatement ps = tx.prepareStatement("INSERT INTO kg_assessment (public_id, action, scope_kind, scope, predicate, value,"
-                + " subject_id, tier, target_predicate, reason, basis, status, actor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
-                + " 'active', ?, ?)")) {
+                + " subject_id, tier, target_predicate, reason, basis, status, actor, created_at, quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
+                + " 'active', ?, ?, ?)")) {
             ps.setString(1, r.id);
             ps.setString(2, r.action);
             ps.setString(3, r.scopeKind);
@@ -718,6 +762,7 @@ public final class Assessments {
             ps.setString(11, r.basis);
             ps.setString(12, r.actor);
             ps.setLong(13, now);
+            ps.setString(14, r.quote);
             ps.executeUpdate();
         }
         final JSONObject applied = apply(tx, cfg, r, now);
@@ -729,6 +774,14 @@ public final class Assessments {
 
     /** Moves the evidence the rule matches (idempotent: moved rows are gone, a second run finds nothing). */
     static JSONObject apply(final Connection tx, final KgConfig cfg, final Rule r, final long now) throws SQLException {
+        if (r.asserts()) {
+            final Terms terms = new Terms();
+            terms.seed(tx);
+            final Aggregates agg = new Aggregates(cfg, terms, now);
+            final String result = materialize(tx, terms, agg, r, now);
+            agg.finish(tx);
+            return KgJson.obj("evidence", "materialized".equals(result) ? 1 : 0, "dependentEvidence", 0, "operatorStatement", result);
+        }
         final List<Copy> rows = matching(tx, r, MAX_APPLY);
         if (rows.size() > MAX_APPLY) {
             throw new SQLException("assessment_too_large");
@@ -864,6 +917,7 @@ public final class Assessments {
             ps.setString(3, id);
             ps.executeUpdate();
         }
+        if (r.asserts()) return revokeAssert(tx, cfg, r, actor, now);
         final Terms terms = new Terms();
         terms.seed(tx); // a reclassification may name a predicate no page used yet
         final Aggregates agg = new Aggregates(cfg, terms, now);
@@ -1024,6 +1078,181 @@ public final class Assessments {
                 return rs.next() ? rs.getString(1) : null;
             }
         }
+    }
+
+    // ------------------------------------------------------------------------------------- operator statements (tier 4)
+
+    /**
+     * The operator statement of {@code r} in the graph: its tier-4 evidence on the rule's source, for the subject and value
+     * it names, with its quote. Returns {@code materialized}, {@code present} (the evidence exists), {@code source_absent}
+     * (the source is not in the graph now: it is stated when the source comes back) or {@code entity_gone}.
+     */
+    static String materialize(final Connection tx, final Terms terms, final Aggregates agg, final Rule r, final long now) throws SQLException {
+        Long doc = null;
+        String revision = null;
+        Long loaded = null;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_rowid, lower(hex(coalesce(content_hash, input_hash))) || ':'"
+                + " || coalesce(loaded_at, -1), loaded_at FROM kg_doc WHERE doc_id = ?")) {
+            ps.setString(1, r.scope);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    doc = rs.getLong(1);
+                    revision = rs.getString(2);
+                    final long l = rs.getLong(3);
+                    loaded = rs.wasNull() ? null : l;
+                }
+            }
+        }
+        if (doc == null) return "source_absent";
+        try (PreparedStatement ps = tx.prepareStatement("SELECT 1 FROM kg_evidence WHERE doc_rowid = ? AND tier = 4 AND locator = ?")) {
+            ps.setLong(1, doc);
+            ps.setString(2, LOCATOR_PREFIX + r.id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return "present";
+            }
+        }
+        final Long subj = liveEntity(tx, r.subjectId);
+        final Vocabulary.Predicate p = Vocabulary.predicate(r.predicate);
+        final Long obj = p.relation ? liveEntity(tx, r.value) : null;
+        if (subj == null || p.relation && (obj == null || obj.equals(subj))) return "entity_gone";
+        final String canonical = p.relation ? "e:" + entityId(tx, obj) : "v:" + p.datatype + ":" + Publisher.compareForm(p.datatype, r.value);
+        final long stmt = statement(tx, agg, terms, subj, entityId(tx, subj), r.predicate, obj, p.relation ? null : r.value, canonical);
+        final Copy k = new Copy();
+        k.tier = TIER_OPERATOR;
+        k.extractor = KgJson.obj("tier", 1, "name", OPERATOR, "version", OPERATOR_VERSION, "model", "", "prompt_hash", "");
+        k.kind = KIND_OPERATOR;
+        k.certainty = 1;
+        k.confidence = 1.0;
+        k.locator = LOCATOR_PREFIX + r.id;
+        k.excerpt = Normalizers.redactPersons(r.quote);
+        k.observedAt = now;
+        k.sourceRevision = revision;
+        k.sourceObservedAt = loaded;
+        try (PreparedStatement ps = tx.prepareStatement("INSERT OR IGNORE INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id, kind,"
+                + " certainty, confidence, locator, excerpt, observed_at, source_revision, source_observed_at) VALUES (?, ?, ?, ?, ?, ?, ?,"
+                + " ?, ?, ?, ?, ?)")) {
+            bindEvidence(tx, ps, stmt, doc, k);
+            ps.executeUpdate();
+        }
+        Observations.capture(tx, doc);
+        return "materialized";
+    }
+
+    /**
+     * Called by the publisher for each published page (WP-E): the operator statements of its source are in the graph
+     * (again, after a purge, a full reset or a rebuild); one whose source changed since it was stated is marked for review.
+     */
+    public static void materializeFor(final Connection tx, final Terms terms, final Aggregates agg, final String docId, final long docRowid,
+            final long now) throws SQLException {
+        final List<Rule> rules = new ArrayList<>();
+        try (PreparedStatement ps = tx.prepareStatement("SELECT * FROM kg_assessment WHERE status = 'active' AND scope_kind = 'source'"
+                + " AND scope = ? AND action = 'assert' ORDER BY assess_rowid")) {
+            ps.setString(1, docId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) rules.add(new Rule(rs));
+            }
+        }
+        if (rules.isEmpty()) return;
+        String revision = null;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT lower(hex(coalesce(content_hash, input_hash))) || ':' || coalesce(loaded_at, -1)"
+                + " FROM kg_doc WHERE doc_rowid = ?")) {
+            ps.setLong(1, docRowid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) revision = rs.getString(1);
+            }
+        }
+        for (final Rule r : rules) {
+            if ("present".equals(materialize(tx, terms, agg, r, now)) && !r.reviewNeeded) {
+                try (PreparedStatement ps = tx.prepareStatement("SELECT source_revision FROM kg_evidence WHERE doc_rowid = ? AND tier = 4"
+                        + " AND locator = ?")) {
+                    ps.setLong(1, docRowid);
+                    ps.setString(2, LOCATOR_PREFIX + r.id);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next() && revision != null && !revision.equals(rs.getString(1))) {
+                            // the source changed: the operator statement still holds, an administrator checks it
+                            try (PreparedStatement up = tx.prepareStatement("UPDATE kg_assessment SET review_needed = 1 WHERE public_id = ?")) {
+                                up.setString(1, r.id);
+                                up.executeUpdate();
+                            }
+                            KgStore.event(tx, 2, "assessment_review", r.id + " states " + r.predicate + " on " + docId
+                                    + ", whose content changed since; review it", now);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** True if the quote occurs in the source's text (whitespace and the LLM tier's quote normalisation as for grounding). */
+    public static boolean quoteInSource(final String text, final String quote) {
+        return text != null && quote != null && !quote.trim().isEmpty() && LlmExtractor.quoteInText(text, quote.trim());
+    }
+
+    private static JSONObject assertPreview(final Connection c, final Rule r) throws SQLException {
+        final Long subj = liveEntity(c, r.subjectId);
+        final Vocabulary.Predicate p = Vocabulary.predicate(r.predicate);
+        final Long obj = p.relation ? liveEntity(c, r.value) : null;
+        boolean source = false;
+        String url = null;
+        try (PreparedStatement ps = c.prepareStatement("SELECT url FROM kg_doc WHERE doc_id = ?")) {
+            ps.setString(1, r.scope);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    source = true;
+                    url = rs.getString(1);
+                }
+            }
+        }
+        String existing = null;
+        long sources = 0;
+        if (subj != null && (!p.relation || obj != null)) {
+            final String canonical = p.relation ? "e:" + entityId(c, obj) : "v:" + p.datatype + ":" + Publisher.compareForm(p.datatype, r.value);
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.public_id, (SELECT count(*) FROM kg_evidence e WHERE e.stmt_rowid = s.stmt_rowid)"
+                    + " FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred AND v.kind = 2 WHERE s.subj = ? AND v.name = ? AND s.obj_key = ?")) {
+                ps.setLong(1, subj);
+                ps.setString(2, r.predicate);
+                ps.setBytes(3, KgIds.objectKey(canonical));
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        existing = rs.getString(1);
+                        sources = rs.getLong(2);
+                    }
+                }
+            }
+        }
+        final JSONObject out = KgJson.obj("evidence", source && subj != null && (!p.relation || obj != null) ? 1 : 0, "dependentEvidence", 0,
+                "statements", 1, "statementsLeaving", 0, "documents", source ? 1 : 0, "source", r.scope, "url", url, "sourceInGraph", source,
+                "subjectFound", subj != null, "objectFound", p.relation ? obj != null : null, "existingStatement", existing,
+                "existingEvidence", sources, "quote", r.quote, "tooLarge", false, "maxEvidence", MAX_APPLY, "sample", new JSONArray());
+        KgJson.put(out, "token", token(r, out) + Integer.toHexString(String.valueOf(r.quote).hashCode()));
+        return out;
+    }
+
+    private static JSONObject revokeAssert(final Connection tx, final KgConfig cfg, final Rule r, final String actor, final long now)
+            throws SQLException {
+        final Terms terms = new Terms();
+        terms.seed(tx);
+        final Aggregates agg = new Aggregates(cfg, terms, now);
+        final List<long[]> rows = new ArrayList<>();
+        try (PreparedStatement ps = tx.prepareStatement("SELECT stmt_rowid, doc_rowid FROM kg_evidence WHERE tier = 4 AND locator = ?")) {
+            ps.setString(1, LOCATOR_PREFIX + r.id);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) rows.add(new long[] {rs.getLong(1), rs.getLong(2)});
+            }
+        }
+        try (PreparedStatement del = tx.prepareStatement("DELETE FROM kg_evidence WHERE stmt_rowid = ? AND doc_rowid = ? AND tier = 4")) {
+            for (final long[] x : rows) {
+                agg.touchStatement(tx, x[0]);
+                del.setLong(1, x[0]);
+                del.setLong(2, x[1]);
+                del.executeUpdate();
+            }
+        }
+        agg.finish(tx);
+        KgStore.event(tx, 1, "assessment_revoked", r.id + " (operator statement) by " + (actor == null ? "unknown" : actor) + ": "
+                + rows.size() + " evidence rows removed", now);
+        return KgJson.obj("assessment", get(tx, r.id).toJson(), "restored", 0, "notRestored", 0, "notRestoredSample", new JSONArray(),
+                "sourcesReadAgain", 0, "removedOperatorEvidence", rows.size());
     }
 
     /** Applies every active assessment again (after a rebuild carry); clears {@link #META_REAPPLY}. */
