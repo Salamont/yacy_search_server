@@ -8,9 +8,14 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   default**): modes off/simulate/propose/apply (`scoutro.collections.autocorrect.mode`). A correction needs two
   independent origins against the current collection, one with a structured or text-fit signal; the website's own
   signals are one origin, OSM or an LLM verdict never suffice, absences and crawl errors are no signals; manual
-  decisions always win. Fingerprint, hysteresis, daily limit, breaker; apply acts only after a statistical acceptance
-  (Clopper-Pearson lower bound). Routes `/v1/collections/autocorrect*` (administrator). See
-  [autocorrect](docs/SCOUTRO_COLLECTION_AUTOCORRECT.md).
+  decisions always win. Fingerprint, hysteresis, daily limit, breaker. The knowledge graph computes the structured
+  and the text-fit signals (the categories the rules read as offered on the domain's pages, through every
+  collection's vocabulary, no model); Discovery reports its stored LLM classifications and OSM matches while the
+  automation is on; signals count by their source (one source system, copies with their origin). Apply acts only
+  after a statistical acceptance on a random sample: every drawn case reviewed, 299 reviews and a one-sided 95 %
+  Clopper-Pearson bound of 0.99 by default (the 95 % level is an interim stage only), then an audit of the
+  automatic corrections. Review page under Settings > Collections. Routes `/v1/collections/autocorrect*`
+  (administrator). See [autocorrect](docs/SCOUTRO_COLLECTION_AUTOCORRECT.md).
 
 - Rule-based review of stored LLM facts (data quality programme WP-G, not released): `GET|POST /v1/kg/tier3-review`
   applies the current rules to tier-3 evidence without any model request (prices quoted as benefits, donations,
@@ -26,7 +31,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   `brand` is `has_brand`; a priced product without seller is the declared operator's own offer (confidence 0.6).
   Outside services and prices pages a category needs an offer cue, otherwise it is a `topic`. Prices and amounts are
   archived observations; an identity merge keeps the evidence's source revision. The new versions re-read tiers 1
-  and 2 once (no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
+  and 2 once (no model). The business view shows the amounts that are no price with their role (`amounts`). Two
+  identity changes are switched, **off by default**: `scoutro.kg.identity.productUrl` (a service joins the one with
+  the same own product page and the same name) and `scoutro.kg.identity.providerServiceKey` (the service of a
+  provider named by JSON-LD `provider` or the LLM tier joins that provider's service); switched on, every page is
+  read again once with the rules. `POST /v1/kg/identity-preview` shows their effect on one domain in a rolled-back
+  transaction (nothing written, no model). See [extraction semantics](docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
 
 - Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
   administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally
@@ -34,8 +44,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   field by field, dependent derived industries go along, archived observations become `withdrawn`/`corrected`. The
   publisher holds covered claims back across re-extraction, the LLM cache and recrawls; a new source revision marks
   the assessment for review. Revoke restores the evidence exactly. Rebuilds carry assessments, backups contain them,
-  a full reset keeps them. New routes `/v1/kg/assessments*` (administrator only). Rollback to an earlier build
-  needs the upgrade copy taken before schema 7. See [assessments](docs/SCOUTRO_KG_ASSESSMENTS.md).
+  a full reset keeps them. An operator statement (`assert`) adds a missing fact for one source with a quote that must
+  be in the indexed text: evidence of tier 4 (kind `operator`) that counts as stated, survives re-extraction, purges
+  and rebuilds, is never withdrawn by a rule and marks itself for review when the source changes (`kg_evidence` is
+  rebuilt once by the schema step to allow tier 4). New routes `/v1/kg/assessments*` (administrator only) and an
+  **Assessments** view on the knowledge graph page. Rollback to an earlier build needs the upgrade copy taken before
+  schema 7. See [assessments](docs/SCOUTRO_KG_ASSESSMENTS.md).
 
 - Knowledge graph on a collection move (data quality programme WP-D, not released): when only a page's collections
   change and with them the vocabulary context, tiers 1 and 2 read that page again (rules, no model) and the LLM's
