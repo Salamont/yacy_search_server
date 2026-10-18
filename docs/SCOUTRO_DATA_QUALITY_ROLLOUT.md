@@ -72,10 +72,34 @@ For every release:
   overlapping keys.
 - The 99 % statement holds for the kinds of cases sampled; the audit is there to see new kinds.
 
+## State at the end of the completion round (2026-10-18)
+
+| PR | Head | GitHub `Scoutro checks` |
+|---|---|---|
+| #86 CI | `6df505e` | success |
+| #78 WP-A | `9243c41` | success |
+| #79 WP-B | `fa74865` | success |
+| #80 WP-C | `9e7dc79` | success |
+| #81 WP-D | `ed785a9` | success |
+| #82 WP-E | `5e9817b` | success |
+| #83 WP-F | `f960273` | success |
+| #84 WP-G | `02f1944` | success |
+| #85 WP-H | `b63e088` | success |
+| #87 integration | `92d381b` (this document's parent) | success |
+
+- Local, from cleaned build directories: `tools/scoutro/ci/scoutro-checks.sh all` on the integration state `af4b9c6`
+  (`92d381b` minus the test fix below): all passed (compile, every `scoutro-*-test` target, nine Python suites).
+- Live smokes with disposable peers on the integration branch: knowledge, report, SEO and discovery passed; the
+  dashboard smoke found a WP-A regression (hiding a collection after a reassign answered `409 collection_in_use`),
+  fixed on #78 (`0f9450e`) and merged up the stack; the dashboard smoke on the integration head `92d381b` passed again
+  (384/384 checks, 27 of them hide/show/delete-pages).
+- Two CI-only findings fixed on #86 and merged up: the CI log now names failing tests (`42bccf2`), and the unchanged
+  `KgSyncSchedulerTest` waited for a backup result instead of the free backup slot (`6df505e`, reproduced with a delay).
+- No data migration, crawl, model call or change on Olares was made; nothing is merged to `main`.
+
 ## Continuation
 
-State at the end of the session: all branches pushed; PR descriptions list the local tests and the GitHub CI state at
-that time. A follow-up session starts with this prompt:
+A follow-up session starts with this prompt:
 
 > Scoutro Datenqualität R1–R4 – Fortsetzung. Lies `docs/SCOUTRO_DATA_QUALITY_ROLLOUT.md` und
 > `docs/SCOUTRO_DATA_QUALITY_PROGRAM.md` auf `scoutro/r4-wp-b-quality-integration`, prüfe für #78–#87 den Head, die
