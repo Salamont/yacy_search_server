@@ -139,6 +139,13 @@ public final class KgConfig {
     /** Days after its date (or last confirmation) a price counts as stale; {@code .<collection>} overrides per collection. */
     public static final String PRICES_STALE_DAYS = "scoutro.kg.prices.staleDays";
     public static final String DERIVED_ENABLED = "scoutro.kg.derived.enabled";
+    /** WP-F identity change: services join by the canonical address of their own product page (default off). */
+    public static final String IDENTITY_PRODUCT_URL = "scoutro.kg.identity.productUrl";
+    /**
+     * WP-F identity change: a service of a provider the rules do not see (JSON-LD {@code provider}, an offer of the LLM tier) joins
+     * that provider's service of the same category or name (default off).
+     */
+    public static final String IDENTITY_PROVIDER_SERVICE_KEY = "scoutro.kg.identity.providerServiceKey";
     public static final String DERIVED_INTERVAL_MINUTES = "scoutro.kg.derived.intervalMinutes";
     public static final String MATCHES_MAX_PER_ENTITY = "scoutro.kg.matches.maxPerEntity";
     public static final String MATCHES_MAX = "scoutro.kg.matches.max";
@@ -273,6 +280,8 @@ public final class KgConfig {
     public final long priceStaleMillis;
     public final Map<String, Long> priceStaleByCollection;
     public final boolean derivedEnabled;
+    public final boolean identityProductUrl;
+    public final boolean identityProviderServiceKey;
     public final long derivedIntervalMillis;
     public final int matchesMaxPerEntity;
     public final int matchesMax;
@@ -443,6 +452,8 @@ public final class KgConfig {
         this.jobsSignalOverrides=Collections.unmodifiableMap(signals);
         this.jobsEndedVisibleMillis = DAY * p.longValue(JOBS_ENDED_VISIBLE_DAYS, 90, 0, 3650);
         this.derivedEnabled = p.bool(DERIVED_ENABLED, true);
+        this.identityProductUrl = p.bool(IDENTITY_PRODUCT_URL, false);
+        this.identityProviderServiceKey = p.bool(IDENTITY_PROVIDER_SERVICE_KEY, false);
         this.derivedIntervalMillis = 60_000L * p.longValue(DERIVED_INTERVAL_MINUTES, 60, 5, 1440);
         this.matchesMaxPerEntity = (int) p.longValue(MATCHES_MAX_PER_ENTITY, 20, 0, 200);
         this.matchesMax = (int) p.longValue(MATCHES_MAX, 50_000, 0, 1_000_000);
@@ -694,7 +705,10 @@ public final class KgConfig {
 
     /** Stable description of what the extraction reads per collection (vocabularies, jobs): part of the extractor identity. */
     public String extractionKey() {
-        return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections))+"|"+this.jobsExtractOverrides;
+        // the identity changes re-resolve every page once they are switched (rules, no LLM); off, the key is the one of before
+        return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections))+"|"+this.jobsExtractOverrides
+                + (this.identityProductUrl || this.identityProviderServiceKey
+                        ? "|identity:" + (this.identityProductUrl ? "u" : "") + (this.identityProviderServiceKey ? "p" : "") : "");
     }
 
     /** The scan weight of a collection (1 unless set). */

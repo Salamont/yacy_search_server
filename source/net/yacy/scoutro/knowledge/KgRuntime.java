@@ -1368,6 +1368,16 @@ public final class KgRuntime {
         return s == null ? null : s.status().optJSONObject("lag");
     }
 
+    /**
+     * WP-F: what {@code scoutro.kg.identity.productUrl} and {@code .providerServiceKey} would change for the entities of one
+     * registrable domain; a dry run that writes nothing and calls no model (docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md).
+     */
+    public JSONObject identityPreview(final String domain, final boolean productUrl, final boolean providerServiceKey, final int limit)
+            throws KgException {
+        requireRunning();
+        return requireSync().identityPreview(domain, productUrl, providerServiceKey, limit);
+    }
+
     private SyncService requireSync() throws KgException {
         final SyncService s = this.sync;
         if (s == null) {

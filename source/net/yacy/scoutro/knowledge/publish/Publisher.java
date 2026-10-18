@@ -119,10 +119,20 @@ public final class Publisher {
 
     private final KgConfig cfg;
     private final Terms terms;
+    /** The WP-F identity changes this publisher resolves with ({@link IdentityResolver}). */
+    private final boolean productUrl;
+    private final boolean providerServiceKey;
 
     public Publisher(final KgConfig cfg, final Terms terms) {
+        this(cfg, terms, cfg.identityProductUrl, cfg.identityProviderServiceKey);
+    }
+
+    /** A publisher with other identity changes than the configuration's: the identity preview ({@code IdentityPreview}). */
+    public Publisher(final KgConfig cfg, final Terms terms, final boolean productUrl, final boolean providerServiceKey) {
         this.cfg = cfg;
         this.terms = terms;
+        this.productUrl = productUrl;
+        this.providerServiceKey = providerServiceKey;
     }
 
     /** Current row of a tracked document; null if not tracked. */
@@ -490,7 +500,7 @@ public final class Publisher {
             }
         }
         final String domain = Normalizers.registrableDomain(doc.host);
-        final IdentityResolver resolver = new IdentityResolver(this.terms);
+        final IdentityResolver resolver = new IdentityResolver(this.terms, this.productUrl, this.providerServiceKey);
         final Map<String, long[]> ents = new HashMap<>(); // ref -> {rowid}
         final Map<String, String> publicIds = new HashMap<>();
         for (final Mention m : ex.mentions()) {

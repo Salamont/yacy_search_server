@@ -159,6 +159,11 @@ all collections and the page says so.
   **outdated** after `scoutro.kg.prices.staleDays` (180; per collection
   `scoutro.kg.prices.staleDays.<collection>`); a validity date of the source
   wins (**expired**).
+- **Other amounts:** amounts the sources name that are no price of the
+  business, each with its role: **statutory benefit** (an insurance or the law
+  pays it, such as the Entlastungsbetrag), **donation**, **subsidy**, or
+  **role unclear** (the sentence names a price and such an amount at once).
+  They are never counted as prices and never appear in the price lists.
 - **Contacts:** only organisation contacts (central phone, fax, role
   mailboxes, contact form, departments without names, opening and office
   hours, company profiles, website, directions). Person names, personal
@@ -648,6 +653,29 @@ An assessment is the durable correction of what one source supports
 
 Nothing is sent to a model; the index is not changed.
 
+### Identity change preview
+
+Two identity changes are off by default because they change entities that
+already exist (docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md):
+
+- `scoutro.kg.identity.productUrl`: a product or service joins the one with the
+  same address of its own product page on the same site, and only with the same
+  name (the product on the home page and on its page become one). An address
+  several products of one page declare is no product page.
+- `scoutro.kg.identity.providerServiceKey`: a service whose provider only the
+  structured data's `provider` or the AI enrichment names joins that provider's
+  service of the same category or name.
+
+**Preview identity change** reads up to 200 active pages of one registrable
+domain from the index, publishes them with the rules twice in one transaction
+(as configured and with the change) and rolls back: it shows the pages whose
+facts would move, entities and services before and after, the merges and the
+merges a different name or another discriminator blocks. For the AI enrichment
+it estimates from the stored offers how many of its services would get a key.
+Nothing is written and no model is called. Switching a change on reads every
+page again once with the rules (no model); a merge is not undone when it is
+switched off again.
+
 ## Access And Safety
 
 Administrator access (Digest) is required, for the page and for every API
@@ -660,6 +688,7 @@ text; links to crawled pages open in a new tab without a referrer.
 | --- | --- | --- |
 | `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`), its scan per collection (`llm.selection`), request budget (`llm.context`), long pages read on to the end of their content (`llm.continuation`), how much of the done pages' text was read (`llm.documents.coverage`), refusal samples (`llm.refusalSamples`), what the tier keeps between readings (`llm.storage`) and the backlog over the last day (`llm.backlog`) |
 | `/scoutro/api/v1/kg/llm-refusals` | GET | Samples of what the LLM tier dropped or refused since the start, newest first (`reason`, `limit` 1–100): reason, item, predicate, types, page, chunk and an excerpt of at most 160 characters without person names, e-mail addresses or phone numbers; in memory only (at most 500, 20 per reason, 128 KiB, seven days) |
+| `/scoutro/api/v1/kg/identity-preview` | POST | Identity change preview for one `domain` (`productUrl`, `providerServiceKey`, `limit` ≤ 200): baseline and preview counts, `documentsChanged`, `merges`, `conflicts`, `llm` estimate; writes nothing, calls no model; 503 `sync_unavailable` without the Solr synchronisation |
 | `/scoutro/api/v1/kg/assessments` | GET, POST | Assessments: list (`status` active, revoked, all; `limit`); without `token` a preview, with the preview's `token` stored and applied (actions `withdraw`, `reclassify`, `assert` with `quote`); 409 `assessment_preview_stale`, `assessment_too_large`, `assessment_source_unavailable`, 422 `assessment_quote_not_in_source` |
 | `/scoutro/api/v1/kg/assessments/{id}/revoke` | POST | Revokes an assessment; 404 unknown, 409 revoked already |
 | `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
