@@ -6,13 +6,20 @@ set -u
 cd "$(dirname "$0")/../../.."
 what="${1:-all}"
 failed=()
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
 run() {
   local name="$1"; shift
   echo "::group::$name"
   local start=$(date +%s)
-  if "$@"; then
+  if "$@" > "$log" 2>&1; then
+    tail -n 5 "$log"
     echo "PASS $name ($(( $(date +%s) - start )) s)"
   else
+    # the failing tests by name with their first stack lines (JUnit's summary), then the end of the output
+    sed -E 's/^[[:space:]]*\[(java|junit)\] //' "$log" \
+      | grep -E '^[0-9]+\) |^[a-z.]+\.[A-Za-z]*(Error|Exception)|^[[:space:]]+at net\.yacy|^Tests run:|^OK \(' | head -n 120 || true
+    tail -n 40 "$log"
     echo "FAIL $name ($(( $(date +%s) - start )) s)"
     failed+=("$name")
   fi
@@ -20,10 +27,10 @@ run() {
 }
 if [ "$what" = all ] || [ "$what" = java ]; then
   rm -rf build/classes build/jt-classes build/scoutro-* build/*-tests
-  run "ant clean compile" ant -q clean compile
+  run "ant clean compile" ant clean compile
   # every offline JUnit target the branch defines (a target missing on a branch is simply not there)
   for t in $(grep -o '<target name="scoutro-[a-z0-9-]*-test"' build.xml | sed 's/<target name="//; s/"//' | sort -u); do
-    run "ant $t" ant -q "$t"
+    run "ant $t" ant "$t"
   done
 fi
 if [ "$what" = all ] || [ "$what" = python ]; then
