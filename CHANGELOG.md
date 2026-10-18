@@ -4,6 +4,13 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- LLM service `ANTHROPIC` (Anthropic) on its OpenAI-compatible Chat Completions, default hoststub
+  `https://api.anthropic.com`. Every request (chat, streaming, RAG chat, model list and capability tests) carries
+  `anthropic-version: 2023-06-01` and the existing Bearer key; an optional `ai.anthropic.workspace_id` is sent as
+  `anthropic-workspace-id`. No `temperature` is sent to Anthropic; Anthropic ignores `response_format`, so its format
+  capability is never shown as supported and the knowledge graph keeps the validator. Other services unchanged; not
+  activated, released or deployed.
+
 ## 0.10.9 / 1.942-scoutro.33 — patch: service offer evidence before publication
 
 Release candidate stacked on application PR #73; not published.

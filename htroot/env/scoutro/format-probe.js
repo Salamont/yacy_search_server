@@ -9,6 +9,8 @@
  *   unsupported - HTTP 400 or 422 with the schema, while the same request without it is answered (200);
  *   ignored     - HTTP 200, but the answer is no JSON object of the schema (the parameter is accepted, not followed);
  *   unknown     - anything else (network, timeout, 401/403/404/405/429, 5xx, a control request that fails too): not stored.
+ * ANTHROPIC ignores response_format on its OpenAI-compatible Chat Completions: there a compliant answer is the prompt's
+ * work, so its result is ignored, never supported; its probe also sends no temperature (newer models refuse most values).
  * A format value without the service's version counts as unknown: the mood probe up to Scoutro 0.8.3, and for OLLAMA
  * also a version 2 value (measured on /v1/chat/completions, which says nothing about /api/chat) and a version 3 value
  * (sent without think: false to a thinking model whose answer budget could go to thinking alone, see thinking-probe.js). */
@@ -28,6 +30,8 @@
   const RESULTS = ['supported', 'unsupported', 'ignored'];
 
   const native = service => String(service || '').trim() === 'OLLAMA';
+  /** A service that accepts response_format but does not enforce it (as LLM.ignoresResponseFormat). */
+  const ignoresSchema = service => String(service || '').trim() === 'ANTHROPIC';
   /** The probe version whose result counts for a service. */
   function version(service) { return native(service) ? VERSION_OLLAMA : VERSION; }
   /** The chat path of the probe: Ollama's native /api/chat, else the OpenAI-compatible one. */
@@ -56,6 +60,7 @@
       messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: USER }],
       stream: false
     };
+    if (ignoresSchema(service)) delete body.temperature;
     if (!control) body.response_format = { type: 'json_schema', json_schema: { name: SCHEMA_NAME, strict: true, schema: SCHEMA } };
     return body;
   }
@@ -88,10 +93,11 @@
   /**
    * The result of one probe: the HTTP status of the request with the schema (0: no answer, e.g. network or timeout),
    * its parsed body (for 200) and the HTTP status of the control request without the schema (only asked after 400/422).
+   * For a service that ignores the schema (ANTHROPIC) a compliant answer is ignored too.
    */
-  function classify(probe) {
+  function classify(probe, service) {
     const status = probe && typeof probe.status === 'number' ? probe.status : 0;
-    if (status === 200) return compliant(answer(probe.body)) ? 'supported' : 'ignored';
+    if (status === 200) return compliant(answer(probe.body)) && !ignoresSchema(service) ? 'supported' : 'ignored';
     if (status === 400 || status === 422) return probe.controlStatus === 200 ? 'unsupported' : 'unknown';
     return 'unknown';
   }
@@ -100,10 +106,11 @@
   function stored(entry, service) {
     if (!entry || typeof entry !== 'object' || Number(entry.format_probe) !== version(service)) return 'unknown';
     const value = typeof entry.format === 'string' ? entry.format.trim().toLowerCase() : '';
+    if (value === 'supported' && ignoresSchema(service)) return 'ignored';
     return RESULTS.includes(value) ? value : 'unknown';
   }
 
-  const api = { VERSION, VERSION_OLLAMA, SCHEMA_NAME, SCHEMA, SYSTEM, USER, version, path, payload, answer, compliant, classify, stored };
+  const api = { VERSION, VERSION_OLLAMA, SCHEMA_NAME, SCHEMA, SYSTEM, USER, version, path, payload, answer, compliant, classify, stored, ignoresSchema };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.ScoutroFormatProbe = api;
 })(typeof window !== 'undefined' ? window : this);

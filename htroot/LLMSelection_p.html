@@ -181,6 +181,19 @@
         return `${path}?hoststub=${encodeURIComponent(target)}`;
       }
 
+      // The service an endpoint is tested as: the proxy adds what the service needs (Anthropic: anthropic-version),
+      // also for an endpoint that is not saved yet.
+      function setServiceHeader(headers, service) {
+        if (service) headers["X-LLM-Service"] = service;
+        return headers;
+      }
+
+      // Anthropic refuses most temperature values: its requests carry none; every other service as before.
+      function withServiceParameters(service, payload) {
+        if (payload && service === "ANTHROPIC") delete payload.temperature;
+        return payload;
+      }
+
       async function fetchJsonOrThrow(url, options = {}) {
         const response = await fetch(url, options);
         if (response.status !== 200) {
@@ -365,9 +378,10 @@
         const options = {};
         const apikeyEl = document.getElementById("apikey");
         const apikey = apikeyEl ? apikeyEl.value.trim() : "";
+        options.headers = setServiceHeader({}, service);
         if (apikey) {
           // for endpoints which are not saved yet the proxy cannot look up the key itself
-          options.headers = { "X-LLM-Api-Key": apikey };
+          options.headers["X-LLM-Api-Key"] = apikey;
         }
         try {
           const payload = await fetchJsonOrThrow(url, options);
@@ -668,6 +682,8 @@
           hoststubInput.value = "https://api.openai.com";
         } else if (service === "OPENROUTER") {
           hoststubInput.value = "https://openrouter.ai/api";
+        } else if (service === "ANTHROPIC") {
+          hoststubInput.value = "https://api.anthropic.com"; // the paths add /v1
         } else {
           hoststubInput.value = "";
         }
@@ -1599,7 +1615,7 @@
           return false;
         }
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
@@ -1607,7 +1623,7 @@
         const response = await fetch(targetUrl, {
           method: "POST",
           headers,
-          body: JSON.stringify(buildThinkingTestPayload(modelName)),
+          body: JSON.stringify(withServiceParameters(service, buildThinkingTestPayload(modelName))),
           signal: controller.signal
         });
         if (!response.ok) {
@@ -1695,11 +1711,11 @@
           return false;
         }
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
-        const payload = buildToolingTestPayload(service, hoststub, modelName);
+        const payload = withServiceParameters(service, buildToolingTestPayload(service, hoststub, modelName));
         const response = await fetch(targetUrl, {
           method: "POST",
           headers,
@@ -1828,12 +1844,12 @@
           return false;
         }
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
         const base64Image = await loadVisionTestImageBase64();
-        const payload = buildVisionTestPayload(service, hoststub, modelName, base64Image);
+        const payload = withServiceParameters(service, buildVisionTestPayload(service, hoststub, modelName, base64Image));
         const response = await fetch(targetUrl, {
           method: "POST",
           headers,
@@ -2010,11 +2026,11 @@
         if (probe.status === 400 || probe.status === 422) {
           probe.controlStatus = (await postFormatProbe(service, endpointBase, modelName, apikey, true)).status;
         }
-        return ScoutroFormatProbe.classify(probe);
+        return ScoutroFormatProbe.classify(probe, service);
       }
 
       async function postFormatProbe(service, endpointBase, modelName, apikey, control) {
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
@@ -2229,6 +2245,7 @@
             <option value="LMSTUDIO">LMStudio</option>
             <option value="OPENAI">OpenAI</option>
             <option value="OPENROUTER">Open Router</option>
+            <option value="ANTHROPIC">Anthropic</option>
             </select>&nbsp; This makes a preset to the Hoststub value
         </dd>
 

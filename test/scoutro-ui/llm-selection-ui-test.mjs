@@ -194,6 +194,18 @@ try {
         check((await openaiDiscovery).status() === 200, `${width}: OpenAI-compatible discovery path`);
         check((await page.locator('#availableModelsContainer tbody').textContent()).includes('fixture-openai'), `${width}: OpenAI-compatible model still selectable`);
         check(await page.locator('#productionModelsTable').isVisible(), `${width}: production matrix remains visible after switching service`);
+        // Anthropic: its default host without /v1, a key field, and the page names the service to the proxy (anthropic-version)
+        await page.locator('#service').selectOption('ANTHROPIC');
+        check(await page.locator('#hoststub').inputValue() === 'https://api.anthropic.com', `${width}: Anthropic default hoststub without /v1`);
+        check(!await page.locator('#apikey').isDisabled(), `${width}: Anthropic takes an API key`);
+        await page.locator('#hoststub').fill(stub);
+        const anthropicDiscovery = page.waitForRequest(r => new URL(r.url()).pathname === '/v1/models');
+        await page.evaluate(() => loadModelList());
+        const anthropicRequest = await anthropicDiscovery;
+        check(anthropicRequest.headers()['x-llm-service'] === 'ANTHROPIC', `${width}: the page names the Anthropic service to the proxy`);
+        check(new URL(anthropicRequest.url()).searchParams.get('hoststub') === stub, `${width}: Anthropic discovery through the admin proxy`);
+        await page.waitForFunction(() => (document.querySelector('#availableModelsContainer tbody') || {}).textContent?.includes('fixture-openai'));
+        check(true, `${width}: an Anthropic model list (data[].id) is selectable`);
         if (shots) await page.locator('#productionModelsTable').screenshot({ path: path.join(shots, `llm-matrix-de-${width}.png`) });
         check(errors.length === 0, `${width}: no uncaught JavaScript errors`);
         if (shots) await page.screenshot({ path: path.join(shots, `llm-selection-de-${width}.png`), fullPage: true });

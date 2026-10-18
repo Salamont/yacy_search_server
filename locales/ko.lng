@@ -2083,6 +2083,7 @@ Ollama==Ollama
 LMStudio==LM스튜디오
 OpenAI==OpenAI
 Open Router==오픈 라우터
+Anthropic==Anthropic
 This makes a preset to the Hoststub value==이렇게 하면 Hoststub 값이 사전 설정됩니다.
 >hoststub<==>hoststub<
 you can probably leave this to the default value==이 값을 기본값으로 놔둬도 됩니다.

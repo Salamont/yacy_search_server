@@ -109,4 +109,21 @@ check(probe.stored({ format: 'unsupported' }, 'OLLAMA') === 'unknown', 'Ollama l
 check(probe.stored({ format: 'ignored', format_probe: 2 }, 'OPENAI') === 'ignored' && probe.stored({ format: 'supported', format_probe: 4 }, 'OPENAI') === 'unknown',
   'OpenAI: version 2 counts, version 4 does not');
 
+// G) ANTHROPIC ignores response_format: OpenAI-compatible path and version, no temperature, a compliant answer is ignored
+check(probe.path('ANTHROPIC') === '/v1/chat/completions' && probe.version('ANTHROPIC') === 2, 'Anthropic: OpenAI-compatible, version 2');
+const a = probe.payload('claude-sonnet-5-5', false, 'ANTHROPIC');
+check(!('temperature' in a) && a.response_format && a.response_format.type === 'json_schema' && a.max_tokens === 64 && a.stream === false,
+  'Anthropic request: the schema, no temperature');
+check(!('temperature' in probe.payload('claude-sonnet-5-5', true, 'ANTHROPIC')) && !('response_format' in probe.payload('m', true, 'ANTHROPIC')),
+  'Anthropic control: no temperature, no schema');
+check(probe.payload('m', false, 'OPENAI').temperature === 0, 'the other services keep temperature 0');
+const anthropicOk = { status: 200, body: { choices: [{ message: { role: "assistant", content: "{\"result\":\"ok\"}" } }] } };
+check(probe.classify(anthropicOk, 'ANTHROPIC') === 'ignored', 'Anthropic compliant answer: ignored, never supported');
+check(probe.classify(anthropicOk, 'OPENAI') === 'supported' && probe.classify(anthropicOk) === 'supported', 'the other services: supported as before');
+check(probe.classify({ status: 400, controlStatus: 200 }, 'ANTHROPIC') === 'unsupported' && probe.classify({ status: 0 }, 'ANTHROPIC') === 'unknown',
+  'Anthropic unsupported/unknown as for every service');
+check(probe.stored({ format: 'supported', format_probe: 2 }, 'ANTHROPIC') === 'ignored', 'a stored Anthropic supported reads as ignored');
+check(probe.stored({ format: 'supported', format_probe: 2 }, 'OPENROUTER') === 'supported', 'OpenRouter stored supported unchanged');
+check(probe.ignoresSchema('ANTHROPIC') && !probe.ignoresSchema('OPENAI') && !probe.ignoresSchema('OLLAMA'), 'only Anthropic ignores the schema');
+
 console.log(`PASS: ${checks} format probe checks`);

@@ -2083,6 +2083,7 @@ Ollama==Ollama
 LMStudio==एलएमस्टूडियो
 OpenAI==OpenAI
 Open Router==राउटर खोलें
+Anthropic==Anthropic
 This makes a preset to the Hoststub value==यह होस्टस्टब मान को प्रीसेट बनाता है
 >hoststub<==>hoststub<
 you can probably leave this to the default value==आप संभवतः इसे डिफ़ॉल्ट मान पर छोड़ सकते हैं

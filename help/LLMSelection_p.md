@@ -25,7 +25,17 @@ Use it before RAG or AI analysis work so later pages know which model endpoint a
 
 ## Page Architecture
 
-The page chooses an LLM service family and base host for model-assisted features. `service` selects the integration style, for example Ollama, LM Studio, OpenAI, or Open Router. `hoststub` points YaCy at the local or remote API base that will receive model requests.
+The page chooses an LLM service family and base host for model-assisted features. `service` selects the integration style, for example Ollama, LM Studio, OpenAI, Open Router, or Anthropic. `hoststub` points YaCy at the local or remote API base that will receive model requests.
+
+## Anthropic
+
+`ANTHROPIC` uses Anthropic's OpenAI-compatible Chat Completions with the default hoststub `https://api.anthropic.com`
+(without `/v1`; the paths add it). The API key is sent as `Authorization: Bearer`, as for the other hosted services.
+Every request to it, also the model list and the capability tests of this page, carries `anthropic-version: 2023-06-01`;
+a key that can act on several Anthropic workspaces needs `ai.anthropic.workspace_id` (sent as `anthropic-workspace-id`),
+a key of one workspace needs nothing. Anthropic requests carry no `temperature`. Anthropic ignores `response_format` on
+this API: its format capability is never "supported" (a schema-shaped answer counts as "ignored"), so the knowledge
+graph's structured output stays "schema unverified" and every answer still passes the validator.
 
 ## Correct Use
 
@@ -137,7 +147,7 @@ The table explains values that an agent or script must set deliberately. Paramet
 
 | Parameter | Meaning and valid values | Care |
 | --- | --- | --- |
-| `service` | Choice value. Options: `OLLAMA` = Ollama, `LMSTUDIO` = LMStudio, `OPENAI` = OpenAI, `OPENROUTER` = Open Router. | Set only when this option is part of the intended request; otherwise omit it and let YaCy use the page default. |
+| `service` | Choice value. Options: `OLLAMA` = Ollama, `LMSTUDIO` = LMStudio, `OPENAI` = OpenAI, `OPENROUTER` = Open Router, `ANTHROPIC` = Anthropic. | Set only when this option is part of the intended request; otherwise omit it and let YaCy use the page default. |
 | `hoststub` | Host or domain scope. | Set only when this option is part of the intended request; otherwise omit it and let YaCy use the page default. |
 
 Example request shape:
