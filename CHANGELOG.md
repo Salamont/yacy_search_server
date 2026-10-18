@@ -22,6 +22,8 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   that re-extraction completed; a stop before (an upgrade whose first start ended early) lost it before, and the
   pages kept their old reading.
 
+- Fix: a start killed during the copy before a schema upgrade left `backup/graph-*-before-upgrade.db.partial` (as large
+  as the graph) until the next regular backup; the next upgrade start now removes it (`upgrade.removedPartial`).
 - Assessments of graph facts (data quality programme WP-E, not released; knowledge graph schema 7): an
   administrator withdraws or reclassifies the evidence of one source, host or domain for a predicate (optionally
   value, subject, tier) after a preview; the same fact from an independent source stays. Withdrawn evidence is copied

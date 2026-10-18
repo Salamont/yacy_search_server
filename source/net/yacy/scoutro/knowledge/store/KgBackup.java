@@ -207,15 +207,7 @@ public final class KgBackup {
      * @return the removed file names
      */
     public static List<String> retain(final File dir, final int keep) {
-        final List<String> removed = new ArrayList<>();
-        final File[] files = dir.listFiles();
-        if (files != null) {
-            for (final File f : files) {
-                if (f.isFile() && f.getName().startsWith("graph-") && f.getName().endsWith(".partial") && f.delete()) {
-                    removed.add(f.getName());
-                }
-            }
-        }
+        final List<String> removed = removePartials(dir, false);
         int regular = 0;
         String newestRegular = null;
         for (final File f : list(dir)) {
@@ -239,6 +231,29 @@ public final class KgBackup {
                 }
                 if (safety(f.getName()) && stamp(f.getName()).compareTo(newestRegular) < 0) {
                     delete(f, removed);
+                }
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Deletes the partial files of an interrupted copy ({@code graph-*.partial} and its {@code -journal}), all of them or only
+     * those of a copy before an upgrade: an upgrade killed during its copy leaves one as large as the graph, and the next start
+     * takes a new copy under a new name.
+     *
+     * @return the removed file names
+     */
+    public static List<String> removePartials(final File dir, final boolean upgradeOnly) {
+        final List<String> removed = new ArrayList<>();
+        final File[] files = dir.listFiles();
+        if (files != null) {
+            for (final File f : files) {
+                final String n = f.getName();
+                final String base = n.endsWith(".partial-journal") ? n.substring(0, n.length() - "-journal".length()) : n;
+                if (f.isFile() && n.startsWith("graph-") && base.endsWith(".partial")
+                        && (!upgradeOnly || base.endsWith(BEFORE_UPGRADE + ".db.partial")) && f.delete()) {
+                    removed.add(n);
                 }
             }
         }
