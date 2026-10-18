@@ -237,6 +237,41 @@ public class CollectionHideTest {
         assertEquals("collection_sxt:\"test-web\"", CollectionCatalog.onlyQuery("test-web", List.of()));
     }
 
+    /**
+     * WP-A: collection decisions that put pages into a collection (a reassign records them) keep hiding possible; they
+     * refuse removing it and deleting all of its pages, but not deleting its own pages while shared ones keep it listed.
+     */
+    @Test
+    public void decisionsKeepHidingPossibleAndRefuseOnlyWhatWouldLeaveTheirPagesWithoutACollection() throws Exception {
+        page("p1", "test-web");
+        page("p2", "test-web", "kunden-web");
+        page("p3", "alleine-web");
+        final ScoutroActions actions = new ScoutroActions(new FakeUpstream(), catalog());
+        actions.uses = id -> Map.of();
+        actions.decisionUses = id -> "kunden-web".equals(id) ? 0 : 2;
+        actions.graphSwitch = new ScoutroActions.GraphSwitch() {
+            @Override public boolean off(final String id) { return false; }
+            @Override public void on(final String id) { }
+        };
+        assertTrue("hiding: the pages stay, the decisions go on applying", actions.collectionHide("test-web").getBoolean("hidden"));
+        actions.collectionShow("test-web");
+        // all pages of alleine-web are its own: deleting them would take it from the lists while decisions name it
+        final ApiException all = refused(() -> actions.collectionDeletePages("alleine-web", new JSONObject().put("confirm", "alleine-web")), 409,
+                "collection_in_use");
+        assertEquals(2, all.toJson().getJSONObject("error").getJSONObject("details").getJSONObject("uses").getInt("decisions"));
+        assertTrue("nothing was deleted", this.pages.containsKey("p3"));
+        // test-web keeps a shared page: its own page goes, it stays listed (hidden)
+        final JSONObject r = actions.collectionDeletePages("test-web", new JSONObject().put("confirm", "test-web"));
+        assertTrue(r.getBoolean("hidden"));
+        assertFalse(this.pages.containsKey("p1"));
+        // an empty collection created here: removing it is refused while decisions name it
+        actions.collectionCreate(new JSONObject().put("id", "neu-web").put("name", "Neu"));
+        final ApiException removed = refused(() -> actions.collectionRemove("neu-web"), 409, "collection_in_use");
+        assertEquals(2, removed.toJson().getJSONObject("error").getJSONObject("details").getJSONObject("uses").getInt("decisions"));
+        actions.decisionUses = id -> 0;
+        assertTrue(actions.collectionRemove("neu-web").getBoolean("removed"));
+    }
+
     @Test
     public void onlyTheAdministratorSeesAHiddenCollectionInTheList() throws Exception {
         page("p1", "test-web");
