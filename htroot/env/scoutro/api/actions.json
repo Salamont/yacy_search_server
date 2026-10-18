@@ -4459,6 +4459,207 @@
       }
     },
     {
+      "name": "kg.assessments.list",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Newest first; status active (default), revoked or all; limit 1-500 (100).",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/assessments",
+        "successStatus": 200
+      },
+      "parameters": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked",
+            "all"
+          ],
+          "default": "active",
+          "in": "query",
+          "required": false,
+          "description": "Which assessments."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100,
+          "in": "query",
+          "required": false,
+          "description": "At most this many."
+        }
+      },
+      "returns": "KgAssessmentList",
+      "errors": [
+        400,
+        401,
+        403,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/kg/assessments[?status=active|revoked|all] (administrator)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.assessments.create",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Without token a preview: what it would change now, a sample of at most 20 rows and a token; nothing changes. With the token the assessment is stored and applied in one transaction. 400 invalid_request, 409 assessment_preview_stale (the graph changed since the preview), 409 assessment_too_large (more than 5000 evidence rows: narrow scope, value, subject or tier), 503 while the graph is off.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/assessments",
+        "successStatus": 200
+      },
+      "parameters": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "withdraw",
+            "reclassify"
+          ],
+          "in": "body",
+          "required": true
+        },
+        "scope": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "description": "Exactly one of source (document ID), host or domain (registrable).",
+          "properties": {
+            "source": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{12}$"
+            },
+            "host": {
+              "type": "string",
+              "maxLength": 253
+            },
+            "domain": {
+              "type": "string",
+              "maxLength": 253
+            }
+          },
+          "in": "body",
+          "required": true
+        },
+        "predicate": {
+          "type": "string",
+          "maxLength": 64,
+          "in": "body",
+          "required": true
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000,
+          "in": "body",
+          "required": false
+        },
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "body",
+          "required": false
+        },
+        "tier": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 3,
+          "in": "body",
+          "required": false
+        },
+        "targetPredicate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "description": "reclassify only: a predicate with the same kind of object.",
+          "in": "body",
+          "required": false
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Why; no personal data.",
+          "in": "body",
+          "required": true
+        },
+        "token": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The preview's token; without it nothing changes.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "KgAssessmentResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/kg/assessments (administrator; preview without token)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.assessments.revoke",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Restores the copied evidence unchanged where the source is still the copied revision (a reclassification's moved row is removed again) and marks the observations recorded again; the assessment stays as revoked for the record. Empty body. 404 assessment_not_found, 409 assessment_not_active.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/assessments/{id}/revoke",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kga_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Assessment ID."
+        }
+      },
+      "returns": "KgAssessmentRevokeResult",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/kg/assessments/{id}/revoke (administrator)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "host.resolve",
       "description": "Normalize a host or URL and look up indexed records within the requested scope. Unknown hosts return indexed=false, HTTP 200. Index failures remain errors. canRequest is permission information, not proof that crawl preflight will pass. Collection is required on the subsequent crawl start.",
       "mutating": false,
@@ -4693,6 +4894,275 @@
       ],
       "cli": "scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)",
       "mcpTool": "scoutro_collections_reassign",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.list",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. The store's health and every decision (active and revoked); ?domain= filters.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/collections/decisions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "in": "query",
+          "required": false,
+          "description": "Only this registrable domain."
+        }
+      },
+      "returns": "CollectionDecisionList",
+      "errors": [
+        401,
+        403,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/collections/decisions[?domain=] (administrator)",
+      "mcpTool": "scoutro_collections_decisions_list",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.decide",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Without confirm a preview: the pages in scope, their collections before and after, a sample, an existing decision of the same scope and a token; nothing changes. With confirm set to that token the decision is stored first (write-ahead, a new revision of an existing one) and then applied to the indexed pages and their webgraph edges by Solr atomic updates in resumable batches (apply: applied or partial with a cursor). The knowledge graph re-scopes the pages; nothing is crawled or deleted and no LLM is asked. 400 invalid_request, 400 collection_unknown, 409 decision_preview_stale, 409 decision_exists, 422 fallback_needs_pages (fallback for a scope without indexed pages), 422 target_not_followed (pages would leave the knowledge graph: let it follow the target first), 422 decision_too_large (more than 50000 pages), 503 decisions_unavailable / decisions_unwritable / index_unavailable.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Exactly one registrable domain such as example.com; its subdomains are included.",
+          "in": "body",
+          "required": true
+        },
+        "host": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Narrows the scope to this exact host (the domain or a subdomain).",
+          "in": "body",
+          "required": false
+        },
+        "pathPrefix": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\").",
+          "in": "body",
+          "required": false
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "transform"
+          ],
+          "default": "exact",
+          "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment).",
+          "in": "body",
+          "required": false
+        },
+        "collections": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages.",
+          "in": "body",
+          "required": false
+        },
+        "denied": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "transform only: the collections the decision takes away.",
+          "in": "body",
+          "required": false
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$",
+          "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt.",
+          "in": "body",
+          "required": true
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Free references to the evidence (classification, documents).",
+          "in": "body",
+          "required": false
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The token of the preview; without it nothing is stored.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        422,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions (administrator; preview without confirm)",
+      "mcpTool": "scoutro_collections_decisions_decide",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.apply",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Continues a pending or partial decision from its cursor (after an interruption, more than 5000 pages, or pages a crawl changed meanwhile); idempotent.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions/apply",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kcd_[a-z0-9]{8,32}$",
+          "in": "body",
+          "required": true
+        },
+        "confirm": {
+          "type": "string",
+          "in": "body",
+          "required": false
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/apply {\"id\":...} (administrator)",
+      "mcpTool": "scoutro_collections_decisions_apply",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.revoke",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Preview without confirm; with the token the decision is revoked (a new revision): the pages keep their present collections, later crawls write their crawl profile's collections again.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions/revoke",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kcd_[a-z0-9]{8,32}$",
+          "in": "body",
+          "required": true
+        },
+        "confirm": {
+          "type": "string",
+          "in": "body",
+          "required": false
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/revoke (administrator; preview without confirm)",
+      "mcpTool": "scoutro_collections_decisions_revoke",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.decisions.recover",
+      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Only while the store is unavailable: the preview lists the readable decisions and the problems; with the token they become the committed state (newer decisions are lost and must be decided again). 409 decisions_available otherwise.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/decisions/recover",
+        "successStatus": 200
+      },
+      "parameters": {
+        "confirm": {
+          "type": "string",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionDecisionResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/recover (administrator; preview without confirm)",
+      "mcpTool": "scoutro_collections_decisions_recover",
       "agent": {
         "grantable": false
       }
@@ -6059,476 +6529,6 @@
         "grantable": false
       },
       "permission": "admin"
-    },
-    {
-      "name": "collections.decisions.list",
-      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. The store's health and every decision (active and revoked); ?domain= filters.",
-      "mutating": false,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "GET",
-        "path": "/scoutro/api/v1/collections/decisions",
-        "successStatus": 200
-      },
-      "parameters": {
-        "domain": {
-          "type": "string",
-          "maxLength": 253,
-          "in": "query",
-          "required": false,
-          "description": "Only this registrable domain."
-        }
-      },
-      "returns": "CollectionDecisionList",
-      "errors": [
-        401,
-        403,
-        503
-      ],
-      "cli": "HTTP GET /scoutro/api/v1/collections/decisions[?domain=] (administrator)",
-      "mcpTool": "scoutro_collections_decisions_list",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "collections.decisions.decide",
-      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Without confirm a preview: the pages in scope, their collections before and after, a sample, an existing decision of the same scope and a token; nothing changes. With confirm set to that token the decision is stored first (write-ahead, a new revision of an existing one) and then applied to the indexed pages and their webgraph edges by Solr atomic updates in resumable batches (apply: applied or partial with a cursor). The knowledge graph re-scopes the pages; nothing is crawled or deleted and no LLM is asked. 400 invalid_request, 400 collection_unknown, 409 decision_preview_stale, 409 decision_exists, 422 fallback_needs_pages (fallback for a scope without indexed pages), 422 target_not_followed (pages would leave the knowledge graph: let it follow the target first), 422 decision_too_large (more than 50000 pages), 503 decisions_unavailable / decisions_unwritable / index_unavailable.",
-      "mutating": true,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "POST",
-        "path": "/scoutro/api/v1/collections/decisions",
-        "successStatus": 200
-      },
-      "parameters": {
-        "domain": {
-          "type": "string",
-          "maxLength": 253,
-          "description": "Exactly one registrable domain such as example.com; its subdomains are included.",
-          "in": "body",
-          "required": true
-        },
-        "host": {
-          "type": "string",
-          "maxLength": 253,
-          "description": "Narrows the scope to this exact host (the domain or a subdomain).",
-          "in": "body",
-          "required": false
-        },
-        "pathPrefix": {
-          "type": "string",
-          "maxLength": 200,
-          "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\").",
-          "in": "body",
-          "required": false
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "exact",
-            "transform"
-          ],
-          "default": "exact",
-          "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment).",
-          "in": "body",
-          "required": false
-        },
-        "collections": {
-          "type": "array",
-          "maxItems": 5,
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]{1,64}$"
-          },
-          "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages.",
-          "in": "body",
-          "required": false
-        },
-        "denied": {
-          "type": "array",
-          "maxItems": 5,
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]{1,64}$"
-          },
-          "description": "transform only: the collections the decision takes away.",
-          "in": "body",
-          "required": false
-        },
-        "reason": {
-          "type": "string",
-          "pattern": "^[a-z0-9_]{1,64}$",
-          "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt.",
-          "in": "body",
-          "required": true
-        },
-        "note": {
-          "type": "string",
-          "maxLength": 500,
-          "in": "body",
-          "required": false
-        },
-        "evidence": {
-          "type": "object",
-          "description": "Free references to the evidence (classification, documents).",
-          "in": "body",
-          "required": false
-        },
-        "confirm": {
-          "type": "string",
-          "description": "The token of the preview; without it nothing is stored.",
-          "in": "body",
-          "required": false
-        }
-      },
-      "returns": "CollectionDecisionResult",
-      "errors": [
-        400,
-        401,
-        403,
-        409,
-        413,
-        415,
-        422,
-        503
-      ],
-      "cli": "HTTP POST /scoutro/api/v1/collections/decisions (administrator; preview without confirm)",
-      "mcpTool": "scoutro_collections_decisions_decide",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "collections.decisions.apply",
-      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Continues a pending or partial decision from its cursor (after an interruption, more than 5000 pages, or pages a crawl changed meanwhile); idempotent.",
-      "mutating": true,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "POST",
-        "path": "/scoutro/api/v1/collections/decisions/apply",
-        "successStatus": 200
-      },
-      "parameters": {
-        "id": {
-          "type": "string",
-          "pattern": "^kcd_[a-z0-9]{8,32}$",
-          "in": "body",
-          "required": true
-        },
-        "confirm": {
-          "type": "string",
-          "in": "body",
-          "required": false
-        },
-        "note": {
-          "type": "string",
-          "maxLength": 500,
-          "in": "body",
-          "required": false
-        }
-      },
-      "returns": "CollectionDecisionResult",
-      "errors": [
-        400,
-        401,
-        403,
-        404,
-        409,
-        413,
-        415,
-        503
-      ],
-      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/apply {\"id\":...} (administrator)",
-      "mcpTool": "scoutro_collections_decisions_apply",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "collections.decisions.revoke",
-      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Preview without confirm; with the token the decision is revoked (a new revision): the pages keep their present collections, later crawls write their crawl profile's collections again.",
-      "mutating": true,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "POST",
-        "path": "/scoutro/api/v1/collections/decisions/revoke",
-        "successStatus": 200
-      },
-      "parameters": {
-        "id": {
-          "type": "string",
-          "pattern": "^kcd_[a-z0-9]{8,32}$",
-          "in": "body",
-          "required": true
-        },
-        "confirm": {
-          "type": "string",
-          "in": "body",
-          "required": false
-        },
-        "note": {
-          "type": "string",
-          "maxLength": 500,
-          "in": "body",
-          "required": false
-        }
-      },
-      "returns": "CollectionDecisionResult",
-      "errors": [
-        400,
-        401,
-        403,
-        404,
-        409,
-        413,
-        415,
-        503
-      ],
-      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/revoke (administrator; preview without confirm)",
-      "mcpTool": "scoutro_collections_decisions_revoke",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "collections.decisions.recover",
-      "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Only while the store is unavailable: the preview lists the readable decisions and the problems; with the token they become the committed state (newer decisions are lost and must be decided again). 409 decisions_available otherwise.",
-      "mutating": true,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "POST",
-        "path": "/scoutro/api/v1/collections/decisions/recover",
-        "successStatus": 200
-      },
-      "parameters": {
-        "confirm": {
-          "type": "string",
-          "in": "body",
-          "required": false
-        }
-      },
-      "returns": "CollectionDecisionResult",
-      "errors": [
-        400,
-        401,
-        403,
-        409,
-        413,
-        415,
-        503
-      ],
-      "cli": "HTTP POST /scoutro/api/v1/collections/decisions/recover (administrator; preview without confirm)",
-      "mcpTool": "scoutro_collections_decisions_recover",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "kg.assessments.list",
-      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Newest first; status active (default), revoked or all; limit 1-500 (100).",
-      "mutating": false,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "GET",
-        "path": "/scoutro/api/v1/kg/assessments",
-        "successStatus": 200
-      },
-      "parameters": {
-        "status": {
-          "type": "string",
-          "enum": [
-            "active",
-            "revoked",
-            "all"
-          ],
-          "default": "active",
-          "in": "query",
-          "required": false,
-          "description": "Which assessments."
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 500,
-          "default": 100,
-          "in": "query",
-          "required": false,
-          "description": "At most this many."
-        }
-      },
-      "returns": "KgAssessmentList",
-      "errors": [
-        400,
-        401,
-        403,
-        503
-      ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/assessments[?status=active|revoked|all] (administrator)",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "kg.assessments.create",
-      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Without token a preview: what it would change now, a sample of at most 20 rows and a token; nothing changes. With the token the assessment is stored and applied in one transaction. 400 invalid_request, 409 assessment_preview_stale (the graph changed since the preview), 409 assessment_too_large (more than 5000 evidence rows: narrow scope, value, subject or tier), 503 while the graph is off.",
-      "mutating": true,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "POST",
-        "path": "/scoutro/api/v1/kg/assessments",
-        "successStatus": 200
-      },
-      "parameters": {
-        "action": {
-          "type": "string",
-          "enum": [
-            "withdraw",
-            "reclassify"
-          ],
-          "in": "body",
-          "required": true
-        },
-        "scope": {
-          "type": "object",
-          "minProperties": 1,
-          "maxProperties": 1,
-          "description": "Exactly one of source (document ID), host or domain (registrable).",
-          "properties": {
-            "source": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{12}$"
-            },
-            "host": {
-              "type": "string",
-              "maxLength": 253
-            },
-            "domain": {
-              "type": "string",
-              "maxLength": 253
-            }
-          },
-          "in": "body",
-          "required": true
-        },
-        "predicate": {
-          "type": "string",
-          "maxLength": 64,
-          "in": "body",
-          "required": true
-        },
-        "value": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "maxLength": 1000,
-          "in": "body",
-          "required": false
-        },
-        "subject": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^kge_[a-z2-7]{20}$",
-          "in": "body",
-          "required": false
-        },
-        "tier": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 1,
-          "maximum": 3,
-          "in": "body",
-          "required": false
-        },
-        "targetPredicate": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "maxLength": 64,
-          "description": "reclassify only: a predicate with the same kind of object.",
-          "in": "body",
-          "required": false
-        },
-        "reason": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500,
-          "description": "Why; no personal data.",
-          "in": "body",
-          "required": true
-        },
-        "token": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "The preview's token; without it nothing changes.",
-          "in": "body",
-          "required": false
-        }
-      },
-      "returns": "KgAssessmentResult",
-      "errors": [
-        400,
-        401,
-        403,
-        409,
-        413,
-        415,
-        503
-      ],
-      "cli": "HTTP POST /scoutro/api/v1/kg/assessments (administrator; preview without token)",
-      "agent": {
-        "grantable": false
-      }
-    },
-    {
-      "name": "kg.assessments.revoke",
-      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Restores the copied evidence unchanged where the source is still the copied revision (a reclassification's moved row is removed again) and marks the observations recorded again; the assessment stays as revoked for the record. Empty body. 404 assessment_not_found, 409 assessment_not_active.",
-      "mutating": true,
-      "auth": "admin",
-      "permission": "admin",
-      "http": {
-        "method": "POST",
-        "path": "/scoutro/api/v1/kg/assessments/{id}/revoke",
-        "successStatus": 200
-      },
-      "parameters": {
-        "id": {
-          "type": "string",
-          "pattern": "^kga_[a-z2-7]{20}$",
-          "in": "path",
-          "required": true,
-          "description": "Assessment ID."
-        }
-      },
-      "returns": "KgAssessmentRevokeResult",
-      "errors": [
-        400,
-        401,
-        403,
-        404,
-        409,
-        415,
-        503
-      ],
-      "cli": "HTTP POST /scoutro/api/v1/kg/assessments/{id}/revoke (administrator)",
-      "agent": {
-        "grantable": false
-      }
     }
   ],
   "schemas": {
@@ -8946,7 +8946,7 @@
               "additionalProperties": {
                 "type": "integer"
               },
-              "description": "Counters: published, unchanged, lifecycle, removed, untracked, abortedSuperseded, abortedGeneration, abortedOlder, notYetVisible, deferred, growthRefused, maintenanceRefused, drainRefused, queueDropped, solrErrors, failedDocs, drained, fullResets."
+              "description": "Counters: published, unchanged, lifecycle, removed, untracked, abortedSuperseded, abortedGeneration, abortedOlder, notYetVisible, deferred, growthRefused, maintenanceRefused, drainRefused, queueDropped, solrErrors, failedDocs, drained, fullResets, rescopedExtractions (pages whose collections alone changed and moved to another vocabulary context: tiers 1 and 2 read again, no model request)."
             },
             "versionCheckpoint": {
               "type": [
@@ -9233,6 +9233,31 @@
             },
             "maxInputChars": {
               "type": "integer"
+            },
+            "dailyRequests": {
+              "type": "object",
+              "description": "The daily cap on model requests (scoutro.kg.llm.maxRequestsPerDay, 0: none): requests started on the current UTC day; above the cap the tier waits (reason daily_request_cap) until the next day.",
+              "properties": {
+                "cap": {
+                  "type": "integer"
+                },
+                "today": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "day": {
+                  "type": "string"
+                }
+              }
+            },
+            "weights": {
+              "type": "object",
+              "description": "Scan weights per collection (scoutro.kg.llm.weight.<collection>, 1-10; a collection not listed has weight 1): a collection's share of each scan batch.",
+              "additionalProperties": {
+                "type": "integer"
+              }
             },
             "queue": {
               "type": "object",
@@ -19841,6 +19866,251 @@
         }
       }
     },
+    "KgAssessmentRequest": {
+      "type": "object",
+      "required": [
+        "action",
+        "scope",
+        "predicate",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "withdraw",
+            "reclassify"
+          ]
+        },
+        "scope": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "description": "Exactly one of source (document ID), host or domain (registrable).",
+          "properties": {
+            "source": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{12}$"
+            },
+            "host": {
+              "type": "string",
+              "maxLength": 253
+            },
+            "domain": {
+              "type": "string",
+              "maxLength": 253
+            }
+          }
+        },
+        "predicate": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        },
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^kge_[a-z2-7]{20}$"
+        },
+        "tier": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 3
+        },
+        "targetPredicate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "description": "reclassify only: a predicate with the same kind of object."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Why; no personal data."
+        },
+        "token": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The preview's token; without it nothing changes."
+        }
+      }
+    },
+    "KgAssessment": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^kga_[a-z2-7]{20}$"
+        },
+        "action": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "object"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tier": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "targetPredicate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "automatic"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked"
+          ]
+        },
+        "actor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "revokedAt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "revokedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blockedClaims": {
+          "type": "integer"
+        },
+        "reviewNeeded": {
+          "type": "boolean"
+        },
+        "withdrawnEvidence": {
+          "type": "integer"
+        },
+        "dependentEvidence": {
+          "type": "integer"
+        }
+      }
+    },
+    "KgAssessmentList": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgAssessment"
+          }
+        },
+        "active": {
+          "type": "integer"
+        },
+        "revoked": {
+          "type": "integer"
+        },
+        "reviewNeeded": {
+          "type": "integer"
+        }
+      }
+    },
+    "KgAssessmentResult": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "A preview (preview, assessment, changes: evidence, dependentEvidence, statements, statementsLeaving, documents, observations, matchingContributions, tooLarge, maxEvidence, sample; token) or the stored assessment with applied (evidence, dependentEvidence, reclassified, statementsDeleted).",
+      "properties": {
+        "preview": {
+          "type": "boolean"
+        },
+        "assessment": {
+          "$ref": "#/components/schemas/KgAssessment"
+        },
+        "changes": {
+          "type": "object"
+        },
+        "token": {
+          "type": "string"
+        },
+        "applied": {
+          "type": "object"
+        }
+      }
+    },
+    "KgAssessmentRevokeResult": {
+      "type": "object",
+      "properties": {
+        "assessment": {
+          "$ref": "#/components/schemas/KgAssessment"
+        },
+        "restored": {
+          "type": "integer"
+        },
+        "notRestored": {
+          "type": "integer",
+          "description": "Copies whose source changed or whose entity is gone; a changed source of tiers 1 and 2 is read again by the rules (sourcesReadAgain), LLM evidence of a changed source returns only with a new LLM reading."
+        },
+        "notRestoredSample": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "sourcesReadAgain": {
+          "type": "integer"
+        }
+      }
+    },
     "DiscoveryJob": {
       "type": "object",
       "additionalProperties": false,
@@ -20438,6 +20708,10 @@
         "knowledgeGraph": {
           "type": "string"
         },
+        "decision": {
+          "type": "object",
+          "description": "After apply: the durable collection decision that records the move (docs/SCOUTRO_COLLECTION_DECISIONS.md)."
+        },
         "applied": {
           "type": "boolean"
         },
@@ -20621,6 +20895,151 @@
               "type": "integer"
             }
           }
+        }
+      }
+    },
+    "CollectionDecisionRequest": {
+      "type": "object",
+      "required": [
+        "domain",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Exactly one registrable domain such as example.com; its subdomains are included."
+        },
+        "host": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Narrows the scope to this exact host (the domain or a subdomain)."
+        },
+        "pathPrefix": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\")."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "transform"
+          ],
+          "default": "exact",
+          "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment)."
+        },
+        "collections": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages."
+        },
+        "denied": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "transform only: the collections the decision takes away."
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$",
+          "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Free references to the evidence (classification, documents)."
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The token of the preview; without it nothing is stored."
+        }
+      }
+    },
+    "CollectionDecisionResult": {
+      "type": "object",
+      "properties": {
+        "proposed": {
+          "type": "object"
+        },
+        "existing": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "preview": {
+          "type": "object"
+        },
+        "decision": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object"
+        },
+        "token": {
+          "type": "string"
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "store": {
+          "type": "object"
+        }
+      }
+    },
+    "CollectionDecisionList": {
+      "type": "object",
+      "properties": {
+        "store": {
+          "type": "object",
+          "description": "health (ok, recovered, unavailable), generation, markerGeneration, problems, fallback, active, refusedWrites, pendingApply."
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "CollectionDecisionId": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^kcd_[a-z0-9]{8,32}$"
+        },
+        "confirm": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "CollectionDecisionRecover": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "type": "string"
         }
       }
     },
