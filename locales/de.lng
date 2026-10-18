@@ -6815,6 +6815,66 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >from a reference page<==>aus einer Referenzseite<
 >from the company's own pages<==>aus den eigenen Seiten des Unternehmens<
 >Job pages read again for<==>Stellenseiten neu gelesen für<
+# assessments (WP-E)
+>Assessments<==>Bewertungen<
+>An assessment corrects what one source, host or domain supports: it withdraws its evidence for a predicate, moves the evidence to another predicate, or adds an operator statement with the source's own words. The same fact from an independent source stays. Every assessment holds across new readings, the AI cache and recrawls, is shown here with its effect and is undone with Revoke. Nothing is sent to a model and nothing in the index changes.<==>Eine Bewertung korrigiert, was eine Quelle, ein Host oder eine Domain belegt: Sie zieht deren Belege für ein Prädikat zurück, verschiebt die Belege zu einem anderen Prädikat oder fügt eine Betreiberaussage mit den eigenen Worten der Quelle hinzu. Dieselbe Tatsache aus einer unabhängigen Quelle bleibt. Jede Bewertung gilt auch bei neuem Lesen, dem KI-Zwischenspeicher und erneutem Crawlen, wird hier mit ihrer Wirkung gezeigt und mit Widerrufen zurückgenommen. Es wird nichts an ein Modell gesendet und im Index ändert sich nichts.<
+>Action<==>Aktion<
+>Withdraw evidence<==>Belege zurückziehen<
+>Move to another predicate<==>Zu anderem Prädikat verschieben<
+>Operator statement<==>Betreiberaussage<
+>Scope<==>Geltungsbereich<
+>Source (document ID)<==>Quelle (Dokument-ID)<
+>Host<==>Host<
+>Document ID, host or domain<==>Dokument-ID, Host oder Domain<
+>Predicate<==>Prädikat<
+>Value<==>Wert<
+>Subject (entity ID)<==>Subjekt (Entitäts-ID)<
+>Tier<==>Stufe<
+>Every tier<==>Jede Stufe<
+>1 – structured data<==>1 – strukturierte Daten<
+>2 – rules<==>2 – Regeln<
+>3 – AI enrichment<==>3 – KI-Anreicherung<
+>Target predicate<==>Zielprädikat<
+>Quote of the source<==>Zitat der Quelle<
+>Reason (no personal data)<==>Grund (keine personenbezogenen Daten)<
+>Preview<==>Vorschau<
+>Withdraw: value, subject and tier narrow it down (without them every value of the predicate in the scope). Move: needs a target predicate with the same kind of value. Operator statement: one source, a subject, a value and a quote that is in the source's text.<==>Zurückziehen: Wert, Subjekt und Stufe grenzen ein (ohne sie jeder Wert des Prädikats im Geltungsbereich). Verschieben: braucht ein Zielprädikat mit derselben Art von Wert. Betreiberaussage: eine Quelle, ein Subjekt, ein Wert und ein Zitat, das im Text der Quelle steht.<
+>What it changes now<==>Was sie jetzt ändert<
+>Store and apply<==>Speichern und anwenden<
+>Stored assessments<==>Gespeicherte Bewertungen<
+>Active<==>Aktiv<
+>Revoked<==>Widerrufen<
+>All<==>Alle<
+>Assessment<==>Bewertung<
+>Predicate and value<==>Prädikat und Wert<
+>Effect<==>Wirkung<
+>Withdraw<==>Zurückziehen<
+>Move<==>Verschieben<
+>revoked<==>widerrufen<
+>review: the source changed<==>prüfen: die Quelle hat sich geändert<
+>Revoke<==>Widerrufen<
+>Revoke this assessment? Its evidence comes back where the source is unchanged.<==>Diese Bewertung widerrufen? Ihre Belege kommen zurück, wo die Quelle unverändert ist.<
+>Evidence rows<==>Belegzeilen<
+>Derived rows that go along<==>Abgeleitete Zeilen, die mitgehen<
+>Statements that leave the graph<==>Aussagen, die den Graphen verlassen<
+>Archived observations<==>Archivierte Beobachtungen<
+>Matching contributions<==>Matching-Beiträge<
+>Too many evidence rows for one assessment: narrow it down.<==>Zu viele Belegzeilen für eine Bewertung: bitte eingrenzen.<
+>Existing statement<==>Vorhandene Aussage<
+>Subject found<==>Subjekt gefunden<
+>Source in the graph<==>Quelle im Graphen<
+>Stored and applied.<==>Gespeichert und angewendet.<
+>Revoked.<==>Widerrufen.<
+>withdrawn<==>zurückgezogen<
+>held back<==>zurückgehalten<
+>by<==>von<
+>To review<==>Zu prüfen<
+>No assessments.<==>Keine Bewertungen.<
+>The graph changed since the preview: preview again.<==>Der Graph hat sich seit der Vorschau geändert: bitte erneut Vorschau.<
+>The quote is not in the source's text.<==>Das Zitat steht nicht im Text der Quelle.<
+>The source's text cannot be read.<==>Der Text der Quelle kann nicht gelesen werden.<
+>The assessment is revoked already.<==>Die Bewertung ist bereits widerrufen.<
+>Check the fields.<==>Bitte die Felder prüfen.<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

@@ -85,6 +85,14 @@ final class KnowledgeApi {
         this.llmSettings = llmSettings;
     }
 
+    /** Who calls (the audit of assessments); null: unknown. */
+    private String actor;
+
+    KnowledgeApi actor(final String actor) {
+        this.actor = actor;
+        return this;
+    }
+
     JSONObject route(final String method, final String[] parts, final Body body) throws ApiException, IOException {
         return route(method, parts, java.util.Collections.emptyMap(), body);
     }
@@ -106,6 +114,9 @@ final class KnowledgeApi {
         }
         if ((parts.length == 4 || parts.length == 5) && "collections".equals(parts[3])) {
             return collections(method, parts, query, body);
+        }
+        if (parts.length >= 4 && "assessments".equals(parts[3]) && (parts.length == 4 || parts.length == 6 && "revoke".equals(parts[5]))) {
+            return assessments(method, parts, query, body);
         }
         if ((parts.length == 4 || parts.length == 5) && "llm-quality".equals(parts[3])) {
             // the quality check of a candidate model (docs/SCOUTRO_LLM_QUALITY_CHECK.md): writes no graph and no setting
@@ -169,6 +180,128 @@ final class KnowledgeApi {
                 throw new ApiException(
                         404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
+    }
+
+    /** Fields of POST /v1/kg/assessments. */
+    static final java.util.Set<String> ASSESSMENT_FIELDS = java.util.Set.of("action", "scope", "predicate", "value", "subject", "tier",
+            "targetPredicate", "reason", "token", "quote");
+
+    /**
+     * Assessments of graph facts (WP-E, docs/SCOUTRO_KG_ASSESSMENTS.md): GET lists them ({@code status}, {@code limit});
+     * POST without {@code token} previews, with the preview's token stores and applies; POST .../{id}/revoke revokes.
+     */
+    private JSONObject assessments(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
+            throws ApiException, IOException {
+        final KgRuntime r = this.runtime.get();
+        if (parts.length == 6) {
+            allow(method, "POST");
+            noParameters(query);
+            if (!parts[4].matches("^kga_[a-z2-7]{20}$")) throw ApiException.invalid("id", "An assessment ID (kga_...).");
+            final JSONObject b = body.get();
+            for (final Iterator<?> keys = b.keys(); keys.hasNext();) {
+                throw ApiException.invalid(String.valueOf(keys.next()), "This route takes no fields.");
+            }
+            if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+            try {
+                return r.assessmentRevoke(parts[4], this.actor);
+            } catch (final KgException e) {
+                throw toApi(e);
+            }
+        }
+        if ("GET".equals(method)) {
+            String status = "active";
+            int limit = 100;
+            for (final java.util.Map.Entry<String, String> q : query.entrySet()) {
+                if ("status".equals(q.getKey())) {
+                    if (!java.util.Set.of("active", "revoked", "all").contains(q.getValue())) {
+                        throw ApiException.invalid("status", "active, revoked or all.");
+                    }
+                    status = "all".equals(q.getValue()) ? null : q.getValue();
+                } else if ("limit".equals(q.getKey())) {
+                    try {
+                        limit = Integer.parseInt(q.getValue());
+                    } catch (final NumberFormatException e) {
+                        limit = -1;
+                    }
+                    if (limit < 1 || limit > 500) throw ApiException.invalid("limit", "1 to 500.");
+                } else {
+                    throw ApiException.invalid(q.getKey(), "Unknown parameter; status and limit are allowed.");
+                }
+            }
+            if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+            try {
+                return r.assessments(status, limit);
+            } catch (final KgException e) {
+                throw toApi(e);
+            }
+        }
+        allow(method, "POST");
+        noParameters(query);
+        final JSONObject b = body.get();
+        for (final Iterator<?> keys = b.keys(); keys.hasNext();) {
+            final String key = String.valueOf(keys.next());
+            if (!ASSESSMENT_FIELDS.contains(key)) throw ApiException.invalid(key, "Unknown field.");
+        }
+        final net.yacy.scoutro.knowledge.publish.Assessments.Draft d = draft(b);
+        d.actor = this.actor;
+        if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+        try {
+            if (b.isNull("token") || b.optString("token").isEmpty()) {
+                final JSONObject preview = r.assessmentPreview(d);
+                return Json.obj("preview", true, "assessment", net.yacy.scoutro.knowledge.publish.Assessments.draft(d).toJson(), "changes",
+                        preview, "token", preview.opt("token"));
+            }
+            return r.assessmentCreate(d, b.optString("token"));
+        } catch (final KgException e) {
+            throw toApi(e);
+        }
+    }
+
+    /** The validated draft of a POST body. */
+    static net.yacy.scoutro.knowledge.publish.Assessments.Draft draft(final JSONObject b) throws ApiException {
+        final net.yacy.scoutro.knowledge.publish.Assessments.Draft d = new net.yacy.scoutro.knowledge.publish.Assessments.Draft();
+        d.action = b.optString("action", null);
+        final JSONObject scope = b.optJSONObject("scope");
+        if (scope == null || scope.length() != 1) {
+            throw ApiException.invalid("scope", "An object with exactly one of source (document ID), host or domain.");
+        }
+        final String kind = String.valueOf(scope.keys().next());
+        final String value = scope.optString(kind, "").trim().toLowerCase(java.util.Locale.ROOT);
+        switch (kind) {
+            case "source":
+                if (!net.yacy.scoutro.knowledge.KgIds.isDocId(scope.optString(kind))) {
+                    throw ApiException.invalid("scope", "source is a document ID of the graph (12 characters).");
+                }
+                d.scope = scope.optString(kind);
+                break;
+            case "host":
+            case "domain":
+                if (!value.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$") || value.length() > 253) {
+                    throw ApiException.invalid("scope", kind + " is a host name.");
+                }
+                if ("domain".equals(kind) && !value.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(value))) {
+                    throw ApiException.invalid("scope", "domain is a registrable domain (example.de, not www.example.de); use host for one host.");
+                }
+                d.scope = value;
+                break;
+            default:
+                throw ApiException.invalid("scope", "One of source, host or domain.");
+        }
+        d.scopeKind = kind;
+        d.predicate = b.optString("predicate", null);
+        d.value = b.isNull("value") ? null : b.optString("value", null);
+        d.subjectId = b.isNull("subject") ? null : b.optString("subject", null);
+        if (b.has("tier") && !b.isNull("tier")) {
+            final Object t = b.opt("tier");
+            if (!(t instanceof Integer)) throw ApiException.invalid("tier", "1, 2 or 3.");
+            d.tier = (Integer) t;
+        }
+        d.targetPredicate = b.isNull("targetPredicate") ? null : b.optString("targetPredicate", null);
+        d.reason = b.optString("reason", null);
+        d.quote = b.isNull("quote") ? null : b.optString("quote", null);
+        final String[] invalid = d.validate();
+        if (invalid != null) throw ApiException.invalid(invalid[0], invalid[1]);
+        return d;
     }
 
     private static void noParameters(java.util.Map<String, String> query) throws ApiException {
@@ -534,6 +667,26 @@ final class KnowledgeApi {
             case KgException.PROMPT_REVISION_CONFLICT:
                 return new ApiException(409, KgException.PROMPT_REVISION_CONFLICT, "The active prompt changed in the meantime; read"
                         + " GET /scoutro/api/v1/kg/prompt again. Nothing was changed.", Json.obj("activeVersion", Integer.parseInt(e.reason())));
+            case KgException.ASSESSMENT:
+                switch (e.reason()) {
+                    case "assessment_not_found":
+                        return new ApiException(404, e.reason(), "No such assessment; see GET /scoutro/api/v1/kg/assessments?status=all.");
+                    case "assessment_not_active":
+                        return new ApiException(409, e.reason(), "The assessment is revoked already. Nothing was changed.");
+                    case "assessment_source_unavailable":
+                        return new ApiException(409, e.reason(), "The source's text cannot be read: an operator statement needs the"
+                                + " running Solr synchronisation and an indexed source. Nothing was changed.");
+                    case "assessment_quote_not_in_source":
+                        return new ApiException(422, e.reason(), "The quote is not in the source's text; an operator statement states"
+                                + " only what its source says. Nothing was changed.");
+                    case "assessment_too_large":
+                        return new ApiException(409, e.reason(), "The assessment matches more evidence than one change may move ("
+                                + net.yacy.scoutro.knowledge.publish.Assessments.MAX_APPLY + "); narrow its scope, value, subject or tier."
+                                + " Nothing was changed.");
+                    default:
+                        return new ApiException(409, "assessment_preview_stale", "The graph changed since the preview; preview again"
+                                + " and confirm with the new token. Nothing was changed.");
+                }
             case KgException.NO_REBUILD:
                 return new ApiException(409, KgException.NO_REBUILD, "No identity rebuild is running or waiting for confirmation.");
             case KgException.INVALID_CURSOR:

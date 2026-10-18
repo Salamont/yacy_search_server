@@ -78,6 +78,11 @@ public class KgException extends Exception {
     public static final String PROMPT_INVALID = "prompt_invalid";
     /** The active knowledge prompt is not the revision the caller expected: another change came first. */
     public static final String PROMPT_REVISION_CONFLICT = "prompt_revision_conflict";
+    /**
+     * An assessment cannot be written (WP-E); the reason is the API code: assessment_not_found, assessment_not_active,
+     * assessment_preview_stale, assessment_too_large.
+     */
+    public static final String ASSESSMENT = "assessment";
 
     private final String code;
     private final String reason;

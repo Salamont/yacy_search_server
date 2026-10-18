@@ -37,6 +37,7 @@ price comparison, and the evidence behind each fact. Operator guide:
 | Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published; **With a current price** opens the price list of the category |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
 | Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary, LLM enrichment and the four job policies (see below) |
+| Assessments | `?view=assessments` | Administrators only: withdraw the evidence of a source, host or domain for a predicate, move it to another predicate, or add an operator statement with the source's quote; preview first, then store and apply; the stored assessments with their effect, review hints and Revoke (see [Assessments](#assessments)) |
 
 ### Status: the process display
 
@@ -624,6 +625,29 @@ rebuild"), stored entity IDs keep leading to their objects. **Cancel the
 rebuild**, or a stop of Scoutro, before the swap deletes the new graph and
 changes nothing.
 
+## Assessments
+
+An assessment is the durable correction of what one source supports
+([docs/SCOUTRO_KG_ASSESSMENTS.md](../docs/SCOUTRO_KG_ASSESSMENTS.md)).
+
+- **Withdraw evidence**: the evidence of the scope (one source, a host or a
+  registrable domain) for a predicate, narrowed by value, subject and tier,
+  leaves the graph; the same fact from an independent source stays. Derived
+  industries go along when only the withdrawn category or offer supported them.
+- **Move to another predicate**: the same evidence supports a predicate with the
+  same kind of value instead (for example a relation named the wrong way).
+- **Operator statement**: one source, a subject (entity ID), a value and a quote
+  that is in the source's text as Solr holds it. It is evidence of tier 4
+  (kind `operator`), counts as stated, survives new readings, purges, a full reset
+  and a rebuild, and is never withdrawn by another assessment, only revoked.
+- **Preview** shows what it changes now; **Store and apply** confirms exactly that
+  (a changed graph asks for a new preview).
+- The list shows every assessment with its effect (withdrawn rows, claims held
+  back since), a review hint when the source changed, and **Revoke**: the
+  withdrawn evidence comes back unchanged where the source is the same revision.
+
+Nothing is sent to a model; the index is not changed.
+
 ## Access And Safety
 
 Administrator access (Digest) is required, for the page and for every API
@@ -636,6 +660,8 @@ text; links to crawled pages open in a new tab without a referrer.
 | --- | --- | --- |
 | `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`), its scan per collection (`llm.selection`), request budget (`llm.context`), long pages read on to the end of their content (`llm.continuation`), how much of the done pages' text was read (`llm.documents.coverage`), refusal samples (`llm.refusalSamples`), what the tier keeps between readings (`llm.storage`) and the backlog over the last day (`llm.backlog`) |
 | `/scoutro/api/v1/kg/llm-refusals` | GET | Samples of what the LLM tier dropped or refused since the start, newest first (`reason`, `limit` 1–100): reason, item, predicate, types, page, chunk and an excerpt of at most 160 characters without person names, e-mail addresses or phone numbers; in memory only (at most 500, 20 per reason, 128 KiB, seven days) |
+| `/scoutro/api/v1/kg/assessments` | GET, POST | Assessments: list (`status` active, revoked, all; `limit`); without `token` a preview, with the preview's `token` stored and applied (actions `withdraw`, `reclassify`, `assert` with `quote`); 409 `assessment_preview_stale`, `assessment_too_large`, `assessment_source_unavailable`, 422 `assessment_quote_not_in_source` |
+| `/scoutro/api/v1/kg/assessments/{id}/revoke` | POST | Revokes an assessment; 404 unknown, 409 revoked already |
 | `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |

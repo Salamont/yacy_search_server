@@ -698,6 +698,11 @@ public final class KgRuntime {
         });
         this.startRecorded = true;
         this.guard.setStartNotRecorded(false);
+        // a rebuild carried the assessments (WP-E): the rebuilt graph holds the facts they withdrew until applied here
+        if (this.store.read(c -> KgStore.getMeta(c, net.yacy.scoutro.knowledge.publish.Assessments.META_REAPPLY)) != null) {
+            this.store.write(WriteClass.MAINTENANCE, ASSESSMENT_WRITE_BYTES,
+                    tx -> net.yacy.scoutro.knowledge.publish.Assessments.reapplyAll(tx, this.config, now));
+        }
     }
 
     /**
@@ -1425,6 +1430,98 @@ public final class KgRuntime {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------------ assessments (WP-E, docs/SCOUTRO_KG_ASSESSMENTS.md)
+
+    /** Room one assessment's evidence moves may take (at most Assessments.MAX_APPLY rows with their copies). */
+    private static final long ASSESSMENT_WRITE_BYTES = 16L * 1024L * 1024L;
+
+    /** The assessments ({@code status} active, revoked or null for both), newest first. */
+    public JSONObject assessments(final String status, final int limit) throws KgException {
+        requireRunning();
+        return this.store.read(c -> net.yacy.scoutro.knowledge.publish.Assessments.list(c, status, limit));
+    }
+
+    /** What a new assessment would change now, with the token its confirmation needs; writes nothing. */
+    public JSONObject assessmentPreview(final net.yacy.scoutro.knowledge.publish.Assessments.Draft d) throws KgException {
+        requireRunning();
+        requireQuote(d);
+        final net.yacy.scoutro.knowledge.publish.Assessments.Rule r = net.yacy.scoutro.knowledge.publish.Assessments.draft(d);
+        return this.store.read(c -> net.yacy.scoutro.knowledge.publish.Assessments.preview(c, r));
+    }
+
+    /**
+     * An operator statement's provenance (WP-E): its quote must be in the source's text as Solr holds it now, so the
+     * statement is bound to what the source says. Without the Solr synchronisation no statement is accepted.
+     */
+    private void requireQuote(final net.yacy.scoutro.knowledge.publish.Assessments.Draft d) throws KgException {
+        if (!net.yacy.scoutro.knowledge.publish.Assessments.ASSERT.equals(d.action)) return;
+        final EmbeddedSolrSource s = this.source;
+        String text = null;
+        try {
+            text = s == null ? null : s.text(d.scope);
+        } catch (final java.io.IOException e) {
+            text = null;
+        }
+        if (text == null) {
+            throw new KgException(KgException.ASSESSMENT, "assessment_source_unavailable", "the text of source " + d.scope
+                    + " cannot be read (no Solr synchronisation, or the document is not indexed)", null);
+        }
+        if (!net.yacy.scoutro.knowledge.publish.Assessments.quoteInSource(text, d.quote)) {
+            throw new KgException(KgException.ASSESSMENT, "assessment_quote_not_in_source", "the quote is not in the text of source "
+                    + d.scope, null);
+        }
+    }
+
+    /**
+     * Stores and applies an assessment if what it changes is still what the preview with {@code token} showed: one
+     * transaction, so the check and the change see the same graph.
+     */
+    public synchronized JSONObject assessmentCreate(final net.yacy.scoutro.knowledge.publish.Assessments.Draft d, final String token)
+            throws KgException {
+        requireRunning();
+        requireQuote(d);
+        final long now = this.env.clock.getAsLong();
+        final net.yacy.scoutro.knowledge.publish.Assessments.Rule draft = net.yacy.scoutro.knowledge.publish.Assessments.draft(d);
+        final JSONObject[] out = new JSONObject[2];
+        this.store.write(WriteClass.MAINTENANCE, ASSESSMENT_WRITE_BYTES, tx -> {
+            final JSONObject preview = net.yacy.scoutro.knowledge.publish.Assessments.preview(tx, draft);
+            if (preview.optBoolean("tooLarge") || !preview.optString("token").equals(token)) {
+                out[1] = preview;
+                return null;
+            }
+            out[0] = net.yacy.scoutro.knowledge.publish.Assessments.create(tx, this.config, d, now);
+            return null;
+        });
+        if (out[0] == null) {
+            final boolean large = out[1].optBoolean("tooLarge");
+            throw new KgException(KgException.ASSESSMENT, large ? "assessment_too_large" : "assessment_preview_stale", large
+                    ? "the assessment matches more than " + net.yacy.scoutro.knowledge.publish.Assessments.MAX_APPLY + " evidence rows"
+                    : "the graph changed since the preview", null);
+        }
+        return out[0];
+    }
+
+    /** Revokes an assessment and restores what it withdrew where the source is unchanged. */
+    public synchronized JSONObject assessmentRevoke(final String id, final String actor) throws KgException {
+        requireRunning();
+        final long now = this.env.clock.getAsLong();
+        final JSONObject[] out = new JSONObject[2];
+        this.store.write(WriteClass.MAINTENANCE, ASSESSMENT_WRITE_BYTES, tx -> {
+            final net.yacy.scoutro.knowledge.publish.Assessments.Rule r = net.yacy.scoutro.knowledge.publish.Assessments.get(tx, id);
+            if (r == null) return null;
+            out[1] = r.toJson();
+            out[0] = net.yacy.scoutro.knowledge.publish.Assessments.revoke(tx, this.config, id, actor, now);
+            return null;
+        });
+        if (out[1] == null) {
+            throw new KgException(KgException.ASSESSMENT, "assessment_not_found", "no assessment " + id, null);
+        }
+        if (out[0] == null) {
+            throw new KgException(KgException.ASSESSMENT, "assessment_not_active", "the assessment " + id + " is revoked already", null);
+        }
+        return out[0];
     }
 
     /** Quality metrics of the live graph (WP-B): a snapshot of at most ten minutes, computed again with {@code refresh}. */
