@@ -170,7 +170,7 @@ final class KnowledgeApi {
 
     /** Fields of POST /v1/kg/assessments. */
     static final java.util.Set<String> ASSESSMENT_FIELDS = java.util.Set.of("action", "scope", "predicate", "value", "subject", "tier",
-            "targetPredicate", "reason", "token");
+            "targetPredicate", "reason", "token", "quote");
 
     /**
      * Assessments of graph facts (WP-E, docs/SCOUTRO_KG_ASSESSMENTS.md): GET lists them ({@code status}, {@code limit});
@@ -284,6 +284,7 @@ final class KnowledgeApi {
         }
         d.targetPredicate = b.isNull("targetPredicate") ? null : b.optString("targetPredicate", null);
         d.reason = b.optString("reason", null);
+        d.quote = b.isNull("quote") ? null : b.optString("quote", null);
         final String[] invalid = d.validate();
         if (invalid != null) throw ApiException.invalid(invalid[0], invalid[1]);
         return d;
@@ -658,6 +659,12 @@ final class KnowledgeApi {
                         return new ApiException(404, e.reason(), "No such assessment; see GET /scoutro/api/v1/kg/assessments?status=all.");
                     case "assessment_not_active":
                         return new ApiException(409, e.reason(), "The assessment is revoked already. Nothing was changed.");
+                    case "assessment_source_unavailable":
+                        return new ApiException(409, e.reason(), "The source's text cannot be read: an operator statement needs the"
+                                + " running Solr synchronisation and an indexed source. Nothing was changed.");
+                    case "assessment_quote_not_in_source":
+                        return new ApiException(422, e.reason(), "The quote is not in the source's text; an operator statement states"
+                                + " only what its source says. Nothing was changed.");
                     case "assessment_too_large":
                         return new ApiException(409, e.reason(), "The assessment matches more evidence than one change may move ("
                                 + net.yacy.scoutro.knowledge.publish.Assessments.MAX_APPLY + "); narrow its scope, value, subject or tier."

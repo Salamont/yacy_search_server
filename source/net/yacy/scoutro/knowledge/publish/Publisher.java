@@ -214,6 +214,8 @@ public final class Publisher {
             result = new Result(Outcome.PUBLISHED);
             replaceEvidence(tx, doc, rowid, extraction, agg, result, now);
             replaceLinks(tx, rowid, doc.linkDomains);
+            // WP-E: the operator statements of this source are in the graph again (after a purge, a reset or a rebuild)
+            Assessments.materializeFor(tx, this.terms, agg, doc.docId, rowid, now);
             if (doc.reviseTier3 != null) {
                 result.tier3Revised = Tier3Revision.revise(tx, rowid, doc.reviseTier3);
             }
