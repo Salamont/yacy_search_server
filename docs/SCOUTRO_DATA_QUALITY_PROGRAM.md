@@ -101,3 +101,4 @@ implemented decision of this programme, **[U]** open assumption.
 | CI | Scoutro checks for the fork's pull requests ([doc](SCOUTRO_CI.md)) | `scoutro/ci-fork-checks` | #86 (base main) | done, draft PR; merged into every branch of the programme |
 
 Every PR lists its own tests; no PR changes production data, no merge or release is part of the programme.
+The merge and rollout order (not executed) and the follow-up prompt: [rollout](SCOUTRO_DATA_QUALITY_ROLLOUT.md).

@@ -1,0 +1,87 @@
+# Data quality programme R1–R4: merge and rollout order
+
+Status: 2026-10-18, prepared, **not executed**. No merge to `main`, no tag, no image, no Olares change is part of the
+programme ([programme](SCOUTRO_DATA_QUALITY_PROGRAM.md)). This page is the order an operator follows once the pull
+requests are reviewed.
+
+## Pull requests and their real dependencies
+
+| PR | Branch | Base | Depends on | Schema | Re-extraction | LLM requests |
+|---|---|---|---|---|---|---|
+| #86 CI | `scoutro/ci-fork-checks` | `main` | – | – | – | – |
+| #78 WP-A | `scoutro/r1-wp-a-collection-decisions` | `main` | #86 (merged in) | – | – | – |
+| #79 WP-B | `scoutro/r1-wp-b-quality-derived` | `main` | #86 (merged in) | – | – | – |
+| #80 WP-C | `scoutro/r1-wp-c-discovery-decisions` | #78 | A | – | – | – |
+| #81 WP-D | `scoutro/r2-wp-d-kg-collection-move` | #80 | A, C | – | pages whose vocabulary context a move changes (rules) | none for a move |
+| #82 WP-E | `scoutro/r2-wp-e-kg-assessments` | #81 | D | 6 → 7 (`kg_evidence` rebuilt once, tier 4) | – | – |
+| #83 WP-F | `scoutro/r3-wp-f-extraction-semantics` | #82 | E | 7 → 8 (price archive) | tiers 1/2 of every page once (rules) | – |
+| #84 WP-G | `scoutro/r3-wp-g-tier3-review` | #83 | E, F | – | – | none (rules on stored LLM facts) |
+| #85 WP-H | `scoutro/r4-wp-h-autocorrect` | #84 | A, D, E | – | – | none (stored Discovery results) |
+| #87 WP-B integration | `scoutro/r4-wp-b-quality-integration` | #85 | B, A–H | – | – | – |
+
+The stack was always brought up by merge commits (never rebased); every branch contains #86. The dependencies are
+real: E's assessments need D's re-scoping (a move must not restore withdrawn facts), F's schema 8 follows E's
+schema 7, G writes automatic assessments (E) over F's money roles, H applies collection decisions (A) and reads the
+graph's text fit (D's vocabulary context), and #87 counts what A, E and F store.
+
+## Merge order (each with "Create a merge commit", never squash or rebase)
+
+1. #86 (CI): afterwards every PR runs `Scoutro checks` against `main` too.
+2. #78 (A), then #79 (B; independent, may also come later).
+3. Retarget #80 to `main`, merge; then retarget and merge #81, #82, #83, #84, #85 and #87 in this order. Before each
+   merge: `Scoutro checks` green on the PR's current head, no conflict, the PR's description up to date.
+
+A squash would rewrite the commits the next PR is based on and make every following PR conflict.
+
+## Releases and rollout (one release per step, each with its own image)
+
+| Release | Contents | What changes on start | Gate before the next |
+|---|---|---|---|
+| R1 | #86, #78, #79, #80 | collection decisions active (none stored), quality metrics, Discovery deferrals | decisions file readable, metrics baseline taken (`GET /v1/kg/quality?refresh=true`) |
+| R2 | #81, #82 | schema 6 → 7 with upgrade copy; `kg_evidence` copied once (about twice its size on disk for the duration) | integrity check, assessments view, the first pilot (drolshagens.de) with D and E only |
+| R3 | #83, #84 | schema 7 → 8 with upgrade copy; tiers 1/2 of every page read again once at low priority, no model; the tier-3 review only as a dry run | queue drained, metrics compared to the baseline, dry-run review read |
+| R4 | #85, #87 | correction automation stays `off`; identity switches stay off | – |
+
+For every release:
+
+1. A verified full backup (DATA and the knowledge graph) and an isolated restore test with the previous image.
+2. Free disk: R2 needs about the size of `kg_evidence` once more; R3 the WAL of the re-extraction.
+3. Upgrade the private package to the release's image digest only; keep `scoutro.kg.gate.maxLoad` and the other
+   settings.
+4. Check: health, schema version, integrity, queue progress over 15 minutes, LLM requests 0 for R2–R4 apart from
+   new content, `GET /v1/kg/quality`.
+5. Rollback: an older build does not open schema 7 or 8. Restore the upgrade copy (`graph-<UTC>-before-upgrade.db`)
+   or the full backup with the previous image; corrections made since are then gone (assessments can be exported via
+   `GET /v1/kg/assessments?status=all` first).
+
+## What stays off until an operator decides
+
+- `scoutro.collections.autocorrect.mode` = `off`. Way to `apply`: `simulate` → a random sample of at least 299
+  corrections, every drawn case judged → `accept` (99 % target) → `apply` with a small `maxPerDay`; the audit cases
+  are reviewed continuously.
+- `scoutro.kg.identity.productUrl` / `.providerServiceKey` = `false`. Before switching: `POST /v1/kg/identity-preview`
+  for the domains with most services and a verified backup; switching reads every page again once (rules).
+- The tier-3 review (`POST /v1/kg/tier3-review` with `apply`) is an operator decision after the dry run.
+
+## Residual risks
+
+- No measurement on a production-sized graph: the duration of the schema 7 copy and of the R3 re-extraction, and the
+  derived facet with chunked reads, are only measured on test data.
+- The text fit reads at most 8 pages of a domain; a site whose offers are not on its offer pages is judged on less.
+- OSM tags are kept by Discovery only for the keys a rule matched; the OSM verdict against a profile is limited to
+  overlapping keys.
+- The 99 % statement holds for the kinds of cases sampled; the audit is there to see new kinds.
+
+## Continuation
+
+State at the end of the session: all branches pushed; PR descriptions list the local tests and the GitHub CI state at
+that time. A follow-up session starts with this prompt:
+
+> Scoutro Datenqualität R1–R4 – Fortsetzung. Lies `docs/SCOUTRO_DATA_QUALITY_ROLLOUT.md` und
+> `docs/SCOUTRO_DATA_QUALITY_PROGRAM.md` auf `scoutro/r4-wp-b-quality-integration`, prüfe für #78–#87 den Head, die
+> GitHub-Läufe `Scoutro checks` und neue Review-Kommentare. Behebe CI-Fehler und Review-Befunde auf dem jeweiligen
+> Branch und führe die Änderung per Merge-Commit den Stapel hinauf bis #87 (keine Rebases, keine fremden Branches).
+> Danach: lokale Gesamtprüfung `tools/scoutro/ci/scoutro-checks.sh all` auf #87 und die Live-Smokes mit Wegwerf-Peer.
+> Grenzen: keine Merges nach `main`, keine Tags/Images/Deployments, keine Olares-Änderungen, keine produktiven Crawls
+> oder LLM-Läufe, `apply` und die Identitätsschalter bleiben aus. Abschluss: aktualisierter Stand je PR und in diesem
+> Dokument.
