@@ -35,6 +35,9 @@ public class KgSyncSchedulerTest {
     private static ScheduledExecutorService executor(KgRuntime r)throws Exception {
         Field field=KgRuntime.class.getDeclaredField("syncThread");field.setAccessible(true);return (ScheduledExecutorService)field.get(r);
     }
+    private static KgBackups backups(KgRuntime r)throws Exception {
+        Field field=KgRuntime.class.getDeclaredField("backups");field.setAccessible(true);return (KgBackups)field.get(r);
+    }
     private static void await(BooleanSupplier condition)throws Exception {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
         while(!condition.getAsBoolean()&&System.nanoTime()<deadline)Thread.sleep(10L);
@@ -93,6 +96,8 @@ public class KgSyncSchedulerTest {
             JSONObject backup=runtime.status().optJSONObject("backup"),last=backup==null?null:backup.optJSONObject("last");
             return last!=null&&"created".equals(last.optString("result"));
         });
+        // the status reports the result before the backup thread gives the slot back; a restore before that is refused
+        KgBackups slot=backups(runtime);await(()->!slot.busy());
         String name=runtime.status().getJSONObject("backup").getJSONObject("last").getString("file");
         ScheduledFuture<?> old=future(runtime);ScheduledExecutorService oldExecutor=executor(runtime);
         runtime.restore(name);
