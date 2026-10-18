@@ -1,0 +1,44 @@
+name: Scoutro checks
+
+# The inherited YaCy workflows run only in yacy/yacy_search_server (ant-build-pull-request.yaml, build-docker-image.yaml:
+# "if: github.repository == 'yacy/yacy_search_server'") or only for master (ant-build.yaml): in this fork every pull
+# request showed them as skipped. This workflow is the fork's own check of a pull request, also of stacked pull
+# requests (any base branch): a build from clean directories and every offline Scoutro test (docs/SCOUTRO_CI.md).
+# Read-only token, no secrets, no deployment, no network service of Scoutro, no model.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scoutro-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Offline Python suites
+        run: tools/scoutro/ci/scoutro-checks.sh python
+
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Install ant
+        run: sudo apt-get update && sudo apt-get install -yq ant
+      - name: Clean build and every offline Scoutro JUnit target
+        run: tools/scoutro/ci/scoutro-checks.sh java
