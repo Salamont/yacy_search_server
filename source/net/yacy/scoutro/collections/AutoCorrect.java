@@ -54,6 +54,8 @@ public final class AutoCorrect {
     /** Kinds that state an absence or a failure: never a signal. */
     static final Set<String> NO_SIGNAL = Set.of("missing_industry", "no_industry", "no_category", "crawl_error", "unreachable", "empty",
             "not_found", "timeout");
+    /** Kinds of an origin signal that are read from the website itself (an imprint, the site's own page). */
+    static final Set<String> WEBSITE_KINDS = Set.of("imprint", "website", "site_text", "own_page");
     public static final String AGAINST = "against";
     public static final String FOR = "for";
 
@@ -63,6 +65,17 @@ public final class AutoCorrect {
     public static final String CORRECT = "correct";
 
     static final int MAX_CASES = 5000;
+    /**
+     * Version of the rules and of the signal grouping: an acceptance measured with other rules does not hold for these
+     * ({@code acceptance_outdated}).
+     */
+    public static final String RULES_VERSION = "2";
+    /** The quality target of the programme: a lower bound of 99 % (one-sided, 95 % confidence) on the sampled reviews. */
+    public static final double TARGET = 0.99;
+    /** The interim stage: 95 % (59 error-free reviews); never the operator release. */
+    public static final double INTERIM = 0.95;
+    /** Sampled applied corrections that may wait for their review before the apply mode only proposes again. */
+    static final int MAX_AUDIT_BACKLOG = 20;
     static final Set<String> REVIEWED = Set.of("approved", "rejected", "correct", "wrong");
     static final int MAX_SIGNALS = 50;
 
@@ -105,8 +118,11 @@ public final class AutoCorrect {
             String origin = o.optString("origin", "").trim().toLowerCase(Locale.ROOT);
             if (!ORIGIN.equals(family)) {
                 origin = "website:" + domain; // structured data, text and an LLM reading the site are one origin
-            } else if (origin.isEmpty() || origin.startsWith("website:") || origin.length() > 120) {
+            } else if (origin.isEmpty() || origin.startsWith("website:") || origin.length() > 120 || origin.indexOf(':') < 1) {
                 throw new IllegalArgumentException("origin");
+            } else if (origin.contains(domain) || WEBSITE_KINDS.contains(kind)) {
+                // an entry read from the site itself (its imprint, its own page) depends on the website: the same origin
+                origin = "website:" + domain;
             }
             return new Signal(family, verdict, collection, origin, kind.isEmpty() ? null : kind, evidence,
                     clip(o.optString("revision", null), 80), clip(o.optString("criteria", null), 40));
@@ -139,6 +155,8 @@ public final class AutoCorrect {
         public final String fingerprint;
         public final List<Signal> signals;
         public final Set<String> againstOrigins;
+        /** Signals that count with another origin than their own: the reason (same source system, same evidence). */
+        public final List<String> dependencies = new ArrayList<>();
 
         Outcome(final String result, final String reason, final String from, final String target, final String severity,
                 final String fingerprint, final List<Signal> signals, final Set<String> againstOrigins) {
@@ -152,11 +170,17 @@ public final class AutoCorrect {
             this.againstOrigins = againstOrigins;
         }
 
+        Outcome with(final List<String> dependencies) {
+            this.dependencies.addAll(dependencies);
+            return this;
+        }
+
         JSONObject toJson() {
             final JSONArray s = new JSONArray();
             for (final Signal x : this.signals) s.put(x.toJson());
             return obj("result", this.result, "reason", this.reason, "from", this.from, "target", this.target, "severity", this.severity,
-                    "fingerprint", this.fingerprint, "independentOrigins", new JSONArray(this.againstOrigins), "signals", s);
+                    "fingerprint", this.fingerprint, "independentOrigins", new JSONArray(this.againstOrigins), "dependencies",
+                    new JSONArray(this.dependencies), "signals", s);
         }
     }
 
@@ -168,6 +192,41 @@ public final class AutoCorrect {
      */
     public static Outcome evaluate(final String current, final List<String> memberships, final List<Signal> signals, final String fallback,
             final boolean manual) {
+        final List<String> dependencies = new ArrayList<>();
+        final Map<Signal, String> group = groups(signals, dependencies);
+        return evaluate(current, memberships, signals, fallback, manual, group).with(dependencies);
+    }
+
+    /**
+     * The independent origin of each signal (the dependency check of the signals' sources): every signal of the website is
+     * {@code website:<domain>}; an origin signal counts with its source system ({@code osm:way/1} and {@code osm:node/7} are
+     * both OpenStreetMap, {@code osm}); a signal whose evidence another origin already states is a copy and counts with that
+     * origin. {@code dependencies} gets the reason for each signal that counts with another origin than its own.
+     */
+    static Map<Signal, String> groups(final List<Signal> signals, final List<String> dependencies) {
+        final Map<Signal, String> out = new java.util.IdentityHashMap<>();
+        final Map<String, String> byEvidence = new java.util.HashMap<>();
+        final Map<String, Set<String>> systems = new TreeMap<>();
+        for (final Signal s : signals) {
+            final boolean website = s.origin.startsWith("website:");
+            String g = website ? s.origin : s.origin.substring(0, s.origin.indexOf(':'));
+            if (!website) systems.computeIfAbsent(g, k -> new TreeSet<>()).add(s.origin);
+            final String evidence = s.evidence.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+            final String first = byEvidence.putIfAbsent(evidence, g);
+            if (first != null && !first.equals(g)) {
+                dependencies.add(s.origin + " counts as " + first + ": the same evidence");
+                g = first;
+            }
+            out.put(s, g);
+        }
+        for (final Map.Entry<String, Set<String>> e : systems.entrySet()) {
+            if (e.getValue().size() > 1) dependencies.add(String.join(", ", e.getValue()) + " count once as " + e.getKey() + ": one source system");
+        }
+        return out;
+    }
+
+    private static Outcome evaluate(final String current, final List<String> memberships, final List<Signal> signals, final String fallback,
+            final boolean manual, final Map<Signal, String> group) {
         final String fingerprint = fingerprint(current, signals);
         final List<Signal> about = new ArrayList<>(signals);
         if (manual) return new Outcome(NONE, "manual_decision", current, null, null, fingerprint, about, Set.of());
@@ -180,7 +239,7 @@ public final class AutoCorrect {
         final Map<String, Set<String>> against = new TreeMap<>(), forCurrent = new TreeMap<>();
         for (final Signal s : signals) {
             if (!s.collection.equals(current)) continue;
-            (AGAINST.equals(s.verdict) ? against : forCurrent).computeIfAbsent(s.origin, k -> new LinkedHashSet<>()).add(s.family);
+            (AGAINST.equals(s.verdict) ? against : forCurrent).computeIfAbsent(group.get(s), k -> new LinkedHashSet<>()).add(s.family);
         }
         if (against.isEmpty()) return new Outcome(NONE, "no_signal_against", current, null, null, fingerprint, about, Set.of());
         if (!forCurrent.isEmpty()) {
@@ -198,7 +257,7 @@ public final class AutoCorrect {
         for (final Signal s : signals) {
             if (s.collection.equals(current)) continue;
             (FOR.equals(s.verdict) ? forTarget : againstTarget).computeIfAbsent(s.collection, k -> new TreeMap<>())
-                    .computeIfAbsent(s.origin, k -> new LinkedHashSet<>()).add(s.family);
+                    .computeIfAbsent(group.get(s), k -> new LinkedHashSet<>()).add(s.family);
         }
         String target = null;
         for (final Map.Entry<String, Map<String, Set<String>>> e : forTarget.entrySet()) {
@@ -242,12 +301,19 @@ public final class AutoCorrect {
 
     private final File file;
     private final LongSupplier clock;
+    private final java.util.Random random;
     private JSONObject state;
     private String problem;
 
     public AutoCorrect(final File file, final LongSupplier clock) {
+        this(file, clock, new java.security.SecureRandom());
+    }
+
+    /** With a given random source (tests); the sample and the audit draw from it. */
+    AutoCorrect(final File file, final LongSupplier clock, final java.util.Random random) {
         this.file = file;
         this.clock = clock;
+        this.random = random;
         load();
     }
 
@@ -292,6 +358,16 @@ public final class AutoCorrect {
     public synchronized JSONObject submit(final String domain, final String current, final List<String> memberships, final List<Signal> signals,
             final String fallback, final boolean manual, final Mode mode, final int maxPerDay, final Applier applier, final String actor)
             throws IOException {
+        return submit(domain, current, memberships, signals, fallback, manual, mode, maxPerDay, DEFAULT_AUDIT_RATE, applier, actor);
+    }
+
+    /** The share of automatic corrections drawn for the audit when nothing else is configured. */
+    public static final double DEFAULT_AUDIT_RATE = 0.1;
+
+    /** {@link #submit} with the share of automatic corrections that is drawn for the audit ({@code auditRate}, 0 to 1). */
+    public synchronized JSONObject submit(final String domain, final String current, final List<String> memberships, final List<Signal> signals,
+            final String fallback, final boolean manual, final Mode mode, final int maxPerDay, final double auditRate, final Applier applier,
+            final String actor) throws IOException {
         final Outcome o = evaluate(current, memberships, signals, fallback, manual);
         final JSONObject out = obj("domain", domain, "mode", mode.name().toLowerCase(Locale.ROOT), "outcome", o.toJson());
         if (mode == Mode.OFF) return put(out, "action", "none");
@@ -336,6 +412,10 @@ public final class AutoCorrect {
                     final JSONObject decision = applier.apply(domain, o.from, o.target, evidence(o), true, "autocorrect");
                     put(c, "status", "applied");
                     put(c, "decision", decision);
+                    // the audit: a random share of the automatic corrections goes to the review (a wrong one opens the breaker)
+                    if (this.random.nextDouble() < auditRate) {
+                        put(c, "sample", obj("at", this.clock.getAsLong(), "by", "audit", "audit", true));
+                    }
                     final JSONObject day = this.state.optJSONObject("day");
                     put(day, "applied", day.optInt("applied") + 1);
                     action = "applied";
@@ -354,7 +434,10 @@ public final class AutoCorrect {
     /** Why the apply mode may not act now, or null. */
     private String refusal(final int maxPerDay) {
         if (this.state.optJSONObject("breaker").optBoolean("open")) return "breaker_open";
-        if (!this.state.optJSONObject("acceptance").optBoolean("accepted")) return "not_accepted";
+        final JSONObject acceptance = this.state.optJSONObject("acceptance");
+        if (!acceptance.optBoolean("accepted")) return "not_accepted";
+        if (!RULES_VERSION.equals(acceptance.optString("rulesVersion"))) return "acceptance_outdated";
+        if (stats().optJSONObject("audit").optInt("pending") >= MAX_AUDIT_BACKLOG) return "audit_backlog";
         final JSONObject day = this.state.optJSONObject("day");
         final String today = java.time.Instant.ofEpochMilli(this.clock.getAsLong()).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString();
         if (!today.equals(day.optString("day"))) {
@@ -400,9 +483,13 @@ public final class AutoCorrect {
                 break;
             case "correct":
             case "wrong":
-                if (!"applied".equals(status)) throw new IllegalArgumentException("case_not_applied");
+                // a judgement: of an applied correction, or of a recorded or proposed one without applying it (the sample)
+                if (!"applied".equals(status) && !"simulated".equals(status) && !"proposed".equals(status)) {
+                    throw new IllegalArgumentException("case_not_open");
+                }
+                if (!CORRECT.equals(c.optString("result")) && !"applied".equals(status)) throw new IllegalArgumentException("nothing_to_judge");
                 put(c, "status", verdict);
-                if ("wrong".equals(verdict)) {
+                if ("wrong".equals(verdict) && "applied".equals(status)) {
                     put(this.state, "breaker", obj("open", true, "reason", "case_marked_wrong", "domain", domain, "at", this.clock.getAsLong(),
                             "by", actor));
                 }
@@ -427,50 +514,141 @@ public final class AutoCorrect {
 
     // -------------------------------------------------------------------------------------------- acceptance
 
-    /**
-     * Statistics of the reviewed cases whose outcome was a correction: observed precision, its one-sided 95 % lower bound
-     * (Clopper-Pearson), errors by severity, and coverage (corrections among all evaluated cases).
-     */
-    public synchronized JSONObject stats() {
-        int reviewed = 0, right = 0, evaluated = 0, corrections = 0, review = 0;
-        final Map<String, Integer> errors = new TreeMap<>(Map.of("medium", 0, "high", 0));
-        final JSONObject cases = this.state.optJSONObject("cases");
+    /** Every case, current and kept in the history. */
+    private List<JSONObject> allCases() {
         final List<JSONObject> all = new ArrayList<>();
+        final JSONObject cases = this.state.optJSONObject("cases");
         for (final String domain : cases.keySet()) all.add(cases.optJSONObject(domain));
         final JSONArray history = this.state.optJSONArray("history");
         for (int i = 0; history != null && i < history.length(); i++) all.add(history.optJSONObject(i));
-        for (final JSONObject c : all) {
-            evaluated++;
-            if (REVIEW.equals(c.optString("result"))) review++;
-            if (!CORRECT.equals(c.optString("result"))) continue;
-            corrections++;
-            final String s = c.optString("status");
-            final boolean ok = "approved".equals(s) || "correct".equals(s);
-            final boolean bad = "rejected".equals(s) || "wrong".equals(s);
-            if (ok || bad) reviewed++;
-            if (ok) right++;
-            if (bad) errors.merge(c.optString("severity", "medium"), 1, Integer::sum);
-        }
-        final Double precision = reviewed == 0 ? null : (double) right / reviewed;
-        return obj("evaluated", evaluated, "corrections", corrections, "review", review, "reviewed", reviewed, "right", right,
-                "precision", precision, "lowerBound95", reviewed == 0 ? null : clopperPearsonLower(right, reviewed, 0.05),
-                "errorsBySeverity", new JSONObject(errors), "coverage", evaluated == 0 ? null : (double) corrections / evaluated);
+        return all;
+    }
+
+    private static boolean right(final JSONObject c) {
+        return "approved".equals(c.optString("status")) || "correct".equals(c.optString("status"));
+    }
+
+    private static boolean wrong(final JSONObject c) {
+        return "rejected".equals(c.optString("status")) || "wrong".equals(c.optString("status"));
     }
 
     /**
-     * Accepts the apply mode if the reviewed corrections meet the thresholds: at least {@code minReviewed} reviewed, a
-     * lower bound of at least {@code minLowerBound}, no error of high severity. Otherwise nothing changes.
+     * Precision of a set of corrections: reviewed, right, its one-sided 95 % Clopper-Pearson lower bound, errors by severity,
+     * the cases still to review, and how many error-free reviews more the target {@link #TARGET} needs.
+     */
+    private static JSONObject precision(final List<JSONObject> corrections) {
+        int reviewed = 0, right = 0, pending = 0;
+        final Map<String, Integer> errors = new TreeMap<>(Map.of("medium", 0, "high", 0));
+        for (final JSONObject c : corrections) {
+            final boolean ok = right(c), bad = wrong(c);
+            if (ok || bad) reviewed++;
+            else pending++;
+            if (ok) right++;
+            if (bad) errors.merge(c.optString("severity", "medium"), 1, Integer::sum);
+        }
+        final double lb = reviewed == 0 ? 0.0 : clopperPearsonLower(right, reviewed, 0.05);
+        return obj("reviewed", reviewed, "right", right, "pending", pending, "precision", reviewed == 0 ? null : (double) right / reviewed,
+                "lowerBound95", reviewed == 0 ? null : lb, "errorsBySeverity", new JSONObject(errors),
+                "reviewsForTarget", reviewsNeeded(right, reviewed, TARGET), "reviewsForInterim", reviewsNeeded(right, reviewed, INTERIM),
+                "stage", lb >= TARGET ? "target_99" : lb >= INTERIM ? "interim_95" : "none");
+    }
+
+    /**
+     * Error-free reviews still needed until the lower bound reaches {@code target}, assuming every further review is right;
+     * -1 if more than 100 000 (with many errors the target is out of reach).
+     */
+    public static int reviewsNeeded(final int right, final int reviewed, final double target) {
+        if (reviewed > 0 && clopperPearsonLower(right, reviewed, 0.05) >= target) return 0;
+        int lo = 1, hi = 1;
+        while (clopperPearsonLower(right + hi, reviewed + hi, 0.05) < target) {
+            hi *= 2;
+            if (hi > 100_000) return -1;
+        }
+        while (lo < hi) {
+            final int mid = (lo + hi) / 2;
+            if (clopperPearsonLower(right + mid, reviewed + mid, 0.05) >= target) hi = mid;
+            else lo = mid + 1;
+        }
+        return lo;
+    }
+
+    /**
+     * Statistics of the corrections: {@code all} reviewed ones (also chosen by hand, so never the acceptance), the random
+     * {@code sample} the acceptance is measured on, the {@code audit} of automatic corrections after the acceptance, and
+     * coverage (corrections among all evaluated cases). Top-level fields repeat {@code all} for older readers.
+     */
+    public synchronized JSONObject stats() {
+        int evaluated = 0, review = 0;
+        final List<JSONObject> corrections = new ArrayList<>(), sample = new ArrayList<>(), audit = new ArrayList<>();
+        for (final JSONObject c : allCases()) {
+            evaluated++;
+            if (REVIEW.equals(c.optString("result"))) review++;
+            if (!CORRECT.equals(c.optString("result"))) continue;
+            corrections.add(c);
+            final JSONObject drawn = c.optJSONObject("sample");
+            if (drawn != null) (drawn.optBoolean("audit") ? audit : sample).add(c);
+        }
+        final JSONObject all = precision(corrections);
+        final JSONObject out = obj("evaluated", evaluated, "corrections", corrections.size(), "review", review, "reviewed", all.optInt("reviewed"),
+                "right", all.optInt("right"), "precision", all.opt("precision"), "lowerBound95", all.opt("lowerBound95"),
+                "errorsBySeverity", all.optJSONObject("errorsBySeverity"), "coverage", evaluated == 0 ? null : (double) corrections.size() / evaluated,
+                "all", all, "sample", precision(sample), "audit", precision(audit), "target", TARGET, "interim", INTERIM,
+                "rulesVersion", RULES_VERSION);
+        return out;
+    }
+
+    /**
+     * Draws {@code size} corrections at random (uniform, without replacement) from those not drawn and not reviewed yet: the
+     * sample the acceptance is measured on, so that no one chooses the cases that are reviewed. Returns the draw.
+     */
+    public synchronized JSONObject sample(final int size, final String actor) throws IOException {
+        if (this.problem != null) throw new IllegalStateException("state_unreadable");
+        final List<JSONObject> open = new ArrayList<>();
+        final JSONObject cases = this.state.optJSONObject("cases");
+        for (final String domain : new TreeSet<>(cases.keySet())) {
+            final JSONObject c = cases.optJSONObject(domain);
+            if (CORRECT.equals(c.optString("result")) && c.optJSONObject("sample") == null && !right(c) && !wrong(c)
+                    && !"applied".equals(c.optString("status"))) {
+                open.add(c);
+            }
+        }
+        java.util.Collections.shuffle(open, this.random);
+        final int n = Math.max(0, Math.min(size, open.size()));
+        final JSONArray drawn = new JSONArray();
+        final long now = this.clock.getAsLong();
+        for (final JSONObject c : open.subList(0, n)) {
+            put(c, "sample", obj("at", now, "by", actor, "population", open.size()));
+            drawn.put(c.optString("domain"));
+        }
+        final JSONObject draw = obj("at", now, "by", actor, "population", open.size(), "drawn", n, "domains", drawn);
+        final JSONArray draws = this.state.optJSONArray("draws") == null ? new JSONArray() : this.state.optJSONArray("draws");
+        draws.put(draw);
+        while (draws.length() > 100) draws.remove(0);
+        put(this.state, "draws", draws);
+        save();
+        return draw;
+    }
+
+    /**
+     * Accepts the apply mode if the <b>random sample</b> meets the thresholds: every drawn case reviewed (no case chosen or
+     * left out by hand), at least {@code minReviewed} reviewed, a one-sided 95 % lower bound of at least {@code minLowerBound},
+     * no error of high severity at all. The acceptance holds for {@link #RULES_VERSION}. A bound below {@link #TARGET} is
+     * recorded as the interim stage, never as the operator release. Otherwise nothing changes.
      */
     public synchronized JSONObject accept(final int minReviewed, final double minLowerBound, final String actor) throws IOException {
         if (this.problem != null) throw new IllegalStateException("state_unreadable");
-        final JSONObject s = stats();
+        final JSONObject st = stats();
+        final JSONObject s = st.optJSONObject("sample");
         final List<String> missing = new ArrayList<>();
-        if (s.optInt("reviewed") < minReviewed) missing.add("reviewed " + s.optInt("reviewed") + " < " + minReviewed);
+        if (s.optInt("pending") > 0) missing.add(s.optInt("pending") + " drawn cases not reviewed");
+        if (s.optInt("reviewed") < minReviewed) missing.add("reviewed in the sample " + s.optInt("reviewed") + " < " + minReviewed);
         final double lb = s.isNull("lowerBound95") ? 0.0 : s.optDouble("lowerBound95");
         if (lb < minLowerBound) missing.add("lower bound " + String.format(Locale.ROOT, "%.4f", lb) + " < " + minLowerBound);
-        if (s.optJSONObject("errorsBySeverity").optInt("high") > 0) missing.add("errors of high severity");
-        final JSONObject a = obj("accepted", missing.isEmpty(), "at", this.clock.getAsLong(), "by", actor, "stats", s, "minReviewed",
-                minReviewed, "minLowerBound", minLowerBound, "missing", new JSONArray(missing));
+        if (st.optJSONObject("all").optJSONObject("errorsBySeverity").optInt("high") > 0) missing.add("errors of high severity");
+        final String stage = lb >= TARGET ? "target_99" : lb >= INTERIM ? "interim_95" : "none";
+        final JSONObject a = obj("accepted", missing.isEmpty(), "at", this.clock.getAsLong(), "by", actor, "stats", st, "minReviewed",
+                minReviewed, "minLowerBound", minLowerBound, "stage", stage, "operatorRelease", missing.isEmpty() && lb >= TARGET,
+                "rulesVersion", RULES_VERSION, "missing", new JSONArray(missing));
         if (missing.isEmpty()) {
             put(this.state, "acceptance", a);
             save();
@@ -520,11 +698,16 @@ public final class AutoCorrect {
         return lo;
     }
 
-    /** P(X >= k) for X ~ Binomial(n, p), in log space. */
+    /** P(X >= k) for X ~ Binomial(n, p), in log space; each term from the one before (O(n)). */
     static double upperTail(final int k, final int n, final double p) {
+        if (p <= 0.0) return k <= 0 ? 1.0 : 0.0;
+        if (p >= 1.0) return 1.0;
+        final double lp = Math.log(p), lq = Math.log1p(-p);
+        double log = logChoose(n, k) + k * lp + (n - k) * lq;
         double sum = 0.0;
         for (int i = k; i <= n; i++) {
-            sum += Math.exp(logChoose(n, i) + i * Math.log(p) + (n - i) * Math.log1p(-p));
+            sum += Math.exp(log);
+            if (i < n) log += Math.log(n - i) - Math.log(i + 1) + lp - lq;
         }
         return Math.min(1.0, sum);
     }

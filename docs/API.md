@@ -452,7 +452,7 @@ filters, crawl starts and agent grants all take their choices from it.
   curl --digest -u admin -X POST -H 'Content-Type: application/json' -d '{"confirm":"test-web"}' \
     http://scoutro:8090/scoutro/api/v1/collections/test-web/delete-pages
   ```
-- `GET /v1/collections/autocorrect`, `POST /v1/collections/autocorrect/{evaluate,review,accept,breaker-reset}` (administrator):
+- `GET /v1/collections/autocorrect`, `POST /v1/collections/autocorrect/{evaluate,review,sample,accept,breaker-reset}` (administrator):
   the correction automation of collection assignments, off by default; see [autocorrect](SCOUTRO_COLLECTION_AUTOCORRECT.md).
 - `GET|POST /v1/collections/decisions`, `POST /v1/collections/decisions/{apply,revoke,recover}`
   (administrator, same-origin JSON, at most 4 KiB, never an agent route): durable

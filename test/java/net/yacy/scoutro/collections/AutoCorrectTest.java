@@ -140,25 +140,39 @@ public class AutoCorrectTest {
         assertEquals(0, applied.get());
         // the acceptance refuses without enough reviewed cases
         assertFalse(a.accept(59, 0.95, "admin").getBoolean("accepted"));
-        // an administrator approves the proposal: a manual decision
+        // an administrator approves the proposal: a manual decision; chosen by hand, it is no part of the sample
         a.review(D, "approve", null, "checked", applier, "admin");
         assertEquals(List.of(false), automatic);
-        // 59 further reviewed corrections without error: the one-sided 95 % lower bound passes 0.95
-        for (int i = 0; i < 58; i++) {
-            final String dom = "d" + i + ".de";
-            a.submit(dom, "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.PROPOSE, 10, applier, "x");
-            a.review(dom, "approve", null, null, applier, "admin");
+        assertEquals(1, a.stats().getJSONObject("all").getInt("reviewed"));
+        assertEquals(0, a.stats().getJSONObject("sample").getInt("reviewed"));
+        for (int i = 0; i < 59; i++) {
+            a.submit("d" + i + ".de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.PROPOSE, 10, applier, "x");
         }
+        // the sample is drawn at random from the open corrections; a drawn case not yet reviewed blocks the acceptance
+        final JSONObject draw = a.sample(59, "admin");
+        assertEquals(59, draw.getInt("drawn"));
+        assertEquals(59, draw.getInt("population"));
+        assertTrue(a.accept(59, 0.95, "admin").getJSONArray("missing").toString().contains("not reviewed"));
+        for (int i = 0; i < 59; i++) a.review("d" + i + ".de", "correct", null, null, applier, "admin");
+        assertEquals("judging a proposal applies nothing", List.of(false), automatic);
         // a new evaluation of a reviewed domain keeps the review as a measurement (history)
         assertEquals("proposed", a.submit("d0.de", "edelsenior", List.of("edelsenior"), newer, "sonstige", false, AutoCorrect.Mode.PROPOSE, 10,
                 applier, "x").getString("action"));
-        assertEquals(59, a.stats().getInt("reviewed"));
+        final JSONObject sampled = a.stats().getJSONObject("sample");
+        assertEquals(59, sampled.getInt("reviewed"));
+        assertEquals(0, sampled.getInt("pending"));
+        assertEquals("interim_95", sampled.getString("stage"));
+        assertEquals("299 error-free reviews for the 99 % target", 240, sampled.getInt("reviewsForTarget"));
+        // the 99 % target is the default acceptance; 0.95 is accepted only as the interim stage, never as the operator release
+        assertFalse(a.accept(299, 0.99, "admin").getBoolean("accepted"));
         final JSONObject accepted = a.accept(59, 0.95, "admin");
         assertTrue(accepted.toString(), accepted.getBoolean("accepted"));
-        assertEquals(59, accepted.getJSONObject("stats").getInt("reviewed"));
+        assertEquals("interim_95", accepted.getString("stage"));
+        assertFalse(accepted.getBoolean("operatorRelease"));
+        assertEquals(59, accepted.getJSONObject("stats").getJSONObject("sample").getInt("reviewed"));
         // now apply acts, automatically, within the daily limit
         final JSONObject done = a.submit("auto.de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.APPLY, 1,
-                applier, "x");
+                0.0, applier, "x");
         assertEquals("applied", done.getString("action"));
         assertTrue(automatic.get(automatic.size() - 1));
         assertEquals("daily_limit", a.submit("auto2.de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.APPLY,
@@ -176,6 +190,7 @@ public class AutoCorrectTest {
         // the state survives a restart
         final AutoCorrect again = new AutoCorrect(f, this.clock::get);
         assertEquals(1, again.stats().getJSONObject("errorsBySeverity").getInt("medium"));
+        assertEquals(1, again.stats().getJSONObject("all").getJSONObject("errorsBySeverity").getInt("medium"));
         assertFalse(again.unavailable());
         // an unreadable state never applies anything
         Files.write(f.toPath(), "{broken".getBytes());
@@ -183,6 +198,102 @@ public class AutoCorrectTest {
         assertTrue(broken.unavailable());
         assertEquals("refused:state_unreadable", broken.submit("x.de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false,
                 AutoCorrect.Mode.APPLY, 10, applier, "x").getString("action"));
+    }
+
+    @Test
+    public void signalsOfOneSourceCountOnce() throws Exception {
+        // an entry read from the site itself (its imprint) is the website, not a second origin
+        final AutoCorrect.Signal imprint = AutoCorrect.Signal.of(AutoCorrect.obj("family", "origin", "verdict", "against", "collection",
+                "edelsenior", "origin", "register:" + D + "/impressum", "evidence", "HRB from the imprint"), D);
+        assertEquals("website:" + D, imprint.origin);
+        assertEquals("one_origin_only", eval(list(signal(AutoCorrect.STRUCTURED, "against", "edelsenior", null, "r1"), imprint)).reason);
+        // an origin signal that repeats the website's evidence is a copy
+        final AutoCorrect.Signal site = AutoCorrect.Signal.of(AutoCorrect.obj("family", "structured", "verdict", "against", "collection",
+                "edelsenior", "evidence", "JSON-LD @type RoofingContractor"), D);
+        final AutoCorrect.Signal copy = AutoCorrect.Signal.of(AutoCorrect.obj("family", "origin", "verdict", "against", "collection",
+                "edelsenior", "origin", "directory:gelbe-seiten", "evidence", "JSON-LD  @type RoofingContractor"), D);
+        final AutoCorrect.Outcome o = eval(list(site, copy));
+        assertEquals("one_origin_only", o.reason);
+        assertTrue(o.dependencies.toString(), o.dependencies.get(0).contains("the same evidence"));
+        // two OSM objects are one source system
+        final AutoCorrect.Outcome osm = eval(list(signal(AutoCorrect.STRUCTURED, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:way/1", "t1"), signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:node/2", "t1")));
+        assertEquals(AutoCorrect.CORRECT, osm.result);
+        assertEquals(java.util.Set.of("website:" + D, "osm"), osm.againstOrigins);
+        assertTrue(osm.dependencies.toString(), osm.toJson().getJSONArray("dependencies").toString().contains("one source system"));
+    }
+
+    @Test
+    public void theTargetOf99PercentNeeds299ErrorFreeSampledReviewsAndTheAuditKeepsWatching() throws Exception {
+        final File f = new File(this.tmp.getRoot(), "autocorrect.json");
+        final AutoCorrect a = new AutoCorrect(f, this.clock::get, new java.util.Random(7));
+        final AtomicInteger applied = new AtomicInteger();
+        final AutoCorrect.Applier applier = (domain, from, target, evidence, auto, actor) -> AutoCorrect.obj("id", "kcd_" + applied.incrementAndGet());
+        final List<AutoCorrect.Signal> strong = list(signal(AutoCorrect.STRUCTURED, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:way/1", "t1"));
+        for (int i = 0; i < 400; i++) {
+            a.submit("s" + i + ".de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.SIMULATE, 10, applier, "x");
+        }
+        // the cases a reviewer would choose are not the sample: 299 of 400 are drawn at random
+        final JSONObject draw = a.sample(299, "admin");
+        assertEquals(400, draw.getInt("population"));
+        final java.util.Set<String> drawn = new java.util.TreeSet<>();
+        for (int i = 0; i < draw.getJSONArray("domains").length(); i++) drawn.add(draw.getJSONArray("domains").getString(i));
+        assertEquals(299, drawn.size());
+        assertTrue("a uniform draw is not the first 299", !drawn.equals(new java.util.TreeSet<>(java.util.stream.IntStream.range(0, 299)
+                .mapToObj(i -> "s" + i + ".de").toList())));
+        int n = 0;
+        for (final String d : drawn) {
+            // one error among the drawn cases: 299 reviews are no longer enough for 99 %
+            a.review(d, n++ == 0 ? "wrong" : "correct", null, null, applier, "admin");
+        }
+        assertEquals("judgements apply nothing", 0, applied.get());
+        JSONObject s = a.stats().getJSONObject("sample");
+        assertEquals(299, s.getInt("reviewed"));
+        assertEquals(298, s.getInt("right"));
+        assertEquals("interim_95", s.getString("stage"));
+        assertTrue(s.toString(), s.getInt("reviewsForTarget") > 150);
+        assertEquals("a wrong judgement of a simulated case opens no breaker", "not_accepted", a.submit("t.de", "edelsenior", List.of("edelsenior"),
+                strong, "sonstige", false, AutoCorrect.Mode.APPLY, 10, applier, "x").getJSONObject("case").getString("held"));
+        final JSONObject refused = a.accept(299, 0.99, "admin");
+        assertFalse(refused.getBoolean("accepted"));
+        // a fresh measurement without the error
+        final File g = new File(this.tmp.getRoot(), "fresh.json");
+        final AutoCorrect b = new AutoCorrect(g, this.clock::get, new java.util.Random(11));
+        for (int i = 0; i < 299; i++) {
+            b.submit("s" + i + ".de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.SIMULATE, 10, applier, "x");
+        }
+        b.sample(299, "admin");
+        for (int i = 0; i < 299; i++) b.review("s" + i + ".de", "correct", null, null, applier, "admin");
+        final JSONObject accepted = b.accept(299, 0.99, "admin");
+        assertTrue(accepted.toString(), accepted.getBoolean("accepted"));
+        assertEquals("target_99", accepted.getString("stage"));
+        assertTrue(accepted.getBoolean("operatorRelease"));
+        assertEquals(AutoCorrect.RULES_VERSION, accepted.getString("rulesVersion"));
+        // after the acceptance every automatic correction is drawn for the audit at the configured rate; a backlog stops apply
+        for (int i = 0; i < AutoCorrect.MAX_AUDIT_BACKLOG; i++) {
+            assertEquals("applied", b.submit("a" + i + ".de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.APPLY,
+                    1000, 1.0, applier, "x").getString("action"));
+        }
+        s = b.stats().getJSONObject("audit");
+        assertEquals(AutoCorrect.MAX_AUDIT_BACKLOG, s.getInt("pending"));
+        assertEquals("audit_backlog", b.submit("late.de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.APPLY,
+                1000, 1.0, applier, "x").getJSONObject("case").getString("held"));
+        // an audited correction marked wrong opens the breaker
+        b.review("a0.de", "wrong", null, null, applier, "admin");
+        assertEquals("breaker_open", b.submit("later.de", "edelsenior", List.of("edelsenior"), strong, "sonstige", false, AutoCorrect.Mode.APPLY,
+                1000, 1.0, applier, "x").getJSONObject("case").getString("held"));
+    }
+
+    @Test
+    public void reviewsNeededFollowTheExactBinomialBound() {
+        assertEquals(299, AutoCorrect.reviewsNeeded(0, 0, 0.99));
+        assertEquals(59, AutoCorrect.reviewsNeeded(0, 0, 0.95));
+        assertEquals(0, AutoCorrect.reviewsNeeded(299, 299, 0.99));
+        // one error: 473 reviews in all; two errors: 628
+        assertEquals(473, AutoCorrect.reviewsNeeded(0, 1, 0.99) + 1);
+        assertEquals(628, AutoCorrect.reviewsNeeded(0, 2, 0.99) + 2);
+        assertTrue(AutoCorrect.clopperPearsonLower(471, 473, 0.05) < 0.99 || AutoCorrect.clopperPearsonLower(472, 473, 0.05) >= 0.99);
     }
 
     @Test

@@ -394,6 +394,49 @@ public class DiscoveryAutomationTest {
         assertEquals(0, answers[1].getJSONObject("outcomes").length());
         assertEquals(0, this.backend.starts);
     }
+    @Test public void autocorrectRpcForwardsStoredSignalsOnlyWhileTheAutomationIsOn() throws Exception {
+        final java.util.List<String> codes = new java.util.ArrayList<>(), forwarded = new java.util.ArrayList<>();
+        final java.util.List<Boolean> flags = new java.util.ArrayList<>();
+        final boolean[] on = {false};
+        this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
+            if (!"run".equals(init.getString("operation"))) return new JsonObject();
+            flags.add(init.getBoolean("autocorrect"));
+            final JsonArray signals = new JsonArray().put(new JsonObject().put("family", "llm").put("verdict", "against")
+                    .put("collection", "custom-index").put("evidence", "Discovery FAIL"));
+            final JsonArray tooMany = new JsonArray();
+            for (int i = 0; i <= 50; i++) tooMany.put(new JsonObject());
+            for (final JsonObject call : new JsonObject[] {new JsonObject().put("domain", "muster.de").put("signals", signals),
+                    new JsonObject().put("domain", "Muster.DE").put("signals", signals), new JsonObject().put("domain", "muster.de").put("signals", tooMany),
+                    new JsonObject().put("domain", "muster.de").put("signals", signals).put("collection", "other")}) {
+                try {
+                    final JsonObject answer = handler.request("autocorrect", call);
+                    codes.add(answer.optString("skipped", answer.optString("action")));
+                } catch (ApiException e) { codes.add(e.code()); }
+            }
+            return new JsonObject().put("report", new JsonObject());
+        };
+        open(); create("Auto"); enable();
+        this.service.observer(new DiscoveryService.CrawlObserver() {
+            @Override public boolean autocorrectActive() { return on[0]; }
+            @Override public JsonObject autocorrect(String collection, String domain, JsonArray memberships, JsonArray signals) {
+                if (!on[0]) return null;
+                forwarded.add(collection + "|" + domain + "|" + signals.length());
+                return new JsonObject().put("action", "proposed");
+            }
+        });
+        this.service.advance();
+        assertEquals(java.util.List.of(false), flags);
+        assertEquals(java.util.List.of("off", "invalid_request", "invalid_request", "invalid_request"), codes);
+        assertTrue(forwarded.isEmpty());
+        on[0] = true;
+        codes.clear();
+        this.now.addAndGet(86_400_000L * 30);
+        this.service.advance();
+        assertEquals(java.util.List.of(false, true), flags);
+        assertEquals("the run's collection, never one the process names", java.util.List.of("custom-index|muster.de|1"), forwarded);
+        assertEquals(java.util.List.of("proposed", "invalid_request", "invalid_request", "invalid_request"), codes);
+        assertEquals(0, this.backend.starts);
+    }
     @Test public void outcomesRpcIsRefusedWithoutTheOption() throws Exception {
         final java.util.List<String> codes = new java.util.ArrayList<>();
         this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {

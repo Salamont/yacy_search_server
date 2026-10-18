@@ -517,6 +517,44 @@ public class CollectionDecisionsApiTest {
     }
 
     @Test
+    public void theTextFitSpeaksAgainstOnlyWhereAnotherVocabularyFits() throws Exception {
+        final JSONObject fit = new JSONObject("{\"pages\":5,\"collections\":{"
+                + "\"edelsenior-web\":{\"vocabulary\":\"care\",\"categories\":[],\"pages\":0},"
+                + "\"bauteamcheck-web\":{\"vocabulary\":\"construction\",\"categories\":[\"construction.dach\",\"construction.zimmerei\"],\"pages\":3}}}");
+        List<net.yacy.scoutro.collections.AutoCorrect.Signal> s = AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit);
+        assertEquals(2, s.size());
+        assertEquals("for", s.get(0).verdict);
+        assertEquals("bauteamcheck-web", s.get(0).collection);
+        assertEquals("text_fit", s.get(0).family);
+        assertEquals("against", s.get(1).verdict);
+        assertEquals("edelsenior-web", s.get(1).collection);
+        assertEquals("fits_other_vocabulary", s.get(1).kind);
+        assertEquals("website:dach-muster.de", s.get(1).origin);
+        assertTrue(s.get(1).evidence, s.get(1).evidence.contains("construction.dach"));
+        // an absence alone is no signal: no other vocabulary fits, or one category on one page only
+        fit.getJSONObject("collections").getJSONObject("bauteamcheck-web").put("pages", 1);
+        assertTrue(AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit).isEmpty());
+        // too few pages with text: nothing
+        fit.put("pages", 2).getJSONObject("collections").getJSONObject("bauteamcheck-web").put("pages", 2);
+        assertTrue(AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit).isEmpty());
+        // offers of the current vocabulary speak for it
+        fit.put("pages", 4).getJSONObject("collections").getJSONObject("edelsenior-web").put("categories", new JSONArray().put("care.ambulant"))
+                .put("pages", 1);
+        s = AutoCorrectApi.textFitSignals("dach-muster.de", "edelsenior-web", fit);
+        assertTrue(s.stream().anyMatch(x -> "for".equals(x.verdict) && "edelsenior-web".equals(x.collection)));
+        assertTrue(s.stream().noneMatch(x -> "against".equals(x.verdict)));
+    }
+
+    @Test
+    public void theDefaultAcceptanceIsTheTargetOf99Percent() throws Exception {
+        final AutoCorrectApi ac = autocorrect(new java.util.HashMap<>(), null);
+        assertEquals(299, ac.settings().getInt("minReviewed"));
+        assertEquals(0.99, ac.settings().getDouble("minLowerBound"), 0.0);
+        assertEquals(0.1, ac.settings().getDouble("auditRate"), 0.0);
+        assertEquals(0.99, ac.settings().getDouble("target"), 0.0);
+    }
+
+    @Test
     public void theGraphsJsonLdTypesAreStructuredSignals() {
         final Map<String, Set<String>> nace = new TreeMap<>(Map.of("bauteamcheck-web", Set.of("43.22", "F"), "edelsenior-web", Set.of("87.10", "88.10"),
                 "sonstige", Set.of()));

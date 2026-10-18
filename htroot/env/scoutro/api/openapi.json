@@ -17347,7 +17347,7 @@
       "get": {
         "operationId": "collections.autocorrect.report",
         "summary": "Report of the correction automation",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Apply acts only after an accepted acceptance (scoutro.collections.autocorrect.minReviewed reviewed corrections, Clopper-Pearson lower bound >= minLowerBound, no error of high severity), within maxPerDay and while the breaker is closed (a case marked wrong opens it); everything else is a proposal. Settings, breaker, acceptance, the statistics (evaluated, corrections, reviewed, precision, lowerBound95, errorsBySeverity, coverage) and the newest cases (limit 0-5000, 200).",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. Settings, breaker, acceptance, the statistics (evaluated, corrections, reviewed, precision, lowerBound95, errorsBySeverity, coverage) and the newest cases (limit 0-5000, 200).",
         "tags": [
           "crawls"
         ],
@@ -17423,7 +17423,7 @@
       "post": {
         "operationId": "collections.autocorrect.evaluate",
         "summary": "Evaluate a domain's collection with its signals",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Apply acts only after an accepted acceptance (scoutro.collections.autocorrect.minReviewed reviewed corrections, Clopper-Pearson lower bound >= minLowerBound, no error of high severity), within maxPerDay and while the breaker is closed (a case marked wrong opens it); everything else is a proposal. Returns the outcome (none, review, correct; reason, target, severity, fingerprint, independent origins) and the action of the mode (none, recorded, proposed, applied, unchanged, refused:<why>). The same fingerprint never acts twice; an automatically decided domain changes again only with a new revision and a new signal set.",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. Returns the outcome (none, review, correct; reason, target, severity, fingerprint, independent origins) and the action of the mode (none, recorded, proposed, applied, unchanged, refused:<why>). The same fingerprint never acts twice; an automatically decided domain changes again only with a new revision and a new signal set.",
         "tags": [
           "crawls"
         ],
@@ -17521,11 +17521,103 @@
         "x-scoutro-permission": "admin"
       }
     },
+    "/v1/collections/autocorrect/sample": {
+      "post": {
+        "operationId": "collections.autocorrect.sample",
+        "summary": "Draw a random sample for the acceptance",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. Returns the draw (population, drawn, domains) and the statistics (all, sample, audit; reviewsForTarget, stage none, interim_95 or target_99).",
+        "tags": [
+          "crawls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionAutocorrectSample"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draw and statistics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionAutocorrectResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
     "/v1/collections/autocorrect/review": {
       "post": {
         "operationId": "collections.autocorrect.review",
         "summary": "Review a case of the correction automation",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Apply acts only after an accepted acceptance (scoutro.collections.autocorrect.minReviewed reviewed corrections, Clopper-Pearson lower bound >= minLowerBound, no error of high severity), within maxPerDay and while the breaker is closed (a case marked wrong opens it); everything else is a proposal. approve applies the proposal as a manual collection decision (reason autocorrect_review), reject closes it, correct/wrong rate an applied one (wrong opens the breaker). 404 case_unknown, 409 case_not_open, case_not_applied, target_needed.",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. approve applies the proposal as a manual collection decision (reason autocorrect_review), reject closes it, correct/wrong judge a correction without applying it (a recorded, proposed or applied one; wrong opens the breaker only for an applied one). 404 case_unknown, 409 case_not_open, nothing_to_judge, target_needed.",
         "tags": [
           "crawls"
         ],
@@ -17637,7 +17729,7 @@
       "post": {
         "operationId": "collections.autocorrect.accept",
         "summary": "Accept (or revoke) the apply mode statistically",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Apply acts only after an accepted acceptance (scoutro.collections.autocorrect.minReviewed reviewed corrections, Clopper-Pearson lower bound >= minLowerBound, no error of high severity), within maxPerDay and while the breaker is closed (a case marked wrong opens it); everything else is a proposal. 409 acceptance_not_met with the statistics and what is missing; {\"revoke\":true} withdraws an acceptance.",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. 409 acceptance_not_met with the statistics and what is missing; {\"revoke\":true} withdraws an acceptance.",
         "tags": [
           "crawls"
         ],
@@ -17739,7 +17831,7 @@
       "post": {
         "operationId": "collections.autocorrect.breaker",
         "summary": "Close the breaker of the correction automation",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Apply acts only after an accepted acceptance (scoutro.collections.autocorrect.minReviewed reviewed corrections, Clopper-Pearson lower bound >= minLowerBound, no error of high severity), within maxPerDay and while the breaker is closed (a case marked wrong opens it); everything else is a proposal. Empty body.",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. Empty body.",
         "tags": [
           "crawls"
         ],
@@ -35306,6 +35398,11 @@
             "type": "boolean",
             "default": true,
             "description": "Add the knowledge graph's structured signals (explicit NACE codes of JSON-LD types)."
+          },
+          "textFit": {
+            "type": "boolean",
+            "default": true,
+            "description": "Add the text fit (only while the mode is not off): the categories the rules read as offered on up to 8 pages of the domain, per collection vocabulary; against the current collection only when its vocabulary has no offer on at least 3 pages and another collection's has at least 2 categories on 2 pages."
           }
         }
       },
@@ -35336,6 +35433,21 @@
           "note": {
             "type": "string",
             "maxLength": 300
+          }
+        }
+      },
+      "CollectionAutocorrectSample": {
+        "type": "object",
+        "required": [
+          "size"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "Open corrections (not drawn, not reviewed, not applied) drawn uniformly at random."
           }
         }
       },

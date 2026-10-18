@@ -253,7 +253,7 @@ public class ScoutroApiServlet extends HttpServlet {
                         expect(method, parts, 4, "GET");
                         return this.actions.collectionAutocorrect("report", queryParams(request), null, actor);
                     }
-                    if (parts.length == 5 && java.util.Set.of("evaluate", "review", "accept", "breaker-reset").contains(parts[4])) {
+                    if (parts.length == 5 && java.util.Set.of("evaluate", "review", "accept", "breaker-reset", "sample").contains(parts[4])) {
                         expect(method, parts, 5, "POST");
                         return this.actions.collectionAutocorrect(parts[4], null, jsonBody(request, MAX_BODY_BYTES), actor);
                     }

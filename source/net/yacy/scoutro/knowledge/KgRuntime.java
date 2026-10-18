@@ -1584,6 +1584,95 @@ public final class KgRuntime {
         }
     }
 
+    /** Pages of a domain the text fit reads at most (WP-H); the offer pages first. */
+    static final int TEXT_FIT_PAGES = 8;
+    private static final java.util.regex.Pattern OFFER_PAGE = java.util.regex.Pattern.compile(
+            "(?i)leistung|angebot|service|produkt|sortiment|preis|ueber-uns|uber-uns|about|unternehmen");
+
+    /**
+     * The text fit of a domain (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): the categories the rules of tier 2 read as
+     * offered on up to {@link #TEXT_FIT_PAGES} of its active pages (the indexed text, no model), counted per collection
+     * through the collection's vocabulary; all vocabularies are read at once, so every collection is judged on the same
+     * text. {@code {"pages": pages with text, "collections": {c: {"vocabulary", "categories": [...], "pages"}}}}; a collection
+     * without a vocabulary is not in it. Empty while the graph or its Solr synchronisation is off.
+     */
+    public org.json.JSONObject textFit(final String domain, final java.util.Collection<String> collections) {
+        final org.json.JSONObject out = new org.json.JSONObject();
+        final EmbeddedSolrSource s = this.source;
+        if (this.state != State.RUNNING || this.store == null || s == null || domain == null) return KgJson.put(out, "pages", 0);
+        final java.util.List<String[]> pages = new java.util.ArrayList<>();
+        try {
+            this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT doc_id, url FROM kg_doc WHERE state = 1 AND url LIKE ?"
+                        + " ORDER BY doc_rowid LIMIT 2000")) {
+                    ps.setString(1, "%" + domain.replace("%", "").replace("_", "") + "%");
+                    try (java.sql.ResultSet r = ps.executeQuery()) {
+                        while (r.next()) {
+                            String host;
+                            try {
+                                host = new java.net.URI(r.getString(2)).getHost();
+                            } catch (final java.net.URISyntaxException e) {
+                                host = null;
+                            }
+                            if (host != null && domain.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT)))) {
+                                pages.add(new String[] {r.getString(1), r.getString(2), host});
+                            }
+                        }
+                    }
+                }
+                return null;
+            });
+        } catch (final KgException e) {
+            return KgJson.put(out, "pages", 0); // no graph, no signal
+        }
+        pages.sort(java.util.Comparator.comparing((String[] p) -> OFFER_PAGE.matcher(p[1]).find() ? 0 : 1));
+        // every collection's vocabulary at once
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        final java.util.Map<String, String> vocabularyOf = new java.util.TreeMap<>();
+        for (final String c : collections) {
+            final String v = this.config.vocabularyOf(c, vocab.categories.collections);
+            if (v != null && vocab.categories.vocabulary(v) != null) vocabularyOf.put(c, v);
+        }
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = new net.yacy.scoutro.knowledge.extract.ExtractContext(vocab,
+                new java.util.TreeSet<>(vocabularyOf.values()), false, false, vocabularyOf.keySet());
+        final net.yacy.scoutro.knowledge.extract.RuleExtractor rules = new net.yacy.scoutro.knowledge.extract.RuleExtractor(
+                this.config.extractMaxExcerptChars, this.config.extractMaxRuleInputChars);
+        final java.util.Map<String, java.util.Set<String>> categories = new java.util.TreeMap<>();
+        final java.util.Map<String, Integer> pagesOf = new java.util.TreeMap<>();
+        int read = 0;
+        for (final String[] p : pages) {
+            if (read >= TEXT_FIT_PAGES) break;
+            final String text;
+            try {
+                text = s.text(p[0]);
+            } catch (final java.io.IOException e) {
+                continue;
+            }
+            if (text == null || text.isBlank()) continue;
+            read++;
+            final net.yacy.scoutro.knowledge.extract.Extraction ex = new net.yacy.scoutro.knowledge.extract.Extraction(
+                    this.config.extractMaxStatementsPerDoc);
+            rules.extract(text, p[1], p[2], "de", ex, ctx, java.util.List.of(), java.util.List.of());
+            final java.util.Set<String> here = new java.util.TreeSet<>();
+            for (final net.yacy.scoutro.knowledge.extract.Claim c : ex.claims()) {
+                if (!net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate) || c.value == null) continue;
+                for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : ctx.vocabularies) {
+                    if (v.categories.containsKey(c.value)) {
+                        categories.computeIfAbsent(v.name, k -> new java.util.TreeSet<>()).add(c.value);
+                        here.add(v.name);
+                    }
+                }
+            }
+            for (final String v : here) pagesOf.merge(v, 1, Integer::sum);
+        }
+        final org.json.JSONObject byCollection = new org.json.JSONObject();
+        for (final java.util.Map.Entry<String, String> e : vocabularyOf.entrySet()) {
+            KgJson.put(byCollection, e.getKey(), KgJson.obj("vocabulary", e.getValue(), "categories",
+                    new org.json.JSONArray(categories.getOrDefault(e.getValue(), java.util.Set.of())), "pages", pagesOf.getOrDefault(e.getValue(), 0)));
+        }
+        return KgJson.obj("pages", read, "collections", byCollection);
+    }
+
     /** The NACE codes of each collection's vocabulary (none for a collection without one). */
     public java.util.Map<String, java.util.Set<String>> collectionNace(final java.util.Collection<String> collections) {
         final java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();

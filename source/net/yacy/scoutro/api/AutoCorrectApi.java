@@ -30,11 +30,68 @@ final class AutoCorrectApi {
     static final String MAX_PER_DAY_KEY = "scoutro.collections.autocorrect.maxPerDay";
     static final String MIN_REVIEWED_KEY = "scoutro.collections.autocorrect.minReviewed";
     static final String MIN_LOWER_BOUND_KEY = "scoutro.collections.autocorrect.minLowerBound";
+    static final String AUDIT_RATE_KEY = "scoutro.collections.autocorrect.auditRate";
     static final int MAX_SIGNALS = 50;
+    /** The acceptance of the 99 % target: 299 error-free sampled reviews give a one-sided 95 % lower bound of 0.99. */
+    static final int DEFAULT_MIN_REVIEWED = 299;
+    static final double DEFAULT_MIN_LOWER_BOUND = AutoCorrect.TARGET;
+    /** Text fit: pages with text the domain needs, and what another collection's vocabulary must show to speak for it. */
+    static final int TEXT_FIT_MIN_PAGES = 3;
+    static final int TEXT_FIT_MIN_CATEGORIES = 2;
+    static final int TEXT_FIT_MIN_CATEGORY_PAGES = 2;
 
-    /** The structured signals of the knowledge graph for a domain (null: graph off). */
+    /** The signals of the knowledge graph for a domain (null: graph off). */
     interface Graph {
         List<AutoCorrect.Signal> structured(String domain, String current);
+
+        /** The text fit of the domain's pages ({@link #textFitSignals}); none by default. */
+        default List<AutoCorrect.Signal> textFit(final String domain, final String current) {
+            return List.of();
+        }
+    }
+
+    /**
+     * The text-fit signals of a domain (WP-H) from {@code KgRuntime.textFit}: the categories the rules read as offered on its
+     * pages, per collection vocabulary. A collection whose vocabulary has offers on the pages is spoken for; the current one
+     * is spoken against only when its vocabulary has no offer on at least {@link #TEXT_FIT_MIN_PAGES} pages with text
+     * <b>and</b> another collection's vocabulary has at least {@link #TEXT_FIT_MIN_CATEGORIES} categories on at least
+     * {@link #TEXT_FIT_MIN_CATEGORY_PAGES} pages: a fit elsewhere, never an absence alone. Collections without a vocabulary
+     * are never judged; fewer pages are no signal.
+     */
+    static List<AutoCorrect.Signal> textFitSignals(final String domain, final String current, final JSONObject fit) {
+        final List<AutoCorrect.Signal> out = new ArrayList<>();
+        final int pages = fit == null ? 0 : fit.optInt("pages");
+        final JSONObject by = fit == null ? null : fit.optJSONObject("collections");
+        if (pages < TEXT_FIT_MIN_PAGES || by == null) return out;
+        final List<String> elsewhere = new ArrayList<>();
+        for (final String c : new TreeSet<>(by.keySet())) {
+            final JSONObject f = by.optJSONObject(c);
+            final JSONArray cats = f.optJSONArray("categories");
+            final int n = cats == null ? 0 : cats.length(), on = f.optInt("pages");
+            final List<String> first = new ArrayList<>();
+            for (int i = 0; i < n && i < 6; i++) first.add(cats.optString(i));
+            final String names = String.join(", ", first);
+            if (c.equals(current)) {
+                if (n > 0) out.add(textSignal(domain, AutoCorrect.FOR, c, "offers_vocabulary_categories", n + " categories of the vocabulary "
+                        + f.optString("vocabulary") + " offered on " + on + " of " + pages + " pages: " + names));
+            } else if (n >= TEXT_FIT_MIN_CATEGORIES && on >= TEXT_FIT_MIN_CATEGORY_PAGES) {
+                out.add(textSignal(domain, AutoCorrect.FOR, c, "offers_vocabulary_categories", n + " categories of the vocabulary "
+                        + f.optString("vocabulary") + " offered on " + on + " of " + pages + " pages: " + names));
+                elsewhere.add(c + " (" + names + ")");
+            }
+        }
+        final JSONObject mine = by.optJSONObject(current);
+        if (mine != null && mine.optJSONArray("categories").length() == 0 && !elsewhere.isEmpty()) {
+            out.add(textSignal(domain, AutoCorrect.AGAINST, current, "fits_other_vocabulary", "no offer of the vocabulary "
+                    + mine.optString("vocabulary") + " on " + pages + " pages; offers of " + String.join("; ", elsewhere)));
+        }
+        return out;
+    }
+
+    private static AutoCorrect.Signal textSignal(final String domain, final String verdict, final String collection, final String kind,
+            final String evidence) {
+        return AutoCorrect.Signal.of(Json.obj("family", AutoCorrect.TEXT_FIT, "verdict", verdict, "collection", collection, "kind", kind,
+                "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "text_fit/1"), domain);
     }
 
     /**
@@ -130,15 +187,26 @@ final class AutoCorrectApi {
     private double lowerBoundSetting() {
         try {
             final String v = this.config.apply(MIN_LOWER_BOUND_KEY);
-            return v == null ? 0.95 : Math.max(0.5, Math.min(0.9999, Double.parseDouble(v.trim())));
+            return v == null ? DEFAULT_MIN_LOWER_BOUND : Math.max(0.5, Math.min(0.9999, Double.parseDouble(v.trim())));
         } catch (final NumberFormatException e) {
-            return 0.95;
+            return DEFAULT_MIN_LOWER_BOUND;
+        }
+    }
+
+    private double auditRateSetting() {
+        try {
+            final String v = this.config.apply(AUDIT_RATE_KEY);
+            return v == null ? AutoCorrect.DEFAULT_AUDIT_RATE : Math.max(0.0, Math.min(1.0, Double.parseDouble(v.trim())));
+        } catch (final NumberFormatException e) {
+            return AutoCorrect.DEFAULT_AUDIT_RATE;
         }
     }
 
     JSONObject settings() {
         return Json.obj("mode", mode().name().toLowerCase(Locale.ROOT), "maxPerDay", intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), "minReviewed",
-                intSetting(MIN_REVIEWED_KEY, 59, 1, 100000), "minLowerBound", lowerBoundSetting(), "fallback", this.decisions.fallback());
+                intSetting(MIN_REVIEWED_KEY, DEFAULT_MIN_REVIEWED, 1, 100000), "minLowerBound", lowerBoundSetting(), "auditRate", auditRateSetting(),
+                "target", AutoCorrect.TARGET, "interim", AutoCorrect.INTERIM, "rulesVersion", AutoCorrect.RULES_VERSION, "fallback",
+                this.decisions.fallback());
     }
 
     JSONObject report(final Map<String, String> query) throws ApiException {
@@ -157,7 +225,7 @@ final class AutoCorrectApi {
 
     JSONObject evaluate(final JSONObject body, final String actor) throws ApiException {
         for (final String k : body.keySet()) {
-            if (!Set.of("domain", "collection", "memberships", "signals", "graph").contains(k)) throw ApiException.invalid(k, "Unknown field.");
+            if (!Set.of("domain", "collection", "memberships", "signals", "graph", "textFit").contains(k)) throw ApiException.invalid(k, "Unknown field.");
         }
         final String domain = body.optString("domain", "").trim().toLowerCase(Locale.ROOT);
         if (domain.isEmpty() || !domain.equals(Normalizers.registrableDomain(domain))) {
@@ -191,11 +259,14 @@ final class AutoCorrectApi {
         if (body.optBoolean("graph", true) && this.graph != null) {
             signals.addAll(this.graph.structured(domain, current));
         }
+        if (body.optBoolean("textFit", true) && this.graph != null && mode() != AutoCorrect.Mode.OFF) {
+            signals.addAll(this.graph.textFit(domain, current)); // reads the domain's pages: only when the automation is on
+        }
         boolean manual = false;
         for (final CollectionDecision d : this.decisions.activeOf(domain)) manual |= d.basis == CollectionDecision.Basis.MANUAL;
         try {
             return this.engine.submit(domain, current, memberships, signals, this.decisions.fallback(), manual, mode(),
-                    intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), this::apply, actor);
+                    intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), auditRateSetting(), this::apply, actor);
         } catch (final IOException e) {
             throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written: " + e.getMessage());
         }
@@ -230,7 +301,7 @@ final class AutoCorrectApi {
                 this.engine.revokeAcceptance(actor);
                 return report(Map.of());
             }
-            final JSONObject a = this.engine.accept(intSetting(MIN_REVIEWED_KEY, 59, 1, 100000), lowerBoundSetting(), actor);
+            final JSONObject a = this.engine.accept(intSetting(MIN_REVIEWED_KEY, DEFAULT_MIN_REVIEWED, 1, 100000), lowerBoundSetting(), actor);
             if (!a.optBoolean("accepted")) {
                 throw new ApiException(409, "acceptance_not_met", "The reviewed corrections do not meet the acceptance: "
                         + a.optJSONArray("missing") + ". The apply mode stays a proposal mode.", a);
@@ -240,6 +311,18 @@ final class AutoCorrectApi {
             throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written: " + e.getMessage());
         } catch (final IllegalStateException e) {
             throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
+        }
+    }
+
+    /** Draws a random sample of open corrections for the acceptance ({@code size} 1 to 1000). */
+    JSONObject sample(final JSONObject body, final String actor) throws ApiException {
+        for (final String k : body.keySet()) if (!"size".equals(k)) throw ApiException.invalid(k, "Unknown field.");
+        final Object size = body.opt("size");
+        if (!(size instanceof Integer) || (Integer) size < 1 || (Integer) size > 1000) throw ApiException.invalid("size", "1 to 1000.");
+        try {
+            return Json.obj("draw", this.engine.sample((Integer) size, actor), "stats", this.engine.stats());
+        } catch (final IOException | IllegalStateException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written.");
         }
     }
 

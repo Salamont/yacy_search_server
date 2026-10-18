@@ -556,4 +556,83 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(docs[0]["title"], "Nuss")
 
 
+class AutocorrectSignalTests(unittest.TestCase):
+    """WP-H: the stored Discovery results become signals of the correction automation, only while it is on."""
+
+    RULES = {"profiles": {"edelsenior": {"collection": "edelsenior-web"}, "bauteamcheck": {"collection": "bauteamcheck-web"}}}
+    OSM = {"profiles": {"edelsenior": {"tags": [{"amenity": ["social_facility"], "social_facility": ["nursing_home"]},
+                                                {"office": ["association"]}]},
+                        "bauteamcheck": {"tags": [{"office": ["construction_company"]}, {"craft": ["carpenter", "roofer"]}]}}}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="scoutro-autocorrect-test-")
+        self.addCleanup(self.tmp.cleanup)
+        self.config = os.path.join(self.tmp.name, "config")
+        os.makedirs(self.config)
+        with open(os.path.join(self.config, "profiles.json"), "w", encoding="utf-8") as f:
+            json.dump({"criteria_version": "t1", "profiles": {
+                "edelsenior": {"collection": "edelsenior-web", "description": "care", "keywords": ["pflege"], "exclude": []},
+                "bauteamcheck": {"collection": "bauteamcheck-web", "description": "construction", "keywords": ["bau"], "exclude": []}}}, f)
+        with open(os.path.join(self.config, "osm_profiles.json"), "w", encoding="utf-8") as f:
+            json.dump(self.OSM, f)
+        self.state = d.State(os.path.join(self.tmp.name, "state"))
+
+    def root(self):
+        return {"domain": "dachdecker-muster.de",
+                "classifications": {"edelsenior": {"verdict": "FAIL", "confidence": 0.9, "classified_at": "2027-03-01T00:00:00Z",
+                                                   "reasons": [{"code": "wrong_topic", "text": "a roofer"}],
+                                                   "classifier": {"backend": "llm", "model": "m", "criteria_version": "t1", "error": ""}},
+                                    "bauteamcheck": {"verdict": "UNSURE", "confidence": 0.3, "classifier": {"backend": "llm", "error": ""}}},
+                "profiles": {"edelsenior": {"status": "crawled", "collection": "edelsenior-web"},
+                             "bauteamcheck": {"status": "fresh", "osm_match": {"rule": "tags[0]", "tags": {"office": "construction_company", "name": "Dach Muster"},
+                                                                                "source_region": "Niedersachsen"}}}}
+
+    def test_classifications_and_osm_matches_become_signals_without_any_reading(self):
+        signals = automation.autocorrect_signals(d, self.root(), self.RULES, self.OSM, "edelsenior")
+        llm = [s for s in signals if s["family"] == "llm"]
+        self.assertEqual(len(llm), 1, "UNSURE is no signal")
+        self.assertEqual((llm[0]["verdict"], llm[0]["collection"]), ("against", "edelsenior-web"))
+        self.assertIn("wrong_topic", llm[0]["evidence"])
+        osm = [s for s in signals if s["family"] == "origin"]
+        self.assertEqual({(s["verdict"], s["collection"]) for s in osm}, {("for", "bauteamcheck-web"), ("against", "edelsenior-web")})
+        self.assertTrue(all(s["origin"] == "osm:niedersachsen" for s in osm))
+        # a heuristic or a failed reading is no signal; a name match is no verdict on the current profile
+        root = self.root()
+        root["classifications"]["edelsenior"]["classifier"]["backend"] = "heuristic"
+        root["profiles"]["bauteamcheck"]["osm_match"]["rule"] = "text_any"
+        signals = automation.autocorrect_signals(d, root, self.RULES, self.OSM, "edelsenior")
+        self.assertEqual([(s["family"], s["verdict"]) for s in signals], [("origin", "for")])
+        # tags that do not touch the current rule's keys say nothing about it
+        root = self.root()
+        root["profiles"]["bauteamcheck"]["osm_match"]["tags"] = {"craft": "roofer"}
+        self.assertFalse(any(s["verdict"] == "against" and s["family"] == "origin"
+                             for s in automation.autocorrect_signals(d, root, self.RULES, self.OSM, "edelsenior")))
+
+    def test_the_batch_reports_only_while_the_automation_is_on_and_only_changed_signals(self):
+        root = self.root()
+        self.state.data["domains"]["dachdecker-muster.de"] = root
+        calls = []
+
+        class Rpc:
+            def call(self, action, params=None):
+                calls.append((action, params))
+                return {"action": "proposed", "outcome": {"result": "review"}}
+
+        init = {"job": {"profile": "edelsenior"}, "collection": "edelsenior-web", "autocorrect": False, "autocorrect_batch": 10}
+        self.assertIsNone(automation.submit_autocorrect(d, self.state, Rpc(), init, self.config, NOW))
+        self.assertEqual(calls, [], "off: not a single request")
+        init["autocorrect"] = True
+        report = automation.submit_autocorrect(d, self.state, Rpc(), init, self.config, NOW)
+        self.assertEqual(report["submitted"], 1)
+        self.assertEqual(calls[0][0], "autocorrect")
+        self.assertEqual(calls[0][1]["domain"], "dachdecker-muster.de")
+        self.assertEqual(calls[0][1]["memberships"], ["edelsenior-web"])
+        self.assertEqual(len(calls[0][1]["signals"]), 3)
+        self.assertEqual(automation.submit_autocorrect(d, self.state, Rpc(), init, self.config, NOW)["submitted"], 0,
+                         "the same signals are not reported again")
+        reloaded = d.State(os.path.join(self.tmp.name, "state")).domain("dachdecker-muster.de")
+        self.assertTrue(reloaded["profiles"]["edelsenior"]["autocorrect_reported"])
+        self.assertEqual(reloaded["classifications"], root["classifications"], "the classifications stay as they are")
+
+
 if __name__ == "__main__": unittest.main()
