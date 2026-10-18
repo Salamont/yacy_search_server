@@ -68,6 +68,11 @@ implemented decision of this programme, **[U]** open assumption.
 8. **Statistical acceptance** (WP-H) [E]: observed precision, the Clopper-Pearson lower bound, severity classes and
    coverage are reported separately; `apply` is never enabled by default.
 9. **LLM consumption cap** [E]: a daily cap on model requests inside the existing LLM tier (WP-D).
+10. **No schema change for WP-D** [E, found during development]: the plan's schema 7 for the collection change is not
+    needed. The sync detects a move by comparing the extraction context (vocabularies, job collections, job signals)
+    of the page's followed collections before and after; only a changed context re-reads tiers 1 and 2 of that page
+    and checks its vocabulary-dependent LLM facts ([collection move](SCOUTRO_KG_COLLECTION_MOVE.md)). Schema 7 is
+    left to WP-E (assessments).
 
 ## 4. Work packages and progress
 
@@ -75,8 +80,8 @@ implemented decision of this programme, **[U]** open assumption.
 |---|---|---|---|---|
 | WP-A | Durable collection decisions, index hook, crawl starts, reassign recording, fallback role ([doc](SCOUTRO_COLLECTION_DECISIONS.md)) | `scoutro/r1-wp-a-collection-decisions` | #78 (base main) | done, draft PR |
 | WP-B | Quality metrics, derived facet (`docs/SCOUTRO_KG_QUALITY_METRICS.md` in its PR) | `scoutro/r1-wp-b-quality-derived` | #79 (base main, independent) | done, draft PR |
-| WP-C | Discovery integration: deferred refusals, OSM match origin, classification after moves | `scoutro/r1-wp-c-discovery-decisions` | stacked on #78 | done |
-| WP-D | Knowledge graph on a collection change, LLM priority and cap | – | – | open |
+| WP-C | Discovery integration: deferred refusals, OSM match origin, classification after moves | `scoutro/r1-wp-c-discovery-decisions` | #80 (stacked on #78) | done, draft PR |
+| WP-D | Knowledge graph on a collection change, LLM priority and cap ([doc](SCOUTRO_KG_COLLECTION_MOVE.md)) | `scoutro/r2-wp-d-kg-collection-move` | stacked on #80 | done |
 | WP-E | Assessments, retraction, replacement statements | – | – | open |
 | WP-F | Extraction semantics (money, roles, offers, identity) | – | – | open |
 | WP-G | Rule-based review of stored LLM facts | – | – | open |

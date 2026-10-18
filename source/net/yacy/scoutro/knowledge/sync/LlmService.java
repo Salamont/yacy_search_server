@@ -390,6 +390,28 @@ public final class LlmService {
     private final LlmBreaker breaker;
     private final LlmTiming timing;
     private static final String LAST_START="llm_last_actual_start";
+    /** Model requests started on the current UTC day ({@code yyyy-mm-dd:n}), for scoutro.kg.llm.maxRequestsPerDay (WP-D). */
+    static final String DAY_REQUESTS = "llm_day_requests";
+    static final String DAILY_CAP = "daily_request_cap";
+
+    static String utcDay(final long millis) {
+        return java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString();
+    }
+
+    private Long safeRequestsToday() {
+        try {
+            return requestsToday();
+        } catch (final KgException e) {
+            return null;
+        }
+    }
+
+    /** Requests started today (UTC), as stored with each start. */
+    long requestsToday() throws KgException {
+        final String day = utcDay(this.clock.getAsLong());
+        final String stored = this.store.read(c -> KgStore.getMeta(c, DAY_REQUESTS));
+        return stored != null && stored.startsWith(day + ":") ? Long.parseLong(stored.substring(day.length() + 1)) : 0L;
+    }
     private final Map<String,PendingProgress> pendingProgress=new ConcurrentHashMap<>();
     /** Samples of dropped items and refused answers, bounded and in memory ({@link RefusalSamples}). */
     private final RefusalSamples refusalSamples = new RefusalSamples();
@@ -760,10 +782,14 @@ public final class LlmService {
                     }
                 }
                 final int frontierBatch = SCAN_BATCH - behind.values().stream().mapToInt(List::size).sum();
-                final int share = Math.max(1, (frontierBatch + k - 1) / k);
+                // WP-D: a collection's share follows its weight (scoutro.kg.llm.weight.<collection>, default 1: equal shares)
+                int weights = 0;
+                for (final LlmQueue.Lane lane : order) weights += this.cfg.llmWeight(lane.name);
+                final int totalWeight = Math.max(1, weights);
                 int left = frontierBatch;
                 final List<LlmQueue.Lane> full = new ArrayList<>();
                 for (final LlmQueue.Lane lane : order) {
+                    final int share = Math.max(1, (frontierBatch * this.cfg.llmWeight(lane.name) + totalWeight - 1) / totalWeight);
                     final int ask = Math.min(share, Math.max(0, left));
                     final List<LlmQueue.Todo> t = LlmQueue.laneTodo(c, lane.collId, lane.frontier, Long.MAX_VALUE, ask);
                     ahead.put(lane.collId, new ArrayList<>(t));
@@ -1504,6 +1530,8 @@ public final class LlmService {
                             String gate = this.gates.closed(false);
                             if (gate != null) throw new LlmTiming.Deferred(gate);
                             try {
+                                if (this.cfg.llmMaxRequestsPerDay > 0 && requestsToday() >= this.cfg.llmMaxRequestsPerDay)
+                                    throw new LlmTiming.Deferred(DAILY_CAP);
                                 String growth = this.store.growthRefusal();
                                 if (growth != null) throw new LlmTiming.Deferred(growth);
                                 if (resetInProgress()) throw new LlmTiming.Deferred("full_reset");
@@ -1537,6 +1565,12 @@ public final class LlmService {
                                         1024,
                                         tx -> {
                                             KgStore.putMeta(tx, LAST_START, Long.toString(at));
+                                            // the day's count with the start it counts, in one write (WP-D)
+                                            final String day = utcDay(at);
+                                            final String stored = KgStore.getMeta(tx, DAY_REQUESTS);
+                                            long n = stored != null && stored.startsWith(day + ":")
+                                                    ? Long.parseLong(stored.substring(day.length() + 1)) : 0L;
+                                            KgStore.putMeta(tx, DAY_REQUESTS, day + ":" + (n + 1));
                                             return null;
                                         });
                             } catch (KgException e) {
@@ -2074,6 +2108,11 @@ public final class LlmService {
                 this.breaker.status(),
                 "processed",
                 this.counters.json(),
+                "dailyRequests",
+                // WP-D: the verifiable consumption limit (0: no cap); a status read never fails because of it
+                KgJson.obj("cap", this.cfg.llmMaxRequestsPerDay, "today", safeRequestsToday(), "day", utcDay(this.clock.getAsLong())),
+                "weights",
+                new JSONObject(this.cfg.llmWeights),
                 "timing",
                 this.timing.status(actualWaitReason()),
                 "pendingResultCheckpoints",

@@ -1117,6 +1117,7 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 | `llm.parallel`, `llm.timeoutSeconds`, `llm.maxAttempts`, `llm.breakerFailures`, `llm.breakerMaxBackoffMinutes`, `llm.maxDocsPerHost` | 1, 120, 2, 3, 60, 25 | advanced |
 | `llm.answerReserveTokens` (tokens of the context window kept for the answer, at most the row's output cap), `llm.continuationChunks` (chunks one continuation pass reads of a long page's content; passes repeat until the content is read; 0: none) ([27](#27-llm-tier-coverage-selection-request-budget-long-pages-missing-text-and-diagnostics)) | 1 200 (256–32 768), 5 (0–20) | advanced |
 | `llm.structuredOutput` (`auto`, `json_schema`, `json_object`, `none`) | auto | advanced |
+| `llm.maxRequestsPerDay` (model requests per UTC day, 0: no cap), `llm.weight.<collection>` (share of each scan batch, 1–10) ([collection move, priority and cap](SCOUTRO_KG_COLLECTION_MOVE.md)) | 0, 1 | advanced |
 | `gate.maxIndexingQueue`, `gate.maxLoad`, `gate.minFreeHeapMB` | 20, 2.5, 256 | advanced |
 | `source.*`, `changes.*`, `cache.maxPercent` | [7.2](#72-settings) | advanced |
 | `reconcile.hour`, `reconcile.debounceSeconds`, `reconcile.maxDeleteFraction`, `reconcile.brakeMinDocs` | 3, 300, 0.2, 50 | advanced |

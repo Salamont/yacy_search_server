@@ -115,6 +115,8 @@ public final class SyncService {
         final AtomicLong extractions = new AtomicLong();
         /** Pages of collections switched off only (package 6.2): kept as they are. */
         final AtomicLong held = new AtomicLong();
+        /** Pages extracted again because a collection move changed what tiers 1 and 2 read (WP-D). */
+        final AtomicLong rescoped = new AtomicLong();
 
         JSONObject json() {
             return KgJson.obj("published", this.published.get(), "unchanged", this.unchanged.get(), "lifecycle", this.lifecycle.get(),
@@ -124,7 +126,8 @@ public final class SyncService {
                     "growthRefused", this.growthRefused.get(), "maintenanceRefused", this.maintenanceRefused.get(),
                     "drainRefused", this.drainRefused.get(), "queueDropped", this.queueDropped.get(),
                     "solrErrors", this.solrErrors.get(), "failedDocs", this.failedDocs.get(), "drained", this.drained.get(),
-                    "fullResets", this.fullResets.get(), "extractions", this.extractions.get(), "held", this.held.get());
+                    "fullResets", this.fullResets.get(), "extractions", this.extractions.get(), "held", this.held.get(),
+                    "rescopedExtractions", this.rescoped.get());
         }
     }
 
@@ -925,9 +928,17 @@ public final class SyncService {
         if (state != Aggregates.STATE_ACTIVE) {
             doc.inputHash = null; // keeps the stored hash: an unchanged return needs no new extraction
             action = Action.LIFECYCLE;
-        } else if (cur != null && Arrays.equals(input, cur.inputHash) && !this.recheckRelations.contains(item.docId)) {
+        } else if (cur != null && Arrays.equals(input, cur.inputHash) && !this.recheckRelations.contains(item.docId)
+                && !contextChanged(cur, followed)) {
             doc.inputHash = input;
             action = Action.LIFECYCLE;
+        } else if (cur != null && Arrays.equals(input, cur.inputHash) && !this.recheckRelations.contains(item.docId)) {
+            // WP-D: only the collections changed, and with them what tiers 1 and 2 read (vocabulary, jobs): extract this page
+            // again with the new collections (rules, no LLM) and check its LLM facts that depend on the old vocabulary
+            doc.inputHash = input;
+            doc.reviseTier3 = BaseTiers.context(this.cfg, d);
+            this.counters.rescoped.incrementAndGet();
+            action = Action.EXTRACT;
         } else {
             doc.inputHash = input;
             action = Action.EXTRACT;
@@ -963,6 +974,30 @@ public final class SyncService {
             }
         }
         return publish(item, doc, ex, action == Action.EXTRACT ? WriteClass.GROWTH : WriteClass.MAINTENANCE);
+    }
+
+    /**
+     * True if the followed collections the page was last published with read another extraction context
+     * ({@link BaseTiers#contextKey}) than its followed collections now (WP-D).
+     */
+    private boolean contextChanged(final Publisher.Row cur, final List<String> followed) throws KgException {
+        final List<String> before = this.store.read(c -> {
+            final List<String> names = new java.util.ArrayList<>();
+            try (java.sql.PreparedStatement p = c.prepareStatement("SELECT k.name FROM kg_doc_collection dc JOIN kg_collection k"
+                    + " ON k.coll_id = dc.coll_id WHERE dc.doc_rowid = ? ORDER BY k.name")) {
+                p.setLong(1, cur.rowid);
+                try (java.sql.ResultSet r = p.executeQuery()) {
+                    while (r.next()) names.add(r.getString(1));
+                }
+            }
+            return names;
+        });
+        final List<String> wasFollowed = new java.util.ArrayList<>();
+        for (final String c : before) if (this.cfg.follows(c)) wasFollowed.add(c);
+        final List<String> now = new java.util.ArrayList<>(followed);
+        java.util.Collections.sort(now);
+        if (wasFollowed.equals(now)) return false;
+        return !BaseTiers.contextKey(this.cfg, wasFollowed).equals(BaseTiers.contextKey(this.cfg, now));
     }
 
     private static long backoff(final int attempts) {

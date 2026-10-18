@@ -97,6 +97,17 @@ final class BaseTiers {
                 cfg.jobSignalsFor(followed), followed);
     }
 
+    /**
+     * What the extraction of tiers 1 and 2 reads from a page's collections (WP-D): the vocabularies in force, the job
+     * policy and the job hints of these followed collections. Two collection sets with the same key give the same
+     * extraction; a page whose key changes with a collection move is extracted again (no LLM).
+     */
+    static String contextKey(final KgConfig cfg, final List<String> followed) {
+        final KgVocabularies.Snapshot vocab = KgVocabularies.get();
+        return new java.util.TreeSet<>(cfg.vocabulariesOf(followed, vocab.categories.collections)) + "|" + cfg.jobsFor(followed) + "|"
+                + cfg.jobSignalsFor(followed);
+    }
+
     static String host(final SolrDoc d) {
         if (d.host != null) {
             return d.host;
