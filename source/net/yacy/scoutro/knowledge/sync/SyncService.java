@@ -620,6 +620,10 @@ public final class SyncService {
             final String extractors = KgStore.getMeta(tx, KgSchema.META_EXTRACTORS);
             final String hold = KgStore.getMeta(tx, KgSchema.META_UPGRADE_HOLD);
             if (hold == null) {
+                if (extractors != null && !extractors.equals(SolrDoc.extractors())) {
+                    // the order outlives this session: a stop before the re-extraction completed must not lose it
+                    KgStore.putMeta(tx, Reconciler.META_REEXTRACT, "1");
+                }
                 KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
             } // an upgrade without its copy: the old identity stays, so the re-extraction runs once the hold is released
             this.reconciler.onStart(tx, now);
@@ -649,14 +653,14 @@ public final class SyncService {
                     pages == null ? null : Long.valueOf(pages), "since", since == null ? null : Long.valueOf(since), "done",
                     done == null ? null : Long.valueOf(done));
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
-                    KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs};
+                    KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs, KgStore.getMeta(tx, Reconciler.META_REEXTRACT)};
         });
         final boolean collectionsChanged = meta[0] != null && !meta[0].equals(this.cfg.collectionsKey());
         final boolean extractorsChanged = meta[1] != null && !meta[1].equals(SolrDoc.extractors());
         this.upgradeHold = meta[4];
         this.reconciler.request(collectionsChanged ? Reconciler.REASON_COLLECTIONS
                 : this.uncleanStart ? Reconciler.REASON_UNCLEAN_START : Reconciler.REASON_START, now);
-        if (extractorsChanged && this.upgradeHold == null) {
+        if ((extractorsChanged || "1".equals(meta[6])) && this.upgradeHold == null) {
             this.reconciler.reextractAll();
         }
         if (meta[5] != null && !meta[5].isEmpty()) {
@@ -1474,6 +1478,9 @@ public final class SyncService {
         final String extractors = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
             final String last = KgStore.getMeta(tx, KgSchema.META_EXTRACTORS);
             KgStore.deleteMeta(tx, KgSchema.META_UPGRADE_HOLD);
+            if (last == null || !last.equals(SolrDoc.extractors())) {
+                KgStore.putMeta(tx, Reconciler.META_REEXTRACT, "1");
+            }
             KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
             KgStore.event(tx, 1, "upgrade_released", "a verified backup exists; every page is extracted again", now);
             return last;
