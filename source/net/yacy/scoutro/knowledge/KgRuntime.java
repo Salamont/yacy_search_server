@@ -1534,6 +1534,22 @@ public final class KgRuntime {
         return out[0];
     }
 
+    /** The review of stored LLM facts by the current rules (WP-G): the dry and the applying run's progress. */
+    public JSONObject tier3ReviewStatus() throws KgException {
+        requireRunning();
+        return this.store.read(c -> KgJson.obj("rules", net.yacy.scoutro.knowledge.publish.Tier3Review.RULES,
+                "dryRun", net.yacy.scoutro.knowledge.publish.Tier3Review.status(c, false),
+                "apply", net.yacy.scoutro.knowledge.publish.Tier3Review.status(c, true)));
+    }
+
+    /** One bounded step of the review (WP-G); no model request; applied findings are automatic assessments (revocable). */
+    public synchronized JSONObject tier3ReviewStep(final boolean apply, final int maxDocuments, final boolean restart) throws KgException {
+        requireRunning();
+        final long now = this.env.clock.getAsLong();
+        return this.store.write(WriteClass.MAINTENANCE, ASSESSMENT_WRITE_BYTES,
+                tx -> net.yacy.scoutro.knowledge.publish.Tier3Review.step(tx, this.config, apply, maxDocuments, restart, now));
+    }
+
     /** Quality metrics of the live graph (WP-B): a snapshot of at most ten minutes, computed again with {@code refresh}. */
     public org.json.JSONObject quality(final boolean refresh) throws KgException {
         requireRunning();

@@ -115,6 +115,9 @@ final class KnowledgeApi {
         if ((parts.length == 4 || parts.length == 5) && "collections".equals(parts[3])) {
             return collections(method, parts, query, body);
         }
+        if (parts.length == 4 && "tier3-review".equals(parts[3])) {
+            return tier3Review(method, query, body);
+        }
         if (parts.length >= 4 && "assessments".equals(parts[3]) && (parts.length == 4 || parts.length == 6 && "revoke".equals(parts[5]))) {
             return assessments(method, parts, query, body);
         }
@@ -294,6 +297,41 @@ final class KnowledgeApi {
                         preview, "token", preview.opt("token"));
             }
             return r.assessmentCreate(d, b.optString("token"));
+        } catch (final KgException e) {
+            throw toApi(e);
+        }
+    }
+
+    /**
+     * The rule-based review of stored LLM facts (WP-G, docs/SCOUTRO_KG_TIER3_REVIEW.md): GET the progress; POST one bounded
+     * step, {@code apply} false (default) a dry run, true withdraws the findings by automatic assessments.
+     */
+    private JSONObject tier3Review(final String method, final java.util.Map<String, String> query, final Body body) throws ApiException, IOException {
+        final KgRuntime r = this.runtime.get();
+        noParameters(query);
+        if ("GET".equals(method)) {
+            if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+            try {
+                return r.tier3ReviewStatus();
+            } catch (final KgException e) {
+                throw toApi(e);
+            }
+        }
+        allow(method, "POST");
+        final JSONObject b = body.get();
+        for (final Iterator<?> keys = b.keys(); keys.hasNext();) {
+            final String key = String.valueOf(keys.next());
+            if (!java.util.Set.of("apply", "maxDocuments", "restart").contains(key)) throw ApiException.invalid(key, "Unknown field.");
+        }
+        final Object apply = b.opt("apply"), restart = b.opt("restart"), max = b.opt("maxDocuments");
+        if (apply != null && !(apply instanceof Boolean)) throw ApiException.invalid("apply", "true or false.");
+        if (restart != null && !(restart instanceof Boolean)) throw ApiException.invalid("restart", "true or false.");
+        if (max != null && (!(max instanceof Integer) || (Integer) max < 1 || (Integer) max > net.yacy.scoutro.knowledge.publish.Tier3Review.MAX_DOCUMENTS)) {
+            throw ApiException.invalid("maxDocuments", "1 to " + net.yacy.scoutro.knowledge.publish.Tier3Review.MAX_DOCUMENTS + ".");
+        }
+        if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+        try {
+            return r.tier3ReviewStep(Boolean.TRUE.equals(apply), max == null ? 1000 : (Integer) max, Boolean.TRUE.equals(restart));
         } catch (final KgException e) {
             throw toApi(e);
         }
