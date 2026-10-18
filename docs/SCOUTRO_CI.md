@@ -25,3 +25,9 @@ checked too) and on demand:
 Both call `tools/scoutro/ci/scoutro-checks.sh`, which runs the same locally (`all`, `java` or `python`). Read-only
 token, no secrets, no deployment, no Scoutro network service, no model request. A local run is no CI result; only a
 completed run of this workflow on the pull request's head is.
+
+## Output of a failing check
+
+Each check's output goes to a temporary file. A passing check prints its last lines; a failing one prints JUnit's
+summary first (the failing tests by name, their exception and the `net.yacy` stack lines, `Tests run:`), then the last
+40 lines. Ant runs without `-q`, so the forked JUnit runner's output is part of the log.
