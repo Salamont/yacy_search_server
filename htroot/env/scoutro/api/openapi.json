@@ -14330,6 +14330,301 @@
         ]
       }
     },
+    "/v1/kg/assessments": {
+      "get": {
+        "operationId": "kg.assessments.list",
+        "summary": "List the assessments of graph facts",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Newest first; status active (default), revoked or all; limit 1-500 (100).",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Which assessments.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "revoked",
+                "all"
+              ],
+              "default": "active"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most this many.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assessments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgAssessmentList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      },
+      "post": {
+        "operationId": "kg.assessments.create",
+        "summary": "Preview or store an assessment of graph facts",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Without token a preview: what it would change now, a sample of at most 20 rows and a token; nothing changes. With the token the assessment is stored and applied in one transaction. 400 invalid_request, 409 assessment_preview_stale (the graph changed since the preview), 409 assessment_too_large (more than 5000 evidence rows: narrow scope, value, subject or tier), 503 while the graph is off.",
+        "tags": [
+          "knowledge"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KgAssessmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview or stored and applied assessment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgAssessmentResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/kg/assessments/{id}/revoke": {
+      "post": {
+        "operationId": "kg.assessments.revoke",
+        "summary": "Revoke an assessment",
+        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Restores the copied evidence unchanged where the source is still the copied revision (a reclassification's moved row is removed again) and marks the observations recorded again; the assessment stays as revoked for the record. Empty body. 404 assessment_not_found, 409 assessment_not_active.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Assessment ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kga_[a-z2-7]{20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked assessment and what came back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgAssessmentRevokeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
     "/v1/discovery/catalog": {
       "get": {
         "operationId": "discovery.catalog",
@@ -16620,6 +16915,506 @@
         "x-scoutro-permission": "admin"
       }
     },
+    "/v1/collections/decisions": {
+      "get": {
+        "operationId": "collections.decisions.list",
+        "summary": "List the collection decisions",
+        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. The store's health and every decision (active and revoked); ?domain= filters.",
+        "tags": [
+          "crawls"
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "description": "Only this registrable domain.",
+            "schema": {
+              "type": "string",
+              "maxLength": 253
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Store and decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDecisionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      },
+      "post": {
+        "operationId": "collections.decisions.decide",
+        "summary": "Decide the collections of a domain, host or path",
+        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Without confirm a preview: the pages in scope, their collections before and after, a sample, an existing decision of the same scope and a token; nothing changes. With confirm set to that token the decision is stored first (write-ahead, a new revision of an existing one) and then applied to the indexed pages and their webgraph edges by Solr atomic updates in resumable batches (apply: applied or partial with a cursor). The knowledge graph re-scopes the pages; nothing is crawled or deleted and no LLM is asked. 400 invalid_request, 400 collection_unknown, 409 decision_preview_stale, 409 decision_exists, 422 fallback_needs_pages (fallback for a scope without indexed pages), 422 target_not_followed (pages would leave the knowledge graph: let it follow the target first), 422 decision_too_large (more than 50000 pages), 503 decisions_unavailable / decisions_unwritable / index_unavailable.",
+        "tags": [
+          "crawls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview, or stored and applied decision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDecisionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "YaCy refused the request (e.g. crawl rejected; message contains YaCy's reason).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/collections/decisions/apply": {
+      "post": {
+        "operationId": "collections.decisions.apply",
+        "summary": "Continue applying a stored collection decision",
+        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Continues a pending or partial decision from its cursor (after an interruption, more than 5000 pages, or pages a crawl changed meanwhile); idempotent.",
+        "tags": [
+          "crawls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionDecisionId"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied batch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDecisionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/collections/decisions/revoke": {
+      "post": {
+        "operationId": "collections.decisions.revoke",
+        "summary": "Revoke a collection decision",
+        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Preview without confirm; with the token the decision is revoked (a new revision): the pages keep their present collections, later crawls write their crawl profile's collections again.",
+        "tags": [
+          "crawls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionDecisionId"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview or revoked decision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDecisionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/collections/decisions/recover": {
+      "post": {
+        "operationId": "collections.decisions.recover",
+        "summary": "Accept the readable collection decisions",
+        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Only while the store is unavailable: the preview lists the readable decisions and the problems; with the token they become the committed state (newer decisions are lost and must be decided again). 409 decisions_available otherwise.",
+        "tags": [
+          "crawls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionDecisionRecover"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview or recovered store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDecisionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
     "/v1/collections/{id}/hide": {
       "post": {
         "operationId": "collections.hide",
@@ -18794,801 +19589,6 @@
           }
         ],
         "x-scoutro-mutating": false,
-        "x-scoutro-permission": "admin"
-      }
-    },
-    "/v1/collections/decisions": {
-      "get": {
-        "operationId": "collections.decisions.list",
-        "summary": "List the collection decisions",
-        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. The store's health and every decision (active and revoked); ?domain= filters.",
-        "tags": [
-          "crawls"
-        ],
-        "parameters": [
-          {
-            "name": "domain",
-            "in": "query",
-            "required": false,
-            "description": "Only this registrable domain.",
-            "schema": {
-              "type": "string",
-              "maxLength": 253
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Store and decisions.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CollectionDecisionList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": false,
-        "x-scoutro-permission": "admin"
-      },
-      "post": {
-        "operationId": "collections.decisions.decide",
-        "summary": "Decide the collections of a domain, host or path",
-        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Without confirm a preview: the pages in scope, their collections before and after, a sample, an existing decision of the same scope and a token; nothing changes. With confirm set to that token the decision is stored first (write-ahead, a new revision of an existing one) and then applied to the indexed pages and their webgraph edges by Solr atomic updates in resumable batches (apply: applied or partial with a cursor). The knowledge graph re-scopes the pages; nothing is crawled or deleted and no LLM is asked. 400 invalid_request, 400 collection_unknown, 409 decision_preview_stale, 409 decision_exists, 422 fallback_needs_pages (fallback for a scope without indexed pages), 422 target_not_followed (pages would leave the knowledge graph: let it follow the target first), 422 decision_too_large (more than 50000 pages), 503 decisions_unavailable / decisions_unwritable / index_unavailable.",
-        "tags": [
-          "crawls"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CollectionDecisionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Preview, or stored and applied decision.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CollectionDecisionResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict (e.g. the crawl is not running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request body too large (max 16 KiB).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request body must be application/json.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "YaCy refused the request (e.g. crawl rejected; message contains YaCy's reason).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": true,
-        "x-scoutro-permission": "admin"
-      }
-    },
-    "/v1/collections/decisions/apply": {
-      "post": {
-        "operationId": "collections.decisions.apply",
-        "summary": "Continue applying a stored collection decision",
-        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Continues a pending or partial decision from its cursor (after an interruption, more than 5000 pages, or pages a crawl changed meanwhile); idempotent.",
-        "tags": [
-          "crawls"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CollectionDecisionId"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Applied batch.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CollectionDecisionResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict (e.g. the crawl is not running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request body too large (max 16 KiB).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request body must be application/json.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": true,
-        "x-scoutro-permission": "admin"
-      }
-    },
-    "/v1/collections/decisions/revoke": {
-      "post": {
-        "operationId": "collections.decisions.revoke",
-        "summary": "Revoke a collection decision",
-        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Preview without confirm; with the token the decision is revoked (a new revision): the pages keep their present collections, later crawls write their crawl profile's collections again.",
-        "tags": [
-          "crawls"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CollectionDecisionId"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Preview or revoked decision.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CollectionDecisionResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict (e.g. the crawl is not running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request body too large (max 16 KiB).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request body must be application/json.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": true,
-        "x-scoutro-permission": "admin"
-      }
-    },
-    "/v1/collections/decisions/recover": {
-      "post": {
-        "operationId": "collections.decisions.recover",
-        "summary": "Accept the readable collection decisions",
-        "description": "Administrator only, never an agent route, JSON body of at most 4 KiB. A collection decision durably fixes the collections of a scope's pages: every later write into the index (Scoutro, Discovery and YaCy crawls, WorkTables replays, YaCy's recrawl job, error documents) gets the decision's collections, so a corrected membership is never restored by a crawl. The fallback collection takes pages only through a decision. If the decision files cannot be read reliably every write and crawl start is refused (503 decisions_unavailable) until an administrator recovers them; reads keep working. Only while the store is unavailable: the preview lists the readable decisions and the problems; with the token they become the committed state (newer decisions are lost and must be decided again). 409 decisions_available otherwise.",
-        "tags": [
-          "crawls"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CollectionDecisionRecover"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Preview or recovered store.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CollectionDecisionResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict (e.g. the crawl is not running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request body too large (max 16 KiB).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request body must be application/json.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": true,
-        "x-scoutro-permission": "admin"
-      }
-    },
-    "/v1/kg/assessments": {
-      "get": {
-        "operationId": "kg.assessments.list",
-        "summary": "List the assessments of graph facts",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Newest first; status active (default), revoked or all; limit 1-500 (100).",
-        "tags": [
-          "knowledge"
-        ],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "description": "Which assessments.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "revoked",
-                "all"
-              ],
-              "default": "active"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "description": "At most this many.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 500,
-              "default": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Assessments.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KgAssessmentList"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": false,
-        "x-scoutro-permission": "admin"
-      },
-      "post": {
-        "operationId": "kg.assessments.create",
-        "summary": "Preview or store an assessment of graph facts",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Without token a preview: what it would change now, a sample of at most 20 rows and a token; nothing changes. With the token the assessment is stored and applied in one transaction. 400 invalid_request, 409 assessment_preview_stale (the graph changed since the preview), 409 assessment_too_large (more than 5000 evidence rows: narrow scope, value, subject or tier), 503 while the graph is off.",
-        "tags": [
-          "knowledge"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KgAssessmentRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Preview or stored and applied assessment.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KgAssessmentResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict (e.g. the crawl is not running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request body too large (max 16 KiB).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request body must be application/json.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": true,
-        "x-scoutro-permission": "admin"
-      }
-    },
-    "/v1/kg/assessments/{id}/revoke": {
-      "post": {
-        "operationId": "kg.assessments.revoke",
-        "summary": "Revoke an assessment",
-        "description": "Administrator only, same-site JSON body (docs/SCOUTRO_KG_ASSESSMENTS.md). An assessment withdraws or reclassifies the support of statements by the evidence of one source (document ID), host or registrable domain for one predicate, optionally one value (compare form of a literal, or the object's entity ID for a relation), subject and tier; the same fact from an independent source stays. Applying it copies the matching evidence field by field (kg_evidence_withdrawn), removes it and recomputes the statements; industries derived only from a withdrawn category or offers go with it; archived observations become withdrawn or corrected (correction_of names the assessment). The publisher holds back every later claim it covers (re-extraction, the LLM cache, a recrawl); a claim found in a new revision of the source marks the assessment reviewNeeded instead of lifting it. Rebuilds carry assessments, backups and restores contain them, a full reset keeps them; quotes of a source that leaves the graph are cleared from the copies. No model request, no Solr change. Restores the copied evidence unchanged where the source is still the copied revision (a reclassification's moved row is removed again) and marks the observations recorded again; the assessment stays as revoked for the record. Empty body. 404 assessment_not_found, 409 assessment_not_active.",
-        "tags": [
-          "knowledge"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Assessment ID.",
-            "schema": {
-              "type": "string",
-              "pattern": "^kga_[a-z2-7]{20}$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Revoked assessment and what came back.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KgAssessmentRevokeResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (validation error; details.field names the parameter).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
-          },
-          "403": {
-            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict (e.g. the crawl is not running).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request body must be application/json.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "YaCy is not available yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "digest": []
-          }
-        ],
-        "x-scoutro-mutating": true,
         "x-scoutro-permission": "admin"
       }
     }
@@ -32929,6 +32929,251 @@
           }
         }
       },
+      "KgAssessmentRequest": {
+        "type": "object",
+        "required": [
+          "action",
+          "scope",
+          "predicate",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "withdraw",
+              "reclassify"
+            ]
+          },
+          "scope": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1,
+            "description": "Exactly one of source (document ID), host or domain (registrable).",
+            "properties": {
+              "source": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{12}$"
+              },
+              "host": {
+                "type": "string",
+                "maxLength": 253
+              },
+              "domain": {
+                "type": "string",
+                "maxLength": 253
+              }
+            }
+          },
+          "predicate": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^kge_[a-z2-7]{20}$"
+          },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 3
+          },
+          "targetPredicate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64,
+            "description": "reclassify only: a predicate with the same kind of object."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Why; no personal data."
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The preview's token; without it nothing changes."
+          }
+        }
+      },
+      "KgAssessment": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^kga_[a-z2-7]{20}$"
+          },
+          "action": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "object"
+          },
+          "predicate": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "targetPredicate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "automatic"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked"
+            ]
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "revokedAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "revokedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "blockedClaims": {
+            "type": "integer"
+          },
+          "reviewNeeded": {
+            "type": "boolean"
+          },
+          "withdrawnEvidence": {
+            "type": "integer"
+          },
+          "dependentEvidence": {
+            "type": "integer"
+          }
+        }
+      },
+      "KgAssessmentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KgAssessment"
+            }
+          },
+          "active": {
+            "type": "integer"
+          },
+          "revoked": {
+            "type": "integer"
+          },
+          "reviewNeeded": {
+            "type": "integer"
+          }
+        }
+      },
+      "KgAssessmentResult": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "A preview (preview, assessment, changes: evidence, dependentEvidence, statements, statementsLeaving, documents, observations, matchingContributions, tooLarge, maxEvidence, sample; token) or the stored assessment with applied (evidence, dependentEvidence, reclassified, statementsDeleted).",
+        "properties": {
+          "preview": {
+            "type": "boolean"
+          },
+          "assessment": {
+            "$ref": "#/components/schemas/KgAssessment"
+          },
+          "changes": {
+            "type": "object"
+          },
+          "token": {
+            "type": "string"
+          },
+          "applied": {
+            "type": "object"
+          }
+        }
+      },
+      "KgAssessmentRevokeResult": {
+        "type": "object",
+        "properties": {
+          "assessment": {
+            "$ref": "#/components/schemas/KgAssessment"
+          },
+          "restored": {
+            "type": "integer"
+          },
+          "notRestored": {
+            "type": "integer",
+            "description": "Copies whose source changed or whose entity is gone; a changed source of tiers 1 and 2 is read again by the rules (sourcesReadAgain), LLM evidence of a changed source returns only with a new LLM reading."
+          },
+          "notRestoredSample": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sourcesReadAgain": {
+            "type": "integer"
+          }
+        }
+      },
       "DiscoveryJob": {
         "type": "object",
         "additionalProperties": false,
@@ -33716,6 +33961,151 @@
           }
         }
       },
+      "CollectionDecisionRequest": {
+        "type": "object",
+        "required": [
+          "domain",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "type": "string",
+            "maxLength": 253,
+            "description": "Exactly one registrable domain such as example.com; its subdomains are included."
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 253,
+            "description": "Narrows the scope to this exact host (the domain or a subdomain)."
+          },
+          "pathPrefix": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\")."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "transform"
+            ],
+            "default": "exact",
+            "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment)."
+          },
+          "collections": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages."
+          },
+          "denied": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": "transform only: the collections the decision takes away."
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$",
+            "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "evidence": {
+            "type": "object",
+            "description": "Free references to the evidence (classification, documents)."
+          },
+          "confirm": {
+            "type": "string",
+            "description": "The token of the preview; without it nothing is stored."
+          }
+        }
+      },
+      "CollectionDecisionResult": {
+        "type": "object",
+        "properties": {
+          "proposed": {
+            "type": "object"
+          },
+          "existing": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "preview": {
+            "type": "object"
+          },
+          "decision": {
+            "type": "object"
+          },
+          "result": {
+            "type": "object"
+          },
+          "token": {
+            "type": "string"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "store": {
+            "type": "object"
+          }
+        }
+      },
+      "CollectionDecisionList": {
+        "type": "object",
+        "properties": {
+          "store": {
+            "type": "object",
+            "description": "health (ok, recovered, unavailable), generation, markerGeneration, problems, fallback, active, refusedWrites, pendingApply."
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "CollectionDecisionId": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^kcd_[a-z0-9]{8,32}$"
+          },
+          "confirm": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CollectionDecisionRecover": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "type": "string"
+          }
+        }
+      },
       "AuthUser": {
         "type": "object",
         "properties": {
@@ -34374,396 +34764,6 @@
           },
           "scoutro": {
             "$ref": "#/components/schemas/SystemQuestion"
-          }
-        }
-      },
-      "CollectionDecisionRequest": {
-        "type": "object",
-        "required": [
-          "domain",
-          "reason"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "domain": {
-            "type": "string",
-            "maxLength": 253,
-            "description": "Exactly one registrable domain such as example.com; its subdomains are included."
-          },
-          "host": {
-            "type": "string",
-            "maxLength": 253,
-            "description": "Narrows the scope to this exact host (the domain or a subdomain)."
-          },
-          "pathPrefix": {
-            "type": "string",
-            "maxLength": 200,
-            "description": "With host: narrows the scope to pages whose path starts with this prefix (\"/shop/\")."
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "exact",
-              "transform"
-            ],
-            "default": "exact",
-            "description": "exact: the pages are in exactly collections, whatever crawl writes them. transform: pages in a denied collection get it replaced by collections; without denied every page gets collections in addition (a decided multiple assignment)."
-          },
-          "collections": {
-            "type": "array",
-            "maxItems": 5,
-            "items": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{1,64}$"
-            },
-            "description": "Existing, selectable collections. The fallback collection (scoutro.collections.fallback, default sonstige) only for a scope with indexed pages."
-          },
-          "denied": {
-            "type": "array",
-            "maxItems": 5,
-            "items": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{1,64}$"
-            },
-            "description": "transform only: the collections the decision takes away."
-          },
-          "reason": {
-            "type": "string",
-            "pattern": "^[a-z0-9_]{1,64}$",
-            "description": "A reason code such as fachlich_falsch, keine_passende_fachcollection, mehrfach_bestaetigt."
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 500
-          },
-          "evidence": {
-            "type": "object",
-            "description": "Free references to the evidence (classification, documents)."
-          },
-          "confirm": {
-            "type": "string",
-            "description": "The token of the preview; without it nothing is stored."
-          }
-        }
-      },
-      "CollectionDecisionResult": {
-        "type": "object",
-        "properties": {
-          "proposed": {
-            "type": "object"
-          },
-          "existing": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "preview": {
-            "type": "object"
-          },
-          "decision": {
-            "type": "object"
-          },
-          "result": {
-            "type": "object"
-          },
-          "token": {
-            "type": "string"
-          },
-          "applied": {
-            "type": "boolean"
-          },
-          "store": {
-            "type": "object"
-          }
-        }
-      },
-      "CollectionDecisionList": {
-        "type": "object",
-        "properties": {
-          "store": {
-            "type": "object",
-            "description": "health (ok, recovered, unavailable), generation, markerGeneration, problems, fallback, active, refusedWrites, pendingApply."
-          },
-          "decisions": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        }
-      },
-      "CollectionDecisionId": {
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^kcd_[a-z0-9]{8,32}$"
-          },
-          "confirm": {
-            "type": "string"
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 500
-          }
-        }
-      },
-      "CollectionDecisionRecover": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "confirm": {
-            "type": "string"
-          }
-        }
-      },
-      "KgAssessmentRequest": {
-        "type": "object",
-        "required": [
-          "action",
-          "scope",
-          "predicate",
-          "reason"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "withdraw",
-              "reclassify"
-            ]
-          },
-          "scope": {
-            "type": "object",
-            "minProperties": 1,
-            "maxProperties": 1,
-            "description": "Exactly one of source (document ID), host or domain (registrable).",
-            "properties": {
-              "source": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]{12}$"
-              },
-              "host": {
-                "type": "string",
-                "maxLength": 253
-              },
-              "domain": {
-                "type": "string",
-                "maxLength": 253
-              }
-            }
-          },
-          "predicate": {
-            "type": "string",
-            "maxLength": 64
-          },
-          "value": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 1000
-          },
-          "subject": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^kge_[a-z2-7]{20}$"
-          },
-          "tier": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 1,
-            "maximum": 3
-          },
-          "targetPredicate": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 64,
-            "description": "reclassify only: a predicate with the same kind of object."
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 500,
-            "description": "Why; no personal data."
-          },
-          "token": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The preview's token; without it nothing changes."
-          }
-        }
-      },
-      "KgAssessment": {
-        "type": "object",
-        "additionalProperties": true,
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^kga_[a-z2-7]{20}$"
-          },
-          "action": {
-            "type": "string"
-          },
-          "scope": {
-            "type": "object"
-          },
-          "predicate": {
-            "type": "string"
-          },
-          "value": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "subject": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tier": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "targetPredicate": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "reason": {
-            "type": "string"
-          },
-          "basis": {
-            "type": "string",
-            "enum": [
-              "manual",
-              "automatic"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "revoked"
-            ]
-          },
-          "actor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "integer"
-          },
-          "revokedAt": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "revokedBy": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "blockedClaims": {
-            "type": "integer"
-          },
-          "reviewNeeded": {
-            "type": "boolean"
-          },
-          "withdrawnEvidence": {
-            "type": "integer"
-          },
-          "dependentEvidence": {
-            "type": "integer"
-          }
-        }
-      },
-      "KgAssessmentList": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/KgAssessment"
-            }
-          },
-          "active": {
-            "type": "integer"
-          },
-          "revoked": {
-            "type": "integer"
-          },
-          "reviewNeeded": {
-            "type": "integer"
-          }
-        }
-      },
-      "KgAssessmentResult": {
-        "type": "object",
-        "additionalProperties": true,
-        "description": "A preview (preview, assessment, changes: evidence, dependentEvidence, statements, statementsLeaving, documents, observations, matchingContributions, tooLarge, maxEvidence, sample; token) or the stored assessment with applied (evidence, dependentEvidence, reclassified, statementsDeleted).",
-        "properties": {
-          "preview": {
-            "type": "boolean"
-          },
-          "assessment": {
-            "$ref": "#/components/schemas/KgAssessment"
-          },
-          "changes": {
-            "type": "object"
-          },
-          "token": {
-            "type": "string"
-          },
-          "applied": {
-            "type": "object"
-          }
-        }
-      },
-      "KgAssessmentRevokeResult": {
-        "type": "object",
-        "properties": {
-          "assessment": {
-            "$ref": "#/components/schemas/KgAssessment"
-          },
-          "restored": {
-            "type": "integer"
-          },
-          "notRestored": {
-            "type": "integer",
-            "description": "Copies whose source changed or whose entity is gone; a changed source of tiers 1 and 2 is read again by the rules (sourcesReadAgain), LLM evidence of a changed source returns only with a new LLM reading."
-          },
-          "notRestoredSample": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "sourcesReadAgain": {
-            "type": "integer"
           }
         }
       }
