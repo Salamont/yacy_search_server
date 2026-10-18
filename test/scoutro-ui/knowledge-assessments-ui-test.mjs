@@ -55,6 +55,14 @@ try {
         listed = [item, Object.assign({}, item, { id: 'kga_bbbbbbbbbbbbbbbbbbbb', reviewNeeded: false, blockedClaims: 0, withdrawnEvidence: 3 })];
         return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ assessment: { id: 'kga_bbbbbbbbbbbbbbbbbbbb' }, applied: { evidence: 3 } }) });
       }
+      if (u.pathname === '/scoutro/api/v1/kg/identity-preview' && method === 'POST') {
+        posts.push({ identity: JSON.parse(route.request().postData()) });
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ domain: 'muster-shop.de', identity: { productUrl: true, providerServiceKey: false },
+          sample: { documents: 3, skipped: 0, truncated: false }, baseline: { entities: 5, services: 3, merges: 0, conflicts: 0, published: 3 },
+          preview: { entities: 4, services: 2, merges: 1, conflicts: 1, published: 3 }, documentsChanged: 1,
+          merges: ['kge_bbbbbbbbbbbbbbbbbbbb -> kge_aaaaaaaaaaaaaaaaaaaa'], conflicts: ['product page of another name: kge_aaaaaaaaaaaaaaaaaaaa (service Gartentisch)'],
+          pages: [], llm: null, written: false }) });
+      }
       if (u.pathname.endsWith('/revoke') && method === 'POST') {
         posts.push({ revoke: u.pathname });
         listed = listed.map(a => a.id === 'kga_aaaaaaaaaaaaaaaaaaaa' ? Object.assign({}, a, { status: 'revoked' }) : a);
@@ -95,6 +103,21 @@ try {
     await page.selectOption('#skg-asm-action', 'assert');
     check(await page.locator('#skg-asm-quote').isVisible() && !(await page.locator('#skg-asm-tier').isVisible()), 'the operator form' + where);
     check(await page.locator('#skg-asm-scope-kind').inputValue() === 'source' && await page.locator('#skg-asm-scope-kind').isDisabled(), 'an operator statement is bound to a source' + where);
+    // the identity change preview: a dry run for one domain
+    await page.uncheck('#skg-idp-product');
+    await page.fill('#skg-idp-domain', 'muster-shop.de');
+    await page.click('#skg-idp-button');
+    check((await page.locator('#skg-idp-message').textContent()).length > 0 && !posts.some(p => p.identity), 'nothing is sent without a chosen change' + where);
+    await page.check('#skg-idp-product');
+    await page.click('#skg-idp-button');
+    await page.waitForFunction(() => document.querySelectorAll('#skg-idp-result dt').length > 0);
+    const sent = posts.find(p => p.identity).identity;
+    check(sent.domain === 'muster-shop.de' && sent.productUrl === true && sent.providerServiceKey === false, 'the preview asks for the chosen change: ' + JSON.stringify(sent) + where);
+    const result = await page.locator('#skg-idp-result').textContent();
+    check(result.includes('3 → 2') && result.includes(language === 'de' ? 'Leistungen' : 'Services'), 'services before and after: ' + result + where);
+    const lists = await page.locator('#skg-idp-lists').textContent();
+    check(lists.includes('kge_bbbbbbbbbbbbbbbbbbbb -> kge_aaaaaaaaaaaaaaaaaaaa') && lists.includes('Gartentisch'), 'merges and blocked merges listed' + where);
+    check((await page.locator('#skg-idp-message').textContent()).includes(language === 'de' ? 'nichts geschrieben' : 'Nothing was written'), 'nothing written' + where);
     // no horizontal page overflow on mobile
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check(overflow <= 1, 'no horizontal overflow: ' + overflow + where);

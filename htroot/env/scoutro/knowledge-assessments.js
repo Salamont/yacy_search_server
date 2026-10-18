@@ -10,9 +10,9 @@
   let pending = null; // the request body of the shown preview, with its token
   let bound = false;
 
-  async function call(path, method, body, query) {
+  async function call(path, method, body, query, root = ROOT) {
     const q = query ? '?' + new URLSearchParams(query) : '';
-    const response = await fetch(ROOT + path + q, { method, credentials: 'same-origin', cache: 'no-store',
+    const response = await fetch(root + path + q, { method, credentials: 'same-origin', cache: 'no-store',
       headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
     let json = null; try { json = await response.json(); } catch (_) { /* reported below */ }
     if (!response.ok) {
@@ -105,8 +105,36 @@
     await list();
   }
 
+  // the identity change preview (WP-F): a dry run for one domain, nothing is written
+  const IDP = id => document.getElementById('skg-idp-' + id);
+  async function identityPreview() {
+    IDP('message').textContent = ''; IDP('result').replaceChildren(); IDP('lists').replaceChildren();
+    const body = { domain: IDP('domain').value.trim(), productUrl: IDP('product').checked, providerServiceKey: IDP('provider').checked };
+    if (!body.productUrl && !body.providerServiceKey) { IDP('message').textContent = t('idp_choose'); return; }
+    const a = await call('', 'POST', body, null, '/scoutro/api/v1/kg/identity-preview');
+    const dl = IDP('result'), before = a.baseline || {}, after = a.preview || {};
+    stat(dl, t('idp_documents'), a.sample?.documents);
+    stat(dl, t('idp_changed'), a.documentsChanged);
+    stat(dl, t('idp_entities'), (before.entities ?? 0).toLocaleString(lang) + ' → ' + (after.entities ?? 0).toLocaleString(lang));
+    stat(dl, t('idp_services'), (before.services ?? 0).toLocaleString(lang) + ' → ' + (after.services ?? 0).toLocaleString(lang));
+    stat(dl, t('idp_merges'), (a.merges || []).length);
+    stat(dl, t('idp_conflicts'), (a.conflicts || []).length);
+    if (a.llm) stat(dl, t('idp_llm'), a.llm.services + ' (' + a.llm.joinExisting + ' ' + t('idp_llm_existing') + ')');
+    for (const [key, items] of [['idp_merges', a.merges], ['idp_conflicts', a.conflicts]]) {
+      if (!(items || []).length) continue;
+      const ul = node('ul', null, 'skg-evidence-list');
+      for (const x of items) ul.append(node('li', String(x)));
+      IDP('lists').append(node('h4', t(key)), ul);
+    }
+    IDP('message').textContent = (a.sample?.truncated ? t('idp_truncated') + ' ' : '') + t('idp_written');
+  }
+
   function bind() {
     if (bound) return; bound = true;
+    IDP('form').addEventListener('submit', e => {
+      e.preventDefault();
+      identityPreview().catch(err => { IDP('message').textContent = err.message; });
+    });
     $('form').addEventListener('submit', e => {
       e.preventDefault(); $('message').textContent = ''; $('preview').hidden = true;
       const body = request();

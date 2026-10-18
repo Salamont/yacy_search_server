@@ -293,11 +293,19 @@ public final class BusinessView {
         // services of the entity (and, for a service, its own categories and prices)
         final JSONArray services = new JSONArray();
         final JSONArray prices = new JSONArray();
+        final JSONArray amounts = new JSONArray();
         for (final Fact f : byPredicate.getOrDefault(Vocabulary.OFFERS, List.of())) {
             if (services.length() >= MAX_SERVICES || f.stat.objEnt == null || !visible(c, f.stat.objEnt, v)) {
                 continue;
             }
-            services.put(service(c, f, v, now, cats, prices, docs));
+            services.put(service(c, f, v, now, cats, prices, amounts, docs));
+        }
+        // WP-F: amounts that are no price of the business (statutory benefits, donations, subsidies), each with its role
+        final boolean service = "service".equals(overview.optString("type"));
+        final JSONArray ownAmounts = amountItems(byPredicate.get(Vocabulary.MONETARY_AMOUNT), service ? overview.optString("id") : null,
+                service ? overview.optString("name") : null, docs);
+        for (int i = 0; i < ownAmounts.length(); i++) {
+            amounts.put(ownAmounts.opt(i));
         }
         if ("service".equals(overview.optString("type"))) {
             final JSONArray mine = priceItems(byPredicate.get(Vocabulary.PRICE), overview.optString("id"), overview.optString("name"), null, now,
@@ -319,6 +327,9 @@ public final class BusinessView {
         }
         if (prices.length() > 0) {
             KgJson.put(out, "prices", prices);
+        }
+        if (amounts.length() > 0) {
+            KgJson.put(out, "amounts", amounts);
         }
         // contacts (organisation contacts only: persons are never stored, O7)
         final JSONObject contacts = new JSONObject();
@@ -486,14 +497,15 @@ public final class BusinessView {
     }
 
     private JSONObject service(final Connection c, final Fact offer, final Viewer v, final long now, final Categories cats, final JSONArray prices,
-            final Set<String> docs) throws SQLException {
+            final JSONArray amounts, final Set<String> docs) throws SQLException {
         final long s = offer.stat.objEnt;
-        final List<Fact> facts = facts(c, s, false, List.of(Vocabulary.NAME, Vocabulary.CATEGORY, Vocabulary.DESCRIPTION, Vocabulary.PRICE),
-                v, now, 200);
+        final List<Fact> facts = facts(c, s, false, List.of(Vocabulary.NAME, Vocabulary.CATEGORY, Vocabulary.DESCRIPTION, Vocabulary.PRICE,
+                Vocabulary.MONETARY_AMOUNT), v, now, 200);
         String name = null;
         final List<Fact> categories = new ArrayList<>();
         final List<Fact> descriptions = new ArrayList<>();
         final List<Fact> p = new ArrayList<>();
+        final List<Fact> money = new ArrayList<>();
         for (final Fact f : facts) {
             switch (f.stat.predicate) {
                 case Vocabulary.NAME:
@@ -506,6 +518,9 @@ public final class BusinessView {
                     break;
                 case Vocabulary.DESCRIPTION:
                     descriptions.add(f);
+                    break;
+                case Vocabulary.MONETARY_AMOUNT:
+                    money.add(f);
                     break;
                 default:
                     p.add(f);
@@ -524,7 +539,38 @@ public final class BusinessView {
         for (int i = 0; i < mine.length(); i++) {
             prices.put(mine.opt(i));
         }
+        final JSONArray own = amountItems(money, id, name, docs);
+        if (own.length() > 0) {
+            KgJson.put(o, "amounts", own.length());
+        }
+        for (int i = 0; i < own.length(); i++) {
+            amounts.put(own.opt(i));
+        }
         return o;
+    }
+
+    /**
+     * Amounts with their role (WP-F, {@link net.yacy.scoutro.knowledge.extract.MoneyRoles}): {@code statutory_benefit},
+     * {@code donation}, {@code subsidy} or {@code unknown}; never a price of the business, so never in {@code prices}.
+     */
+    static JSONArray amountItems(final List<Fact> facts, final String serviceId, final String serviceName, final Set<String> docs) {
+        final JSONArray out = new JSONArray();
+        if (facts == null) {
+            return out;
+        }
+        for (final Fact f : facts) {
+            final JSONObject value = Values.json(f.stat.objVal);
+            if (value == null) {
+                continue;
+            }
+            final String role = value.optString("role", net.yacy.scoutro.knowledge.extract.MoneyRoles.UNKNOWN);
+            final JSONObject item = KgJson.obj("statement", f.stat.publicId, "service", serviceId, "service_name", serviceName, "role", role,
+                    "value", value);
+            fact(item, f);
+            collect(f, docs);
+            out.put(item);
+        }
+        return out;
     }
 
     /** Price items with their status (current, uncertain, stale, expired, not_yet_valid; conflicts are marked over the whole list). */

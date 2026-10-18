@@ -698,6 +698,9 @@ schemas["KgPrice"] = {"type": "object", "properties": {**KG_FACT, "service": {"t
     "as_of": {"type": ["string", "null"], "description": "The source's stated date, else the day the price was last confirmed."}, "as_of_basis": {"type": "string", "enum": ["stated", "last_confirmed"]},
     "valid_through": {"type": "string"}, "stale_since": {"type": "string"}, "stale_after_days": {"type": "integer", "description": "scoutro.kg.prices.staleDays[.<collection>] (default 180); an explicit validity date wins."},
     "conflicts_with": {"type": "array", "items": {"type": "string"}, "description": "Statements with a different amount for the same service, currency, unit, kind and conditions; conflicts stay visible."}}}
+schemas["KgAmount"] = {"type": "object", "properties": {**KG_FACT, "service": {"type": ["string", "null"]}, "service_name": {"type": ["string", "null"]},
+    "role": {"type": "string", "enum": ["statutory_benefit", "donation", "subsidy", "unknown"], "description": "statutory_benefit: paid by a care or health insurance or by law (Entlastungsbetrag); donation; subsidy (Zuschuss, Förderung); unknown: the sentence names an offer price and such an amount at once."},
+    "value": ref("KgPriceValue")}}
 schemas["KgDerived"] = {"type": "object", "description": "A derived row, never a fact: a weak link signal, a shared operator or a suggested match. Visible only to a viewer who sees both collections it was computed from.", "properties": {
     "id": {"type": "string", "pattern": "^kgd_[a-z2-7]{20}$"}, "kind": {"type": "string", "enum": ["linked_to", "same_operator", "suggested_customer", "suggested_partner"]},
     "direction": {"type": "string", "enum": ["out", "in"]}, "subject": KG_REF, "other": KG_REF, "confidence": {"type": "number"},
@@ -753,8 +756,10 @@ schemas["KgBusinessView"] = {"type": "object", "description": "The object view: 
         "secondary": {"type": "array", "items": ref("KgLiteral")}, "categories": {"type": "array", "items": ref("KgLiteral"), "description": "Scoutro subcategories (groups) of the industry."}}},
     "categories": {"type": "array", "items": ref("KgLiteral"), "description": "For a service: its categories (several, versioned with the vocabulary)."},
     "services": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, "offer": {"type": "string"},
-        "categories": {"type": "array", "items": ref("KgLiteral")}, "description": {"type": "string"}, "prices": {"type": "integer"}}}},
+        "categories": {"type": "array", "items": ref("KgLiteral")}, "description": {"type": "string"}, "prices": {"type": "integer"},
+        "amounts": {"type": "integer", "description": "Amounts of this service that are no price (in amounts)."}}}},
     "prices": {"type": "array", "items": ref("KgPrice")},
+    "amounts": {"type": "array", "items": ref("KgAmount"), "description": "Amounts that are no price of the business (WP-F): statutory benefits, donations, subsidies and amounts of unclear role, each with its role; never counted as a price."},
     "contacts": {"type": "object", "description": "Organisation contacts only (phone, fax, email of role mailboxes, contact_point, contact_form, opening_hours, directions, social_profile, url); never persons.", "additionalProperties": {"type": "array", "items": ref("KgLiteral")}},
     "relations": {"type": "object", "properties": {"facts": {"type": "array", "items": KG_REL}, "derived": {"type": "object", "properties": {"linked_to": {"type": "array", "items": ref("KgDerived")}, "same_operator": {"type": "array", "items": ref("KgDerived")}}}}},
     "jobs": {"type": "object", "properties": {"items": {"type": "array", "items": ref("KgJob")}, "hidden_ended": {"type": "integer"}}}, "job": ref("KgJob"),
@@ -1289,6 +1294,25 @@ paths["/v1/kg/assessments/{id}/revoke"] = {"post": op("kg.assessments.revoke", "
     {**ok("Revoked assessment and what came back.", "KgAssessmentRevokeResult"), **errs("400", "401", "403", "404", "409", "415", "503")},
     params=[{"name": "id", "in": "path", "required": True, "description": "Assessment ID.", "schema": {"type": "string", "pattern": "^kga_[a-z2-7]{20}$"}}], mutating=True)}
 
+schemas["KgIdentityPreviewRequest"] = {"type": "object", "additionalProperties": False, "required": ["domain"], "properties": {
+    "domain": {"type": "string", "description": "A registrable domain (example.de), not a host or an address."},
+    "productUrl": {"type": "boolean", "default": False, "description": "Preview scoutro.kg.identity.productUrl: services join by the canonical address of their own product page (same name only)."},
+    "providerServiceKey": {"type": "boolean", "default": False, "description": "Preview scoutro.kg.identity.providerServiceKey: a service of a provider named by JSON-LD provider or by the LLM tier joins that provider's service of the same category or name."},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 200, "description": "Active pages of the domain in the sample, oldest first."}}}
+_count = {"type": "object", "properties": {"entities": {"type": "integer"}, "services": {"type": "integer"}, "merges": {"type": "integer"}, "conflicts": {"type": "integer"}, "published": {"type": "integer"}}}
+schemas["KgIdentityPreview"] = {"type": "object", "properties": {
+    "domain": {"type": "string"}, "identity": {"type": "object", "properties": {"productUrl": {"type": "boolean"}, "providerServiceKey": {"type": "boolean"}}},
+    "sample": {"type": "object", "properties": {"documents": {"type": "integer"}, "skipped": {"type": "integer", "description": "Pages absent from Solr, out of the followed collections or not active."}, "truncated": {"type": "boolean"}}},
+    "baseline": {**_count, "description": "The sample published again with the configured identity."}, "preview": {**_count, "description": "The same sample with the previewed identity."},
+    "documentsChanged": {"type": "integer", "description": "Pages whose facts would be on other entities."},
+    "merges": {"type": "array", "items": {"type": "string"}, "description": "Entity merges only the preview makes (merged -> survivor), at most 20."},
+    "conflicts": {"type": "array", "items": {"type": "string"}, "description": "Merges the preview blocks (a discriminator, a product page of another name), at most 20."},
+    "pages": {"type": "array", "items": {"type": "object", "properties": {"doc": {"type": "string"}, "left": {"type": "array", "items": {"type": "string"}}, "joined": {"type": "array", "items": {"type": "string"}}}}},
+    "llm": {"type": ["object", "null"], "description": "providerServiceKey only: the model's services of the sample that would get a key (an estimate from the stored offers; no model call): services, joinExisting, joinEachOther."},
+    "written": {"type": "boolean", "enum": [False]}}}
+paths["/v1/kg/identity-preview"] = {"post": op("kg.identity.preview", "Preview an identity change for one domain", "Administrator only (WP-F, docs/SCOUTRO_KG_EXTRACTION_SEMANTICS.md). Extracts tiers 1 and 2 of up to 200 active pages of the domain from Solr and publishes them twice in one write transaction, with the configured identity and with the previewed one, then rolls back: nothing is written, no model is called, the graph's writes wait for the few seconds it takes. Switch scoutro.kg.identity.* only after this preview; switching re-extracts every page once (rules, no LLM). 400 invalid_request, 503 sync_unavailable without the Solr synchronisation.", ["knowledge"],
+    {**ok("What the identity change would do.", "KgIdentityPreview"), **errs("400", "401", "403", "405", "413", "415", "503")}, body="KgIdentityPreviewRequest")}
+
 # Existing Discovery V1 endpoints are generated here too (previously maintained manually).
 schemas["DiscoveryJob"] = {'type': 'object',
  'additionalProperties': False,
@@ -1744,6 +1768,8 @@ mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_hos
 cli.update({'collections.decisions.list': 'HTTP GET /scoutro/api/v1/collections/decisions[?domain=] (administrator)', 'collections.decisions.decide': 'HTTP POST /scoutro/api/v1/collections/decisions (administrator; preview without confirm)', 'collections.decisions.apply': 'HTTP POST /scoutro/api/v1/collections/decisions/apply {"id":...} (administrator)', 'collections.decisions.revoke': 'HTTP POST /scoutro/api/v1/collections/decisions/revoke (administrator; preview without confirm)', 'collections.decisions.recover': 'HTTP POST /scoutro/api/v1/collections/decisions/recover (administrator; preview without confirm)'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'collections.reassign': 'scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)', 'collections.remove': 'browser: Dashboard > Scoutro Collections "−" (administrator); HTTP DELETE /scoutro/api/v1/collections/{id}', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
 mcp.update({'kg.assessments.list': None, 'kg.assessments.create': None, 'kg.assessments.revoke': None})  # administrator decisions, never an MCP tool
+mcp.update({'kg.identity.preview': None})  # an administrator check before a configuration change, never an MCP tool
+cli.update({'kg.identity.preview': 'HTTP POST /scoutro/api/v1/kg/identity-preview (administrator; dry run, writes nothing)'})
 cli.update({'kg.assessments.list': 'HTTP GET /scoutro/api/v1/kg/assessments[?status=active|revoked|all] (administrator)', 'kg.assessments.create': 'HTTP POST /scoutro/api/v1/kg/assessments (administrator; preview without token)', 'kg.assessments.revoke': 'HTTP POST /scoutro/api/v1/kg/assessments/{id}/revoke (administrator)'})
 mcp['collections.remove'] = None  # removing a collection is an administrator decision, never an agent or MCP tool
 for _op in ('collections.hide', 'collections.show', 'collections.delete-pages'):

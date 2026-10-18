@@ -138,6 +138,10 @@ final class KnowledgeApi {
                 allow(method, "POST");
                 noParameters(query);
                 return llmRun(body.get());
+            case "identity-preview":
+                allow(method, "POST");
+                noParameters(query);
+                return identityPreview(body.get());
             case "llm-refusals":
                 allow(method, "GET");
                 return llmRefusals(query);
@@ -165,6 +169,44 @@ final class KnowledgeApi {
             default:
                 throw new ApiException(
                         404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+        }
+    }
+
+    /**
+     * POST /v1/kg/identity-preview (WP-F): {@code domain} (a registrable domain), {@code productUrl} and
+     * {@code providerServiceKey} (the identity changes to preview, at least one), {@code limit} (pages, 1 to 200, default 200).
+     * A dry run: nothing is written, no model is called.
+     */
+    private JSONObject identityPreview(final JSONObject b) throws ApiException {
+        for (final Iterator<?> keys = b.keys(); keys.hasNext();) {
+            final String key = String.valueOf(keys.next());
+            if (!java.util.Set.of("domain", "productUrl", "providerServiceKey", "limit").contains(key)) {
+                throw ApiException.invalid(key, "Unknown field; domain, productUrl, providerServiceKey and limit are allowed.");
+            }
+        }
+        final String domain = b.optString("domain", "").trim().toLowerCase(java.util.Locale.ROOT);
+        if (!domain.matches("^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$")
+                || !domain.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(domain))) {
+            throw ApiException.invalid("domain", "A registrable domain such as example.de (no host, no address).");
+        }
+        for (final String flag : new String[] {"productUrl", "providerServiceKey"}) {
+            if (b.has(flag) && !(b.opt(flag) instanceof Boolean)) throw ApiException.invalid(flag, "true or false.");
+        }
+        final boolean productUrl = b.optBoolean("productUrl", false);
+        final boolean providerServiceKey = b.optBoolean("providerServiceKey", false);
+        if (!productUrl && !providerServiceKey) {
+            throw ApiException.invalid("productUrl", "Preview at least one identity change: productUrl or providerServiceKey.");
+        }
+        final Object l = b.opt("limit");
+        if (l != null && !(l instanceof Integer && (Integer) l >= 1 && (Integer) l <= 200)) {
+            throw ApiException.invalid("limit", "1 to 200.");
+        }
+        final KgRuntime r = this.runtime.get();
+        if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+        try {
+            return r.identityPreview(domain, productUrl, providerServiceKey, l == null ? 200 : (Integer) l);
+        } catch (final KgException e) {
+            throw toApi(e);
         }
     }
 

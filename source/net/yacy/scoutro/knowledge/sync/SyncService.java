@@ -1004,7 +1004,7 @@ public final class SyncService {
         return 2000L << Math.min(6, attempts);
     }
 
-    private Publisher.Doc toDoc(final SolrDoc d, final List<String> followed, final int state) {
+    static Publisher.Doc toDoc(final SolrDoc d, final List<String> followed, final int state) {
         final Publisher.Doc doc = new Publisher.Doc();
         doc.docId = d.id;
         doc.url = d.url;
@@ -1031,6 +1031,19 @@ public final class SyncService {
         } catch (final Exception e) {
             return null;
         }
+    }
+
+    /**
+     * The WP-F identity preview of one registrable domain ({@link IdentityPreview}): writes nothing, calls no model.
+     *
+     * @param limit pages of the sample, at most {@link IdentityPreview#MAX_DOCS}
+     */
+    public JSONObject identityPreview(final String domain, final boolean productUrl, final boolean providerServiceKey, final int limit)
+            throws KgException {
+        if (!this.initialized) {
+            throw new KgException(KgException.SYNC_UNAVAILABLE, "sync_starting", "the Solr synchronisation is starting", null);
+        }
+        return IdentityPreview.run(this.cfg, this.store, this.solr, this.tiers, this.clock, domain, productUrl, providerServiceKey, limit);
     }
 
     /** Tiers 1 and 2; the text is read only for tier-2 candidates. */

@@ -58,6 +58,17 @@ public final class Mention {
     public String placeKey;
     /** A key of the {@code service_name} scheme (provider and category or name), within the registrable domain. */
     public String serviceKey;
+    /**
+     * The service key comes from a provider the rules do not see (the JSON-LD {@code provider} of a service, an offer of the
+     * LLM tier): it enters the resolution only with {@code scoutro.kg.identity.providerServiceKey} (WP-F, identity change).
+     */
+    public boolean providerServiceKey;
+    /**
+     * A key of the {@code product_url} scheme ({@link net.yacy.scoutro.knowledge.resolve.Normalizers#productUrl}): the page of the
+     * product or service its node declares, unique among the services of its page; used with
+     * {@code scoutro.kg.identity.productUrl} (WP-F, identity change).
+     */
+    public String productUrl;
 
     /** The provider part of a service key: the site's operator, or the named organisation or facility; null if unnamed. */
     public static String providerKey(final Mention provider) {

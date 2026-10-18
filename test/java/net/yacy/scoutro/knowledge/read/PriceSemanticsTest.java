@@ -136,6 +136,40 @@ public class PriceSemanticsTest {
     }
 
     @Test
+    public void theBusinessViewShowsADonationAsAnAmountWithItsRoleAndNeverAsAPrice() throws Exception {
+        corpus();
+        final String org = this.store.read(c -> {
+            try (java.sql.Statement st = c.createStatement(); java.sql.ResultSet rs = st.executeQuery("SELECT e.public_id FROM kg_entity e"
+                    + " JOIN kg_statement s ON s.subj = e.ent_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'name'"
+                    + " AND s.obj_val = 'Alpha Pflege GmbH'")) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        });
+        final JSONObject b = new BusinessView(this.reader).entity(org, Viewer.ALL, false);
+        final JSONArray amounts = b.optJSONArray("amounts");
+        assertEquals(b.toString(), 1, amounts.length());
+        final JSONObject a = amounts.optJSONObject(0);
+        assertEquals("donation", a.optString("role"));
+        assertEquals("Förderkreis", a.optString("service_name"));
+        assertEquals("20.00", a.optJSONObject("value").optString("amount"));
+        assertTrue(a.optInt("sources") >= 1);
+        final JSONArray prices = b.optJSONArray("prices");
+        for (int i = 0; i < prices.length(); i++) {
+            assertTrue("no price of the donation: " + prices, !"Förderkreis".equals(prices.optJSONObject(i).optString("service_name")));
+        }
+        boolean counted = false;
+        for (int i = 0; i < b.optJSONArray("services").length(); i++) {
+            final JSONObject s = b.optJSONArray("services").optJSONObject(i);
+            if ("Förderkreis".equals(s.optString("name"))) {
+                counted = true;
+                assertEquals(0, s.optInt("prices"));
+                assertEquals(1, s.optInt("amounts"));
+            }
+        }
+        assertTrue(b.toString(), counted);
+    }
+
+    @Test
     public void pricesAreArchivedAlsoAfterTheUpgradeFromSchemaSeven() throws Exception {
         corpus();
         assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());

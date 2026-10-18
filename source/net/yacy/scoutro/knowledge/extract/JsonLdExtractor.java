@@ -130,8 +130,27 @@ public final class JsonLdExtractor {
             }
         }
         ownOffers(run);
+        uniqueProductUrls(out);
         BusinessFacts.ownPlaces(out, host, 1);
         out.ranTier(1);
+    }
+
+    /**
+     * A product page names one product (WP-F): a page address that several services of this page declare (a list page, the
+     * page itself) is no product page and no {@code product_url} key of any of them.
+     */
+    static void uniqueProductUrls(final Extraction out) {
+        final Map<String, Integer> seen = new HashMap<>();
+        for (final Mention m : out.mentions()) {
+            if (m.productUrl != null) {
+                seen.merge(m.productUrl, 1, Integer::sum);
+            }
+        }
+        for (final Mention m : out.mentions()) {
+            if (m.productUrl != null && seen.get(m.productUrl) > 1) {
+                m.productUrl = null;
+            }
+        }
     }
 
     /** Collects nodes with an {@code @id}, so that bare references can be followed. */
@@ -507,6 +526,9 @@ public final class JsonLdExtractor {
         }
         for (final String u : strings(o.opt("url"))) {
             literal(run, m, Vocabulary.WEBSITE, Normalizers.url(absolute(run, u)), p + "/url", "url: " + u);
+            if (Vocabulary.SERVICE.equals(m.type) && m.productUrl == null) {
+                m.productUrl = Normalizers.productUrl(absolute(run, u), run.domain); // WP-F: its own page, if it is on this site
+            }
         }
         for (final String h : strings(o.opt("openingHours"))) {
             literal(run, m, Vocabulary.OPENING_HOURS, Normalizers.clip(h, 200), p + "/openingHours", "openingHours: " + h);
@@ -656,6 +678,11 @@ public final class JsonLdExtractor {
                 final Mention pm = provider == null ? null : run.out.mention(provider);
                 if (pm != null && (Vocabulary.ORGANIZATION.equals(pm.type) || Vocabulary.FACILITY.equals(pm.type))) {
                     relation(run, provider, Vocabulary.OFFERS, m.ref, p + "/provider");
+                    if (m.serviceKey == null && m.name != null && Mention.providerKey(pm) != null) {
+                        // WP-F: the service of its declared provider, as an offer of the provider is (identity change, switched)
+                        m.serviceKey = serviceKey(run.ctx, Mention.providerKey(pm), m.name);
+                        m.providerServiceKey = true;
+                    }
                 }
             }
         }
@@ -672,18 +699,27 @@ public final class JsonLdExtractor {
         if (sm != null && Vocabulary.SERVICE.equals(sm.type) && sm.name != null) {
             relation(run, m.ref, Vocabulary.OFFERS, ref, p);
             final String provider = Mention.providerKey(m);
-            if (sm.serviceKey == null && provider != null) {
+            if ((sm.serviceKey == null || sm.providerServiceKey) && provider != null) {
                 // the same service of the same provider on another page of the site is the same service
-                final java.util.List<net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry>> cat
-                        = BusinessFacts.categories(run.ctx, sm.name, 0, sm.name.length());
-                sm.serviceKey = provider + "|" + (cat.size() == 1 && Normalizers.key(sm.name).equals(Normalizers.key(cat.get(0).entry.de))
-                        ? cat.get(0).entry.id : "label:" + Normalizers.key(sm.name));
+                sm.serviceKey = serviceKey(run.ctx, provider, sm.name);
+                sm.providerServiceKey = false;
             }
             if (item instanceof JSONObject) {
                 prices(run, sm, offer, p); // the offer's price is the service's price
             }
             audience(run, sm, offer, p);
         }
+    }
+
+    /**
+     * The {@code service_name} key of a service of {@code provider} ({@link Mention#providerKey}): its category if its name is
+     * the category's name, else its name.
+     */
+    public static String serviceKey(final ExtractContext ctx, final String provider, final String name) {
+        final java.util.List<net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry>> cat
+                = BusinessFacts.categories(ctx == null ? ExtractContext.none() : ctx, name, 0, name.length());
+        return provider + "|" + (cat.size() == 1 && Normalizers.key(name).equals(Normalizers.key(cat.get(0).entry.de))
+                ? cat.get(0).entry.id : "label:" + Normalizers.key(name));
     }
 
     // ------------------------------------------------------------ vocabulary 2

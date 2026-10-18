@@ -635,6 +635,40 @@ public class KnowledgeApiTest {
         assertEquals(409, call("GET", "/v1/kg/assessments", true, null, null, null).status);
     }
 
+    // --------------------------------------------------------- identity preview (WP-F)
+
+    @Test
+    public void theIdentityPreviewIsValidatedAndNeedsTheSolrSynchronisation() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r).actor("admin");
+            final String[] path = {"", "v1", "kg", "identity-preview"};
+            final java.util.Map<String, String> none = java.util.Collections.emptyMap();
+            for (final String bad : new String[] {
+                    "{\"productUrl\":true}",
+                    "{\"domain\":\"www.muster-shop.de\",\"productUrl\":true}",
+                    "{\"domain\":\"https://muster-shop.de/\",\"productUrl\":true}",
+                    "{\"domain\":\"muster-shop.de\"}",
+                    "{\"domain\":\"muster-shop.de\",\"productUrl\":\"yes\"}",
+                    "{\"domain\":\"muster-shop.de\",\"productUrl\":true,\"limit\":500}",
+                    "{\"domain\":\"muster-shop.de\",\"productUrl\":true,\"apply\":true}"}) {
+                assertEquals(bad, 400, refusedAssessment(api, path, none, bad).status());
+            }
+            // the runtime of this test follows no Solr: nothing to read, nothing is written
+            final ApiException e = refusedAssessment(api, path, none, "{\"domain\":\"muster-shop.de\",\"providerServiceKey\":true}");
+            assertEquals(503, e.status());
+            assertEquals(KgException.SYNC_UNAVAILABLE, e.code());
+            try {
+                api.route("GET", path, none, body("{}"));
+                throw new AssertionError("GET accepted");
+            } catch (final ApiException g) {
+                assertEquals(405, g.status());
+            }
+        } finally {
+            r.close();
+        }
+    }
+
     // --------------------------------------------------------- knowledge prompt
 
     private static final String[] PROMPT = {"", "v1", "kg", "prompt"};

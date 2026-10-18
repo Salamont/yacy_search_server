@@ -274,6 +274,19 @@
 <label for="skg-asm-status">Show<select class="form-control" id="skg-asm-status"><option value="active">Active</option><option value="revoked">Revoked</option><option value="all">All</option></select></label>
 <dl id="skg-asm-counts" class="sseo-stats"></dl>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-asm-list" aria-labelledby="skg-asm-list-title"><thead><tr><th>Assessment</th><th>Scope</th><th>Predicate and value</th><th>Reason</th><th>Effect</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+<section class="sseo-panel" id="skg-idp" aria-labelledby="skg-idp-title">
+<h3 id="skg-idp-title">Identity change preview</h3>
+<p class="sseo-note">Before an identity change is switched on in the settings: what it would do to the entities of one domain. A dry run of up to 200 pages with the rules: nothing is written and no model is called.</p>
+<form id="skg-idp-form" class="sseo-search">
+<label for="skg-idp-domain">Domain<input class="form-control" id="skg-idp-domain" type="text" maxlength="253" required autocomplete="off" placeholder="example.de" /></label>
+<label for="skg-idp-product"><input type="checkbox" id="skg-idp-product" checked />Same product page, same name</label>
+<label for="skg-idp-provider"><input type="checkbox" id="skg-idp-provider" />Services of a provider from structured data or AI</label>
+<button type="submit" class="btn btn-default" id="skg-idp-button">Preview identity change</button>
+</form>
+<dl id="skg-idp-result" class="sseo-stats"></dl>
+<div id="skg-idp-lists"></div>
+<p id="skg-idp-message" role="status" aria-live="polite"></p>
+</section>
 </section>
 
 <div hidden id="skg-labels">
@@ -314,6 +327,18 @@
 <span data-skg-label="asm_e_assessment_source_unavailable">The source's text cannot be read.</span>
 <span data-skg-label="asm_e_assessment_not_active">The assessment is revoked already.</span>
 <span data-skg-label="asm_e_invalid_request">Check the fields.</span>
+<span data-skg-label="idp_documents">Pages in the sample</span>
+<span data-skg-label="idp_changed">Pages whose facts move</span>
+<span data-skg-label="idp_entities">Entities (now → with the change)</span>
+<span data-skg-label="idp_services">Services (now → with the change)</span>
+<span data-skg-label="idp_merges">Merges</span>
+<span data-skg-label="idp_conflicts">Blocked merges</span>
+<span data-skg-label="idp_llm">AI services that would get a key (estimate)</span>
+<span data-skg-label="idp_llm_existing">would join an existing service</span>
+<span data-skg-label="idp_truncated">Only part of the domain was read: narrow it down or preview again.</span>
+<span data-skg-label="idp_written">Nothing was written.</span>
+<span data-skg-label="idp_choose">Choose at least one identity change.</span>
+<span data-skg-label="asm_e_sync_unavailable">The knowledge graph does not follow the search index here.</span>
 <!-- the process display (Status): steps, states, units and time bases -->
 <span data-skg-label="pr_unit_pages_one">1 page</span>
 <span data-skg-label="pr_unit_changes_one">1 page change</span>
@@ -802,6 +827,15 @@
 <span data-skg-label="sec_industry">Industry</span>
 <span data-skg-label="sec_services">Services</span>
 <span data-skg-label="sec_prices">Prices</span>
+<span data-skg-label="sec_amounts">Other amounts</span>
+<span data-skg-label="amt_note">Amounts the sources name that are no price of this business: benefits of an insurance, donations, subsidies. They are never counted as prices.</span>
+<span data-skg-label="amt_amount">Amount</span>
+<span data-skg-label="amt_role">Role</span>
+<span data-skg-label="amt_general">The business</span>
+<span data-skg-label="amt_role_statutory_benefit">Statutory benefit</span>
+<span data-skg-label="amt_role_donation">Donation</span>
+<span data-skg-label="amt_role_subsidy">Subsidy</span>
+<span data-skg-label="amt_role_unknown">Role unclear</span>
 <span data-skg-label="sec_contacts">Contacts</span>
 <span data-skg-label="sec_relations">Relations</span>
 <span data-skg-label="sec_jobs">Jobs</span>
