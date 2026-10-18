@@ -444,5 +444,116 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(parsed["snapshot"]["domain_profile_pairs"], 0)
         self.assertFalse(root.exists())
 
+    # ---------------------------------------------------------------- WP-C: collection decisions
+
+    def run_with(self, crawl, definition=None):
+        starts = []
+        class Rpc:
+            def call(self, action, params=None):
+                if action == "admission": return {"allowed": True}
+                if action == "crawl":
+                    starts.append(params)
+                    return crawl(params)
+                return {}
+        with patch.object(d, "precheck_candidate", return_value=None):
+            report = automation.execute(d, self.state, {"job": definition or job(), "collection": "future-index",
+                                                        "regions": {"freeworld": ["Test City"]}}, Rpc(), self.tmp.name, self.tmp.name)
+        return report, starts
+
+    def test_a_pair_refused_by_a_collection_decision_waits_instead_of_retrying_every_batch(self):
+        self.replenish(candidates(1))
+        def refuse(params):
+            raise d.ApiError(409, "collection_decided", "decided into sonstige")
+        report, starts = self.run_with(refuse)
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(report.get("deferred"), 1)
+        entry = d.State(self.tmp.name).profile_entry("firm-0.de", "future_profile")
+        self.assertEqual(entry["deferred"]["code"], "collection_decided")
+        self.assertGreaterEqual(entry["deferred"]["until"], NOW + 30 * 86400 - 5)
+        # the Discovery origin stays as it was
+        self.assertEqual(entry["source"], "freeworld")
+        self.assertEqual(entry["source_region"], "Test City")
+        self.assertNotIn("status", entry)
+        # the next batch does not try it again
+        self.state = d.State(self.tmp.name)
+        _, again = self.run_with(refuse)
+        self.assertEqual(again, [])
+        # after the interval it is checked again (the decision may have been revoked); an accepted crawl clears the deferral
+        self.assertEqual(d.selection_kind(entry, NOW + 31 * 86400, 30), d.KIND_FRESH)
+        self.assertIsNone(d.selection_kind(entry, NOW + 86400, 30))
+        self.assertEqual(d.selection_kind(entry, NOW + 86400, 30, force=True), d.KIND_FRESH)
+
+    def test_a_conflict_waits_one_day(self):
+        self.replenish(candidates(1))
+        def refuse(params):
+            raise d.ApiError(409, "collection_conflict", "other collection")
+        self.run_with(refuse)
+        entry = d.State(self.tmp.name).profile_entry("firm-0.de", "future_profile")
+        self.assertEqual(entry["deferred"]["code"], "collection_conflict")
+        self.assertLessEqual(entry["deferred"]["until"], int(time.time()) + 86400 + 5)
+
+    def test_unreadable_decisions_stop_the_batch_without_any_state_change(self):
+        self.replenish(candidates(3))
+        def refuse(params):
+            raise d.ApiError(503, "decisions_unavailable", "decision store unreadable")
+        report, starts = self.run_with(refuse)
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(report["waiting_reason"], "decisions_unavailable")
+        for i in range(3):
+            entry = d.State(self.tmp.name).profile_entry("firm-%d.de" % i, "future_profile")
+            self.assertNotIn("deferred", entry)
+            self.assertNotIn("status", entry)
+
+    def test_an_accepted_crawl_clears_an_earlier_deferral(self):
+        self.replenish(candidates(1))
+        entry = self.state.profile_entry("firm-0.de", "future_profile")
+        entry["deferred"] = {"code": "collection_decided", "at": NOW - 40 * 86400, "until": NOW - 86400}
+        self.state.put_profile_entry("firm-0.de", "future_profile", entry, NOW)
+        self.state.save()
+        self.state = d.State(self.tmp.name)
+        report, starts = self.run_with(lambda p: {"id": "crawl-1", "attempt_id": "marker-1"})
+        self.assertEqual(len(starts), 1)
+        entry = d.State(self.tmp.name).profile_entry("firm-0.de", "future_profile")
+        self.assertEqual(entry["status"], "crawled")
+        self.assertNotIn("deferred", entry)
+
+    def test_the_osm_rule_that_matched_is_kept_with_the_origin(self):
+        values = candidates(1, source="osm", region="niedersachsen")
+        values[0]["osm_match"] = {"rule": "tags[2]", "tags": {"office": "company", "name": "Drolshagens"}, "source_region": "niedersachsen"}
+        automation.persist_candidates(d, self.state, "future_profile", "future-index", values, "osm", NOW)
+        entry = d.State(self.tmp.name).profile_entry("firm-0.de", "future_profile")
+        self.assertEqual(entry["osm_match"]["rule"], "tags[2]")
+        self.assertEqual(entry["osm_match"]["tags"]["office"], "company")
+        # a later rediscovery never replaces the first recorded reason
+        values[0]["osm_match"] = {"rule": "text_any", "tags": {}}
+        automation.persist_candidates(d, d.State(self.tmp.name), "future_profile", "future-index", values, "osm", NOW)
+        self.assertEqual(d.State(self.tmp.name).profile_entry("firm-0.de", "future_profile")["osm_match"]["rule"], "tags[2]")
+
+    def test_osm_match_reason_names_the_matching_rule_and_only_safe_tags(self):
+        rule = {"tags": [{"office": ["architect"]}, {"office": ["company", "consulting"], "text_any": ["bau"]}],
+                "_text_fields": ["name", "description"]}
+        tags = {"office": "company", "name": "Bau und Nuss GmbH", "phone": "+49 1", "addr:street": "Weg 1"}
+        reason = d.osm_match_reason(tags, rule)
+        self.assertEqual(reason["rule"], "tags[1]")
+        self.assertTrue(reason["text_condition"])
+        self.assertEqual(reason["tags"], {"office": "company", "name": "Bau und Nuss GmbH"})
+        self.assertEqual(d.osm_matches(tags, rule), reason is not None)
+        self.assertIsNone(d.osm_match_reason({"office": "company", "name": "Nuss"}, rule))
+        self.assertFalse(d.osm_matches({"office": "company", "name": "Nuss"}, rule))
+        text_rule = {"text_any": ["zimmerei"], "_text_fields": ["name"]}
+        self.assertEqual(d.osm_match_reason({"name": "Zimmerei Holz"}, text_rule)["rule"], "text_any")
+
+    def test_classification_finds_the_pages_of_a_moved_domain(self):
+        calls = []
+        class Client:
+            def evidence(self, domain, collection=None, limit=8, max_chars=1500):
+                calls.append(collection)
+                if collection is None:
+                    return {"documents": [{"url": "https://firm-0.de/", "title": "Nuss", "excerpt": "Nuss-Spezialitaeten"}]}
+                return {"documents": []}
+        docs = d.fetch_documents(Client(), "firm-0.de", {"collection": "future-index", "legacy_collections": ["old-index"]})
+        self.assertEqual(calls, ["future-index", "old-index", None])
+        self.assertEqual(docs[0]["title"], "Nuss")
+
 
 if __name__ == "__main__": unittest.main()

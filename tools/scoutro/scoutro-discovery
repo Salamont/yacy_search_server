@@ -488,6 +488,44 @@ def osm_text_matches(tags, r, default_fields):
     return any(re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w])", raw) for w in r.get("text_words", []))
 
 
+# OSM keys a match reason may keep (never contact data, addresses or free text other than the name)
+OSM_REASON_KEYS = ("office", "craft", "shop", "amenity", "healthcare", "social_facility", "industrial", "building",
+                   "man_made", "landuse", "tourism", "leisure", "club", "company", "name")
+
+
+def osm_match_reason(tags, rule):
+    """Why an OSM object matched a profile rule (WP-C, docs/SCOUTRO_COLLECTION_DECISIONS.md): the rule part and the
+    matched tag values, or None if it does not match. Same logic as osm_matches; kept with the Discovery origin so that
+    a wrong assignment can be traced to the rule that produced it."""
+    fields = rule.get("_text_fields", ["name", "description"])
+    if rule.get("text_any"):
+        blob = osm_text_blob(tags, fields)
+        hits = [k for k in rule["text_any"] if k.lower() in blob]
+        if hits:
+            return {"rule": "text_any", "text": hits[:3], "tags": {"name": str(tags.get("name", ""))[:120]}}
+    for i, r in enumerate(rule.get("tags", [])):
+        ok = True
+        matched = {}
+        for key, allowed in r.items():
+            if key in OSM_TEXT_KEYS or key.startswith("_"):
+                continue
+            if tags.get(key) not in allowed:
+                ok = False
+                break
+            matched[key] = tags.get(key)
+        if ok and (r.get("text_any") or r.get("text_words")) and not osm_text_matches(tags, r, fields):
+            ok = False
+        if ok and any(not k.startswith("_") and k != "text_fields" for k in r):
+            reason = {"rule": "tags[%d]" % i,
+                      "tags": {k: str(v)[:120] for k, v in matched.items() if k in OSM_REASON_KEYS or k in r}}
+            if r.get("text_any") or r.get("text_words"):
+                reason["text_condition"] = True
+            if tags.get("name"):
+                reason["tags"]["name"] = str(tags.get("name"))[:120]
+            return reason
+    return None
+
+
 def osm_matches(tags, rule):
     if rule.get("text_any"):
         blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
@@ -1254,6 +1292,8 @@ def selection_kind(pentry, now, recrawl_days, force=False):
     """
     if pentry and held_attempt(pentry):
         return None                         # a start with an unknown outcome: never started again by itself, also not with force
+    if pentry and not force and (pentry.get("deferred") or {}).get("until", 0) > now:
+        return None                         # refused by a collection decision or conflict: not again before 'until' (WP-C)
     if not pentry or not pentry.get("status"):
         return KIND_FRESH
     if pentry.get("status") == STATUS_EXCLUDED:
@@ -1466,7 +1506,9 @@ def collect_osm_candidates(regions, profile_names, osm_cfg, workdir, keep_pbf):
                     domains[p].add(rd)
                     candidates[p].setdefault(rd, {"url": web, "host": host, "title": tags.get("name", ""),
                                                   "source": "osm", "source_region": slug,
-                                                  "region": tags.get("addr:city", slug), "origins": []})
+                                                  "region": tags.get("addr:city", slug), "origins": [],
+                                                  # the first matching object's rule and tags (bounded, no contact data)
+                                                  "osm_match": dict(osm_match_reason(tags, rule) or {}, source_region=slug)})
                     origin = {"source": "osm", "source_region": slug}
                     if origin not in candidates[p][rd]["origins"]:
                         candidates[p][rd]["origins"].append(origin)
@@ -1647,7 +1689,9 @@ def fetch_documents(client, domain, prules, max_docs=8, max_chars=1500):
     HTCache is needed. Servers without that endpoint (Scoutro < 1.942-scoutro.4)
     fall back to search results (titles only with text-only crawls).
     """
-    collections = [prules["collection"]] + list(prules.get("legacy_collections", []))
+    # the profile collection first, then its legacy ones, then the whole index: a domain moved by a collection
+    # decision (to sonstige or another collection) is still classified on its own pages (WP-C)
+    collections = [prules["collection"]] + list(prules.get("legacy_collections", [])) + [None]
     for coll in collections:
         try:
             res = client.evidence(domain, coll, limit=max_docs, max_chars=max_chars)

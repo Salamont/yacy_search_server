@@ -101,6 +101,7 @@ def confirm(engine, entry, result, now, recrawl_days):
     replay = entry.get("status") == "crawled" and entry.get("crawl_id") == result.get("id")  # same confirmation again
     attempts = entry.get("attempts", 0) if retry or replay else 0
     engine.confirm_start(entry, result, now, recrawl_days)
+    entry.pop("deferred", None)  # accepted: an earlier refusal no longer applies
     if attempts:
         entry["attempts"] = attempts
 
@@ -173,6 +174,11 @@ def in_scope(entry, job, region_catalog):
     return False
 
 
+# refusals that defer a pair (days; 0: the job's recrawl interval). A decision is re-checked after the interval: if it
+# was revoked meanwhile the pair is crawled again, otherwise it is deferred again without a crawl.
+DEFERRING = {"collection_decided": 0, "collection_fallback_only": 0, "collection_conflict": 1}
+
+
 def select_backlog(engine, state, job, region_catalog, now):
     """Reuse the original eligibility/order; apply only job scope and processing mask."""
     processing = job["processing"]
@@ -223,6 +229,8 @@ def persist_candidates(engine, state, profile, collection, candidates, source, n
         entry.setdefault("first_seen", now)
         entry.setdefault("discovered_at", now)
         entry.setdefault("region", candidate.get("region", ""))
+        if candidate.get("osm_match") and not entry.get("osm_match"):
+            entry["osm_match"] = candidate["osm_match"]
         entry_origins = origins(entry)
         # Filter deduplication keeps one representative; provenance preserves every source region.
         for origin in discovered_origins.get(domain, []):
@@ -374,7 +382,20 @@ def execute(engine, state, init, rpc, config, workdir):
                 state.save()
                 raise
             except engine.ApiError as exc:
-                if exc.code in ("host_busy", "collection_conflict", "capacity", "paused"):
+                if exc.code == "decisions_unavailable":
+                    # every crawl start is refused until the decisions are recovered: stop the batch, change nothing
+                    report["waiting_reason"] = exc.code
+                    break
+                if exc.code in DEFERRING:
+                    # a durable collection decision (or a conflict) refuses this pair: wait instead of trying it in every
+                    # batch; status, origins and history stay (WP-C)
+                    days = DEFERRING[exc.code] or job["processing"]["recrawl"]["days"]
+                    entry["deferred"] = {"code": exc.code, "at": now, "until": now + days * 86400}
+                    report["deferred"] = report.get("deferred", 0) + 1
+                    state.put_profile_entry(domain, profile, entry, now)
+                    state.save()
+                    continue
+                if exc.code in ("host_busy", "capacity", "paused"):
                     report["waiting_reason"] = exc.code
                     continue
                 if engine.classify_api_error(exc) == "rejected":

@@ -120,6 +120,13 @@ discovery: take such a pair out with `scoutro-discovery exclude --profile <p>
 the rules from its runtime configuration (`DATA/SCOUTRO/config`), never from
 these repository files: a rule change has to be made there.
 
+Since WP-C a durable collection decision (`POST /scoutro/api/v1/collections/decisions`,
+see `docs/SCOUTRO_COLLECTION_DECISIONS.md`) is the lasting correction: every later
+crawl of the domain follows it, the automation records the refusal of a decided
+pair as `deferred` (status and origins stay; asked again after `recrawl.days`),
+OSM candidates keep the matching rule and tags as `osm_match`, and `classify`
+also finds the pages of a moved domain. `exclude` remains available.
+
 ## Usage
 
 ```sh

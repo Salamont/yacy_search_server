@@ -64,6 +64,21 @@ With a decision, Discovery's former `collection_conflict` checks are skipped: th
 guarded against impossible, so a decided multiple assignment is no conflict. Without a decision they stay as before.
 YaCy's own crawl pages are not refused (they are no Scoutro route) but their pages still pass the index hook.
 
+## Discovery (WP-C)
+
+- The automation records a refusal by a decision on the pair as `deferred: {code, at, until}` (status, origins and
+  history stay): `collection_decided` and `collection_fallback_only` until the job's recrawl interval, a
+  `collection_conflict` for one day. Until then the pair is not selected (also no more retry in every batch); after
+  it the gateway is asked again, so a revoked decision is noticed. An accepted crawl removes the deferral.
+  `decisions_unavailable` stops the batch and changes nothing. The Java side treats all of these refusals as
+  definite outcomes (`not_submitted`), never as an unknown start that needs reconciliation.
+- OSM candidates keep the rule part and the matched tag values of the first matching object as `osm_match`
+  (`rule`: `text_any` or `tags[i]`; only category keys and the name, never contact data); a later rediscovery
+  never replaces it. This makes the origin of a wrong assignment (such as drolshagens.de) traceable.
+- `classify` reads a domain's pages in the profile collection, its legacy collections and then in the whole index,
+  so a domain moved by a decision is still classified on its own pages.
+- The agent bridge reads the runtime `profiles.json` (`SCOUTRO_CONFIG_ROOT`) when it exists, like the automation.
+
 ## The fallback collection
 
 `scoutro.collections.fallback` (default `sonstige`). The catalog marks it `role: "fallback"` and

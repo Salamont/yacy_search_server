@@ -444,7 +444,9 @@ public final class DiscoveryService implements AutoCloseable {
                     observe("accepted", o -> o.accepted(marker, run.getString("job_id"), domain));
                     return started.put("attempt_id", marker);
                 } catch (final ApiException e) {
-                    final boolean definite = java.util.Set.of("host_busy", "collection_conflict", "crawl_rejected", "invalid_request").contains(e.code());
+                    // refused before any dispatch, also by a durable collection decision: never an unknown start (WP-C)
+                    final boolean definite = java.util.Set.of("host_busy", "collection_conflict", "crawl_rejected", "invalid_request",
+                            "collection_decided", "collection_fallback_only", "decisions_unavailable").contains(e.code());
                     change(null, next -> attempt(next.getJSONObject("active_run"), marker).put("state", definite ? "not_submitted" : "submitted_unknown"));
                     if (definite) throw e;
                     throw new ApiException(503, "submitted_unknown", "Crawl start outcome requires reconciliation.",
