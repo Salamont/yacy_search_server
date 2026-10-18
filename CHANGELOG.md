@@ -43,6 +43,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   decided multiple assignment. No schema change, no re-extraction, no LLM request.
   See [collection decisions](docs/SCOUTRO_COLLECTION_DECISIONS.md) and the
   [programme](docs/SCOUTRO_DATA_QUALITY_PROGRAM.md).
+- Knowledge graph quality metrics and a derived facet without `read_timeout` (data quality programme WP-B, not
+  released): new administrator route `GET /v1/kg/quality` with counting units (names, explicit/derived/missing
+  industries, providers, prices without provider, duplicate candidates, frequent service names, evidence by tier,
+  empty excerpts; merged entities excluded). The derived projection reads in chunked read transactions with SQL
+  filters and computes an origin's suggestion groups once; facet counts are cached per data version. Same results,
+  no schema change. See [quality metrics](docs/SCOUTRO_KG_QUALITY_METRICS.md).
 
 ## 0.10.9 / 1.942-scoutro.33 — patch: service offer evidence before publication
 
