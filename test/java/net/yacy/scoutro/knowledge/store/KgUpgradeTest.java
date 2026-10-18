@@ -135,6 +135,28 @@ public class KgUpgradeTest {
     }
 
     /** The copy before the upgrade writes no WAL: a graph larger than {@code wal.maxBytes} gets it (it was held with wal_limit). */
+    /** A start killed during the copy before the upgrade leaves a partial file as large as the graph: the next start removes it. */
+    @Test
+    public void theNextStartRemovesThePartialCopyOfAnInterruptedUpgrade() throws Exception {
+        final KgPaths p = v3("killed", 20);
+        assertTrue(p.backup.mkdirs());
+        final File partial = new File(p.backup, "graph-20261018T153804Z-before-upgrade.db.partial");
+        final File journal = new File(p.backup, "graph-20261018T153804Z-before-upgrade.db.partial-journal");
+        final File regularPartial = new File(p.backup, "graph-20261018T120000Z.db.partial");
+        for (final File f : new File[] {partial, journal, regularPartial}) {
+            java.nio.file.Files.write(f.toPath(), new byte[4096]);
+        }
+        final KgConfig cfg = cfg();
+        this.store = KgStore.open(p, cfg, new StorageGuard(cfg, p, new KgTestSupport.Probe(), System::currentTimeMillis), KgStore.SQLITE,
+                System::currentTimeMillis);
+        final JSONObject up = this.store.upgrade();
+        assertFalse("the partial copy is gone", partial.exists());
+        assertFalse(journal.exists());
+        assertTrue("a regular backup's partial file is left to its own retention", regularPartial.exists());
+        assertEquals(2, up.getJSONArray("removedPartial").length());
+        assertEquals(3, KgBackup.verify(new File(p.backup, up.getString("backup")), 3).getInt("schema_version"));
+    }
+
     @Test
     public void aGraphLargerThanTheWalLimitGetsItsCopyBeforeTheUpgrade() throws Exception {
         final KgPaths p = v3("large", 12_000);

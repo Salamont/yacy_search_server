@@ -418,6 +418,10 @@ public final class KgStore implements AutoCloseable {
         final File target = new File(dir, name);
         try {
             mkdirs(dir);
+            final List<String> stale = KgBackup.removePartials(dir, true);
+            if (!stale.isEmpty()) {
+                KgJson.put(up, "removedPartial", new org.json.JSONArray(stale));
+            }
             if (target.exists()) {
                 throw new KgException(KgException.BACKUP_FAILED, "exists", "the copy of this second exists already", null);
             }
