@@ -35,7 +35,7 @@ import net.yacy.scoutro.knowledge.KgJson;
  */
 public final class LlmBreaker {
 
-    static final long FIRST_BACKOFF_MILLIS = 5L * 60_000L;
+    public static final long FIRST_BACKOFF_MILLIS = 5L * 60_000L;
 
     private final int failures;
     private final long maxBackoffMillis;
@@ -84,11 +84,27 @@ public final class LlmBreaker {
         this.lastFailure = reason;
         this.consecutive++;
         if (this.trial || this.consecutive >= this.failures) {
-            this.backoff = this.backoff == 0L ? FIRST_BACKOFF_MILLIS : Math.min(this.maxBackoffMillis, this.backoff * 2L);
-            this.openUntil = this.clock.getAsLong() + this.backoff;
-            this.opened++;
-            this.trial = false;
+            open(0L);
         }
+    }
+
+    /**
+     * A failure that opens the breaker at once, whatever the count (0.11.5): a refused key (401, 403) or spent credits,
+     * where every further call is a request for nothing, and a rate limit (429) or an overload (529), where the provider
+     * asks for a pause. The pause is the longer of the next backoff and {@code holdMillis} (bounded by the maximum backoff).
+     */
+    public synchronized void failureHold(final String reason, final long holdMillis) {
+        this.lastFailure = reason;
+        this.consecutive++;
+        open(holdMillis);
+    }
+
+    private void open(final long holdMillis) {
+        this.backoff = this.backoff == 0L ? FIRST_BACKOFF_MILLIS : Math.min(this.maxBackoffMillis, this.backoff * 2L);
+        final long pause = Math.max(this.backoff, Math.min(this.maxBackoffMillis, holdMillis));
+        this.openUntil = this.clock.getAsLong() + pause;
+        this.opened++;
+        this.trial = false;
     }
 
     public synchronized boolean open() {

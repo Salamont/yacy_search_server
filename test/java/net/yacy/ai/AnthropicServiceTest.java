@@ -64,6 +64,9 @@ public class AnthropicServiceTest {
     private final List<Seen> requests = new CopyOnWriteArrayList<>();
     private volatile int status = 200;
     private volatile String answer = "{\"result\":\"ok\"}";
+    /** The error body of a status other than 200; the default names an invalid key with the key in it. */
+    private volatile String errorBody = null;
+    private volatile String retryAfter = null;
 
     @Before
     public void start() throws IOException {
@@ -80,7 +83,10 @@ public class AnthropicServiceTest {
             this.requests.add(new Seen(exchange.getRequestURI().getPath(), exchange.getRequestHeaders(), body));
             final byte[] out;
             if (this.status != 200) {
-                out = ("{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key " + KEY + "\"}}")
+                if (this.retryAfter != null) exchange.getResponseHeaders().add("Retry-After", this.retryAfter);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                out = (this.errorBody != null ? this.errorBody
+                        : "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key " + KEY + "\"}}")
                         .getBytes(StandardCharsets.UTF_8);
             } else if (body.optBoolean("stream", false)) {
                 exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
@@ -99,7 +105,24 @@ public class AnthropicServiceTest {
                 os.write(out);
             }
         });
+        // the model list as Anthropic's OpenAI-compatible endpoint shapes it: data[].id, one page of up to 1000
+        this.server.createContext("/v1/models", exchange -> {
+            this.requests.add(new Seen(exchange.getRequestURI().getPath() + (exchange.getRequestURI().getQuery() == null ? ""
+                    : "?" + exchange.getRequestURI().getQuery()), exchange.getRequestHeaders(), new JSONObject()));
+            final byte[] out = ("{\"object\":\"list\",\"data\":[{\"id\":\"claude-sonnet-5-5\",\"object\":\"model\",\"owned_by\":\"anthropic\"},"
+                    + "{\"id\":\"claude-haiku-5-5\",\"object\":\"model\",\"owned_by\":\"anthropic\"}],\"has_more\":false}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, out.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(out);
+            }
+        });
         this.server.start();
+    }
+
+    private String hoststub() {
+        return "http://127.0.0.1:" + this.server.getAddress().getPort();
     }
 
     @After
@@ -195,6 +218,105 @@ public class AnthropicServiceTest {
         assertEquals("2023-06-01", r.header("anthropic-version"));
         assertEquals("Bearer " + KEY, r.header("Authorization"));
         assertTrue(out.text(), out.text().contains("Hallo ") && out.text().contains("Welt"));
+    }
+
+    @Test
+    public void noLocalServerHintsReachAnthropic() throws Exception {
+        // 0.11.5: num_ctx, the llama stop tokens and the thinking switches are Ollama's and the self-hosted servers'; Anthropic
+        // knows none of them and an unknown field is a refused request that still costs
+        llm(LLMType.ANTHROPIC).chatWithResponseFormat("claude-sonnet-5-5", context(), null, 64, 5000, 100_000);
+        Seen r = only();
+        for (final String key : new String[] {"num_ctx", "stop", "reasoning_effort", "enable_thinking", "temperature"}) {
+            assertFalse(key + " is not sent: " + r.body, r.body.has(key));
+        }
+        this.requests.clear();
+        llm(LLMType.ANTHROPIC).chatStream("claude-haiku-5-5", "sys", "user", 64, null);
+        r = only();
+        for (final String key : new String[] {"num_ctx", "stop", "reasoning_effort", "enable_thinking", "temperature"}) {
+            assertFalse(key + " is not streamed: " + r.body, r.body.has(key));
+        }
+        // the RAG chat of a thinking model: the client's switches are removed, none are added
+        this.requests.clear();
+        final LLM.LLMModel m = new LLM.LLMModel(llm(LLMType.ANTHROPIC), "claude-sonnet-5-5", false, true);
+        final JSONObject body = new JSONObject().put("model", "claude-sonnet-5-5").put("stream", true).put("max_tokens", 128)
+                .put("num_ctx", 8192).put("enable_thinking", true)
+                .put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", "Hallo")));
+        assertEquals(200, ToolCallProtocol.proxyToolLifecycle(new Capture(), m, body, body.getJSONArray("messages"), null));
+        r = only();
+        for (final String key : new String[] {"num_ctx", "reasoning_effort", "enable_thinking"}) {
+            assertFalse(key + " is not relayed: " + r.body, r.body.has(key));
+        }
+        // the other services keep their hints
+        this.requests.clear();
+        llm(LLMType.OPENROUTER).chatWithResponseFormat("m", context(), null, 64, 5000, 100_000);
+        r = only();
+        assertTrue(r.body.has("num_ctx") && r.body.has("stop") && "none".equals(r.body.getString("reasoning_effort"))
+                && !r.body.getBoolean("enable_thinking"));
+    }
+
+    @Test
+    public void theModelListIsAskedForOnePageOfUpToAThousand() throws Exception {
+        assertEquals("?limit=1000", net.yacy.http.servlets.LLMAdminProxyServlet.upstreamQuery(LLMType.ANTHROPIC, "/v1/models"));
+        assertEquals("", net.yacy.http.servlets.LLMAdminProxyServlet.upstreamQuery(LLMType.ANTHROPIC, "/v1/chat/completions"));
+        assertEquals("", net.yacy.http.servlets.LLMAdminProxyServlet.upstreamQuery(LLMType.OPENAI, "/v1/models"));
+        // the list the fake endpoint serves has the shape the page reads (data[].id)
+        final java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+        final java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(hoststub() + "/v1/models"
+                + net.yacy.http.servlets.LLMAdminProxyServlet.upstreamQuery(LLMType.ANTHROPIC, "/v1/models")))
+                .header("Authorization", "Bearer " + KEY).header("anthropic-version", LLM.ANTHROPIC_VERSION).GET().build();
+        final java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+        final JSONArray data = new JSONObject(response.body()).getJSONArray("data");
+        assertEquals("claude-sonnet-5-5", data.getJSONObject(0).getString("id"));
+        assertEquals("/v1/models?limit=1000", only().path);
+    }
+
+    @Test
+    public void aRateLimitNamesItsKindAndItsWaitWithoutTheKey() throws Exception {
+        this.status = 429;
+        this.retryAfter = "30";
+        this.errorBody = "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 50 requests per minute (key " + KEY + ")\"}}";
+        try {
+            llm(LLMType.ANTHROPIC).chatWithResponseFormat("claude-sonnet-5-5", context(), null, 64, 5000, 100_000);
+            fail("a 429 is an error");
+        } catch (final LlmHttpError e) {
+            assertEquals(429, e.status);
+            assertEquals(LlmHttpError.KIND_RATE_LIMIT, e.kind());
+            assertTrue(e.retryable());
+            assertEquals(Long.valueOf(30_000L), e.retryAfterMillis);
+            assertEquals("rate_limit_error", e.code);
+            assertFalse("the key never reaches the error: " + e.getMessage(), e.getMessage().contains(KEY));
+            assertFalse(e.json().toString(), e.json().toString().contains(KEY));
+            assertEquals("rate_limit", e.json().getJSONObject("error").getString("kind"));
+            assertEquals(30_000L, e.json().getJSONObject("error").getLong("retry_after_ms"));
+        }
+        assertEquals("one request, no retry by the transport", 1, this.requests.size());
+    }
+
+    @Test
+    public void anOverloadAForbiddenKeyAndSpentCreditsAreToldApart() throws Exception {
+        final Object[][] cases = {
+            {529, "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}", LlmHttpError.KIND_OVERLOADED, true},
+            {403, "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\",\"message\":\"Your API key does not have permission to use the specified resource.\"}}", LlmHttpError.KIND_AUTH, false},
+            {401, null, LlmHttpError.KIND_AUTH, false},
+            {400, "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API.\"}}", LlmHttpError.KIND_REQUEST, false},
+            {402, "{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"You exceeded your current quota\"}}", LlmHttpError.KIND_QUOTA, false},
+            {429, "{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"You exceeded your current quota, please check your plan and billing details.\"}}", LlmHttpError.KIND_QUOTA, false}};
+        for (final Object[] c : cases) {
+            this.requests.clear();
+            this.status = (Integer) c[0];
+            this.errorBody = (String) c[1];
+            try {
+                llm(LLMType.ANTHROPIC).chatStream("claude-sonnet-5-5", "sys", "user", 64, null);
+                fail(c[0] + " is an error");
+            } catch (final LlmHttpError e) {
+                assertEquals(String.valueOf(c[0]), c[2], e.kind());
+                assertEquals(String.valueOf(c[0]), c[3], e.retryable());
+                assertFalse(e.getMessage(), e.getMessage().contains(KEY));
+                assertTrue(e.getMessage(), e.getMessage().contains(String.valueOf(c[0])));
+            }
+            assertEquals(1, this.requests.size());
+        }
     }
 
     @Test

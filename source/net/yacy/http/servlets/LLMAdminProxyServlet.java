@@ -23,6 +23,7 @@ package net.yacy.http.servlets;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -45,6 +46,7 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import net.yacy.ai.LLM;
+import net.yacy.ai.LlmHttpError;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.cora.util.LogRedaction;
 import net.yacy.http.ClientAddress;
@@ -122,6 +124,17 @@ public class LLMAdminProxyServlet extends HttpServlet {
     /** read-only probe paths which may be used with a not-yet-saved hoststub */
     private static final Set<String> PROBE_PATHS = Set.of("/api/tags", "/v1/models");
 
+    /** paths whose error answers (status 400 and above) are mirrored as a cleaned error object, not as the raw body */
+    private static final Set<String> ERROR_PATHS = Set.of("/v1/chat/completions", "/v1/models");
+
+    /**
+     * The query of the upstream request: Anthropic lists 20 models per page by default, one page of up to 1000 holds them
+     * all; nothing for every other service and path.
+     */
+    public static String upstreamQuery(final LLM.LLMType type, final String path) {
+        return type == LLM.LLMType.ANTHROPIC && "/v1/models".equals(path) ? "?limit=1000" : "";
+    }
+
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
@@ -189,8 +202,7 @@ public class LLMAdminProxyServlet extends HttpServlet {
         }
 
         final LLM.LLMType type = serviceType(known ? services.get(hoststub) : hrequest.getHeader(SERVICE_HEADER));
-        // Anthropic lists 20 models per page by default; one page of up to 1000 holds them all
-        final String query = type == LLM.LLMType.ANTHROPIC && "/v1/models".equals(path) ? "?limit=1000" : "";
+        final String query = upstreamQuery(type, path);
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(hoststub + path + query))
                 .timeout(Duration.ofMillis("/api/pull".equals(path) ? 60 * 60 * 1000 : 10 * 60 * 1000));
@@ -226,6 +238,21 @@ public class LLMAdminProxyServlet extends HttpServlet {
             final HttpResponse<InputStream> upstream = CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofInputStream());
             hresponse.setStatus(upstream.statusCode());
             hresponse.setHeader(UPSTREAM_HEADER, "1");
+            if (upstream.statusCode() >= 400 && ERROR_PATHS.contains(path)) {
+                // the provider's error, bounded and cleaned (0.11.5): its kind (a refused key, a rate limit, spent credits,
+                // an overload), code and message, never a key and never the raw body
+                final byte[] body;
+                try (InputStream in = upstream.body()) {
+                    body = in.readNBytes(LlmHttpError.MAX_BODY_BYTES);
+                }
+                final String typedOrConfigured = typedKey != null && !typedKey.trim().isEmpty() ? typedKey.trim() : configuredKey;
+                final LlmHttpError error = LlmHttpError.of(upstream.statusCode(), new String(body, StandardCharsets.UTF_8), body.length,
+                        typedOrConfigured, LlmHttpError.retryAfter(upstream.headers().firstValue("Retry-After").orElse(null)));
+                hresponse.setHeader("Content-Type", "application/json;charset=utf-8");
+                hresponse.getOutputStream().write(error.json().toString().getBytes(StandardCharsets.UTF_8));
+                ConcurrentLog.warn("LLMAdminProxy", "event=passthrough phase=end result=upstream-error " + error.fields() + " durationMs=" + (System.currentTimeMillis() - start));
+                return;
+            }
             hresponse.setHeader("Content-Type", upstream.headers().firstValue("Content-Type").orElse("application/json;charset=utf-8"));
             final ServletOutputStream out = hresponse.getOutputStream();
             try (InputStream in = upstream.body()) {

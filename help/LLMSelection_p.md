@@ -37,6 +37,36 @@ a key of one workspace needs nothing. Anthropic requests carry no `temperature`.
 this API: its format capability is never "supported" (a schema-shaped answer counts as "ignored"), so the knowledge
 graph's structured output stays "schema unverified" and every answer still passes the validator.
 
+Anthropic requests carry none of the hints of a local server (0.11.5): no `num_ctx`, no llama-style `stop` tokens, no
+`reasoning_effort` and no `enable_thinking`; ones a chat client sends are removed. Every other service keeps them.
+
+### Errors, limits and what to check before activation
+
+An error of the endpoint reaches this page and the log as its kind, code and message, bounded and without the key:
+*auth* (401, 403: the key is refused or may not do this), *quota* (402, or a 403/429 whose code names a quota or
+billing: credits are spent), *rate_limit* (429, with the endpoint's `Retry-After`), *overloaded* (529, 503),
+*server* (other 5xx) and *request* (other 4xx). The transport never retries by itself. The knowledge graph's LLM tier
+pauses its breaker at once on *auth* and *quota* (for the maximum backoff, `scoutro.kg.llm.breakerMaxBackoffMinutes`)
+and on *rate_limit* and *overloaded* (for the `Retry-After`, at most one hour, else five minutes); the RAG chat answers
+the client with the status.
+
+A paid service is bounded by settings that exist before any key is entered; check them on
+`ScoutroKnowledge_p.html?view=settings` and in `yacy.conf`:
+
+| Setting | Bounds | Default |
+|---|---|---|
+| `scoutro.kg.llm.enabled`, the LLM schedule and the queue's pause | whether the knowledge graph's LLM tier calls a model at all; a paused queue stays paused across an upgrade | off / paused as set |
+| `scoutro.kg.llm.maxRequestsPerDay` | model requests of the LLM tier per UTC day, 0 = no cap | 0 |
+| `scoutro.kg.llm.maxAttempts` | tries per page before it is marked failed | 2 |
+| `scoutro.kg.llm.maxDocsPerHost` | pages per host the LLM tier reads | 25 |
+| `scoutro.kg.llm.breakerMaxBackoffMinutes` | the longest pause after failures | 60 |
+| `ai.shield.rate.per-minute` / `per-hour` / `per-day`, `ai.shield.limit-all` and `ai.shield.all.*` | chat and RAG requests per client and in all | 4 / 60 / 120 |
+| the model's `max_tokens` in the production models matrix | the longest answer paid for | per model |
+
+Selecting `ANTHROPIC` and saving a key activates nothing by itself: the model rows of the production matrix decide
+which usage calls which model, and the LLM tier of the knowledge graph runs only when enabled, scheduled and not
+paused. The isolated live check (`docs/SCOUTRO_ANTHROPIC_LIVE_TEST.md`) is a dry run by default.
+
 ## Correct Use
 
 Select the service that matches the running model endpoint. For local tools such as Ollama or LM Studio, verify the local server URL first. For hosted services, treat API keys and host settings as sensitive operational configuration.

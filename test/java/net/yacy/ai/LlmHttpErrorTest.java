@@ -1,6 +1,7 @@
 /* Copyright 2026 Scoutro contributors. LGPL-2.1-or-later. */
 package net.yacy.ai;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -183,6 +184,20 @@ public class LlmHttpErrorTest {
     }
 
     /** A huge error body is read only in part and kept in a bounded excerpt. */
+    @Test
+    public void retryAfterIsSecondsBoundedToAnHour() {
+        assertEquals(Long.valueOf(30_000L), LlmHttpError.retryAfter("30"));
+        assertEquals(Long.valueOf(30_000L), LlmHttpError.retryAfter(" 30 "));
+        assertEquals(Long.valueOf(LlmHttpError.MAX_RETRY_AFTER_MILLIS), LlmHttpError.retryAfter("86400"));
+        assertEquals(null, LlmHttpError.retryAfter(null));
+        assertEquals(null, LlmHttpError.retryAfter("Wed, 21 Oct 2026 07:28:00 GMT"));
+        assertEquals(null, LlmHttpError.retryAfter("-1"));
+        final LlmHttpError e = LlmHttpError.of(429, "{\"error\":{\"type\":\"rate_limit_error\",\"message\":\"slow down\"}}", 60, null, 5_000L);
+        assertEquals(Long.valueOf(5_000L), e.retryAfterMillis);
+        assertEquals(LlmHttpError.KIND_RATE_LIMIT, e.kind());
+        assertTrue(e.fields(), e.fields().contains("errorKind=rate_limit"));
+    }
+
     @Test
     public void aHugeErrorBodyIsBounded() {
         this.mode = "huge";

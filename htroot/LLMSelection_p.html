@@ -201,13 +201,17 @@
           error.status = response.status;
           // X-LLM-Upstream: the status comes from the LLM endpoint, not from the YaCy proxy
           error.upstream = response.headers.get("X-LLM-Upstream") === "1";
-          if (!error.upstream) {
-            try {
-              const failure = await response.json();
-              error.code = failure && failure.error && typeof failure.error.code === "string" ? failure.error.code : null;
-            } catch (cause) {
-              error.code = null;
-            }
+          // the proxy answers a YaCy error ({error:{code}}) or, for the endpoint's error, its cleaned reason
+          // ({error:{status,kind,code,message,retry_after_ms}}; never a key, never the raw body)
+          try {
+            const failure = await response.json();
+            const e = failure && failure.error && typeof failure.error === "object" ? failure.error : null;
+            error.code = e && typeof e.code === "string" ? e.code : null;
+            error.kind = e && typeof e.kind === "string" ? e.kind : null;
+            error.detail = e && typeof e.message === "string" ? e.message : null;
+            error.retryAfterMs = e && typeof e.retry_after_ms === "number" ? e.retry_after_ms : null;
+          } catch (cause) {
+            error.code = null;
           }
           throw error;
         }
@@ -415,6 +419,23 @@
         status.style.display = message ? "block" : "none";
       }
 
+      // The endpoint's error as the proxy cleaned it (0.11.5): what it means and what the endpoint said, without a key.
+      function describeUpstreamError(error) {
+        const kinds = {
+          auth: "The LLM endpoint rejected the credentials: check the api_key.",
+          quota: "The LLM endpoint reports spent credits or an exhausted quota: no request succeeds until the account is topped up.",
+          rate_limit: "The LLM endpoint is rate limited (too many requests or tokens per minute): wait and try again.",
+          overloaded: "The LLM endpoint is overloaded: wait and try again.",
+          server: "The LLM endpoint failed on its side: try again later.",
+          request: "The LLM endpoint refused the request."
+        };
+        let text = kinds[error.kind] || kinds.request;
+        if (error.retryAfterMs) text += ` Retry after ${Math.ceil(error.retryAfterMs / 1000)} s.`;
+        if (error.code) text += ` Code: ${error.code}.`;
+        if (error.detail) text += ` Endpoint: ${error.detail}`;
+        return text;
+      }
+
       function handleModelLoadError(error) {
         console.error("Error fetching models:", error);
         const status = error && typeof error.status === "number" ? error.status : null;
@@ -423,6 +444,8 @@
         if (status) message += " HTTP status:" + ` ${status}.`;
         if (error && error.invalidModelList) {
           message += " The endpoint returned an invalid model list.";
+        } else if (error && error.upstream && error.kind) {
+          message += " " + describeUpstreamError(error);
         } else if ((status === 401 || status === 403) && error.upstream) {
           message += " The LLM endpoint rejected the credentials: check the api_key.";
         } else if (status === 401 || (error && error.code === "admin_required")) {

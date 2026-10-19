@@ -424,12 +424,44 @@ public class LLM {
     }
 
     public static void applyNoThinkingParameters(final JSONObject data) {
+        applyNoThinkingParameters(data, null);
+    }
+
+    /**
+     * The "no thinking" switches of the OpenAI-compatible services ({@code reasoning_effort: none},
+     * {@code enable_thinking: false}); for {@link LLMType#ANTHROPIC} none of them, and ones a client sent are removed
+     * (0.11.5): Anthropic's Chat Completions refuse or ignore them, thinking is not switched there.
+     */
+    public static void applyNoThinkingParameters(final JSONObject data, final LLMType type) {
         if (data == null) return;
         try {
+            if (type == LLMType.ANTHROPIC) {
+                stripLocalHints(data, type);
+                return;
+            }
             data.put("reasoning_effort", "none");
             data.put("enable_thinking", false);
         } catch (JSONException e) {
         }
+    }
+
+    /**
+     * Whether a request to the service carries the hints of a local or self-hosted server: Ollama's {@code num_ctx}, the
+     * llama-style stop tokens ({@link #STOPTOKENS}) and the thinking switches. Not for {@link LLMType#ANTHROPIC} (0.11.5):
+     * its API knows none of them, a stop list of chat-template tokens has no meaning there, and an unknown field is a
+     * risk of a refused request that still costs. Every other service as before.
+     */
+    public static boolean sendsLocalHints(final LLMType type) {
+        return type != LLMType.ANTHROPIC;
+    }
+
+    /** The fields {@link #sendsLocalHints} names: {@code num_ctx}, {@code reasoning_effort}, {@code enable_thinking}. */
+    public static final String[] LOCAL_HINTS = {"num_ctx", "reasoning_effort", "enable_thinking"};
+
+    /** Removes the {@link #LOCAL_HINTS} from a request body for a service that does not take them; no change otherwise. */
+    public static void stripLocalHints(final JSONObject data, final LLMType type) {
+        if (data == null || sendsLocalHints(type)) return;
+        for (final String key : LOCAL_HINTS) data.remove(key);
     }
 
     // API Helper Methods
@@ -758,11 +790,11 @@ public class LLM {
             // this today and pure-OpenAI backends ignore unknown fields, so it is a harmless
             // forward-looking hedge; the reliable way to raise the context window remains
             // OLLAMA_CONTEXT_LENGTH or a Modelfile PARAMETER num_ctx.
-            data.put("num_ctx", this.num_ctx);
+            if (sendsLocalHints(this.type)) data.put("num_ctx", this.num_ctx);
             data.put("messages", context);
-            data.put("stop", new JSONArray(STOPTOKENS));
+            if (sendsLocalHints(this.type)) data.put("stop", new JSONArray(STOPTOKENS));
             data.put("stream", false);
-            applyNoThinkingParameters(data);
+            applyNoThinkingParameters(data, this.type);
 
             if (response_format != null) {
                 data.put("response_format", response_format);
@@ -915,11 +947,11 @@ public class LLM {
             if (sendsTemperature(this.type)) data.put("temperature", 0.1);
             data.put("max_tokens", max_tokens);
             // best-effort num_ctx hint from the per-service config, see chat(); harmless to non-Ollama backends
-            data.put("num_ctx", this.num_ctx);
+            if (sendsLocalHints(this.type)) data.put("num_ctx", this.num_ctx);
             data.put("messages", context);
-            data.put("stop", new JSONArray(STOPTOKENS));
+            if (sendsLocalHints(this.type)) data.put("stop", new JSONArray(STOPTOKENS));
             data.put("stream", true);
-            applyNoThinkingParameters(data);
+            applyNoThinkingParameters(data, this.type);
 
             final URL url = new URI(this.hoststub + "/v1/chat/completions").toURL();
             final HttpURLConnection conn = (HttpURLConnection) url.openConnection();

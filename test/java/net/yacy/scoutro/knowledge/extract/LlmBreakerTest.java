@@ -46,6 +46,29 @@ public class LlmBreakerTest {
     }
 
     @Test
+    public void aRefusedKeyOrARateLimitOpensAtOnceForTheHold() {
+        final AtomicLong now = new AtomicLong(1_000_000L);
+        final LlmBreaker b = new LlmBreaker(3, 60L * 60_000L, now::get);
+        b.failureHold("http_429_rate_limit", 30_000L);
+        assertFalse("open after one failure, not three", b.allow());
+        now.addAndGet(LlmBreaker.FIRST_BACKOFF_MILLIS - 1);
+        assertFalse("the first backoff is the floor of the hold", b.allow());
+        now.addAndGet(2);
+        assertTrue(b.allow());
+        b.success();
+        // a hold longer than the backoff: the hold, bounded by the maximum
+        b.failureHold("http_401_auth", 60L * 60_000L);
+        now.addAndGet(59L * 60_000L);
+        assertFalse(b.allow());
+        now.addAndGet(60_001L);
+        assertTrue(b.allow());
+        b.success();
+        b.failureHold("http_401_auth", 10L * 60L * 60_000L);
+        now.addAndGet(60L * 60_000L + 1);
+        assertTrue("never longer than the maximum backoff", b.allow());
+    }
+
+    @Test
     public void backoffIsCapped() {
         final AtomicLong now = new AtomicLong(0L);
         final LlmBreaker b = new LlmBreaker(1, 20L * 60_000L, now::get);

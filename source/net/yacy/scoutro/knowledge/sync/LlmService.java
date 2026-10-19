@@ -1670,9 +1670,18 @@ public final class LlmService {
         if (e instanceof SocketTimeoutException) {
             this.counters.timeouts.incrementAndGet();
         }
-        this.breaker.failure(why);
-        final String code = e instanceof net.yacy.ai.LlmHttpError ? ((net.yacy.ai.LlmHttpError) e).code : null;
-        this.lastError = "llm: " + why + (code == null ? "" : " " + code);
+        final net.yacy.ai.LlmHttpError http = e instanceof net.yacy.ai.LlmHttpError ? (net.yacy.ai.LlmHttpError) e : null;
+        if (http != null && (net.yacy.ai.LlmHttpError.KIND_AUTH.equals(http.kind()) || net.yacy.ai.LlmHttpError.KIND_QUOTA.equals(http.kind()))) {
+            // a refused key or spent credits (0.11.5): the tier pauses for the maximum backoff at once, no call for nothing
+            this.breaker.failureHold(why + "_" + http.kind(), this.cfg.llmBreakerMaxBackoffMillis);
+        } else if (http != null && (net.yacy.ai.LlmHttpError.KIND_RATE_LIMIT.equals(http.kind()) || net.yacy.ai.LlmHttpError.KIND_OVERLOADED.equals(http.kind()))) {
+            // the provider asks for a pause: at once, for its Retry-After (bounded) or the first backoff
+            this.breaker.failureHold(why + "_" + http.kind(), http.retryAfterMillis == null ? LlmBreaker.FIRST_BACKOFF_MILLIS : http.retryAfterMillis);
+        } else {
+            this.breaker.failure(why);
+        }
+        final String code = http == null ? null : http.code;
+        this.lastError = "llm: " + why + (http == null ? "" : " " + http.kind()) + (code == null ? "" : " " + code);
         if (item.attempts + 1 < this.cfg.llmMaxAttempts) {
             release(item, this.clock.getAsLong() + (FIRST_RETRY_MILLIS << Math.min(6, item.attempts)), true);
         } else if (read == null) {

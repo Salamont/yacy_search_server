@@ -10,6 +10,14 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   `anthropic-workspace-id`. No `temperature` is sent to Anthropic; Anthropic ignores `response_format`, so its format
   capability is never shown as supported and the knowledge graph keeps the validator. Other services unchanged; not
   activated, released or deployed.
+- Anthropic requests carry no `num_ctx`, no llama-style `stop` tokens, no `reasoning_effort` and no `enable_thinking`
+  (chat, streaming, RAG tool chat; ones a client sends are removed), every other service as before. An HTTP error of a
+  model endpoint names its kind (`auth`, `quota`, `rate_limit` with `Retry-After`, `overloaded`, `server`, `request`)
+  beside its status, code and message, never the key; the transport never retries. The knowledge graph's LLM breaker
+  opens at once on a refused key or spent credits (maximum backoff) and on a rate limit or overload (the `Retry-After`,
+  at most one hour). The admin proxy mirrors an endpoint's error as that cleaned object, and the LLM selection page says
+  what it means. The limits that bound a paid service before activation are listed in `help/LLMSelection_p.md`.
+  Nothing is activated: no key, no model switch, no resumed queue.
 - Knowledge graph, extraction rules for pages read from now on (schema stays 9, extractor versions `jsonld/6` and
   `rule/7` and the vocabulary hash unchanged, no re-read of stored pages, `RELATION_RULES` stays 5): a navigation or
   footer label ("Bildergalerie", "Showroom", "Kontakt"), a kind of organisation ("Banken", "Versicherungen") and a
