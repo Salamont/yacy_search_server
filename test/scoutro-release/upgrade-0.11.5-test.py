@@ -274,9 +274,9 @@ def main():
 
     # 2. 0.11.4
     health, secs = start(OLD, VOL)
-    push("https://www.rostocker-massivhaus.example/finanzierung", page("Rostocker Massivhaus GmbH", "https://www.rostocker-massivhaus.example/",
+    push("https://www.rostocker-massivhaus-test.de/finanzierung", page("Rostocker Massivhaus GmbH", "https://www.rostocker-massivhaus-test.de/",
          "Finanzierung: Unsere Partner: Banken, Versicherungen, Bausparkassen und KfW. Wir vermitteln die passende Finanzierung."), "bauteamcheck-web")
-    push("https://www.pro-casa-bau.example/", page("Pro Casa Bau GmbH", "https://www.pro-casa-bau.example/",
+    push("https://www.pro-casa-bau-test.de/", page("Pro Casa Bau GmbH", "https://www.pro-casa-bau-test.de/",
          "Startseite Leistungen Referenzen Bildergalerie Kontakt Impressum. Wir bauen Massivhaeuser in Rostock."), "bauteamcheck-web")
     s = settle()
     base_counts = counts()
@@ -324,7 +324,7 @@ def main():
     llm_before = summary(s)["llm_today"]
     post("/scoutro/api/v1/kg/control", {"action": "resume"})
     settle()
-    push("https://www.dielen-kaufen.example/partner", page("Dielen Kaufen GmbH", "https://www.dielen-kaufen.example/",
+    push("https://www.dielen-kaufen-test.de/partner", page("Dielen Kaufen GmbH", "https://www.dielen-kaufen-test.de/",
          "Unsere Partner: Banken, Versicherungen, Bausparkassen und KfW. Partner | Showroom | Kontakt"), "bauteamcheck-web")
     s = settle()
     row = dict(step="0.11.5 resumed: a new page with the old list", **summary(s), counts=counts(), banken_names=named("Banken"),
