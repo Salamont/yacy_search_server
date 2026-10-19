@@ -14,10 +14,10 @@ python3 test/scoutro-release/check-attribution.py \
 ```
 
 Release acceptance uses NEW disposable data and controlled fixtures only.
-The current prepared candidate is 0.10.9 / 1.942-scoutro.33, on main after #73;
-its release/upgrade/rollback gates are in `docs/SCOUTRO_RELEASE_0.10.9.md`.
-Complete application/package preparation instructions are in
-`docs/OPENCODE_SCOUTRO_0.10.9_HANDOFF.md`. The additional standalone
+The current prepared candidate is 0.11.4 / 1.942-scoutro.38;
+its release/upgrade/rollback gates are in `docs/SCOUTRO_RELEASE_0.11.4.md`.
+The previous candidate 0.10.9 / 1.942-scoutro.33 is described in
+`docs/SCOUTRO_RELEASE_0.10.9.md` and `docs/OPENCODE_SCOUTRO_0.10.9_HANDOFF.md`. The additional standalone
 price/provider fix is explicitly deferred; no acceptance claim closes it.
 The integration targets, `test/scoutro-api/kg-chain-acceptance.py` and
 `kg-llm-schedule-live.py` retain their assertions and timing. Use real packaged
