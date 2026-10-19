@@ -4,6 +4,13 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+## 0.11.4 / 1.942-scoutro.38 — data quality programme (R1–R4) and website technologies (R5), one update from 0.10.9
+
+Release candidate on `eac0d2e97`; not published. One update from 0.10.9: knowledge graph schema 6 → 9 at the first
+start with one copy, then one rule-based re-read of every page without a model. 0.11.0–0.11.3 are not released
+separately; the entries below marked "not released" are all part of this release.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.11.4.md).
+
 - Website technologies (Scoutro R5, not released; knowledge graph schema 9): the signatures of
   `defaults/parser.tech.properties` (WordPress, Elementor, Elementor Pro, Yoast SEO, Yoast SEO Premium, WP Rocket, Google
   Tag Manager, Pardot; Google Analytics for comparison) read a page's technical markup - generator, script and stylesheet
