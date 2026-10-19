@@ -4234,7 +4234,8 @@ value, shared by all models on that endpoint. It is the total budget for prompt 
 Here you can pick models from an LLM model service to select them as production model.==Hier können Sie Modelle aus einem LLM-Modelldienst auswählen, um sie als Produktionsmodell festzulegen.
 service selected above appears here automatically with its stored (or default) window.==oben ausgewählten Dienst erscheint hier automatisch mit seinem gespeicherten (oder Standard-)Fenster.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Dieser Wert ist <b>ein Richtwert</b>: setzen Sie ihn passend zum Fenster, das Ihr Backend tatsächlich bereitstellt
-Context Length setting). YaCy does not enforce it on the backend.==Context-Length-Einstellung). YaCy erzwingt ihn nicht im Backend.
+Context Length setting).==Context-Length-Einstellung).
+YaCy does not enforce it on the backend.==YaCy erzwingt ihn nicht im Backend.
 Service Selection==Dienst-Auswahl
 Model Downloads==Modell-Downloads
 LLM Selection==LLM-Auswahl
@@ -4420,6 +4421,58 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 Start without a price: only the caps of calls and tokens apply, the cost stays unknown==Ohne Preis starten: Es gelten nur die Obergrenzen für Aufrufe und Tokens, die Kosten bleiben unbekannt
 <label>at most calls, retries included <input==<label>höchstens Aufrufe, Wiederholungen eingeschlossen <input
 <label>cost limit, against the estimate <input==<label>Kostengrenze, gegen die Schätzung <input
+<b>Install your local LLM service!</b> You need either a local <a href="https://ollama.com/">ollama</a> or <a href="https://lmstudio.ai/">LM Studio</a> instance running on your local host or inside the intranet.==<b>Installieren Sie Ihren lokalen LLM-Dienst!</b> Sie benötigen eine lokale <a href="https://ollama.com/">Ollama</a>- oder <a href="https://lmstudio.ai/">LM-Studio</a>-Instanz auf Ihrem Rechner oder im Intranet.
+value="Load Model Name List"==value="Modellliste laden"
+The selected service's context window (<code>num_ctx</code>) is shown and editable in the==Das Kontextfenster (<code>num_ctx</code>) des gewählten Dienstes wird in der Tabelle
+table below. A model's generated-token cap (<code>max_tokens</code>==unten angezeigt und bearbeitet. Die Obergrenze erzeugter Tokens eines Modells (<code>max_tokens</code>
+is set per model in the==wird je Modell in der
+"Loading models..."=="Modelle werden geladen…"
+"Available Models"=="Verfügbare Modelle"
+"Recommended Models"=="Empfohlene Modelle"
+"Deploy"=="Einsetzen"
+"Undeploy"=="Entfernen"
+"Delete"=="Löschen"
+"Download"=="Herunterladen"
+"Download in progress…"=="Download läuft…"
+`Downloading ${modelName}`==`${modelName} wird heruntergeladen`
+`Testing ${modelName}`==`${modelName} wird getestet`
+"No models found on this endpoint. Load a model in the service, then retry."=="Keine Modelle an diesem Endpunkt gefunden. Laden Sie ein Modell im Dienst und versuchen Sie es erneut."
+"Failed to load models."=="Modelle konnten nicht geladen werden."
+" HTTP status:"==" HTTP-Status:"
+" The endpoint returned an invalid model list."==" Der Endpunkt lieferte eine ungültige Modellliste."
+" The LLM endpoint rejected the credentials: check the api_key."==" Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: prüfen Sie den api_key."
+" YaCy administrator login required."==" YaCy-Administrator-Anmeldung erforderlich."
+" Check the hoststub and endpoint availability from the Scoutro server."==" Prüfen Sie den Hoststub und die Erreichbarkeit des Endpunkts vom Scoutro-Server aus."
+" Check the hoststub and try again."==" Prüfen Sie den Hoststub und versuchen Sie es erneut."
+"Model downloads are still running. Please wait until they finish."=="Modell-Downloads laufen noch. Bitte warten Sie, bis sie abgeschlossen sind."
+"Production model tests are still running. Please wait until they finish."=="Tests der Produktionsmodelle laufen noch. Bitte warten Sie, bis sie abgeschlossen sind."
+"Model is already listed in the production table."=="Das Modell steht bereits in der Produktionstabelle."
+"Model is assigned as a production model and cannot be deleted."=="Das Modell ist als Produktionsmodell zugewiesen und kann nicht gelöscht werden."
+"Remove this model (features will be reassigned if possible)."=="Dieses Modell entfernen (Funktionen werden nach Möglichkeit neu zugewiesen)."
+"A hoststub is required to delete models."=="Zum Löschen von Modellen ist ein Hoststub erforderlich."
+`Do you really want to delete model "${modelId}"?`==`Möchten Sie das Modell "${modelId}" wirklich löschen?`
+`Model "${modelName}" is currently used in the production table and cannot be deleted.`==`Das Modell "${modelName}" wird in der Produktionstabelle verwendet und kann nicht gelöscht werden.`
+`Model ${modelName} is now available on server ${hoststub}.`==`Das Modell ${modelName} ist jetzt auf dem Server ${hoststub} verfügbar.`
+`Connection lost while pulling model ${modelName} from server ${hoststub}. The download continues on the server; reload this page to re-attach to its progress.`==`Verbindung beim Laden des Modells ${modelName} vom Server ${hoststub} verloren. Der Download läuft auf dem Server weiter; laden Sie die Seite neu, um den Fortschritt wieder anzuzeigen.`
+`Failed to download model ${modelName}==`Modell ${modelName} konnte nicht heruntergeladen werden
+`Failed to delete model ${modelName}==`Modell ${modelName} konnte nicht gelöscht werden
+`Error while deleting model ${modelName}. Check the console for details.`==`Fehler beim Löschen des Modells ${modelName}. Details in der Konsole.`
+`Thinking capability check failed for model "${modelName}".`==`Thinking-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Thinking capability check of model "${modelName}" gave no result.`==`Thinking-Prüfung des Modells "${modelName}" ergab kein Ergebnis.`
+`Tooling capability check failed for model "${modelName}".`==`Tooling-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Vision capability check failed for model "${modelName}".`==`Vision-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Format capability check failed for model "${modelName}".`==`Format-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Format capability check of model "${modelName}" gave no result.`==`Format-Prüfung des Modells "${modelName}" ergab kein Ergebnis.`
+"The LLM endpoint rejected the credentials: check the api_key."=="Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: prüfen Sie den api_key."
+"The LLM endpoint reports spent credits or an exhausted quota: no request succeeds until the account is topped up."=="Der LLM-Endpunkt meldet verbrauchtes Guthaben oder ein erschöpftes Kontingent: keine Anfrage gelingt, bis das Konto aufgeladen ist."
+"The LLM endpoint is rate limited (too many requests or tokens per minute): wait and try again."=="Der LLM-Endpunkt ist ratenbegrenzt (zu viele Anfragen oder Tokens pro Minute): warten Sie und versuchen Sie es erneut."
+"The LLM endpoint is overloaded: wait and try again."=="Der LLM-Endpunkt ist überlastet: warten Sie und versuchen Sie es erneut."
+"The LLM endpoint failed on its side: try again later."=="Der LLM-Endpunkt ist auf seiner Seite fehlgeschlagen: versuchen Sie es später erneut."
+"The LLM endpoint refused the request."=="Der LLM-Endpunkt hat die Anfrage abgelehnt."
+` Retry after ${Math.ceil(error.retryAfterMs / 1000)} s.`==` Erneut versuchen nach ${Math.ceil(error.retryAfterMs / 1000)} s.`
+` Code: ${error.code}.`==` Code: ${error.code}.`
+` Endpoint: ${error.detail}`==` Endpunkt: ${error.detail}`
+["Model", "Ranking", "Size", "Description", "Provider", "License",==["Modell", "Rang", "Größe", "Beschreibung", "Anbieter", "Lizenz",
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier, nachdem der Scheduler den ersten vollständigen Stundenbericht erzeugt hat.
@@ -6935,6 +6988,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<==>Ein Navigationsbegriff oder eine Art von Organisation, die eine frühere Extraktion als Namen gespeichert hat; hier gezeigt, bei Geschäftsbeziehungen ausgeblendet.<
 >Brands and manufacturers<==>Marken und Hersteller<
 >%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<==>%1 Beziehung(en) zu Einträgen ohne Eigennamen (Navigationsbegriffe, Arten von Organisationen) werden hier nicht gezeigt; die Objektansicht des jeweiligen Eintrags behält sie.<
+>Collapse all sections<==>Alle Abschnitte einklappen<
+>Expand all sections<==>Alle Abschnitte ausklappen<
+>Filters<==>Filter<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

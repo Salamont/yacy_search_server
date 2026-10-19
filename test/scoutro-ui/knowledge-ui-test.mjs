@@ -302,6 +302,8 @@ try {
         await page.waitForFunction(() => new URLSearchParams(location.search).get('depth') === '2' && document.querySelector('#skg-net-svg').dataset.state === 'ready');
         await page.waitForSelector('#skg-net-svg .skg-edge.skg-e-derived');
         check((await page.locator('#skg-net-table').textContent()).includes(L('same operator (derived)', 'gleicher Träger (abgeleitet)')), 'same operator at depth 2, also in the list' + where);
+        // 0.11.5: on a phone the filters are folded until the reader opens them (the default view without f=)
+        await page.evaluate(() => { const d = document.getElementById('skg-net-filters'); if (d && !d.open) d.open = true; });
         await page.locator('#skg-f-industry').uncheck();
         await page.locator('#skg-f-audiences').uncheck();
         await page.locator('#skg-net-form button[type=submit]').click();

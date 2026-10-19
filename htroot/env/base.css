@@ -1212,3 +1212,8 @@ div#tagcloud {
 
 
 /************* header.template end ************/
+
+/* 0.11.5: a help popup never wider than a phone's screen */
+@media (max-width: 767px) {
+  .info:hover span, .info:hover .infobox { width: auto; max-width: calc(100vw - 24px); }
+}

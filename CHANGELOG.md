@@ -18,6 +18,15 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   at most one hour). The admin proxy mirrors an endpoint's error as that cleaned object, and the LLM selection page says
   what it means. The limits that bound a paid service before activation are listed in `help/LLMSelection_p.md`.
   Nothing is activated: no key, no model switch, no resumed queue.
+- Knowledge graph page on a phone (no redesign): the network diagram measures its node names against the card width
+  (two lines on a phone) instead of cutting them by a character count, its filters fold away on a phone for the default
+  view; the sections of the object view fold (open by default, all at once from the ToC on a phone); statements and
+  sources are paged by 25 on a phone; quotes, stats and tabs are sized for small screens; help popups never exceed the
+  screen; `supported` reads "stated by sources". LLM selection page: the hints of a local service (install Ollama or
+  LM Studio, no key needed, Ollama's `num_predict` and context length) show only for Ollama or LM Studio; no delete
+  button for LM Studio or a hosted service (OpenAI, Open Router, Anthropic); fieldsets no longer widen the page beyond
+  the screen; the German page translates the script's status, button, table and dialog texts and the endpoint's error
+  kinds. Offline UI tests `knowledge-mobile-ui-test.mjs`, `llm-selection-offline-ui-test.mjs`.
 - Knowledge graph, extraction rules for pages read from now on (schema stays 9, extractor versions `jsonld/6` and
   `rule/7` and the vocabulary hash unchanged, no re-read of stored pages, `RELATION_RULES` stays 5): a navigation or
   footer label ("Bildergalerie", "Showroom", "Kontakt"), a kind of organisation ("Banken", "Versicherungen") and a

@@ -898,3 +898,12 @@ body#index form.search div.yacysearch label {
   min-height: 40px;
   font-size: 14px;
 }
+
+/* 0.11.5: a fieldset never widens the page beyond the screen (its default minimum is its widest content, so a wide
+   table inside it used to push the whole page sideways instead of scrolling inside its wrapper); a select in a card
+   stays inside the card */
+fieldset { min-width: 0; }
+.scoutro-cards select.form-control, .scoutro-cards input.form-control { max-width: 100%; }
+@media (max-width: 767px) {
+  .scoutro-cards td, .scoutro-cards th { overflow-wrap: anywhere; }
+}
