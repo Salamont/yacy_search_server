@@ -3526,3 +3526,43 @@ bounded diagnostics and per-item indices. The same service evidence rule runs
 before publication, including cached results; dependents of rejected entities
 have no reference and are omitted. No automatic re-examination, prompt/model
 switch, existing-data cleanup, merge or rollout is part of this change.
+
+## 35. Names that are no names, brands that are no operators (0.11.5)
+
+### 35.1 Findings (production, 19 October 2026, schema 9, 177,853 pages)
+
+Seven cases of the read-only production report, all confirmed in the code of 0.11.4:
+
+| Host | Stored | Cause |
+|---|---|---|
+| www.pro-casa-bau.de | organisation "Bildergalerie", `reference_for` | the navigation label after "Referenzen"; the list rule split the menu on line breaks and `qualifies()` accepted any capitalised word |
+| www.dielen-kaufen.de | organisation "Showroom", `partner_of` | the menu entry after "Partner" |
+| www.rostocker-massivhaus.de | organisation "Banken" (only a `name`), `partner_of` | "Unsere Partner: Banken, Versicherungen, Bausparkassen": a kind of organisation; a relation recheck cannot repair an entity that has only a name |
+| architektin-im-wasserturm.de | service "Hersteller", `offers`, derived industry | the vocabulary category `handel/hersteller` on a services page: every hit became an offered service (the same reading as the drolshagens pilot) |
+| drolshagens.de | the product brand "Golden-Ingwer" as domain operator, with the brand's social profile | JSON-LD `Product.brand` with the shop's `url`: `ownDomain()` made the brand the operator and `sameAs` became its profile |
+| das-pianohaus.de | "SCHIMMEL" `brand_of` the piano shop | `Organization.brand[]` of a dealer lists the makers it carries; the rule read every entry as the organisation's own brand |
+| slowik-it.de | "Apple" `partner_of` | correct (a one-word brand in a partner list); the display showed an external brand like a local company |
+
+Several same-named entities ("SCHIMMEL" from every product page) come from brand nodes without an `@id`: each page got a `doc_local` key, no shared identity.
+
+### 35.2 What 0.11.5 changes for pages read from now on
+
+No version bump: `jsonld/6`, `rule/7`, `vocabulary/4` and the vocabulary hash are part of every page's extractor key; a new version would read all 177,853 pages again. `SyncService.RELATION_RULES` stays `5`: no rule-bound recheck starts at the first start. The role category list is code (`BusinessRules.ROLE_CATEGORIES`), not a `categories.json` entry, for the same reason. Pages keep their stored facts until their next regular crawl.
+
+- `BusinessRules.NOT_A_NAME`: the labels of a navigation or footer (galerie, bildergalerie, showroom, ausstellung, standorte, team, karriere, downloads, presse, referenzen, projekte, produkte, angebote, service, sitemap, login, agb, faq, blog, anfahrt, öffnungszeiten, unternehmen, shop, newsletter, menü, gallery, contact, imprint, privacy, careers, references …).
+- `BusinessRules.GENERIC_WORD`: kinds of organisations (banken, versicherungen, bausparkassen, behörden, kommunen, unternehmen, firmen, hersteller, händler, lieferanten, dienstleister, handwerker, architekten, bauträger, investoren, verbände, vereine, schulen, kliniken, agenturen, companies, manufacturers, dealers, suppliers, customers, brands, marken …) and `PLURAL_NOUN` (-ungen, -schaften, -heiten, -keiten, -ionen, -innen, -isten, -ereien); both before the institution clause of `qualifies()`, so "Vereine" and "Stiftungen" are no organisations either. `genericName(String)` exposes the guard to the read side.
+- `names()`: a list on lines (the marker ends at a line break and every separator is a line break) names organisations only with a legal name or an institution among its items; without one only marked brands stay (`BRAND_MARK`: an abbreviation "DHL", a digit "3M", an inner capital "PayPal", "&"). "Unsere Partner Siemens, DHL und SAP" in a sentence is unchanged (`BusinessExtractionTest`).
+- `services()`: a category whose code is a role word (`hersteller`, `händler`, `dienstleister`, `grosshandel`, `einzelhandel`, `lieferant`, `anbieter`, `produzent`, `vertrieb`) is a topic of the page, never an offered service, on every page kind; `industry_category` is no longer derived from it. `KgRuntime.textFit()` counts topics like categories, so the correction automation's text-fit signal of the drolshagens pilot is unchanged.
+- `JsonLdExtractor`: while the nodes of `brand` (of a Product or an Organization) and `manufacturer` are read (`Run.brandDepth`), an organisation node is a brand node unless its name is the domain's label: it never becomes `siteOperator` or `domainOperator` by its own `url`, its `sameAs` profiles are not stored (`Run.profilesOff`), and without an `@id` it gets `ldId = "brand:" + key(name)`, one identity per host (`ld_id` scope `organization@host`), so every product page of the host names the same brand. `Organization.brand` → `brand_of` only for an own brand (`ownBrand()`: own domain, or a word of four letters or more shared with or starting a word of the organisation's name, legal name or domain label: "MusterCRM" of "Muster Software GmbH", "Pianohaus Edition" of "Das Pianohaus GmbH"); otherwise the brand supplies the organisation (`supplier_of`, a business relation). `Product.brand` → `has_brand` and `Product.manufacturer` → `manufacturer_of` are unchanged.
+
+### 35.3 What the read side corrects (no data change)
+
+`net.yacy.scoutro.knowledge.read.EntityRoles` derives a role per organisation at read time: `operator` (a `site_operator` or `domain_operator` key), `manufacturer` (subject of `manufacturer_of`, or named under a `manufacturer` locator), `brand` (object of `has_brand`, subject of `brand_of`, named under a `brand` locator, or an `ld_id` `brand:…`), `generic` (only `doc_local` or `operator_name` keys and `genericName(name)`); an operator is never a brand. `KgReader.summary()` adds `role` to the object list and the object view, `BusinessView.entityRef()` to every relation item. `BusinessView.relations()` hides a relation whose other side is `generic` and reports the number as `relations.hidden_generic`; the generic entity's own object view keeps every statement, the object list still lists it with its badge. The page shows role badges, lists brands and manufacturers under their own heading, says how many relations are hidden, labels `supported` as "stated by sources" (German "laut Quellen") with a tooltip that nobody verified it, and reads `brand_of` as "is listed as a brand of" (German "wird als Marke geführt von") so that a dealer's listed maker is not shown as the dealer's own brand.
+
+### 35.4 What stays physically in the graph
+
+The organisations "Bildergalerie", "Showroom" and "Banken", the service "Hersteller" with its `offers` and derived industry, "Golden-Ingwer" as domain operator with the profile, "SCHIMMEL" `brand_of` the dealer and the same-named brand entities per page: all stored by pages read before 0.11.5. They are neither deleted, retracted nor merged by the upgrade (no `reextract_pending`, no recheck, no WP-E assessment written). They change only when their pages are crawled again (the new rules apply, the old facts lose their current source and become `stale`) or by a later targeted action an administrator runs deliberately: a rule-bound recheck of the pages with tier-2 `partner_of`/`reference_for`/`customer_of` relations (`SyncService.RELATION_RULES` 5 → 6, bounded to `RECHECK_RELATIONS`, no model) and, for the known cases, WP-E assessments (`withdraw`) by entity id. Both are prepared here as a description only; neither is part of 0.11.5. Existing duplicates are not merged; the object view lists them as possible duplicates as before.
+
+### 35.5 Tests
+
+`KgProductionCasesTest` (the seven hosts: navigation lists, kinds of partners, the role word, the product brand with the shop's url, the dealer's brand list, the partner brands that stay, and the guard `genericName`), `EntityRolesTest` (an 0.11.4 page's "Banken" and "Bildergalerie" published as the old rules stored them: labelled `generic`, hidden from the business view with `hidden_generic` = 2, kept in the object view and list; a dealer and a product page: `operator`, `brand`, `manufacturer`, brands under their own heading), `BusinessExtractionTest` and `ExtractionSemanticsTest` unchanged, `DrolshagensPilotTest` with "Hersteller" as a topic from the start (no offered service before or after the move).

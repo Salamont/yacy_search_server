@@ -6304,9 +6304,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Extractor<==>Extraktor<
 >Loading …<==>Lädt …<
 >Uncertain<==>Unsicher<
->Supported<==>Belegt<
+>Stated by sources<==>Laut Quellen<
 >Reconcile<==>Abgleich<
->supported<==>belegt<
+>stated by sources<==>laut Quellen<
 >uncertain<==>unsicher<
 >IK number<==>IK-Nummer<
 >Controls<==>Steuerung<
@@ -6476,7 +6476,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >industry or audience<==>Branche oder Zielgruppe<
 >industry<==>Branche<
 >international<==>international<
->is a brand of<==>ist eine Marke von<
+>is listed as a brand of<==>wird als Marke geführt von<
 >is a customer of<==>ist Kunde von<
 >is a member of the association<==>ist Mitglied im Verband<
 >is a member of<==>ist Mitglied von<
@@ -6922,6 +6922,19 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Nothing was written.<==>Es wurde nichts geschrieben.<
 >Choose at least one identity change.<==>Bitte mindestens eine Identitätsänderung wählen.<
 >The knowledge graph does not follow the search index here.<==>Der Wissensgraph folgt hier nicht dem Suchindex.<
+>Current sources state this. Extracted automatically, not verified by a person.<==>Aktuelle Quellen sagen das aus. Automatisch extrahiert, nicht von einer Person geprüft.<
+>Weak or single evidence; not verified.<==>Schwache oder einzelne Evidenz; nicht geprüft.<
+>Sources contradict each other.<==>Quellen widersprechen sich.<
+>No current source states this any more.<==>Keine aktuelle Quelle sagt das noch aus.<
+>site operator<==>Betreiber<
+>brand<==>Marke<
+>manufacturer<==>Hersteller<
+>no proper name<==>kein Eigenname<
+>A brand or maker a source names; never the operator of this website.<==>Eine von einer Quelle genannte Marke bzw. ein Hersteller; nie der Betreiber dieser Website.<
+>The organisation that operates the website, by its own statement.<==>Die Organisation, die die Website nach eigener Angabe betreibt.<
+>A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<==>Ein Navigationsbegriff oder eine Art von Organisation, die eine frühere Extraktion als Namen gespeichert hat; hier gezeigt, bei Geschäftsbeziehungen ausgeblendet.<
+>Brands and manufacturers<==>Marken und Hersteller<
+>%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<==>%1 Beziehung(en) zu Einträgen ohne Eigennamen (Navigationsbegriffe, Arten von Organisationen) werden hier nicht gezeigt; die Objektansicht des jeweiligen Eintrags behält sie.<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

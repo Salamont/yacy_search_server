@@ -4913,3 +4913,17 @@ System data requires an authorized administrator or agent token. No web answer i
 
 #File: ScoutroKnowledge_p.html
 >Statement: no offer by the named provider of this service<==>Tvrdenie: uvedený poskytovateľ neponúka túto službu podľa dôkazu<
+>Current sources state this. Extracted automatically, not verified by a person.<==>Current sources state this. Extracted automatically, not verified by a person.<
+>Weak or single evidence; not verified.<==>Weak or single evidence; not verified.<
+>Sources contradict each other.<==>Sources contradict each other.<
+>No current source states this any more.<==>No current source states this any more.<
+>Role<==>Role<
+>site operator<==>site operator<
+>brand<==>brand<
+>manufacturer<==>manufacturer<
+>no proper name<==>no proper name<
+>A brand or maker a source names; never the operator of this website.<==>A brand or maker a source names; never the operator of this website.<
+>The organisation that operates the website, by its own statement.<==>The organisation that operates the website, by its own statement.<
+>A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<==>A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<
+>Brands and manufacturers<==>Brands and manufacturers<
+>%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<==>%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<

@@ -692,6 +692,8 @@ public final class KgReader {
             KgJson.put(o, "identifiers", identifiers);
         }
         KgJson.put(o, "quality", quality);
+        // 0.11.5: the role read from keys, relations and name (operator, brand, manufacturer, or a generic word stored as a name)
+        KgJson.put(o, "role", EntityRoles.of(c, rowid, type, name == null ? null : name.objVal, v));
         KgJson.put(o, "first_seen", iso(first));
         KgJson.put(o, "last_confirmed", iso(last));
         KgJson.put(o, "counts", KgJson.obj("statements", count, "sources", docs.size(), "truncated", stats.size() >= SUMMARY_STATEMENTS));

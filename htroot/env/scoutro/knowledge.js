@@ -63,7 +63,10 @@
     const a = node('a', url); a.href = url; a.rel = 'noopener noreferrer nofollow'; a.target = '_blank'; return a;
   }
   function badge(text, kind) { return node('span', text, 'skg-badge skg-' + kind); }
-  function qualityBadge(q) { return badge(t(q), 'q-' + q); }
+  // the quality badge says what current sources state; its title says that nobody verified it (0.11.5)
+  function qualityBadge(q) { const b = badge(t(q), 'q-' + q); if (labels['q_hint_' + q]) b.title = labels['q_hint_' + q]; return b; }
+  // the role of an organisation as the read side derived it: operator, brand, manufacturer, or a stored name that is no name (0.11.5)
+  function roleBadge(role) { if (!role) return null; const b = badge(t('erole_' + role), 'role-' + role); if (labels['erole_hint_' + role]) b.title = labels['erole_hint_' + role]; return b; }
   function stats(id, rows) {
     const dl = $(id); dl.replaceChildren();
     for (const [k, v] of rows) { dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = fmt(v); dl.append(dd); }
@@ -641,6 +644,7 @@
       const ctx = e.context || {};
       const name = node('span', null, 'skg-hit-name'); name.append(nameLink(e, e.id, e.type));
       const note = nameNote(e); if (note) name.append(' ', note);
+      const role = roleBadge(e.role); if (role) name.append(' ', role);
       rowInto(body, heads, [name, t(e.type) + (e.kind ? ' · ' + e.kind : ''), providerCell(e, ctx), (ctx.collections || []).join(', ') || t('none'),
         placeOf(ctx), qualityBadge(e.quality), fmt(e.counts?.sources), date(e.last_confirmed), hitActions(e, ctx)]).dataset.type = e.type;
     }
@@ -753,7 +757,7 @@
     const hosts = node('span'); (e.hosts || []).forEach((h, n) => { if (n) hosts.append(', '); hosts.append(link(h, { view: 'objects', host: h })); });
     const dups = node('span'); (e.possible_duplicates || []).forEach((d, n) => { if (n) dups.append(', '); dups.append(link(d, { view: 'object', id: d })); });
     { const note = nameNote(e); if (note) $('object-name').append(' ', note); }
-    stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
+    stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ...(e.role ? [['erole', roleBadge(e.role)]] : []), ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
       ['identifiers', ids.childNodes.length ? ids : t('none')], ['hosts', hosts.childNodes.length ? hosts : t('none')],
       ['duplicates', dups.childNodes.length ? dups : t('none')], ['first_seen', date(e.first_seen)], ['last_confirmed', date(e.last_confirmed)],
       ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)], ['technical_id', e.id]]);
@@ -965,8 +969,9 @@
   function entityLink(ref) { return ref ? nameLink(ref, ref.id, ref.type) : node('span', t('missing')); }
   function relationItem(r) {
     const head = node('div', null, 'skg-statement-head');
-    if (r.direction === 'in') head.append(entityLink(r.other), ' ', node('span', predicate(r.predicate), 'skg-predicate'), ' ', node('span', $('object-name').textContent));
-    else head.append(node('span', predicate(r.predicate), 'skg-predicate'), ' ', entityLink(r.other));
+    const other = node('span'); other.append(entityLink(r.other)); const role = roleBadge(r.other?.role); if (role) other.append(' ', role);
+    if (r.direction === 'in') head.append(other, ' ', node('span', predicate(r.predicate), 'skg-predicate'), ' ', node('span', $('object-name').textContent));
+    else head.append(node('span', predicate(r.predicate), 'skg-predicate'), ' ', other);
     return factItem(head, r);
   }
   function derivedItem(d) {
@@ -1135,10 +1140,16 @@
       const items = []; for (const [p, l] of Object.entries(b.contacts)) for (const i of l) items.push([p, i]);
       box.append(section('contacts', list(items, ([p, i]) => literalItem(p, i))));
     }
-    if (b.relations && (b.relations.facts?.length || Object.keys(b.relations.derived || {}).length)) {
+    if (b.relations && (b.relations.facts?.length || Object.keys(b.relations.derived || {}).length || b.relations.hidden_generic)) {
       const parts = [];
-      if (b.relations.facts?.length) parts.push(list(b.relations.facts, relationItem));
+      // brands and makers apart from the business relations (0.11.5): an external brand is visible, never like a partner company
+      const facts = b.relations.facts || [];
+      const brands = facts.filter(r => r.other?.role === 'brand' || r.other?.role === 'manufacturer');
+      const rest = facts.filter(r => !brands.includes(r));
+      if (rest.length) parts.push(list(rest, relationItem));
+      if (brands.length) parts.push(node('h4', t('rel_brands')), list(brands, relationItem));
       for (const [k, l] of Object.entries(b.relations.derived || {})) if (l.length) parts.push(node('h4', t('m_' + k)), list(l, derivedItem));
+      if (b.relations.hidden_generic) parts.push(node('p', t('rel_hidden_generic').replace('%1', fmt(b.relations.hidden_generic)), 'sseo-note skg-hidden-note'));
       box.append(section('relations', ...parts));
     }
     const jobs = b.jobs?.items || (b.job ? [b.job] : []);

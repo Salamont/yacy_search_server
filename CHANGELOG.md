@@ -10,6 +10,25 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   `anthropic-workspace-id`. No `temperature` is sent to Anthropic; Anthropic ignores `response_format`, so its format
   capability is never shown as supported and the knowledge graph keeps the validator. Other services unchanged; not
   activated, released or deployed.
+- Knowledge graph, extraction rules for pages read from now on (schema stays 9, extractor versions `jsonld/6` and
+  `rule/7` and the vocabulary hash unchanged, no re-read of stored pages, `RELATION_RULES` stays 5): a navigation or
+  footer label ("Bildergalerie", "Showroom", "Kontakt"), a kind of organisation ("Banken", "Versicherungen") and a
+  plural noun are no organisation in a partner, reference or customer list; a list on lines without a legal name or
+  an institution keeps only marked brands ("DHL", "PayPal", "3M"); a role word of the vocabulary ("Hersteller") is a
+  topic of the page, never an offered service (the text-fit signal of the correction automation counts topics as it
+  counts categories). JSON-LD: a node under `brand` or `manufacturer` is never the site's operator by its own `url`,
+  gets no social profiles and, without an `@id`, one identity per host by its name (`ld_id` `brand:<name>`); a brand
+  under an organisation's `brand` that is not the organisation's own (no shared name, no own domain) supplies the
+  organisation (`supplier_of`) instead of being its brand. Production cases of 19 October 2026 as regression tests
+  with their host names (`KgProductionCasesTest`).
+- Knowledge graph, read side (no data change): every organisation carries a `role` (`operator`, `brand`,
+  `manufacturer`, `generic`) in the object list, the object view and relation items; the business view lists brands
+  and manufacturers apart from partners and customers, hides relations to entries without a proper name
+  (`relations.hidden_generic` counts them; their own object view keeps every statement) and the quality
+  `supported` is shown as "stated by sources" with a tooltip that nobody verified it; `brand_of` reads "is listed
+  as a brand of". Errors already stored (the organisations "Bildergalerie", "Showroom", "Banken", the service
+  "Hersteller", the brand "SCHIMMEL" as a brand of the dealer) stay physically in the graph until their pages are
+  crawled again; a targeted cleanup is documented, not run (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, section 35).
 
 ## 0.11.4 / 1.942-scoutro.38 — data quality programme (R1–R4) and website technologies (R5), one update from 0.10.9
 

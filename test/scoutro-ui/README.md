@@ -173,6 +173,8 @@ After `ant compile`, run `discovery-live-smoke.py` with the same JAVA/NODE_PATH/
 
 `knowledge-services-prices-ui-test.mjs` checks the category selects and the price list of the knowledge graph page offline (EN/DE, 390 and 1280 px): a failed facets read, a collection without a vocabulary profile and a profile without categories are told apart; a collection switch drops the category; *With a current price* opens the prices of the same name and category, with status filter and paging, and its count equals the current list.
 
+`knowledge-roles-ui-test.mjs` checks the roles of organisations (0.11.5) offline with the real localized page (EN/DE, 390 and 1280 px) and API fixtures: the operator's role badge in the object view, brands and manufacturers under their own heading apart from partners with the reading "is listed as a brand of", the note that counts relations hidden because the other side has no proper name, the generic entry still listed in the object list with its badge and tooltip, and the quality "stated by sources" (German "laut Quellen") with the tooltip that nobody verified it.
+
 `knowledge-jobs-systems-ui-test.mjs` checks the four job policies of a collection with their help (EN/DE, 390 and 1280 px): only the changed policy is sent, the targeted re-check of the job pages is reported and shown in the diagnosis, the overview names job objects and software hints apart, and the company view lists *Software and systems* with context and source also where job objects are not shown.
 
 ## SEO / Host Analysis smoke

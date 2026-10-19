@@ -254,10 +254,11 @@ public class DrolshagensPilotTest {
     @Test
     public void thePilotMovesTheDomainOnceAndTheGraphForgetsTheConstructionReading() throws Exception {
         // the starting point of the production case: construction facts from the word "Hersteller"
-        // (the home page: a topic; the products page: the category, construction.handel and an offered service "Hersteller")
+        // (the home page and the products page: a topic construction.handel/hersteller; since 0.11.5 the role word is never an
+        // offered service, so the products page carries no category and no derived industry from it)
         assertTrue("a construction topic on the home page", constructionFacts("AAAAAAdrols1") > 0);
-        assertTrue("construction category and industry on the products page", constructionFacts("BBBBBBdrols2") >= 2);
-        assertEquals(1L, offeredManufacturing());
+        assertTrue("a construction topic on the products page", constructionFacts("BBBBBBdrols2") >= 1);
+        assertEquals("the role word \"Hersteller\" is no offered service (0.11.5)", 0L, offeredManufacturing());
         final long bauFacts = constructionFacts("DDDDDDbaufi1");
         assertTrue(bauFacts > 0);
         final long organisations = count("SELECT count(*) FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v"
@@ -300,7 +301,7 @@ public class DrolshagensPilotTest {
         settle();
         assertEquals("construction facts of the home page withdrawn", 0L, constructionFacts("AAAAAAdrols1"));
         assertEquals("construction facts of the products page withdrawn", 0L, constructionFacts("BBBBBBdrols2"));
-        assertEquals("the offered service \"Hersteller\" is gone", 0L, offeredManufacturing());
+        assertEquals("still no offered service \"Hersteller\"", 0L, offeredManufacturing());
         assertEquals("the construction company keeps its facts", bauFacts, constructionFacts("DDDDDDbaufi1"));
         assertEquals("the product's price stays", 1L, count("SELECT count(*) FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE d.doc_id = 'BBBBBBdrols2'"
