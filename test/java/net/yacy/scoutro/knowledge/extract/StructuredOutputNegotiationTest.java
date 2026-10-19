@@ -269,6 +269,33 @@ public class StructuredOutputNegotiationTest {
         assertEquals("invalid_json", LlmExtractor.validate(ask(c, "auto"), LlmExtractorTest.chunk(), LlmExtractorTest.known(), Set.of()).refused);
     }
 
+    // F2) Anthropic ignores response_format: a compliant probe is stored as supported but read as ignored, so the schema is
+    // sent as for every ignored format, never shown as enforced, and the validator still refuses what is no JSON
+
+    @Test
+    public void anthropicIsNeverShownAsEnforcedAndItsAnswersStillMeetTheValidator() throws Exception {
+        final JSONObject probed = new JSONObject().put("format", "supported").put("format_probe", LLM.FORMAT_PROBE_VERSION);
+        assertEquals("ignored", LLM.formatCapability(probed, LLM.LLMType.ANTHROPIC));
+        assertEquals("ignored", LLM.formatCapability(probed, "ANTHROPIC"));
+        assertEquals("the other services unchanged", "supported", LLM.formatCapability(probed, LLM.LLMType.OPENAI));
+        assertEquals("unsupported", LLM.formatCapability(new JSONObject().put("format", "unsupported").put("format_probe", LLM.FORMAT_PROBE_VERSION),
+                LLM.LLMType.ANTHROPIC));
+        final YacyLlmClient c = client(LLM.LLMType.ANTHROPIC, LLM.formatCapability(probed, LLM.LLMType.ANTHROPIC));
+        ask(c, "auto");
+        assertEquals("json_schema", this.requests.get(0).getJSONObject("response_format").getString("type"));
+        assertFalse("no temperature for Anthropic", this.requests.get(0).has("temperature"));
+        final JSONObject so = c.structuredOutput("auto");
+        assertEquals("schema_unverified", so.getString("mode"));
+        assertEquals("capability_ignored", so.getString("reason"));
+        // the explicit setting cannot turn an ignored format into an enforced one either
+        ask(c, "json_schema");
+        assertFalse("schema_enforced".equals(c.structuredOutput("json_schema").getString("mode")));
+        this.content.set("Here is the JSON: {\"entities\":[]}");
+        assertEquals("invalid_json", LlmExtractor.validate(ask(c, "auto"), LlmExtractorTest.chunk(), LlmExtractorTest.known(), Set.of()).refused);
+        this.content.set("{\"entities\":[],\"claims\":[],\"values\":[]} trailing");
+        assertEquals("invalid_json", LlmExtractor.validate(ask(c, "auto"), LlmExtractorTest.chunk(), LlmExtractorTest.known(), Set.of()).refused);
+    }
+
     // G) other usages of LLM.chat keep their request: the schema without a name, nothing without a schema
 
     @Test

@@ -407,7 +407,7 @@
       ? " – " + Object.keys(served.providers).join(", ") : "") + (served.unreportedCalls ? " (" + served.unreportedCalls + " ?)" : ""));
     var par = p.parameters || {};
     cell('[data-q-prov="parameters"]', "max_tokens " + par.maxTokens + ", window " + (par.window ? par.window.tokens + " (" + par.window.source + ")" : "?")
-      + ", temperature " + par.temperature + ", structured output " + par.structuredOutput);
+      + ", temperature " + (par.temperature == null ? "–" : par.temperature) + ", structured output " + par.structuredOutput);
     var pr = p.prompt || {};
     cell('[data-q-prov="prompt"]', pr.source + " #" + pr.revision + " (" + pr.hash + ")");
     cell('[data-q-prov="versions"]', p.schema + " – " + p.validator + " – " + p.rules);

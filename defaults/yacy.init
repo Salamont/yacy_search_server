@@ -1433,6 +1433,9 @@ ai.production_models = []
 # token window. Advisory: must match the window the backend actually serves (e.g. Ollama
 # OLLAMA_CONTEXT_LENGTH). Used to budget prompts; unset services default to 4096 tokens.
 ai.service_num_ctx = {}
+# Anthropic (service ANTHROPIC): the workspace of an API key that can act on several workspaces,
+# sent as anthropic-workspace-id; empty (the default) sends none, as a key of one workspace needs.
+ai.anthropic.workspace_id =
 ai.system-prompt = You are a smart and helpful chatbot. If possible, use friendly emojies.
 ai.llm-system-prefix = \n\nYou may receive additional expert knowledge in the user prompt after a 'Additional Information' headline to enhance your knowledge. Use it only if applicable.
 ai.llm-user-prefix = \n\nSearch results (numbered sources, cite them as [n]):\n\n

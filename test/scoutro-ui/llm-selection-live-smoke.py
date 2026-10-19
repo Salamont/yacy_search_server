@@ -29,6 +29,9 @@ authorizations = []
 llm_requests = []
 SECRET = "sk-scoutro-secret-sentinel"
 ROW_SECRET = "sk-scoutro-row-sentinel"
+ANTHROPIC_SECRET = "sk-ant-scoutro-row-sentinel"
+ANTHROPIC_WORKSPACE = "wrkspc_fixture01"
+anthropic_requests = []
 
 
 def check(value, message):
@@ -125,7 +128,49 @@ class ChatFixture(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def llm_security_checks(base, client, config, stub, chat_stub):
+class AnthropicFixture(BaseHTTPRequestHandler):
+    """Fake Anthropic on its OpenAI-compatible paths: records method, path with query, headers and body; /auth answers 401
+    as Anthropic does. No real key, nothing leaves 127.0.0.1."""
+    def log_message(self, *args):
+        pass
+
+    def record(self, body=None):
+        anthropic_requests.append({"method": self.command, "path": self.path,
+                                   "headers": {k.lower(): v for k, v in self.headers.items()}, "body": body})
+
+    def reply(self, status, payload, content_type="application/json"):
+        data = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def refused(self):
+        return self.reply(401, {"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}})
+
+    def do_GET(self):
+        self.record()
+        if self.path.startswith("/auth/"):
+            return self.refused()
+        if urllib.parse.urlsplit(self.path).path != "/v1/models":
+            return self.reply(404, {"type": "error", "error": {"type": "not_found_error", "message": "not found"}})
+        return self.reply(200, {"data": [{"type": "model", "id": "claude-sonnet-5-5", "display_name": "Claude Sonnet 5.5"},
+                                         {"type": "model", "id": "claude-haiku-5-5", "display_name": "Claude Haiku 5.5"}],
+                                "has_more": False, "first_id": "claude-sonnet-5-5", "last_id": "claude-haiku-5-5"})
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
+        self.record(body)
+        if self.path.startswith("/auth/"):
+            return self.refused()
+        if body.get("stream"):
+            return self.reply(200, b'data: {"choices":[{"index":0,"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n', "text/event-stream")
+        return self.reply(200, {"id": "msg_fixture", "object": "chat.completion", "model": body.get("model"),
+                                "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+
+def llm_security_checks(base, client, config, stub, chat_stub, anthropic_stub):
     """AI Shield behind a proxy, JSON errors, stored keys and the server prompt, on the disposable peer."""
     def call(path, body=None, headers=None, auth=True, method=None):
         request = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
@@ -262,6 +307,61 @@ def llm_security_checks(base, client, config, stub, chat_stub):
     check(not any(key.endswith(".enabled") and key.startswith("ai.tools.") for key in settings(config)), "Tool release written without request")
     check(call("/LogReports_p.html")[0] == 200, "Log report page")
 
+    # Anthropic: anthropic-version (and the configured workspace) on every path, the Bearer key, no temperature
+    def anthropic_seen(**match):
+        return [r for r in anthropic_requests if all(r.get(k) == v for k, v in match.items())]
+
+    def anthropic_headers_ok(r, key):
+        h = r["headers"]
+        return (h.get("anthropic-version") == "2023-06-01" and h.get("authorization") == "Bearer " + key
+                and h.get("anthropic-workspace-id") == ANTHROPIC_WORKSPACE and "x-api-key" not in h)
+
+    anthropic_requests.clear()
+    q = "/v1/models?hoststub=" + urllib.parse.quote(anthropic_stub, safe="")
+    status, headers, body = call(q, headers={"X-LLM-Service": "ANTHROPIC", "X-LLM-Api-Key": "sk-ant-typed-probe"})
+    check(status == 200 and headers.get("X-LLM-Upstream") == "1"
+          and [m["id"] for m in json.loads(body)["data"]] == ["claude-sonnet-5-5", "claude-haiku-5-5"], "Anthropic model list: %s %s" % (status, body[:200]))
+    seen = anthropic_seen(method="GET")[-1]
+    check(seen["path"] == "/v1/models?limit=1000", "Anthropic model list not asked for one page: %s" % seen["path"])
+    check(anthropic_headers_ok(seen, "sk-ant-typed-probe"), "Anthropic model list headers: %s" % seen["headers"])
+    status, headers, body = call("/v1/models?hoststub=" + urllib.parse.quote(anthropic_stub + "/auth", safe=""),
+                                 headers={"X-LLM-Service": "ANTHROPIC", "X-LLM-Api-Key": "sk-ant-typed-probe"})
+    check(status == 401 and headers.get("X-LLM-Upstream") == "1" and b"authentication_error" in body, "Anthropic 401 not mirrored: %s" % status)
+    check(anthropic_seen(method="GET")[-1]["headers"].get("anthropic-version") == "2023-06-01", "Refused Anthropic list without version")
+    anthropic_requests.clear()
+    status, _, _ = call("/v1/models?hoststub=" + urllib.parse.quote(anthropic_stub, safe=""), headers={"X-LLM-Api-Key": "sk-typed-other"})
+    seen = anthropic_seen(method="GET")[-1]
+    check(status == 200 and seen["path"] == "/v1/models" and "anthropic-version" not in seen["headers"]
+          and "anthropic-workspace-id" not in seen["headers"], "Another service got Anthropic headers: %s" % seen)
+    status, _, _ = call("/v1/models?hoststub=" + urllib.parse.quote(anthropic_stub, safe=""),
+                        headers={"X-LLM-Service": "OPENAI", "X-LLM-Api-Key": "sk-typed-other"})
+    check(status == 200 and "anthropic-version" not in anthropic_seen(method="GET")[-1]["headers"], "OPENAI named: Anthropic headers sent")
+
+    # a saved Anthropic row: the capability probes and the RAG chat carry the headers without the page naming the service
+    arow = {"service": "ANTHROPIC", "model": "claude-sonnet-5-5", "hoststub": anthropic_stub, "api_key": ANTHROPIC_SECRET, "max_tokens": "256",
+            "chat": True, "tldr": False, "logreport": False, "tooling": False}
+    acaps = {f"ANTHROPIC|{anthropic_stub}|claude-sonnet-5-5": {"thinking": "unsupported", "tooling": "unsupported", "vision": "unsupported",
+                                                                 "format": "supported", "format_probe": 2}}
+    call("/LLMSelection_p.html", {"production_models": [arow], "model_capabilities": acaps})
+    wait_setting("ai.production_models", lambda v: "ANTHROPIC" in v)
+    status, _, html = call("/LLMSelection_p.html")
+    check(status == 200 and ANTHROPIC_SECRET.encode() not in html, "Anthropic row key rendered")
+    check(b"<td>ignored</td>" in html, "A probed Anthropic schema shown as enforced, not ignored")
+    anthropic_requests.clear()
+    probe = {"model": "claude-sonnet-5-5", "max_tokens": 64, "stream": False, "messages": [{"role": "user", "content": "Say ok."}]}
+    status, headers, _ = call("/v1/chat/completions?hoststub=" + urllib.parse.quote(anthropic_stub, safe=""), probe)
+    seen = anthropic_seen(method="POST")[-1]
+    check(status == 200 and headers.get("X-LLM-Upstream") == "1" and anthropic_headers_ok(seen, ANTHROPIC_SECRET),
+          "Saved Anthropic probe headers: %s %s" % (status, seen["headers"]))
+    anthropic_requests.clear()
+    status, _, body = chat()
+    seen = anthropic_seen(method="POST")
+    check(status == 200 and b"[DONE]" in body and len(seen) == 1, "Anthropic RAG chat: %s %s" % (status, body[:200]))
+    check(anthropic_headers_ok(seen[0], ANTHROPIC_SECRET) and seen[0]["path"] == "/v1/chat/completions", "Anthropic RAG headers: %s" % seen[0])
+    check("temperature" not in seen[0]["body"] and seen[0]["body"].get("model") == "claude-sonnet-5-5", "Anthropic RAG body: %s" % seen[0]["body"])
+    call("/LLMSelection_p.html", {"production_models": []})
+    wait_setting("ai.production_models", lambda v: v.strip() in ("[]", ""))
+
     # the stored inference key is removed only on explicit request
     call("/LLMSelection_p.html", {"inference_system": dict(inference, api_key_clear=True)})
     check(SECRET not in wait_setting("ai.inference_system", lambda v: SECRET not in v), "api_key_clear did not remove the key")
@@ -274,6 +374,9 @@ def main():
     chat_upstream = ThreadingHTTPServer(("127.0.0.1", 0), ChatFixture)
     threading.Thread(target=chat_upstream.serve_forever, daemon=True).start()
     chat_stub = f"http://127.0.0.1:{chat_upstream.server_port}"
+    anthropic_upstream = ThreadingHTTPServer(("127.0.0.1", 0), AnthropicFixture)
+    threading.Thread(target=anthropic_upstream.serve_forever, daemon=True).start()
+    anthropic_stub = f"http://127.0.0.1:{anthropic_upstream.server_port}"
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -301,7 +404,7 @@ def main():
                 "resource.disk.free.min.steadystate=1", "resource.disk.free.min.undershot=1",
                 "resource.disk.used.max.steadystate=1000000000000", "resource.disk.used.max.overshot=1000000000000",
                 "ai.production_models=[]", "ai.inference_system=" + json.dumps(inference),
-                "ai.model_capabilities=" + json.dumps(capabilities),
+                "ai.model_capabilities=" + json.dumps(capabilities), "ai.anthropic.workspace_id=" + ANTHROPIC_WORKSPACE,
             ]) + "\n")
             for dictionary in (REPO / "locales").glob("*.lng"):
                 locale = root / "DATA/LOCALE/htroot" / dictionary.stem
@@ -372,7 +475,7 @@ def main():
                     check(any(f["model"] == "thinking-fixture:14b" and f.get("think") is False for f in formats)
                           and any(f["model"] == "plain-fixture:8b" and "think" not in f for f in formats)
                           and all("response_format" not in f for f in formats), "Native format probes: think false / no think: %s" % formats)
-                    llm_security_checks(base, client, config, stub, chat_stub)
+                    llm_security_checks(base, client, config, stub, chat_stub, anthropic_stub)
                     status, body = get("/scoutro/api/v1/crawls")
                     check(status == 200 and json.loads(body)["crawls"] == [], "Smoke started a crawl")
                 finally:
@@ -388,6 +491,8 @@ def main():
         upstream.server_close()
         chat_upstream.shutdown()
         chat_upstream.server_close()
+        anthropic_upstream.shutdown()
+        anthropic_upstream.server_close()
     print(f"PASS: {checks} live LLM HTTP/non-mutation checks; temporary DATA and fake Ollama removed", flush=True)
 
 

@@ -2093,6 +2093,7 @@ Ollama==Ollama
 LMStudio==LM工作室
 OpenAI==OpenAI
 Open Router==打开路由器
+Anthropic==Anthropic
 This makes a preset to the Hoststub value==这会预设 Hoststub 值
 >hoststub<==>hoststub<
 you can probably leave this to the default value==您可以将其保留为默认值

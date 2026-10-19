@@ -291,7 +291,7 @@ public class RAGProxyServlet extends HttpServlet {
             final int requestedMaxTokens = bodyObject.optInt("max_tokens", 0);
             if (requestedMaxTokens > 0 && requestedMaxTokens < maxTokens) maxTokens = requestedMaxTokens;
             bodyObject.put("max_tokens", maxTokens);
-            if (!(bodyObject.opt("temperature") instanceof Number)) bodyObject.put("temperature", ragSettings.temperature);
+            applyTemperature(bodyObject, llm4Chat.llm.type, ragSettings.temperature);
             if (llm4Chat.llm.type == LLM.LLMType.OLLAMA || llm4Chat.llm.type == LLM.LLMType.LMSTUDIO) {
                 bodyObject.put("num_ctx", llm4Chat.llm.num_ctx); // best-effort hint, as LLM.chat sends it
             }
@@ -701,4 +701,12 @@ public class RAGProxyServlet extends HttpServlet {
         }
     }
 
+    /**
+     * The temperature of a RAG answer: the client's, else the RAG setting's; none for a service that does not take one
+     * ({@link LLM#sendsTemperature(LLM.LLMType)}: Anthropic refuses most values), also when the client sent one.
+     */
+    static void applyTemperature(final JSONObject body, final LLM.LLMType type, final double ragTemperature) throws JSONException {
+        if (!LLM.sendsTemperature(type)) body.remove("temperature");
+        else if (!(body.opt("temperature") instanceof Number)) body.put("temperature", ragTemperature);
+    }
 }

@@ -476,6 +476,9 @@ public final class ToolCallProtocol {
         if (llm4Chat.llm.api_key != null && !llm4Chat.llm.api_key.isEmpty()) {
             conn.setRequestProperty("Authorization", "Bearer " + llm4Chat.llm.api_key);
         }
+        for (final java.util.Map.Entry<String, String> header : LLM.serviceHeaders(llm4Chat.llm.type).entrySet()) {
+            conn.setRequestProperty(header.getKey(), header.getValue());
+        }
         conn.setDoOutput(true);
         try (OutputStream os = conn.getOutputStream()) {
             String rbody = requestBody.toString();

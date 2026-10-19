@@ -56,6 +56,8 @@ public class LLM {
         OLLAMA("http://localhost:11434"),
         LMSTUDIO("http://localhost:1234"),
         OPENROUTER("https://openrouter.ai/api"),
+        /** Anthropic's OpenAI-compatible Chat Completions ({@code /v1/chat/completions}, {@code /v1/models}), see {@link LLM#serviceHeaders(LLMType)}. */
+        ANTHROPIC("https://api.anthropic.com"),
         OTHER(null);
         public String hoststub;
         private LLMType(String hoststub) {
@@ -63,6 +65,58 @@ public class LLM {
         }
     }
     
+    /** The API version every request to an {@link LLMType#ANTHROPIC} endpoint names. */
+    public static final String ANTHROPIC_VERSION_HEADER = "anthropic-version";
+    public static final String ANTHROPIC_VERSION = "2023-06-01";
+    /**
+     * The workspace of a key that can act on several Anthropic workspaces ({@code anthropic-workspace-id}). Optional:
+     * a key of a single workspace needs none, and the empty default sends none.
+     */
+    public static final String ANTHROPIC_WORKSPACE_HEADER = "anthropic-workspace-id";
+    public static final String ANTHROPIC_WORKSPACE_CONFIG = "ai.anthropic.workspace_id";
+    private static final java.util.regex.Pattern ANTHROPIC_WORKSPACE = java.util.regex.Pattern.compile("[A-Za-z0-9_-]{1,128}");
+
+    /**
+     * The headers a service needs beside {@code Authorization: Bearer} (which every service keeps): for
+     * {@link LLMType#ANTHROPIC} the API version and, if configured, the workspace; none for every other service.
+     */
+    public static Map<String, String> serviceHeaders(final LLMType type) {
+        if (type != LLMType.ANTHROPIC) return Map.of();
+        final Map<String, String> headers = new LinkedHashMap<>();
+        headers.put(ANTHROPIC_VERSION_HEADER, ANTHROPIC_VERSION);
+        final Switchboard sb = Switchboard.getSwitchboard();
+        final String workspace = anthropicWorkspace(sb == null ? null : sb.getConfig(ANTHROPIC_WORKSPACE_CONFIG, ""));
+        if (workspace != null) headers.put(ANTHROPIC_WORKSPACE_HEADER, workspace);
+        return headers;
+    }
+
+    /** The configured workspace id if it is one (letters, digits, {@code _}, {@code -}), else null: nothing else becomes a header. */
+    static String anthropicWorkspace(final String configured) {
+        final String value = configured == null ? "" : configured.trim();
+        return ANTHROPIC_WORKSPACE.matcher(value).matches() ? value : null;
+    }
+
+    /**
+     * Whether a request to the service carries {@code temperature}: not for {@link LLMType#ANTHROPIC}, whose newer
+     * models refuse a temperature below 1; every other service as before.
+     */
+    public static boolean sendsTemperature(final LLMType type) {
+        return type != LLMType.ANTHROPIC;
+    }
+
+    /** {@link #sendsTemperature(LLMType)} for the service name of a production row. */
+    public static boolean sendsTemperature(final String service) {
+        return !LLMType.ANTHROPIC.name().equals(service == null ? "" : service.trim());
+    }
+
+    /**
+     * Whether the service ignores {@code response_format} on its OpenAI-compatible Chat Completions: Anthropic does, so
+     * a schema-shaped answer there is the prompt's work, never an enforced schema.
+     */
+    public static boolean ignoresResponseFormat(final String service) {
+        return LLMType.ANTHROPIC.name().equals(service == null ? "" : service.trim());
+    }
+
     public static enum LLMUsage {
         search,
         chat,
@@ -350,11 +404,16 @@ public class LLM {
         return formatCapability(capabilityEntry, type == null ? null : type.name());
     }
 
-    /** {@link #formatCapability(JSONObject, LLMType)} for the service name of a production row. */
+    /**
+     * {@link #formatCapability(JSONObject, LLMType)} for the service name of a production row. A service that ignores
+     * {@code response_format} ({@link #ignoresResponseFormat(String)}) is never {@code supported}: a compliant probe
+     * answer there is {@code ignored}.
+     */
     public static String formatCapability(final JSONObject capabilityEntry, final String service) {
         final int version = formatProbeVersion(service);
         if (capabilityEntry == null || capabilityEntry.optInt("format_probe", 0) != version) return "unknown";
-        return capabilityStatus(capabilityEntry.optString("format", ""));
+        final String status = capabilityStatus(capabilityEntry.optString("format", ""));
+        return "supported".equals(status) && ignoresResponseFormat(service) ? "ignored" : status;
     }
 
     public static boolean isCapabilitySupported(final LLMType type, final String hoststub, final String model, final String capabilityName) {
@@ -394,6 +453,12 @@ public class LLM {
     /** @param connectTimeoutMillis connect timeout */
     private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
             final int maxResponseChars, final int connectTimeoutMillis) throws IOException, URISyntaxException {
+        return sendPostRequest(urls, data, apiKey, readTimeoutMillis, maxResponseChars, connectTimeoutMillis, Map.of());
+    }
+
+    /** @param headers the service's own headers ({@link #serviceHeaders(LLMType)}) */
+    private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
+            final int maxResponseChars, final int connectTimeoutMillis, final Map<String, String> headers) throws IOException, URISyntaxException {
         final URL url = new URI(urls).toURL();
         final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setConnectTimeout(connectTimeoutMillis);
@@ -403,6 +468,7 @@ public class LLM {
         if (apiKey != null && !apiKey.isEmpty()) {
             conn.setRequestProperty("Authorization", "Bearer " + apiKey);
         }
+        for (final Map.Entry<String, String> header : headers.entrySet()) conn.setRequestProperty(header.getKey(), header.getValue());
         conn.setDoOutput(true);
 
         try (OutputStream os = conn.getOutputStream()) {
@@ -685,7 +751,7 @@ public class LLM {
         
         try {
             data.put("model", model);
-            data.put("temperature", 0.1);
+            if (sendsTemperature(this.type)) data.put("temperature", 0.1);
             data.put("max_tokens", max_tokens);
             // Best-effort hint for Ollama's context window (num_ctx), taken from the
             // per-service configuration. Ollama's OpenAI-compatible endpoint does not read
@@ -703,7 +769,7 @@ public class LLM {
             }
             
             final String response = sendPostRequest(this.hoststub + "/v1/chat/completions", data, this.api_key, readTimeoutMillis,
-                    maxResponseChars);
+                    maxResponseChars, 10000, serviceHeaders(this.type));
             final JSONObject responseObject = new JSONObject(response);
             final JSONArray choices = responseObject.getJSONArray("choices");
             final JSONObject choice = choices.getJSONObject(0);
@@ -846,7 +912,7 @@ public class LLM {
             final Context context = new Context(systemPrompt);
             context.addPrompt(userPrompt);
             data.put("model", model);
-            data.put("temperature", 0.1);
+            if (sendsTemperature(this.type)) data.put("temperature", 0.1);
             data.put("max_tokens", max_tokens);
             // best-effort num_ctx hint from the per-service config, see chat(); harmless to non-Ollama backends
             data.put("num_ctx", this.num_ctx);
@@ -863,6 +929,7 @@ public class LLM {
             if (this.api_key != null && !this.api_key.isEmpty()) {
                 conn.setRequestProperty("Authorization", "Bearer " + this.api_key);
             }
+            for (final Map.Entry<String, String> header : serviceHeaders(this.type).entrySet()) conn.setRequestProperty(header.getKey(), header.getValue());
             conn.setDoOutput(true);
             try (OutputStream os = conn.getOutputStream()) {
                 final byte[] input = data.toString().getBytes("utf-8");

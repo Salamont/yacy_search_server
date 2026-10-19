@@ -4008,6 +4008,7 @@ Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Відкрийте маршрутизатор
+Anthropic==Anthropic
 This makes a preset to the Hoststub value==Це робить попереднім налаштуванням значення Hoststub
 >hoststub<==>hoststub<
 you can probably leave this to the default value==можливо, ви можете залишити це значення за замовчуванням

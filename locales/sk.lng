@@ -2092,6 +2092,7 @@ Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Otvorte smerovač
+Anthropic==Anthropic
 This makes a preset to the Hoststub value==Tým sa prednastaví hodnota Hoststub
 >hoststub<==>hoststub<
 you can probably leave this to the default value==pravdepodobne to môžete nechať na predvolenú hodnotu
