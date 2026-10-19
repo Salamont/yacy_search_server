@@ -124,10 +124,25 @@ all collections and the page says so.
 
 ## Reading the facts
 
-- **Quality:** `supported` (stated in a current page by structured data or the
-  rules), `uncertain` (only hedged, only from unavailable pages, or only read by
-  the LLM tier), `conflicting` (a single-valued fact with several supported
-  values), `stale` (no current source; hidden unless asked for).
+- **Quality:** `supported`, shown as *stated by sources* (stated in a current
+  page by structured data or the rules; extracted automatically, verified by
+  nobody), `uncertain` (only hedged, only from unavailable pages, or only read
+  by the LLM tier), `conflicting` (a single-valued fact with several supported
+  values), `stale` (no current source; hidden unless asked for). The badge's
+  tooltip says the same: a quality names the current source evidence, never a
+  review by a person.
+- **Role (0.11.5):** an organisation shows what the reader derives from its
+  keys, relations and name, nothing is rewritten: *site operator* (a
+  `site_operator` or `domain_operator` key), *brand* or *manufacturer* (the
+  brand or maker of a product, or named by a page's `brand` or `manufacturer`
+  property; never the operator, and listed under *Brands and manufacturers*
+  apart from partners and customers), *no proper name* (only page-local keys
+  and a name that is a navigation label such as "Bildergalerie" or a kind of
+  organisation such as "Banken", stored by an extraction before 0.11.5). The
+  business view hides relations to entries without a proper name and counts
+  them; the entry's own object view keeps every statement. Pages read since
+  0.11.5 no longer produce such entries, existing ones are neither deleted nor
+  merged.
 - **Kinds:** `jsonld`, `metadata`, `rule`, `llm`. "Only from the LLM tier"
   marks facts no other tier confirms; their evidence always carries the quote
   from the page.

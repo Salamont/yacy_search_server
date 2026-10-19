@@ -181,6 +181,19 @@
         return `${path}?hoststub=${encodeURIComponent(target)}`;
       }
 
+      // The service an endpoint is tested as: the proxy adds what the service needs (Anthropic: anthropic-version),
+      // also for an endpoint that is not saved yet.
+      function setServiceHeader(headers, service) {
+        if (service) headers["X-LLM-Service"] = service;
+        return headers;
+      }
+
+      // Anthropic refuses most temperature values: its requests carry none; every other service as before.
+      function withServiceParameters(service, payload) {
+        if (payload && service === "ANTHROPIC") delete payload.temperature;
+        return payload;
+      }
+
       async function fetchJsonOrThrow(url, options = {}) {
         const response = await fetch(url, options);
         if (response.status !== 200) {
@@ -188,13 +201,17 @@
           error.status = response.status;
           // X-LLM-Upstream: the status comes from the LLM endpoint, not from the YaCy proxy
           error.upstream = response.headers.get("X-LLM-Upstream") === "1";
-          if (!error.upstream) {
-            try {
-              const failure = await response.json();
-              error.code = failure && failure.error && typeof failure.error.code === "string" ? failure.error.code : null;
-            } catch (cause) {
-              error.code = null;
-            }
+          // the proxy answers a YaCy error ({error:{code}}) or, for the endpoint's error, its cleaned reason
+          // ({error:{status,kind,code,message,retry_after_ms}}; never a key, never the raw body)
+          try {
+            const failure = await response.json();
+            const e = failure && failure.error && typeof failure.error === "object" ? failure.error : null;
+            error.code = e && typeof e.code === "string" ? e.code : null;
+            error.kind = e && typeof e.kind === "string" ? e.kind : null;
+            error.detail = e && typeof e.message === "string" ? e.message : null;
+            error.retryAfterMs = e && typeof e.retry_after_ms === "number" ? e.retry_after_ms : null;
+          } catch (cause) {
+            error.code = null;
           }
           throw error;
         }
@@ -365,9 +382,10 @@
         const options = {};
         const apikeyEl = document.getElementById("apikey");
         const apikey = apikeyEl ? apikeyEl.value.trim() : "";
+        options.headers = setServiceHeader({}, service);
         if (apikey) {
           // for endpoints which are not saved yet the proxy cannot look up the key itself
-          options.headers = { "X-LLM-Api-Key": apikey };
+          options.headers["X-LLM-Api-Key"] = apikey;
         }
         try {
           const payload = await fetchJsonOrThrow(url, options);
@@ -401,6 +419,23 @@
         status.style.display = message ? "block" : "none";
       }
 
+      // The endpoint's error as the proxy cleaned it (0.11.5): what it means and what the endpoint said, without a key.
+      function describeUpstreamError(error) {
+        const kinds = {
+          auth: "The LLM endpoint rejected the credentials: check the api_key.",
+          quota: "The LLM endpoint reports spent credits or an exhausted quota: no request succeeds until the account is topped up.",
+          rate_limit: "The LLM endpoint is rate limited (too many requests or tokens per minute): wait and try again.",
+          overloaded: "The LLM endpoint is overloaded: wait and try again.",
+          server: "The LLM endpoint failed on its side: try again later.",
+          request: "The LLM endpoint refused the request."
+        };
+        let text = kinds[error.kind] || kinds.request;
+        if (error.retryAfterMs) text += ` Retry after ${Math.ceil(error.retryAfterMs / 1000)} s.`;
+        if (error.code) text += ` Code: ${error.code}.`;
+        if (error.detail) text += ` Endpoint: ${error.detail}`;
+        return text;
+      }
+
       function handleModelLoadError(error) {
         console.error("Error fetching models:", error);
         const status = error && typeof error.status === "number" ? error.status : null;
@@ -409,6 +444,8 @@
         if (status) message += " HTTP status:" + ` ${status}.`;
         if (error && error.invalidModelList) {
           message += " The endpoint returned an invalid model list.";
+        } else if (error && error.upstream && error.kind) {
+          message += " " + describeUpstreamError(error);
         } else if ((status === 401 || status === 403) && error.upstream) {
           message += " The LLM endpoint rejected the credentials: check the api_key.";
         } else if (status === 401 || (error && error.code === "admin_required")) {
@@ -668,10 +705,13 @@
           hoststubInput.value = "https://api.openai.com";
         } else if (service === "OPENROUTER") {
           hoststubInput.value = "https://openrouter.ai/api";
+        } else if (service === "ANTHROPIC") {
+          hoststubInput.value = "https://api.anthropic.com"; // the paths add /v1
         } else {
           hoststubInput.value = "";
         }
         
+        applyServiceHints(service);
         if (!apikeyInput) return;
 
         if (service === "OLLAMA" || service === "LMSTUDIO") {
@@ -680,6 +720,16 @@
         } else {
           apikeyInput.disabled = false;
         }
+      }
+
+      // The hints of a local service (Ollama, LM Studio) only while such a service is selected; a hint marked with a
+      // service name only for that service (0.11.5). A hosted service (OpenAI, Open Router, Anthropic) sees none of them.
+      function applyServiceHints(service) {
+        const local = service === "OLLAMA" || service === "LMSTUDIO";
+        document.querySelectorAll("[data-llm-hint]").forEach(el => {
+          const hint = el.getAttribute("data-llm-hint");
+          el.hidden = hint === "local" ? !local : hint !== service;
+        });
       }
 
       // Service dropdown handler: reset the hoststub to the service default, then
@@ -957,7 +1007,8 @@
       }
 
       function createAvailableModelActionButtons(service, modelId) {
-        return [createSelectButton(modelId), createDeleteButton(service, modelId)];
+        // a model is deleted only on an Ollama server (0.11.5): no delete button for LM Studio or a hosted service
+        return service === "OLLAMA" ? [createSelectButton(modelId), createDeleteButton(service, modelId)] : [createSelectButton(modelId)];
       }
 
       function createSelectButton(modelId) {
@@ -978,20 +1029,15 @@
         deleteBtn.className = "btn btn-danger btn-sm";
         deleteBtn.textContent = "Delete";
         styleActionButton(deleteBtn);
-        if (service === "OLLAMA") {
-          deleteBtn.dataset.action = "delete-model";
-          deleteBtn.dataset.modelId = modelId;
-          deleteBtn.addEventListener("click", () => {
-            const confirmed = window.confirm(`Do you really want to delete model "${modelId}"?`);
-            if (!confirmed) {
-              return;
-            }
-            handleModelDelete(modelId, deleteBtn);
-          });
-        } else {
-          deleteBtn.disabled = true;
-          deleteBtn.title = "Model management is only supported for Ollama.";
-        }
+        deleteBtn.dataset.action = "delete-model";
+        deleteBtn.dataset.modelId = modelId;
+        deleteBtn.addEventListener("click", () => {
+          const confirmed = window.confirm(`Do you really want to delete model "${modelId}"?`);
+          if (!confirmed) {
+            return;
+          }
+          handleModelDelete(modelId, deleteBtn);
+        });
         return deleteBtn;
       }
 
@@ -1599,7 +1645,7 @@
           return false;
         }
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
@@ -1607,7 +1653,7 @@
         const response = await fetch(targetUrl, {
           method: "POST",
           headers,
-          body: JSON.stringify(buildThinkingTestPayload(modelName)),
+          body: JSON.stringify(withServiceParameters(service, buildThinkingTestPayload(modelName))),
           signal: controller.signal
         });
         if (!response.ok) {
@@ -1695,11 +1741,11 @@
           return false;
         }
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
-        const payload = buildToolingTestPayload(service, hoststub, modelName);
+        const payload = withServiceParameters(service, buildToolingTestPayload(service, hoststub, modelName));
         const response = await fetch(targetUrl, {
           method: "POST",
           headers,
@@ -1828,12 +1874,12 @@
           return false;
         }
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
         const base64Image = await loadVisionTestImageBase64();
-        const payload = buildVisionTestPayload(service, hoststub, modelName, base64Image);
+        const payload = withServiceParameters(service, buildVisionTestPayload(service, hoststub, modelName, base64Image));
         const response = await fetch(targetUrl, {
           method: "POST",
           headers,
@@ -2010,11 +2056,11 @@
         if (probe.status === 400 || probe.status === 422) {
           probe.controlStatus = (await postFormatProbe(service, endpointBase, modelName, apikey, true)).status;
         }
-        return ScoutroFormatProbe.classify(probe);
+        return ScoutroFormatProbe.classify(probe, service);
       }
 
       async function postFormatProbe(service, endpointBase, modelName, apikey, control) {
-        const headers = { "Content-Type": "application/json" };
+        const headers = setServiceHeader({ "Content-Type": "application/json" }, service);
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
@@ -2216,7 +2262,7 @@
         Here you can pick models from an LLM model service to select them as production model.
         In the "Production Models Matrix" you can then assign each selected model a function inside YaCy
     </p>
-    <p>
+    <p data-llm-hint="local">
         <b>Install your local LLM service!</b> You need either a local <a href="https://ollama.com/">ollama</a> or <a href="https://lmstudio.ai/">LM Studio</a> instance running on your local host or inside the intranet.
     </p>
     <form id="llmForm">
@@ -2229,6 +2275,7 @@
             <option value="LMSTUDIO">LMStudio</option>
             <option value="OPENAI">OpenAI</option>
             <option value="OPENROUTER">Open Router</option>
+            <option value="ANTHROPIC">Anthropic</option>
             </select>&nbsp; This makes a preset to the Hoststub value
         </dd>
 
@@ -2237,13 +2284,13 @@
         </dd>
 
         <dt class="TableCellDark">api_key</dt>
-        <dd><input type="password" name="apikey" id="apikey" value="" disabled=true size="30" maxlength="512" autocomplete="new-password" class="form-control" data-stored-placeholder="set, leave empty to keep the stored key"/>&nbsp; (not required for Ollama or LMStudio)
+        <dd><input type="password" name="apikey" id="apikey" value="" disabled=true size="30" maxlength="512" autocomplete="new-password" class="form-control" data-stored-placeholder="set, leave empty to keep the stored key"/>&nbsp; <span data-llm-hint="local">(not required for Ollama or LMStudio)</span>
             <span id="apikeyClearRow" style="display:none"><br/><input type="checkbox" id="apikeyClear" /> <label for="apikeyClear">remove the stored api_key on the next save</label></span>
             <br/>
             <small>
                 The selected service's context window (<code>num_ctx</code>) is shown and editable in the
-                <a href="#services">Services</a> table below. A model's generated-token cap (<code>max_tokens</code> =
-                Ollama <code>num_predict</code>) is set per model in the Production Models Matrix.
+                <a href="#services">Services</a> table below. A model's generated-token cap (<code>max_tokens</code><span data-llm-hint="OLLAMA"> = Ollama <code>num_predict</code></span>)
+                is set per model in the Production Models Matrix.
             </small>
         </dd>
 
@@ -2263,8 +2310,8 @@
             generated output; YaCy uses it to size prompts so they leave room to generate. The row for the
             service selected above appears here automatically with its stored (or default) window.
             This value is <b>advisory</b>: set it to match the window your backend actually serves
-            (Ollama: <code>OLLAMA_CONTEXT_LENGTH</code>, a Modelfile <code>PARAMETER num_ctx</code>, or the
-            Context Length setting). YaCy does not enforce it on the backend.
+            <span data-llm-hint="local">(Ollama: <code>OLLAMA_CONTEXT_LENGTH</code>, a Modelfile <code>PARAMETER num_ctx</code>, or the
+            Context Length setting).</span> YaCy does not enforce it on the backend.
         </p>
         <table class="table table-striped scoutro-cards" id="servicesTable">
             <thead class="thead-dark">

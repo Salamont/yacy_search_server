@@ -434,13 +434,15 @@ def execute(engine, state, init, rpc, config, workdir):
     regions = init["regions"]
     report = {"sources": {}, "cursors": dict(init.get("cursors") or {}), "processed": 0}
     now = int(time.time())
+    if init.get("operation") == "hold":
+        # a hold concerns its own candidates only (apply_holds checks their collection); another domain's foreign
+        # collection in this profile must never keep an unconfirmed start from being held
+        report["held"] = apply_holds(engine, state, init.get("holds", []), collection)
+        return report
     for root in state.data["domains"].values():
         entry = (root.get("profiles") or {}).get(profile) or {}
         if entry.get("collection") and entry["collection"] != collection:
             raise ValueError("collection_conflict")
-    if init.get("operation") == "hold":
-        report["held"] = apply_holds(engine, state, init.get("holds", []), collection)
-        return report
     apply_confirmations(engine, state, init.get("confirmations", []))
     if init.get("operation") == "confirm":
         for attempt in init.get("confirmations", []):

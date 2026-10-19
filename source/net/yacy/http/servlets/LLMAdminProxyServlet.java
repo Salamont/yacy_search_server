@@ -23,6 +23,7 @@ package net.yacy.http.servlets;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -44,6 +45,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import net.yacy.ai.LLM;
+import net.yacy.ai.LlmHttpError;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.cora.util.LogRedaction;
 import net.yacy.http.ClientAddress;
@@ -105,6 +108,11 @@ public class LLMAdminProxyServlet extends HttpServlet {
     private static final String HOSTSTUB_HEADER = "X-LLM-Hoststub";
     /** an API key typed in the browser for an endpoint that is not saved yet */
     private static final String API_KEY_HEADER = "X-LLM-Api-Key";
+    /**
+     * the service the page tests an endpoint as, for an endpoint that is not saved yet (a saved one has its service in
+     * the configuration); only {@code ANTHROPIC} changes the request (its headers, see {@link LLM#serviceHeaders})
+     */
+    private static final String SERVICE_HEADER = "X-LLM-Service";
     /** marks a status and body mirrored from the LLM endpoint */
     public static final String UPSTREAM_HEADER = "X-LLM-Upstream";
 
@@ -115,6 +123,17 @@ public class LLMAdminProxyServlet extends HttpServlet {
 
     /** read-only probe paths which may be used with a not-yet-saved hoststub */
     private static final Set<String> PROBE_PATHS = Set.of("/api/tags", "/v1/models");
+
+    /** paths whose error answers (status 400 and above) are mirrored as a cleaned error object, not as the raw body */
+    private static final Set<String> ERROR_PATHS = Set.of("/v1/chat/completions", "/v1/models");
+
+    /**
+     * The query of the upstream request: Anthropic lists 20 models per page by default, one page of up to 1000 holds them
+     * all; nothing for every other service and path.
+     */
+    public static String upstreamQuery(final LLM.LLMType type, final String path) {
+        return type == LLM.LLMType.ANTHROPIC && "/v1/models".equals(path) ? "?limit=1000" : "";
+    }
 
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -174,15 +193,18 @@ public class LLMAdminProxyServlet extends HttpServlet {
 
         // resolve the api_key for the hoststub from the stored configuration;
         // mutating operations are only allowed on configured endpoints
-        final Map<String, String> configured = configuredHoststubs();
+        final Map<String, String> services = new HashMap<>();
+        final Map<String, String> configured = configuredHoststubs(services);
         final boolean known = configured.containsKey(hoststub);
         if (!known && !PROBE_PATHS.contains(path)) {
             LLMAccess.error(hresponse, HttpServletResponse.SC_FORBIDDEN, "hoststub_not_configured", "hoststub is not a configured endpoint");
             return;
         }
 
+        final LLM.LLMType type = serviceType(known ? services.get(hoststub) : hrequest.getHeader(SERVICE_HEADER));
+        final String query = upstreamQuery(type, path);
         final HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(hoststub + path))
+                .uri(URI.create(hoststub + path + query))
                 .timeout(Duration.ofMillis("/api/pull".equals(path) ? 60 * 60 * 1000 : 10 * 60 * 1000));
         final String contentType = hrequest.getContentType();
         if (contentType != null) requestBuilder.header("Content-Type", contentType);
@@ -202,6 +224,7 @@ public class LLMAdminProxyServlet extends HttpServlet {
         } else if (configuredKey != null && !configuredKey.isEmpty()) {
             requestBuilder.header("Authorization", "Bearer " + configuredKey);
         }
+        for (final Map.Entry<String, String> header : LLM.serviceHeaders(type).entrySet()) requestBuilder.header(header.getKey(), header.getValue());
 
         if ("GET".equals(method) || "HEAD".equals(method)) {
             requestBuilder.method(method, HttpRequest.BodyPublishers.noBody());
@@ -215,6 +238,21 @@ public class LLMAdminProxyServlet extends HttpServlet {
             final HttpResponse<InputStream> upstream = CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofInputStream());
             hresponse.setStatus(upstream.statusCode());
             hresponse.setHeader(UPSTREAM_HEADER, "1");
+            if (upstream.statusCode() >= 400 && ERROR_PATHS.contains(path)) {
+                // the provider's error, bounded and cleaned (0.11.5): its kind (a refused key, a rate limit, spent credits,
+                // an overload), code and message, never a key and never the raw body
+                final byte[] body;
+                try (InputStream in = upstream.body()) {
+                    body = in.readNBytes(LlmHttpError.MAX_BODY_BYTES);
+                }
+                final String typedOrConfigured = typedKey != null && !typedKey.trim().isEmpty() ? typedKey.trim() : configuredKey;
+                final LlmHttpError error = LlmHttpError.of(upstream.statusCode(), new String(body, StandardCharsets.UTF_8), body.length,
+                        typedOrConfigured, LlmHttpError.retryAfter(upstream.headers().firstValue("Retry-After").orElse(null)));
+                hresponse.setHeader("Content-Type", "application/json;charset=utf-8");
+                hresponse.getOutputStream().write(error.json().toString().getBytes(StandardCharsets.UTF_8));
+                ConcurrentLog.warn("LLMAdminProxy", "event=passthrough phase=end result=upstream-error " + error.fields() + " durationMs=" + (System.currentTimeMillis() - start));
+                return;
+            }
             hresponse.setHeader("Content-Type", upstream.headers().firstValue("Content-Type").orElse("application/json;charset=utf-8"));
             final ServletOutputStream out = hresponse.getOutputStream();
             try (InputStream in = upstream.body()) {
@@ -256,23 +294,23 @@ public class LLMAdminProxyServlet extends HttpServlet {
      * Collect all LLM endpoints from the stored configuration together with their api_key:
      * the inference system used on /LLMSelection_p.html and all production model rows.
      */
-    private static Map<String, String> configuredHoststubs() {
+    static Map<String, String> configuredHoststubs(final Map<String, String> services) {
         final Switchboard sb = Switchboard.getSwitchboard();
         final Map<String, String> hoststubs = new HashMap<>();
         try {
             final JSONObject inference = new JSONObject(new JSONTokener(sb.getConfig("ai.inference_system", "{}")));
-            putHoststub(hoststubs, inference);
+            putHoststub(hoststubs, services, inference);
         } catch (final JSONException e) {}
         try {
             final JSONArray productionModels = new JSONArray(new JSONTokener(sb.getConfig("ai.production_models", "[]")));
             for (int i = 0; i < productionModels.length(); i++) {
-                putHoststub(hoststubs, productionModels.optJSONObject(i));
+                putHoststub(hoststubs, services, productionModels.optJSONObject(i));
             }
         } catch (final JSONException e) {}
         return hoststubs;
     }
 
-    private static void putHoststub(final Map<String, String> hoststubs, final JSONObject row) {
+    private static void putHoststub(final Map<String, String> hoststubs, final Map<String, String> services, final JSONObject row) {
         if (row == null) return;
         String hoststub = row.optString("hoststub", "").trim();
         while (hoststub.endsWith("/")) hoststub = hoststub.substring(0, hoststub.length() - 1);
@@ -280,5 +318,18 @@ public class LLMAdminProxyServlet extends HttpServlet {
         final String apiKey = row.optString("api_key", "").trim();
         // do not let a row without key shadow a key from another row for the same endpoint
         if (!hoststubs.containsKey(hoststub) || !apiKey.isEmpty()) hoststubs.put(hoststub, apiKey);
+        // an endpoint saved as Anthropic in any row is tested as one
+        final String service = row.optString("service", "").trim();
+        if (!services.containsKey(hoststub) || LLM.LLMType.ANTHROPIC.name().equals(service)) services.put(hoststub, service);
+    }
+
+    /** The service of a name, null for none or an unknown name (no service headers then). */
+    static LLM.LLMType serviceType(final String service) {
+        if (service == null || service.trim().isEmpty()) return null;
+        try {
+            return LLM.LLMType.valueOf(service.trim());
+        } catch (final IllegalArgumentException e) {
+            return null;
+        }
     }
 }

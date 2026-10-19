@@ -2,7 +2,54 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased
+## 0.11.5 / 1.942-scoutro.39 — corrections: Discovery, knowledge graph, Anthropic, phone UI (one update from 0.11.4)
+
+One correction release on the published 0.11.4 (`8b8948958ab79b3ad8b2ddffd369f2fbd782db0e`): no schema change
+(knowledge graph 9, Discovery job store 1, Solr fields unchanged), no re-read of stored pages, no model call, no change
+to model configurations or the paused LLM queue. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.11.5.md).
+
+- LLM service `ANTHROPIC` (Anthropic) on its OpenAI-compatible Chat Completions, default hoststub
+  `https://api.anthropic.com`. Every request (chat, streaming, RAG chat, model list and capability tests) carries
+  `anthropic-version: 2023-06-01` and the existing Bearer key; an optional `ai.anthropic.workspace_id` is sent as
+  `anthropic-workspace-id`. No `temperature` is sent to Anthropic; Anthropic ignores `response_format`, so its format
+  capability is never shown as supported and the knowledge graph keeps the validator. Other services unchanged; not
+  activated, released or deployed.
+- Anthropic requests carry no `num_ctx`, no llama-style `stop` tokens, no `reasoning_effort` and no `enable_thinking`
+  (chat, streaming, RAG tool chat; ones a client sends are removed), every other service as before. An HTTP error of a
+  model endpoint names its kind (`auth`, `quota`, `rate_limit` with `Retry-After`, `overloaded`, `server`, `request`)
+  beside its status, code and message, never the key; the transport never retries. The knowledge graph's LLM breaker
+  opens at once on a refused key or spent credits (maximum backoff) and on a rate limit or overload (the `Retry-After`,
+  at most one hour). The admin proxy mirrors an endpoint's error as that cleaned object, and the LLM selection page says
+  what it means. The limits that bound a paid service before activation are listed in `help/LLMSelection_p.md`.
+  Nothing is activated: no key, no model switch, no resumed queue.
+- Knowledge graph page on a phone (no redesign): the network diagram measures its node names against the card width
+  (two lines on a phone) instead of cutting them by a character count, its filters fold away on a phone for the default
+  view; the sections of the object view fold (open by default, all at once from the ToC on a phone); statements and
+  sources are paged by 25 on a phone; quotes, stats and tabs are sized for small screens; help popups never exceed the
+  screen; `supported` reads "stated by sources". LLM selection page: the hints of a local service (install Ollama or
+  LM Studio, no key needed, Ollama's `num_predict` and context length) show only for Ollama or LM Studio; no delete
+  button for LM Studio or a hosted service (OpenAI, Open Router, Anthropic); fieldsets no longer widen the page beyond
+  the screen; the German page translates the script's status, button, table and dialog texts and the endpoint's error
+  kinds. Offline UI tests `knowledge-mobile-ui-test.mjs`, `llm-selection-offline-ui-test.mjs`.
+- Knowledge graph, extraction rules for pages read from now on (schema stays 9, extractor versions `jsonld/6` and
+  `rule/7` and the vocabulary hash unchanged, no re-read of stored pages, `RELATION_RULES` stays 5): a navigation or
+  footer label ("Bildergalerie", "Showroom", "Kontakt"), a kind of organisation ("Banken", "Versicherungen") and a
+  plural noun are no organisation in a partner, reference or customer list; a list on lines without a legal name or
+  an institution keeps only marked brands ("DHL", "PayPal", "3M"); a role word of the vocabulary ("Hersteller") is a
+  topic of the page, never an offered service (the text-fit signal of the correction automation counts topics as it
+  counts categories). JSON-LD: a node under `brand` or `manufacturer` is never the site's operator by its own `url`,
+  gets no social profiles and, without an `@id`, one identity per host by its name (`ld_id` `brand:<name>`); a brand
+  under an organisation's `brand` that is not the organisation's own (no shared name, no own domain) supplies the
+  organisation (`supplier_of`) instead of being its brand. Production cases of 19 October 2026 as regression tests
+  with their host names (`KgProductionCasesTest`).
+- Knowledge graph, read side (no data change): every organisation carries a `role` (`operator`, `brand`,
+  `manufacturer`, `generic`) in the object list, the object view and relation items; the business view lists brands
+  and manufacturers apart from partners and customers, hides relations to entries without a proper name
+  (`relations.hidden_generic` counts them; their own object view keeps every statement) and the quality
+  `supported` is shown as "stated by sources" with a tooltip that nobody verified it; `brand_of` reads "is listed
+  as a brand of". Errors already stored (the organisations "Bildergalerie", "Showroom", "Banken", the service
+  "Hersteller", the brand "SCHIMMEL" as a brand of the dealer) stay physically in the graph until their pages are
+  crawled again; a targeted cleanup is documented, not run (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, section 35).
 
 ## 0.11.4 / 1.942-scoutro.38 — data quality programme (R1–R4) and website technologies (R5), one update from 0.10.9
 

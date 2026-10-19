@@ -4234,7 +4234,8 @@ value, shared by all models on that endpoint. It is the total budget for prompt 
 Here you can pick models from an LLM model service to select them as production model.==Hier können Sie Modelle aus einem LLM-Modelldienst auswählen, um sie als Produktionsmodell festzulegen.
 service selected above appears here automatically with its stored (or default) window.==oben ausgewählten Dienst erscheint hier automatisch mit seinem gespeicherten (oder Standard-)Fenster.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Dieser Wert ist <b>ein Richtwert</b>: setzen Sie ihn passend zum Fenster, das Ihr Backend tatsächlich bereitstellt
-Context Length setting). YaCy does not enforce it on the backend.==Context-Length-Einstellung). YaCy erzwingt ihn nicht im Backend.
+Context Length setting).==Context-Length-Einstellung).
+YaCy does not enforce it on the backend.==YaCy erzwingt ihn nicht im Backend.
 Service Selection==Dienst-Auswahl
 Model Downloads==Modell-Downloads
 LLM Selection==LLM-Auswahl
@@ -4248,6 +4249,7 @@ alt="info"==alt="Info"
 LMStudio==LMStudio
 Ollama==Ollama
 Open Router==Open Router
+Anthropic==Anthropic
 OpenAI==OpenAI
 Production Models Matrix==Produktionsmodell-Matrix
 Services==Dienste
@@ -4419,6 +4421,58 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 Start without a price: only the caps of calls and tokens apply, the cost stays unknown==Ohne Preis starten: Es gelten nur die Obergrenzen für Aufrufe und Tokens, die Kosten bleiben unbekannt
 <label>at most calls, retries included <input==<label>höchstens Aufrufe, Wiederholungen eingeschlossen <input
 <label>cost limit, against the estimate <input==<label>Kostengrenze, gegen die Schätzung <input
+<b>Install your local LLM service!</b> You need either a local <a href="https://ollama.com/">ollama</a> or <a href="https://lmstudio.ai/">LM Studio</a> instance running on your local host or inside the intranet.==<b>Installieren Sie Ihren lokalen LLM-Dienst!</b> Sie benötigen eine lokale <a href="https://ollama.com/">Ollama</a>- oder <a href="https://lmstudio.ai/">LM-Studio</a>-Instanz auf Ihrem Rechner oder im Intranet.
+value="Load Model Name List"==value="Modellliste laden"
+The selected service's context window (<code>num_ctx</code>) is shown and editable in the==Das Kontextfenster (<code>num_ctx</code>) des gewählten Dienstes wird in der Tabelle
+table below. A model's generated-token cap (<code>max_tokens</code>==unten angezeigt und bearbeitet. Die Obergrenze erzeugter Tokens eines Modells (<code>max_tokens</code>
+is set per model in the==wird je Modell in der
+"Loading models..."=="Modelle werden geladen…"
+"Available Models"=="Verfügbare Modelle"
+"Recommended Models"=="Empfohlene Modelle"
+"Deploy"=="Einsetzen"
+"Undeploy"=="Entfernen"
+"Delete"=="Löschen"
+"Download"=="Herunterladen"
+"Download in progress…"=="Download läuft…"
+`Downloading ${modelName}`==`${modelName} wird heruntergeladen`
+`Testing ${modelName}`==`${modelName} wird getestet`
+"No models found on this endpoint. Load a model in the service, then retry."=="Keine Modelle an diesem Endpunkt gefunden. Laden Sie ein Modell im Dienst und versuchen Sie es erneut."
+"Failed to load models."=="Modelle konnten nicht geladen werden."
+" HTTP status:"==" HTTP-Status:"
+" The endpoint returned an invalid model list."==" Der Endpunkt lieferte eine ungültige Modellliste."
+" The LLM endpoint rejected the credentials: check the api_key."==" Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: prüfen Sie den api_key."
+" YaCy administrator login required."==" YaCy-Administrator-Anmeldung erforderlich."
+" Check the hoststub and endpoint availability from the Scoutro server."==" Prüfen Sie den Hoststub und die Erreichbarkeit des Endpunkts vom Scoutro-Server aus."
+" Check the hoststub and try again."==" Prüfen Sie den Hoststub und versuchen Sie es erneut."
+"Model downloads are still running. Please wait until they finish."=="Modell-Downloads laufen noch. Bitte warten Sie, bis sie abgeschlossen sind."
+"Production model tests are still running. Please wait until they finish."=="Tests der Produktionsmodelle laufen noch. Bitte warten Sie, bis sie abgeschlossen sind."
+"Model is already listed in the production table."=="Das Modell steht bereits in der Produktionstabelle."
+"Model is assigned as a production model and cannot be deleted."=="Das Modell ist als Produktionsmodell zugewiesen und kann nicht gelöscht werden."
+"Remove this model (features will be reassigned if possible)."=="Dieses Modell entfernen (Funktionen werden nach Möglichkeit neu zugewiesen)."
+"A hoststub is required to delete models."=="Zum Löschen von Modellen ist ein Hoststub erforderlich."
+`Do you really want to delete model "${modelId}"?`==`Möchten Sie das Modell "${modelId}" wirklich löschen?`
+`Model "${modelName}" is currently used in the production table and cannot be deleted.`==`Das Modell "${modelName}" wird in der Produktionstabelle verwendet und kann nicht gelöscht werden.`
+`Model ${modelName} is now available on server ${hoststub}.`==`Das Modell ${modelName} ist jetzt auf dem Server ${hoststub} verfügbar.`
+`Connection lost while pulling model ${modelName} from server ${hoststub}. The download continues on the server; reload this page to re-attach to its progress.`==`Verbindung beim Laden des Modells ${modelName} vom Server ${hoststub} verloren. Der Download läuft auf dem Server weiter; laden Sie die Seite neu, um den Fortschritt wieder anzuzeigen.`
+`Failed to download model ${modelName}==`Modell ${modelName} konnte nicht heruntergeladen werden
+`Failed to delete model ${modelName}==`Modell ${modelName} konnte nicht gelöscht werden
+`Error while deleting model ${modelName}. Check the console for details.`==`Fehler beim Löschen des Modells ${modelName}. Details in der Konsole.`
+`Thinking capability check failed for model "${modelName}".`==`Thinking-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Thinking capability check of model "${modelName}" gave no result.`==`Thinking-Prüfung des Modells "${modelName}" ergab kein Ergebnis.`
+`Tooling capability check failed for model "${modelName}".`==`Tooling-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Vision capability check failed for model "${modelName}".`==`Vision-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Format capability check failed for model "${modelName}".`==`Format-Prüfung für Modell "${modelName}" fehlgeschlagen.`
+`Format capability check of model "${modelName}" gave no result.`==`Format-Prüfung des Modells "${modelName}" ergab kein Ergebnis.`
+"The LLM endpoint rejected the credentials: check the api_key."=="Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: prüfen Sie den api_key."
+"The LLM endpoint reports spent credits or an exhausted quota: no request succeeds until the account is topped up."=="Der LLM-Endpunkt meldet verbrauchtes Guthaben oder ein erschöpftes Kontingent: keine Anfrage gelingt, bis das Konto aufgeladen ist."
+"The LLM endpoint is rate limited (too many requests or tokens per minute): wait and try again."=="Der LLM-Endpunkt ist ratenbegrenzt (zu viele Anfragen oder Tokens pro Minute): warten Sie und versuchen Sie es erneut."
+"The LLM endpoint is overloaded: wait and try again."=="Der LLM-Endpunkt ist überlastet: warten Sie und versuchen Sie es erneut."
+"The LLM endpoint failed on its side: try again later."=="Der LLM-Endpunkt ist auf seiner Seite fehlgeschlagen: versuchen Sie es später erneut."
+"The LLM endpoint refused the request."=="Der LLM-Endpunkt hat die Anfrage abgelehnt."
+` Retry after ${Math.ceil(error.retryAfterMs / 1000)} s.`==` Erneut versuchen nach ${Math.ceil(error.retryAfterMs / 1000)} s.`
+` Code: ${error.code}.`==` Code: ${error.code}.`
+` Endpoint: ${error.detail}`==` Endpunkt: ${error.detail}`
+["Model", "Ranking", "Size", "Description", "Provider", "License",==["Modell", "Rang", "Größe", "Beschreibung", "Anbieter", "Lizenz",
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier, nachdem der Scheduler den ersten vollständigen Stundenbericht erzeugt hat.
@@ -5361,11 +5415,19 @@ Idle==Inaktiv
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>Ein erfolgloses Crawl-Ergebnis bedeutet, dass keine Seite indexiert oder beim Crawl nichts neu geladen wurde. Solche Hosts werden mit dem Backoff anderer Wiederholungen erneut versucht, der sich bis zum Recrawl-Intervall verdoppelt. Setzt Wiederholen voraus.<
 >Unconfirmed crawl start<==>Unbestätigter Crawl-Start<
 >Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<==>Discovery wartet, weil YaCy nicht bestätigt hat, ob dieser Crawl-Start angenommen wurde, und kein Crawl-Profil mit seinem Startmarker existiert. Prüfen Sie zuerst den Crawler-Monitor.<
->Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<==>Zurückstellen prüft die Crawl-Profile noch einmal, lässt den Ausgang unbekannt, startet diese Website nie wieder von selbst und lässt Discovery weiterarbeiten. Angenommene Crawls bleiben erhalten.<
->Defer start (outcome stays unknown)<==>Start zurückstellen (Ausgang bleibt unbekannt)<
+>Deferring starts no crawl and no retry: it checks the crawl profiles once more, keeps the outcome unknown, holds the website so that it is never started again by itself, and lets Discovery continue. Accepted crawls are kept. Without a decision, Discovery defers such a start itself after the grace period.<==>Zurückstellen startet keinen Crawl und keinen Retry: Es prüft die Crawl-Profile noch einmal, lässt den Ausgang unbekannt, hält die Website, sodass sie nie wieder von selbst gestartet wird, und lässt Discovery weiterarbeiten. Angenommene Crawls bleiben erhalten. Ohne Entscheidung stellt Discovery einen solchen Start nach der Karenzzeit selbst zurück.<
+>Defer start (no new crawl, no retry, outcome stays unknown)<==>Start zurückstellen (kein neuer Crawl, kein Retry, Ausgang bleibt unbekannt)<
 >Deferred starts<==>Zurückgestellte Starts<
->Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<==>Den unbestätigten Crawl-Start für %1 zurückstellen? Der Ausgang bleibt unbekannt, und die Website wird nicht automatisch erneut gestartet.<
+>Defer the unconfirmed crawl start for %1? This starts no crawl and no retry. The outcome stays unknown, and the website stays held until an administrator crawls it deliberately.<==>Den unbestätigten Crawl-Start für %1 zurückstellen? Das startet keinen Crawl und keinen Retry. Der Ausgang bleibt unbekannt, und die Website bleibt gehalten, bis ein Administrator sie bewusst crawlt.<
 >Crawl start deferred; Discovery continues.<==>Crawl-Start zurückgestellt; Discovery arbeitet weiter.<
+>deferred by an administrator<==>von einem Administrator zurückgestellt<
+>deferred by Discovery after the grace period<==>von Discovery nach der Karenzzeit zurückgestellt<
+>Checked %1 times without a crawl profile. Without a decision, Discovery defers this start itself after %2 more checks (at the earliest %3 minutes after the start); the website is then held with the outcome unknown.<==>%1-mal ohne Crawl-Profil geprüft. Ohne Entscheidung stellt Discovery diesen Start nach %2 weiteren Prüfungen selbst zurück (frühestens %3 Minuten nach dem Start); die Website wird dann mit unbekanntem Ausgang gehalten.<
+>Checked %1 times without a crawl profile; Discovery defers this start itself at the next heartbeat.<==>%1-mal ohne Crawl-Profil geprüft; Discovery stellt diesen Start beim nächsten Taktschlag selbst zurück.<
+>The automatic deferral is postponed: %1. Discovery retries it at the next heartbeat.<==>Die automatische Rückstellung ist verschoben: %1. Discovery versucht sie beim nächsten Taktschlag erneut.<
+>Discovery is working right now; try again in a moment.<==>Discovery arbeitet gerade; bitte in einem Moment erneut versuchen.<
+>The Discovery state changed meanwhile; the page was reloaded, please repeat the action.<==>Der Discovery-Zustand hat sich inzwischen geändert; die Seite wurde neu geladen, bitte die Aktion wiederholen.<
+>Crawl profile removed; result unknown<==>Crawl-Profil entfernt; Ergebnis unbekannt<
 
 #File: ScoutroSEO_p.html
 Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.==Organisationen, Einrichtungen, Standorte und Leistungen, die der Wissensgraph auf diesem Host gefunden hat, nur aus den Dokumenten der gewählten Collection berechnet. Qualität und Quellen stehen je Objekt; Fakten, die nur die LLM-Stufe gelesen hat, sind unsicher.
@@ -6295,9 +6357,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Extractor<==>Extraktor<
 >Loading …<==>Lädt …<
 >Uncertain<==>Unsicher<
->Supported<==>Belegt<
+>Stated by sources<==>Laut Quellen<
 >Reconcile<==>Abgleich<
->supported<==>belegt<
+>stated by sources<==>laut Quellen<
 >uncertain<==>unsicher<
 >IK number<==>IK-Nummer<
 >Controls<==>Steuerung<
@@ -6467,7 +6529,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >industry or audience<==>Branche oder Zielgruppe<
 >industry<==>Branche<
 >international<==>international<
->is a brand of<==>ist eine Marke von<
+>is listed as a brand of<==>wird als Marke geführt von<
 >is a customer of<==>ist Kunde von<
 >is a member of the association<==>ist Mitglied im Verband<
 >is a member of<==>ist Mitglied von<
@@ -6913,6 +6975,22 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Nothing was written.<==>Es wurde nichts geschrieben.<
 >Choose at least one identity change.<==>Bitte mindestens eine Identitätsänderung wählen.<
 >The knowledge graph does not follow the search index here.<==>Der Wissensgraph folgt hier nicht dem Suchindex.<
+>Current sources state this. Extracted automatically, not verified by a person.<==>Aktuelle Quellen sagen das aus. Automatisch extrahiert, nicht von einer Person geprüft.<
+>Weak or single evidence; not verified.<==>Schwache oder einzelne Evidenz; nicht geprüft.<
+>Sources contradict each other.<==>Quellen widersprechen sich.<
+>No current source states this any more.<==>Keine aktuelle Quelle sagt das noch aus.<
+>site operator<==>Betreiber<
+>brand<==>Marke<
+>manufacturer<==>Hersteller<
+>no proper name<==>kein Eigenname<
+>A brand or maker a source names; never the operator of this website.<==>Eine von einer Quelle genannte Marke bzw. ein Hersteller; nie der Betreiber dieser Website.<
+>The organisation that operates the website, by its own statement.<==>Die Organisation, die die Website nach eigener Angabe betreibt.<
+>A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<==>Ein Navigationsbegriff oder eine Art von Organisation, die eine frühere Extraktion als Namen gespeichert hat; hier gezeigt, bei Geschäftsbeziehungen ausgeblendet.<
+>Brands and manufacturers<==>Marken und Hersteller<
+>%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<==>%1 Beziehung(en) zu Einträgen ohne Eigennamen (Navigationsbegriffe, Arten von Organisationen) werden hier nicht gezeigt; die Objektansicht des jeweiligen Eintrags behält sie.<
+>Collapse all sections<==>Alle Abschnitte einklappen<
+>Expand all sections<==>Alle Abschnitte ausklappen<
+>Filters<==>Filter<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

@@ -41,9 +41,27 @@ public final class LlmHttpError extends IOException {
     public final String detail;
     /** Bytes of the error body read (at most {@link #MAX_BODY_BYTES}). */
     public final int bodyBytes;
+    /** The provider's {@code Retry-After} in milliseconds, bounded to {@link #MAX_RETRY_AFTER_MILLIS}; null if none. */
+    public final Long retryAfterMillis;
+
+    /** The longest wait a {@code Retry-After} header is taken for: one hour. */
+    public static final long MAX_RETRY_AFTER_MILLIS = 60L * 60_000L;
+
+    /** The kinds of {@link #kind()}. */
+    public static final String KIND_AUTH = "auth";
+    public static final String KIND_QUOTA = "quota";
+    public static final String KIND_RATE_LIMIT = "rate_limit";
+    public static final String KIND_OVERLOADED = "overloaded";
+    public static final String KIND_REQUEST = "request";
+    public static final String KIND_SERVER = "server";
 
     private LlmHttpError(final int status, final String code, final String param, final String provider, final String detail,
             final int bodyBytes) {
+        this(status, code, param, provider, detail, bodyBytes, null);
+    }
+
+    private LlmHttpError(final int status, final String code, final String param, final String provider, final String detail,
+            final int bodyBytes, final Long retryAfterMillis) {
         super(message(status, code, param, provider, detail));
         this.status = status;
         this.code = code;
@@ -51,6 +69,56 @@ public final class LlmHttpError extends IOException {
         this.provider = provider;
         this.detail = detail;
         this.bodyBytes = bodyBytes;
+        this.retryAfterMillis = retryAfterMillis;
+    }
+
+    /**
+     * What the status means for the caller (0.11.5, Anthropic and every other service): {@link #KIND_AUTH} (401, 403: the key
+     * is refused or may not do this; no retry helps), {@link #KIND_QUOTA} (402, or a 403 or 429 whose code names a quota or
+     * billing: credits are spent), {@link #KIND_RATE_LIMIT} (429: too many requests or tokens per minute; wait
+     * {@link #retryAfterMillis}), {@link #KIND_OVERLOADED} (529, 503: the provider is overloaded; wait), {@link #KIND_SERVER}
+     * (other 5xx) and {@link #KIND_REQUEST} (other 4xx: the request itself).
+     */
+    public String kind() {
+        final String c = this.code == null ? "" : this.code.toLowerCase(java.util.Locale.ROOT);
+        final boolean quota = c.contains("quota") || c.contains("billing") || c.contains("insufficient") || c.contains("credit");
+        if (this.status == 402 || quota && (this.status == 403 || this.status == 429)) return KIND_QUOTA;
+        if (this.status == 401 || this.status == 403) return KIND_AUTH;
+        if (this.status == 429) return KIND_RATE_LIMIT;
+        if (this.status == 529 || this.status == 503) return KIND_OVERLOADED;
+        return this.status >= 500 ? KIND_SERVER : KIND_REQUEST;
+    }
+
+    /** True if a later retry can succeed without a change (a rate limit, an overload, a server error); never for auth or quota. */
+    public boolean retryable() {
+        final String k = kind();
+        return KIND_RATE_LIMIT.equals(k) || KIND_OVERLOADED.equals(k) || KIND_SERVER.equals(k);
+    }
+
+    /** {@code Retry-After} as seconds (a date is not read), bounded; null without the header or for a value that is none. */
+    public static Long retryAfter(final String header) {
+        if (header == null) return null;
+        final String t = header.trim();
+        if (!t.matches("[0-9]{1,7}")) return null;
+        return Math.min(MAX_RETRY_AFTER_MILLIS, Long.parseLong(t) * 1000L);
+    }
+
+    /** The error as a JSON object a page can show: never the key, never the raw body (0.11.5). */
+    public JSONObject json() {
+        final JSONObject error = new JSONObject();
+        try {
+            error.put("status", this.status);
+            error.put("kind", kind());
+            error.put("retryable", retryable());
+            if (this.code != null) error.put("code", this.code);
+            if (this.param != null) error.put("param", this.param);
+            if (this.provider != null) error.put("provider", this.provider);
+            if (this.detail != null) error.put("message", this.detail);
+            if (this.retryAfterMillis != null) error.put("retry_after_ms", this.retryAfterMillis.longValue());
+            return new JSONObject().put("error", error);
+        } catch (final JSONException e) {
+            return new JSONObject();
+        }
     }
 
     private static String message(final int status, final String code, final String param, final String provider, final String detail) {
@@ -78,6 +146,7 @@ public final class LlmHttpError extends IOException {
     /** The diagnostic fields without the status, for a log line ({@code providerCode=… providerParam=…}). */
     public String fields() {
         final StringBuilder b = new StringBuilder("httpStatus=").append(this.status);
+        b.append(" errorKind=").append(kind());
         b.append(" providerCode=").append(this.code == null ? "-" : this.code);
         b.append(" providerParam=").append(this.param == null ? "-" : this.param);
         b.append(" provider=").append(this.provider == null ? "-" : this.provider);
@@ -96,7 +165,13 @@ public final class LlmHttpError extends IOException {
         } catch (final IOException | RuntimeException e) {
             // no body: the status alone
         }
-        return of(status, new String(body, StandardCharsets.UTF_8), body.length, apiKey);
+        return of(status, new String(body, StandardCharsets.UTF_8), body.length, apiKey, retryAfter(conn.getHeaderField("Retry-After")));
+    }
+
+    /** {@link #of(int, String, int, String)} with the provider's {@code Retry-After} in milliseconds (null for none). */
+    public static LlmHttpError of(final int status, final String body, final int bodyBytes, final String apiKey, final Long retryAfterMillis) {
+        final LlmHttpError e = of(status, body, bodyBytes, apiKey);
+        return retryAfterMillis == null ? e : new LlmHttpError(e.status, e.code, e.param, e.provider, e.detail, e.bodyBytes, retryAfterMillis);
     }
 
     /**

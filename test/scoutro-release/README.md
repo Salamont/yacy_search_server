@@ -14,8 +14,9 @@ python3 test/scoutro-release/check-attribution.py \
 ```
 
 Release acceptance uses NEW disposable data and controlled fixtures only.
-The current prepared candidate is 0.11.4 / 1.942-scoutro.38;
-its release/upgrade/rollback gates are in `docs/SCOUTRO_RELEASE_0.11.4.md`.
+The current prepared candidate is 0.11.5 / 1.942-scoutro.39;
+its release/upgrade/rollback gates are in `docs/SCOUTRO_RELEASE_0.11.5.md`
+(the published 0.11.4 / 1.942-scoutro.38 in `docs/SCOUTRO_RELEASE_0.11.4.md`).
 The previous candidate 0.10.9 / 1.942-scoutro.33 is described in
 `docs/SCOUTRO_RELEASE_0.10.9.md` and `docs/OPENCODE_SCOUTRO_0.10.9_HANDOFF.md`. The additional standalone
 price/provider fix is explicitly deferred; no acceptance claim closes it.
@@ -30,6 +31,18 @@ base digest, before/after upgrade snapshots and checks. A later registry digest
 has not been checked until it is pulled and tested after the separately
 approved publication. Production upgrades, real disk-full and production load
 are not covered by these bounded fixtures.
+
+`upgrade-0.11.5-test.py [old-image] [new-image]` runs the update 0.11.4 -> 0.11.5
+and the rollback with the real images on a disposable volume as UID/GID 1000:
+`DiscoveryHeldSeed.java` seeds the Discovery state of the production peer with the
+real classes (thirteen jobs, automation disabled, no open batch, the four
+candidates held after an administrator's deferral; the worker state carries the
+same holds), 0.11.4 writes a schema-9 graph with the old reading of a partner
+list ("Banken" as an organisation), 0.11.5 must keep schema, statements, job
+store, worker state, settings and the manual pause byte for byte, label and
+hide the generic name without deleting it, read a new page with the new rules
+without a model, and 0.11.4 must open everything again. No production data,
+no crawl, no model, no network for the peer.
 
 For the existing image assertions on a non-root host, with the package's
 UID/GID 1000 and **no external networking**, use:

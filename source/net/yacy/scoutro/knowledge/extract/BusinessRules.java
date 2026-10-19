@@ -263,6 +263,19 @@ public final class BusinessRules {
         }
     }
 
+    /**
+     * Category codes that name a role of an organisation (a manufacturer, a dealer, a service provider), no service of it: such a
+     * category stays a topic of the page, never an offered service (0.11.5; production: "Hersteller" as a service of an architect's
+     * office and of a confectioner). A code list, not a vocabulary entry: the vocabulary's hash is part of every page's extractor
+     * key, a change there would read every page again.
+     */
+    static final Set<String> ROLE_CATEGORIES = Set.of("hersteller", "haendler", "händler", "handel", "fachhandel", "grosshandel",
+            "großhandel", "einzelhandel", "dienstleister", "lieferant", "lieferanten", "anbieter", "produzent", "produzenten", "vertrieb");
+
+    static boolean roleCategory(final Categories.Entry entry) {
+        return entry != null && entry.code != null && ROLE_CATEGORIES.contains(entry.code.toLowerCase(java.util.Locale.ROOT));
+    }
+
     private void services(final Run run, final double confidence) {
         final List<TermMatcher.Hit<Categories.Entry>> hits = BusinessFacts.categories(run.ctx, run.text, 0, run.text.length());
         final Map<String, Service> services = new LinkedHashMap<>();
@@ -275,7 +288,9 @@ public final class BusinessRules {
         final Map<String, Boolean> offered = new LinkedHashMap<>();
         for (final TermMatcher.Hit<Categories.Entry> h : hits) {
             if (!Boolean.TRUE.equals(offered.get(h.entry.id))) {
-                offered.put(h.entry.id, offerPage || ServiceEvidence.pricedEvidence(run.text, run.text.substring(h.start, h.end)) != null);
+                // 0.11.5: a role word ("Hersteller", "Händler") names what the organisation is, never a service it offers
+                offered.put(h.entry.id, !roleCategory(h.entry)
+                        && (offerPage || ServiceEvidence.pricedEvidence(run.text, run.text.substring(h.start, h.end)) != null));
             }
         }
         final java.util.Set<String> topics = new java.util.HashSet<>();
@@ -460,9 +475,18 @@ public final class BusinessRules {
             + "|council|netzwerk|arbeitsgemeinschaft|vereinigung");
     private static final Pattern ITEM_SPLIT = Pattern.compile("\\s*(?:[,;•|·\\n]|(?<![\\s.]\\p{L})(?<!Co)\\.\\s+|\\s+und\\s+|\\s+sowie\\s+|\\s+and\\s+|\\s+&\\s+(?=\\p{Lu}\\p{L}+\\s))\\s*");
     private static final Pattern STOP_WORDS = Pattern.compile("(?iu)^(?:der|die|das|den|dem|des|the|a|an|unser(?:e|em|en|er)?|our|ein(?:e|em|en|er)?)\\s+");
-    /** A word that ends a list: the next sentence starts. */
+    /**
+     * A word that ends a list: the next sentence starts. Since 0.11.5 also the labels of a navigation or a footer (production:
+     * "Referenzen / Bildergalerie / Kontakt" named an organisation "Bildergalerie", "Partner | Showroom | Kontakt" one named
+     * "Showroom"): a menu entry is no name.
+     */
     private static final Pattern NOT_A_NAME = Pattern.compile("(?iu)^(?:wir|sie|ich|es|mehr|weitere|alle|unsere?|hier|jetzt|kontakt|impressum"
-            + "|datenschutz|home|startseite|leistungen|über|ueber|news|aktuelles|zurück|weiter|mehr\\s+erfahren|termin|anfrage|copyright)\\b");
+            + "|datenschutz|home|startseite|leistungen|über|ueber|news|aktuelles|zurück|weiter|mehr\\s+erfahren|termin|anfrage|copyright"
+            + "|galerie|bildergalerie|fotogalerie|bilder|fotos|showroom|ausstellung|ausstellungen|standorte?|filialen|team|karriere|jobs"
+            + "|stellenangebote|stellen|downloads?|presse|referenzen|projekte|produkte|angebote|sortiment|service|services|sitemap|login"
+            + "|anmelden|agb|faq|blog|suche|anfahrt|öffnungszeiten|oeffnungszeiten|unternehmen|firma|philosophie|geschichte|historie"
+            + "|aktionen|neuigkeiten|veranstaltungen|events|shop|onlineshop|warenkorb|newsletter|datenschutzerklärung|cookie-einstellungen"
+            + "|menü|menu|navigation|gallery|showrooms|locations|about|about\\s+us|contact|imprint|privacy|career|careers|references)\\b");
 
     /**
      * The wording of a consent banner (0.10.3): "an unsere Partner für soziale Medien, Werbung und Analysen weiter", "with our
@@ -599,22 +623,30 @@ public final class BusinessRules {
         int start = from;
         int misses = 0;
         boolean afterSentence = false;
+        // 0.11.5: a list on lines (a navigation, a footer, a logo strip) is evidence of organisations only with a legal name or an
+        // institution among its items; otherwise only items marked as a brand stay ("DHL", "PayPal"), a plain word does not
+        boolean onLines = from > 0 && text.charAt(from - 1) == '\n';
+        boolean anchored = false;
+        final List<Boolean> plain = new ArrayList<>();
         while (start < to && misses < 3 && out.size() < 20) {
             final int stop;
             final int next;
             final boolean sentence;
             final boolean fullStop;
+            final boolean lineBreak;
             if (sp.find()) {
                 stop = sp.start();
                 next = sp.end();
                 final String sep = sp.group().trim();
                 fullStop = sep.startsWith(".") && !ABBREVIATED_FORM.matcher(text.substring(start, stop)).find();
-                sentence = fullStop || sp.group().indexOf('\n') >= 0;
+                lineBreak = sp.group().indexOf('\n') >= 0;
+                sentence = fullStop || lineBreak;
             } else {
                 stop = to;
                 next = to;
                 sentence = false;
                 fullStop = false;
+                lineBreak = true;
             }
             String item = LEADING_JOIN.matcher(text.substring(start, stop).trim()).replaceFirst("");
             if (afterSentence && SENTENCE_START.matcher(item).find()) {
@@ -638,8 +670,11 @@ public final class BusinessRules {
                 final int lead = text.indexOf(item, start);
                 if (qualifies(item, true)) {
                     final Matcher lf = LEGAL_FORM.matcher(item);
-                    final int len = lf.find() ? lf.end() : item.length();
+                    final boolean legal = lf.find();
+                    final int len = legal ? lf.end() : item.length();
                     out.add(new int[] {lead, lead + len});
+                    anchored |= legal || INSTITUTION.matcher(item).find();
+                    plain.add(item.indexOf(' ') < 0 && !BRAND_MARK.matcher(item).matches());
                     misses = 0;
                 } else {
                     misses++;
@@ -651,8 +686,18 @@ public final class BusinessRules {
             if (fullStop) {
                 break; // the sentence of the list has ended; the next one names no item of it
             }
+            onLines &= lineBreak || next >= to;
             afterSentence = sentence;
             start = next;
+        }
+        if (onLines && !anchored) {
+            final List<int[]> marked = new ArrayList<>();
+            for (int i = 0; i < out.size(); i++) {
+                if (!plain.get(i)) {
+                    marked.add(out.get(i));
+                }
+            }
+            return marked;
         }
         return out;
     }
@@ -666,10 +711,51 @@ public final class BusinessRules {
     /** Lower-case words to the end of the item, without any capitalised word: a predicate, not part of a name. */
     private static final Pattern PREDICATE_TAIL = Pattern.compile("(?<=\\S)\\s+\\p{Ll}[\\p{Ll}\\-]*(?:\\s+\\p{Ll}[\\p{Ll}\\-]*)*\\s*[.!]?$");
 
-    /** Common words that are no brand when they stand alone in a list (0.10.3). */
+    /**
+     * Common words that are no brand when they stand alone in a list (0.10.3). Since 0.11.5 also the generic and category words a
+     * page uses for the kinds of its partners (production: "Unsere Partner: Banken, Versicherungen, Bausparkassen" named an
+     * organisation "Banken"): a kind of organisation is no organisation.
+     */
     private static final Pattern GENERIC_WORD = Pattern.compile("(?iu)werbung|werbepartner|analysen?|analytics|analytik|marketing|medien|media"
             + "|statistik(?:en)?|tracking|cookies?|personalisierung|funktionen|inhalte|anzeigen|dienste|services|partner|partnern|kunden|daten"
-            + "|informationen|social|advertising");
+            + "|informationen|social|advertising"
+            + "|banken|bank|versicherungen|versicherung|bausparkassen|bausparkasse|sparkassen|kreditinstitute|finanzierer|behörden|behoerden"
+            + "|ämter|aemter|kommunen|städte|staedte|gemeinden|landkreise|unternehmen|firmen|betriebe|mittelstand|hersteller|produzenten"
+            + "|händler|haendler|fachhändler|fachhaendler|lieferanten|zulieferer|dienstleister|handwerker|handwerksbetriebe|architekten"
+            + "|planer|ingenieure|ingenieurbüros|bauträger|bautraeger|bauunternehmen|investoren|bauherren|privatkunden|geschäftskunden"
+            + "|geschaeftskunden|gewerbekunden|firmenkunden|endkunden|industrie|handel|handwerk|gewerbe|institutionen|organisationen"
+            + "|verbände|verbaende|vereine|stiftungen|schulen|kitas|kindergärten|krankenhäuser|kliniken|pflegeheime|praxen|kanzleien"
+            + "|agenturen|kommunal|öffentliche|oeffentliche|privat|gewerblich|banks|insurances|companies|manufacturers|dealers|suppliers"
+            + "|retailers|customers|clients|agencies|authorities|municipalities|partners|brands|marken|lieferant|händlern|haendlern");
+
+    /**
+     * A German plural or collective noun ("Versicherungen", "Genossenschaften", "Institutionen"): a category of organisations, no
+     * name of one (0.11.5). A brand never ends like this.
+     */
+    private static final Pattern PLURAL_NOUN = Pattern.compile("(?u)^\\p{Lu}[\\p{Ll}]+(?:ungen|schaften|heiten|keiten|ionen|innen|isten|ereien)$");
+
+    /**
+     * A one-word item that is marked as a brand: an abbreviation ("DHL", "SAP"), a word with a digit ("3M"), a word with an inner
+     * capital ("PayPal") or an "&" compound ("H&M"). On a list of lines (a navigation, a footer, a logo strip) a plain capitalised
+     * word next to no legal name is no evidence of an organisation (0.11.5).
+     */
+    private static final Pattern BRAND_MARK = Pattern.compile("(?u)^(?:[\\p{Lu}\\p{N}][\\p{Lu}\\p{N}&+.\\-]+|\\p{Lu}\\p{Ll}+\\p{Lu}[\\p{L}\\p{N}]*"
+            + "|[\\p{L}\\p{N}]*\\p{N}[\\p{L}\\p{N}]*|[\\p{L}\\p{N}]+&[\\p{L}\\p{N}]+)$");
+
+    /**
+     * A name that is no name of an organisation: a navigation label, a generic or category word or a plural noun (0.11.5). The
+     * read side uses it to mark what older extractions stored ({@link net.yacy.scoutro.knowledge.read.EntityRoles}).
+     */
+    public static boolean genericName(final String name) {
+        if (name == null) {
+            return false;
+        }
+        final String item = name.trim();
+        if (item.isEmpty() || item.indexOf(' ') >= 0 || LEGAL_FORM.matcher(item).find()) {
+            return false;
+        }
+        return NOT_A_NAME.matcher(item).find() || GENERIC_WORD.matcher(item).matches() || PLURAL_NOUN.matcher(item).matches();
+    }
 
     /** A department or team of a company, also as a compound ("Einkaufsteam", "Einkaufs-Team"), not an organisation (0.10.5). */
     private static final Pattern ORG_UNIT = Pattern.compile("(?iu)(?:\\p{L}+-)?(?:einkaufs?|vertriebs?|vorstands?|betriebsrats?|managements?"
@@ -700,13 +786,15 @@ public final class BusinessRules {
         if (ORG_UNIT.matcher(item).matches()) {
             return false; // "Mitglied des Einkaufs", "… der Geschäftsführung": a department or team of the page's own company
         }
+        if (words.length == 1 && (GENERIC_WORD.matcher(item).matches() || PLURAL_NOUN.matcher(item).matches())) {
+            return false; // "Banken", "Versicherungen", "Vereine": a kind of organisation, not one (0.11.5)
+        }
         if (INSTITUTION.matcher(item).find()) {
             return true;
         }
         // a brand in a customer or partner list: one word ("Siemens", "DHL", "SAP"); "Max Mustermann" is no organisation, nor a
         // common word ("Werbung", "Analysen")
-        return list && words.length == 1 && item.length() >= 2 && item.length() <= 30 && item.matches("[\\p{Lu}\\p{N}][\\p{L}\\p{N}&+.\\-]*")
-                && !GENERIC_WORD.matcher(item).matches();
+        return list && words.length == 1 && item.length() >= 2 && item.length() <= 30 && item.matches("[\\p{Lu}\\p{N}][\\p{L}\\p{N}&+.\\-]*");
     }
 
     // ------------------------------------------------------------- industry

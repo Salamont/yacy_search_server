@@ -3781,6 +3781,7 @@ LMStudio==LMStudio
 Model Downloads==Téléchargements de modèles
 Ollama==Ollama
 Open Router==Ouvrir le routeur
+Anthropic==Anthropic
 OpenAI==OpenAI
 Production Models Matrix==Matrice des modèles de production
 Service Selection==Sélection des services
@@ -4622,11 +4623,19 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<
 >Unconfirmed crawl start<==>Unconfirmed crawl start<
 >Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<==>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<
->Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<==>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<
->Defer start (outcome stays unknown)<==>Defer start (outcome stays unknown)<
+>Deferring starts no crawl and no retry: it checks the crawl profiles once more, keeps the outcome unknown, holds the website so that it is never started again by itself, and lets Discovery continue. Accepted crawls are kept. Without a decision, Discovery defers such a start itself after the grace period.<==>Deferring starts no crawl and no retry: it checks the crawl profiles once more, keeps the outcome unknown, holds the website so that it is never started again by itself, and lets Discovery continue. Accepted crawls are kept. Without a decision, Discovery defers such a start itself after the grace period.<
+>Defer start (no new crawl, no retry, outcome stays unknown)<==>Defer start (no new crawl, no retry, outcome stays unknown)<
 >Deferred starts<==>Deferred starts<
->Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<==>Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<
+>Defer the unconfirmed crawl start for %1? This starts no crawl and no retry. The outcome stays unknown, and the website stays held until an administrator crawls it deliberately.<==>Defer the unconfirmed crawl start for %1? This starts no crawl and no retry. The outcome stays unknown, and the website stays held until an administrator crawls it deliberately.<
 >Crawl start deferred; Discovery continues.<==>Crawl start deferred; Discovery continues.<
+>deferred by an administrator<==>deferred by an administrator<
+>deferred by Discovery after the grace period<==>deferred by Discovery after the grace period<
+>Checked %1 times without a crawl profile. Without a decision, Discovery defers this start itself after %2 more checks (at the earliest %3 minutes after the start); the website is then held with the outcome unknown.<==>Checked %1 times without a crawl profile. Without a decision, Discovery defers this start itself after %2 more checks (at the earliest %3 minutes after the start); the website is then held with the outcome unknown.<
+>Checked %1 times without a crawl profile; Discovery defers this start itself at the next heartbeat.<==>Checked %1 times without a crawl profile; Discovery defers this start itself at the next heartbeat.<
+>The automatic deferral is postponed: %1. Discovery retries it at the next heartbeat.<==>The automatic deferral is postponed: %1. Discovery retries it at the next heartbeat.<
+>Discovery is working right now; try again in a moment.<==>Discovery is working right now; try again in a moment.<
+>The Discovery state changed meanwhile; the page was reloaded, please repeat the action.<==>The Discovery state changed meanwhile; the page was reloaded, please repeat the action.<
+>Crawl profile removed; result unknown<==>Crawl profile removed; result unknown<
 
 #File: scoutro-dashboard.html
 "New collection"=="New collection"
@@ -4924,3 +4933,20 @@ System data requires an authorized administrator or agent token. No web answer i
 
 #File: ScoutroKnowledge_p.html
 >Statement: no offer by the named provider of this service<==>Déclaration : aucune offre de ce service par le prestataire nommé<
+>Current sources state this. Extracted automatically, not verified by a person.<==>Current sources state this. Extracted automatically, not verified by a person.<
+>Weak or single evidence; not verified.<==>Weak or single evidence; not verified.<
+>Sources contradict each other.<==>Sources contradict each other.<
+>No current source states this any more.<==>No current source states this any more.<
+>Role<==>Role<
+>site operator<==>site operator<
+>brand<==>brand<
+>manufacturer<==>manufacturer<
+>no proper name<==>no proper name<
+>A brand or maker a source names; never the operator of this website.<==>A brand or maker a source names; never the operator of this website.<
+>The organisation that operates the website, by its own statement.<==>The organisation that operates the website, by its own statement.<
+>A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<==>A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.<
+>Brands and manufacturers<==>Brands and manufacturers<
+>%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<==>%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.<
+>Collapse all sections<==>Collapse all sections<
+>Expand all sections<==>Expand all sections<
+>Filters<==>Filters<

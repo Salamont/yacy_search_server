@@ -344,11 +344,12 @@ public final class BusinessView {
         }
         // relations between organisations and the other relations, both directions; derived ones apart
         final JSONArray relations = new JSONArray();
-        relations(c, own, false, v, relations, docs);
-        relations(c, in, true, v, relations, docs);
+        final int hiddenGeneric = relations(c, own, false, v, relations, docs) + relations(c, in, true, v, relations, docs);
         final JSONObject derived = derived(c, ent, v, Set.of(DerivedKind.LINKED_TO, DerivedKind.SAME_OPERATOR));
-        if (relations.length() > 0 || derived.length() > 0) {
-            KgJson.put(out, "relations", KgJson.obj("facts", relations, "derived", derived));
+        if (relations.length() > 0 || derived.length() > 0 || hiddenGeneric > 0) {
+            // 0.11.5: a relation to an entity whose name is no name (a navigation label, a kind of organisation) is hidden here, not
+            // deleted: the object view still shows the statement with its role; the count says how many
+            KgJson.put(out, "relations", KgJson.obj("facts", relations, "derived", derived, "hidden_generic", hiddenGeneric));
         }
         // jobs of the entity as employer
         final JSONArray jobs = new JSONArray();
@@ -893,8 +894,10 @@ public final class BusinessView {
         return o;
     }
 
-    private void relations(final Connection c, final List<Fact> facts, final boolean incoming, final Viewer v, final JSONArray out,
+    /** Puts the relations of {@code facts} and returns how many were hidden because the other side is a generic name (0.11.5). */
+    private int relations(final Connection c, final List<Fact> facts, final boolean incoming, final Viewer v, final JSONArray out,
             final Set<String> docs) throws SQLException {
+        int hidden = 0;
         for (final Fact f : facts) {
             if (out.length() >= MAX_RELATIONS || f.stat.objEnt == null || NOT_RELATIONS.contains(f.stat.predicate)) {
                 continue;
@@ -903,9 +906,15 @@ public final class BusinessView {
             if (!visible(c, other, v)) {
                 continue; // the other side is not visible to the viewer: no trace of it
             }
-            out.put(relationItem(c, f, incoming, v));
+            final JSONObject item = relationItem(c, f, incoming, v);
+            if (EntityRoles.GENERIC.equals(item.optJSONObject("other").optString("role", null))) {
+                hidden++;
+                continue;
+            }
+            out.put(item);
             collect(f, docs);
         }
+        return hidden;
     }
 
     private JSONObject relationItem(final Connection c, final Fact f, final boolean incoming, final Viewer v) throws SQLException {
@@ -927,8 +936,9 @@ public final class BusinessView {
             }
         }
         final String name = KgReader.visibleName(c, ent, v);
-        return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "name", name, "type", type),
-                name != null ? DisplayNames.known(c, ent, name, v) : DisplayNames.of(c, ent, type, null, null, v));
+        final JSONObject ref = KgJson.obj("id", KgReader.publicId(c, ent), "name", name, "type", type);
+        KgJson.put(ref, "role", EntityRoles.of(c, ent, type, name, v));
+        return DisplayNames.put(ref, name != null ? DisplayNames.known(c, ent, name, v) : DisplayNames.of(c, ent, type, null, null, v));
     }
 
     static boolean visible(final Connection c, final long ent, final Viewer v) throws SQLException {

@@ -81,7 +81,7 @@
 <form id="skg-search" class="sseo-search">
 <label for="skg-q">Name<input class="form-control" id="skg-q" type="search" maxlength="200" autocomplete="off" /></label>
 <label for="skg-type">Type<select class="form-control" id="skg-type"><option value="">All types</option><option value="organization">Organisation</option><option value="facility">Facility</option><option value="site">Site</option><option value="place">Place</option><option value="service">Service</option><option value="job">Job</option></select></label>
-<label for="skg-quality">Quality<select class="form-control" id="skg-quality"><option value="">Any quality</option><option value="supported">Supported</option><option value="uncertain">Uncertain</option><option value="stale">Stale</option></select></label>
+<label for="skg-quality">Quality<select class="form-control" id="skg-quality"><option value="">Any quality</option><option value="supported">Stated by sources</option><option value="uncertain">Uncertain</option><option value="stale">Stale</option></select></label>
 <label for="skg-host">Host<input class="form-control" id="skg-host" type="text" maxlength="2048" autocomplete="off" /></label>
 <label for="skg-industry">Industry<select class="form-control" id="skg-industry"><option value="">Any industry</option></select></label>
 <label for="skg-category">Service category<select class="form-control" id="skg-category"><option value="">Any category</option></select></label>
@@ -118,6 +118,7 @@
 <p class="sseo-note" data-skg-single>The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.</p>
 <form id="skg-net-form" class="sseo-search skg-net-form">
 <label for="skg-depth" data-skg-single>Depth<select class="form-control" id="skg-depth"><option value="1">1: direct neighbours</option><option value="2">2: also their neighbours</option></select></label>
+<details id="skg-net-filters" class="skg-net-filters-box" open><summary>Filters</summary>
 <fieldset class="skg-net-filters" data-skg-single><legend>Facts</legend>
 <label><input type="checkbox" id="skg-f-business" /> Relations between companies</label>
 <label><input type="checkbox" id="skg-f-structure" /> Structure and operators</label>
@@ -137,6 +138,7 @@
 <label><input type="checkbox" id="skg-f-current" /> Current</label>
 <label><input type="checkbox" id="skg-f-stale" /> Outdated</label>
 </fieldset>
+</details>
 <label class="skg-net-listonly"><input type="checkbox" id="skg-f-list" /> List only</label>
 <button class="btn btn-primary" type="submit">Apply</button>
 <button class="btn btn-default" type="button" id="skg-net-reset">Default view</button>
@@ -697,10 +699,26 @@
 <span data-skg-label="type">Type</span>
 <span data-skg-label="kind">Kind</span>
 <span data-skg-label="quality">Quality</span>
-<span data-skg-label="supported">supported</span>
+<span data-skg-label="supported">stated by sources</span>
 <span data-skg-label="uncertain">uncertain</span>
 <span data-skg-label="conflicting">conflicting</span>
 <span data-skg-label="stale">stale</span>
+<span data-skg-label="q_hint_supported">Current sources state this. Extracted automatically, not verified by a person.</span>
+<span data-skg-label="q_hint_uncertain">Weak or single evidence; not verified.</span>
+<span data-skg-label="q_hint_conflicting">Sources contradict each other.</span>
+<span data-skg-label="q_hint_stale">No current source states this any more.</span>
+<span data-skg-label="erole">Role</span>
+<span data-skg-label="erole_operator">site operator</span>
+<span data-skg-label="erole_brand">brand</span>
+<span data-skg-label="erole_manufacturer">manufacturer</span>
+<span data-skg-label="erole_generic">no proper name</span>
+<span data-skg-label="erole_hint_brand">A brand or maker a source names; never the operator of this website.</span>
+<span data-skg-label="erole_hint_operator">The organisation that operates the website, by its own statement.</span>
+<span data-skg-label="erole_hint_generic">A navigation label or a kind of organisation that an earlier extraction stored as a name; shown here, hidden among business relations.</span>
+<span data-skg-label="rel_brands">Brands and manufacturers</span>
+<span data-skg-label="toc_collapse">Collapse all sections</span>
+<span data-skg-label="toc_expand">Expand all sections</span>
+<span data-skg-label="rel_hidden_generic">%1 relation(s) to entries without a proper name (navigation labels, kinds of organisations) are not shown here; the object view of each entry keeps them.</span>
 <span data-skg-label="hedged">hedged</span>
 <span data-skg-label="llm_only">only from the LLM tier</span>
 <span data-skg-label="aliases">Other names</span>
@@ -1274,7 +1292,7 @@
 <span data-skg-label="p_reference_for">is a reference for</span>
 <span data-skg-label="p_supplier_of">supplies</span>
 <span data-skg-label="p_service_provider_for">is a service provider for</span>
-<span data-skg-label="p_brand_of">is a brand of</span>
+<span data-skg-label="p_brand_of">is listed as a brand of</span>
 <span data-skg-label="p_certified_by">is certified by</span>
 <span data-skg-label="p_funded_by">is funded by</span>
 <span data-skg-label="p_sponsored_by">is sponsored by</span>

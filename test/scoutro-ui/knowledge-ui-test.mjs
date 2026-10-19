@@ -302,6 +302,8 @@ try {
         await page.waitForFunction(() => new URLSearchParams(location.search).get('depth') === '2' && document.querySelector('#skg-net-svg').dataset.state === 'ready');
         await page.waitForSelector('#skg-net-svg .skg-edge.skg-e-derived');
         check((await page.locator('#skg-net-table').textContent()).includes(L('same operator (derived)', 'gleicher Träger (abgeleitet)')), 'same operator at depth 2, also in the list' + where);
+        // 0.11.5: on a phone the filters are folded until the reader opens them (the default view without f=)
+        await page.evaluate(() => { const d = document.getElementById('skg-net-filters'); if (d && !d.open) d.open = true; });
         await page.locator('#skg-f-industry').uncheck();
         await page.locator('#skg-f-audiences').uncheck();
         await page.locator('#skg-net-form button[type=submit]').click();
@@ -356,6 +358,8 @@ try {
           && await page.locator(`#skg-net-svg .skg-node[data-node="${ctcon}"]`).count() === 1, 'both providers of kgb, CTcon among them' + where);
         check(await page.locator('#skg-net-svg .skg-edge[data-type="offers"][data-to="service_group:sap"]').count() === 2, 'provider → offers → SAP, one line each' + where);
         check(!(await page.locator('#skg-net-svg').textContent()).includes('Gamma'), 'no provider of another collection' + where);
+        // 0.11.5: on a phone the filters are folded for the default view; open them before looking at the status filter
+        await page.evaluate(() => { const d = document.getElementById('skg-net-filters'); if (d && !d.open) d.open = true; });
         check(await page.locator('#skg-depth').isHidden() && await page.locator('#skg-f-offers').isHidden() && await page.locator('#skg-f-current').isVisible(),
           'only the status filter applies' + where);
         check((await page.locator('#skg-network-title').textContent()).includes(L('Network of SAP · 2 providers', 'Netz von SAP · 2 Anbieter')), 'title of the name' + where);

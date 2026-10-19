@@ -20,14 +20,16 @@
     try {
     const response = await fetch(`${apiRoot}/${path}`, { method, headers, signal, credentials: 'same-origin', body: body === undefined ? undefined : JSON.stringify(body) });
     let result; try { result = await response.json(); } catch { throw new Error(`${response.status}`); }
-    if (!response.ok) throw new Error(result.error?.message || `${response.status}`);
+    if (!response.ok) { const error = new Error(result.error?.message || `${response.status}`); error.code = result.error?.code; throw error; }
     if (method !== 'GET' && typeof result.revision === 'number') revision = result.revision;
     return result;
     } finally { if (method !== 'GET') mutating = false; }
   }
+  // a known error code has a translated label; anything else shows the server's message
+  const describe = error => error.code && document.querySelector(`[data-scd-label="${error.code}"]`) ? text(error.code) : error.message;
   function button(label, callback) {
     const b = element('button', text(label), 'btn btn-default'); b.type = 'button';
-    b.addEventListener('click', () => Promise.resolve(callback()).catch(e => message(e.message))); return b;
+    b.addEventListener('click', () => Promise.resolve(callback()).catch(e => message(describe(e)))); return b;
   }
   function refresh() {
     if (refreshPromise) return refreshPromise;
@@ -73,12 +75,22 @@
     panel.hidden = items.length === 0;
     $('scd-review-list').replaceChildren(...items.map(item => {
       const entry = element('li');
-      entry.append(element('strong', item.domain), document.createTextNode(` · ${date(item.submitted_at)} `),
-        button('defer', async () => {
-          if (!confirm(text('confirm_defer').replace('%1', item.domain))) return;
-          await api(`attempts/${item.attempt_id}/defer`, 'POST', { run_id: batch.id });
-          message(text('deferred')); await refresh();
-        }));
+      const defer = async () => {
+        if (!confirm(text('confirm_defer').replace('%1', item.domain))) return;
+        try { await api(`attempts/${item.attempt_id}/defer`, 'POST', { run_id: batch.id }); }
+        catch (e) {
+          // the coordinator moved the revision meanwhile (a heartbeat counted another check): reload once and repeat
+          if (e.code !== 'revision_conflict') throw e;
+          await refresh(); await api(`attempts/${item.attempt_id}/defer`, 'POST', { run_id: batch.id });
+        }
+        message(text('deferred')); await refresh();
+      };
+      entry.append(element('strong', item.domain), document.createTextNode(` · ${date(item.submitted_at)} `), button('defer', defer));
+      const grace = item.auto_defer_after > 0
+        ? text('review_grace').replace('%1', item.reconciled ?? 0).replace('%2', item.auto_defer_after).replace('%3', Math.round((item.auto_defer_min_age_ms || 0) / 60000))
+        : text('review_grace_now').replace('%1', item.reconciled ?? 0);
+      entry.append(element('p', grace, 'scd-note'));
+      if (item.auto_defer_error) entry.append(element('p', text('auto_defer_error').replace('%1', text(item.auto_defer_error)), 'scd-message'));
       return entry;
     }));
   }
@@ -94,7 +106,7 @@
       detail('fresh', row.fresh_backlog === null ? '—' : String(row.fresh_backlog));
       detail('last', date(row.runtime.last_run?.finished_at)); detail('next', date(row.runtime.next_due));
       const held = (row.runtime.held_attempts || []).filter(h => h.state === 'deferred');
-      if (held.length) detail('held', held.map(h => `${h.domain} (${date(h.decision.at)})`).join(', '));
+      if (held.length) detail('held', held.map(h => `${h.domain} (${date(h.decision.at)}, ${text(h.decision.automatic ? 'held_auto' : 'held_manual')})`).join('; '));
       card.append(dl);
       if (row.waiting_reason || row.runtime.error) card.append(element('p', text(row.waiting_reason || row.runtime.error), 'scd-message'));
       const actions = element('div', '', 'scd-actions');

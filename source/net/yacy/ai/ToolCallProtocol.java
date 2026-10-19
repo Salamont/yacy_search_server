@@ -175,8 +175,9 @@ public final class ToolCallProtocol {
         final JSONObject preparedBody = prepareToolRequestBody(originalBody, false, llm4Chat != null && llm4Chat.tooling,
                 llm4Chat == null || llm4Chat.indexTools);
         if (llm4Chat != null && llm4Chat.thinking) {
-            LLM.applyNoThinkingParameters(preparedBody);
+            LLM.applyNoThinkingParameters(preparedBody, llm4Chat.llm.type);
         }
+        if (llm4Chat != null) LLM.stripLocalHints(preparedBody, llm4Chat.llm.type);
         final JSONArray offeredTools = preparedBody.optJSONArray("tools");
         log.info(prefix(runId) + "event=tool-lifecycle phase=start tooling=" + (llm4Chat != null && llm4Chat.tooling) + " releasedTools=" + (offeredTools == null ? 0 : offeredTools.length()) + " thinking=" + (llm4Chat != null && llm4Chat.thinking) + " messages=" + (messages == null ? 0 : messages.length()) + " metadata=" + (initialMetadata == null ? 0 : initialMetadata.length()));
         final HttpURLConnection conn;
@@ -376,8 +377,9 @@ public final class ToolCallProtocol {
                 final JSONObject followup = prepareToolRequestBody(originalBody, true, llm4Chat != null && llm4Chat.tooling,
                         llm4Chat == null || llm4Chat.indexTools);
                 if (llm4Chat != null && llm4Chat.thinking) {
-                    LLM.applyNoThinkingParameters(followup);
+                    LLM.applyNoThinkingParameters(followup, llm4Chat.llm.type);
                 }
+                if (llm4Chat != null) LLM.stripLocalHints(followup, llm4Chat.llm.type);
                 followup.put("messages", newMessages);
                 log.info(prefix(runId) + "event=tool-round phase=followup-call round=" + round + " toolResults=" + roundData.toolResults.length() + " messages=" + newMessages.length());
                 final HttpURLConnection followConn = openChatCompletionConnection(llm4Chat, followup);
@@ -475,6 +477,9 @@ public final class ToolCallProtocol {
         conn.setRequestProperty("Content-Type", "application/json");
         if (llm4Chat.llm.api_key != null && !llm4Chat.llm.api_key.isEmpty()) {
             conn.setRequestProperty("Authorization", "Bearer " + llm4Chat.llm.api_key);
+        }
+        for (final java.util.Map.Entry<String, String> header : LLM.serviceHeaders(llm4Chat.llm.type).entrySet()) {
+            conn.setRequestProperty(header.getKey(), header.getValue());
         }
         conn.setDoOutput(true);
         try (OutputStream os = conn.getOutputStream()) {

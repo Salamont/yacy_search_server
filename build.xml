@@ -341,6 +341,7 @@
     <javac srcdir="${test}" destdir="build/scoutro-llm-security-tests" release="${javacRelease}"
            encoding="UTF-8" includeantruntime="false">
       <include name="net/yacy/http/ClientAddressTest.java" />
+      <include name="net/yacy/http/servlets/AnthropicProxyTest.java" />
       <include name="net/yacy/ai/**/*Test.java" />
       <exclude name="net/yacy/ai/rag/**" />
       <include name="net/yacy/htroot/LLMSelection_pTest.java" />
@@ -359,6 +360,8 @@
       <arg value="net.yacy.ai.ToolReleaseTest" />
       <arg value="net.yacy.ai.PromptGuardTest" />
       <arg value="net.yacy.htroot.LLMSelection_pTest" />
+      <arg value="net.yacy.ai.AnthropicServiceTest" />
+      <arg value="net.yacy.http.servlets.AnthropicProxyTest" />
       <classpath>
         <pathelement location="build/scoutro-llm-security-tests" />
         <pathelement location="${build}" />
@@ -898,6 +901,7 @@
         <include name="docs/SCOUTRO_RELEASE_0.10.8.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.10.9.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.11.4.md"/>
+        <include name="docs/SCOUTRO_RELEASE_0.11.5.md"/>
         <include name="readme.txt"/>
         <include name="gpl.txt"/>
         <include name="ChangeLog"/>

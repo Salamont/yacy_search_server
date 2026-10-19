@@ -1655,7 +1655,10 @@ public final class KgRuntime {
             rules.extract(text, p[1], p[2], "de", ex, ctx, java.util.List.of(), java.util.List.of());
             final java.util.Set<String> here = new java.util.TreeSet<>();
             for (final net.yacy.scoutro.knowledge.extract.Claim c : ex.claims()) {
-                if (!net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate) || c.value == null) continue;
+                // a category of an offered service or a topic of the page (0.11.5: a role word such as "Hersteller" is a topic,
+                // no service; the vocabulary's fit to the text is the same)
+                if (!(net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate)
+                        || net.yacy.scoutro.knowledge.extract.Vocabulary.TOPIC.equals(c.predicate)) || c.value == null) continue;
                 for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : ctx.vocabularies) {
                     if (v.categories.containsKey(c.value)) {
                         categories.computeIfAbsent(v.name, k -> new java.util.TreeSet<>()).add(c.value);

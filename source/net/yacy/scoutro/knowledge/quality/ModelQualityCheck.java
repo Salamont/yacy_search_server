@@ -996,7 +996,7 @@ public final class ModelQualityCheck {
                 "provenance", KgJson.obj("candidate", p.candidate.json(),
                         "served", KgJson.obj("models", new JSONObject(r.servedModels), "providers", new JSONObject(r.servedProviders),
                                 "unreportedCalls", r.unreported),
-                        "parameters", KgJson.obj("temperature", 0.1, "maxTokens", p.candidate.maxTokens,
+                        "parameters", KgJson.obj("temperature", LLM.sendsTemperature(p.candidate.service) ? 0.1 : null, "maxTokens", p.candidate.maxTokens,
                                 "window", p.window == null ? null : KgJson.obj("tokens", p.window.tokens, "source", p.window.source),
                                 "structuredOutput", p.cfg.llmStructuredOutput, "timeoutMillis", p.cfg.llmTimeoutMillis,
                                 "answerReserveTokens", p.cfg.llmAnswerReserveTokens, "maxInputChars", p.cfg.extractMaxInputChars),

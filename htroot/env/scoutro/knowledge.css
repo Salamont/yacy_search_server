@@ -7,6 +7,10 @@
 .skg-meter-fill.skg-critical { background: #b3261e; }
 .skg-badge { display: inline-block; padding: 2px 8px; margin: 2px 6px 2px 0; border-radius: 10px; border: 1px solid #dce6ef; font-size: 12px; line-height: 1.5; background: #f6f9fc; color: #22324a; }
 .skg-q-supported { background: #e7f5ec; border-color: #9fd3b0; color: #1d5c34; }
+.skg-role-operator { background: #e8eefb; border-color: #a9bdf0; color: #203a7a; }
+.skg-role-brand, .skg-role-manufacturer { background: #fbf1e3; border-color: #ecc98f; color: #6b4a0f; }
+.skg-role-generic { background: #f1f1f1; border-color: #c9c9c9; color: #555; text-decoration: line-through; }
+.skg-hidden-note { margin-top: 6px; }
 .skg-q-uncertain, .skg-hedged, .skg-llm { background: #fff6e0; border-color: #e7c66e; color: #6b4b00; }
 .skg-q-conflicting { background: #fdecea; border-color: #eaa49e; color: #8a1f17; }
 .skg-q-stale { background: #f1f1f1; border-color: #cfcfcf; color: #555; }
@@ -46,6 +50,24 @@
 .skg-derived { border-left: 3px dotted #b7bdea; padding-left: 10px; }
 .skg-reason { margin: 4px 0; font-size: 14px; }
 .skg-bsec h4 { margin: 14px 0 6px; font-size: 15px; }
+/* 0.11.5: collapsible sections, readable quotes, folded filters and smaller pages on a phone */
+.skg-bsec > summary { cursor: pointer; list-style: none; }
+.skg-bsec > summary::-webkit-details-marker { display: none; }
+.skg-bsec > summary::before { content: '▾'; display: inline-block; width: 1em; color: #44546a; }
+.skg-bsec:not([open]) > summary::before { content: '▸'; }
+.skg-bsec > summary h3 { display: inline; margin: 0; }
+.skg-bsec blockquote, .skg-main blockquote { margin: 6px 0; padding: 4px 10px; border-left: 3px solid #cfd8e3; background: #f6f9fc; font-size: 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.skg-toc-toggle { margin-left: auto; }
+.skg-net-filters-box > summary { cursor: pointer; font-weight: 600; margin: 4px 0; }
+@media (min-width: 640px) { .skg-net-filters-box > summary { display: none; } }
+@media (max-width: 480px) {
+ .sseo-main .sseo-stats { grid-template-columns: minmax(6em, 35%) minmax(0, 1fr); gap: 6px 10px; }
+ .skg-bsec .sseo-panel, .skg-bsec .skg-net-detail { padding: 10px; }
+ .skg-toc a, .skg-actions a { white-space: normal; }
+ .sseo-views a, .sseo-views button { padding: 6px 10px; font-size: 14px; line-height: 1.4; }
+ .skg-net-form fieldset label { display: block; margin-right: 0; }
+ .skg-main .sseo-scroll table.scoutro-cards tbody td { font-size: 14px; }
+}
 .skg-prices td { vertical-align: top; }
 tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 .skg-net-form fieldset { border: 1px solid #dce6ef; border-radius: 6px; padding: 6px 10px; margin: 0 0 6px; min-width: 0; max-width: 100%; }

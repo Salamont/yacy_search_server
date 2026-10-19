@@ -63,7 +63,10 @@
     const a = node('a', url); a.href = url; a.rel = 'noopener noreferrer nofollow'; a.target = '_blank'; return a;
   }
   function badge(text, kind) { return node('span', text, 'skg-badge skg-' + kind); }
-  function qualityBadge(q) { return badge(t(q), 'q-' + q); }
+  // the quality badge says what current sources state; its title says that nobody verified it (0.11.5)
+  function qualityBadge(q) { const b = badge(t(q), 'q-' + q); if (labels['q_hint_' + q]) b.title = labels['q_hint_' + q]; return b; }
+  // the role of an organisation as the read side derived it: operator, brand, manufacturer, or a stored name that is no name (0.11.5)
+  function roleBadge(role) { if (!role) return null; const b = badge(t('erole_' + role), 'role-' + role); if (labels['erole_hint_' + role]) b.title = labels['erole_hint_' + role]; return b; }
   function stats(id, rows) {
     const dl = $(id); dl.replaceChildren();
     for (const [k, v] of rows) { dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = fmt(v); dl.append(dd); }
@@ -641,6 +644,7 @@
       const ctx = e.context || {};
       const name = node('span', null, 'skg-hit-name'); name.append(nameLink(e, e.id, e.type));
       const note = nameNote(e); if (note) name.append(' ', note);
+      const role = roleBadge(e.role); if (role) name.append(' ', role);
       rowInto(body, heads, [name, t(e.type) + (e.kind ? ' · ' + e.kind : ''), providerCell(e, ctx), (ctx.collections || []).join(', ') || t('none'),
         placeOf(ctx), qualityBadge(e.quality), fmt(e.counts?.sources), date(e.last_confirmed), hitActions(e, ctx)]).dataset.type = e.type;
     }
@@ -753,7 +757,7 @@
     const hosts = node('span'); (e.hosts || []).forEach((h, n) => { if (n) hosts.append(', '); hosts.append(link(h, { view: 'objects', host: h })); });
     const dups = node('span'); (e.possible_duplicates || []).forEach((d, n) => { if (n) dups.append(', '); dups.append(link(d, { view: 'object', id: d })); });
     { const note = nameNote(e); if (note) $('object-name').append(' ', note); }
-    stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
+    stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ...(e.role ? [['erole', roleBadge(e.role)]] : []), ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
       ['identifiers', ids.childNodes.length ? ids : t('none')], ['hosts', hosts.childNodes.length ? hosts : t('none')],
       ['duplicates', dups.childNodes.length ? dups : t('none')], ['first_seen', date(e.first_seen)], ['last_confirmed', date(e.last_confirmed)],
       ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)], ['technical_id', e.id]]);
@@ -768,7 +772,7 @@
   }
 
   async function statements(id, direction, target, from, run) {
-    const data = await api('entities/' + encodeURIComponent(id) + '/statements', { direction, offset: from, limit: 100 });
+    const data = await api('entities/' + encodeURIComponent(id) + '/statements', { direction, offset: from, limit: pageSize() });
     if (run !== generation) return;
     if (from === 0) target.replaceChildren();
     if (!data.items.length && from === 0) { target.append(node('p', t('none'))); return; }
@@ -957,16 +961,20 @@
     return factItem(head, item);
   }
   function list(items, render) { const ul = node('ul', null, 'skg-statements'); for (const i of items) ul.append(render(i)); return ul; }
+  // a section of the object view is collapsible (0.11.5): open by default, its heading is the summary; the ids stay for the ToC
   function section(key, ...children) {
-    const sec = node('section', null, 'sseo-panel skg-bsec'); sec.id = 'skg-sec-' + key;
-    const h = node('h3', t('sec_' + key)); h.id = 'skg-sec-' + key + '-title'; sec.setAttribute('aria-labelledby', h.id);
-    sec.append(h, ...children.filter(Boolean)); return sec;
+    const sec = node('details', null, 'sseo-panel skg-bsec'); sec.id = 'skg-sec-' + key; sec.open = true;
+    const sum = node('summary'); const h = node('h3', t('sec_' + key)); h.id = 'skg-sec-' + key + '-title'; sum.append(h); sec.setAttribute('aria-labelledby', h.id);
+    sec.append(sum, ...children.filter(Boolean)); return sec;
   }
+  // a smaller page of statements and sources on a phone (0.11.5)
+  const pageSize = () => window.innerWidth < 768 ? 25 : 100;
   function entityLink(ref) { return ref ? nameLink(ref, ref.id, ref.type) : node('span', t('missing')); }
   function relationItem(r) {
     const head = node('div', null, 'skg-statement-head');
-    if (r.direction === 'in') head.append(entityLink(r.other), ' ', node('span', predicate(r.predicate), 'skg-predicate'), ' ', node('span', $('object-name').textContent));
-    else head.append(node('span', predicate(r.predicate), 'skg-predicate'), ' ', entityLink(r.other));
+    const other = node('span'); other.append(entityLink(r.other)); const role = roleBadge(r.other?.role); if (role) other.append(' ', role);
+    if (r.direction === 'in') head.append(other, ' ', node('span', predicate(r.predicate), 'skg-predicate'), ' ', node('span', $('object-name').textContent));
+    else head.append(node('span', predicate(r.predicate), 'skg-predicate'), ' ', other);
     return factItem(head, r);
   }
   function derivedItem(d) {
@@ -1135,10 +1143,16 @@
       const items = []; for (const [p, l] of Object.entries(b.contacts)) for (const i of l) items.push([p, i]);
       box.append(section('contacts', list(items, ([p, i]) => literalItem(p, i))));
     }
-    if (b.relations && (b.relations.facts?.length || Object.keys(b.relations.derived || {}).length)) {
+    if (b.relations && (b.relations.facts?.length || Object.keys(b.relations.derived || {}).length || b.relations.hidden_generic)) {
       const parts = [];
-      if (b.relations.facts?.length) parts.push(list(b.relations.facts, relationItem));
+      // brands and makers apart from the business relations (0.11.5): an external brand is visible, never like a partner company
+      const facts = b.relations.facts || [];
+      const brands = facts.filter(r => r.other?.role === 'brand' || r.other?.role === 'manufacturer');
+      const rest = facts.filter(r => !brands.includes(r));
+      if (rest.length) parts.push(list(rest, relationItem));
+      if (brands.length) parts.push(node('h4', t('rel_brands')), list(brands, relationItem));
       for (const [k, l] of Object.entries(b.relations.derived || {})) if (l.length) parts.push(node('h4', t('m_' + k)), list(l, derivedItem));
+      if (b.relations.hidden_generic) parts.push(node('p', t('rel_hidden_generic').replace('%1', fmt(b.relations.hidden_generic)), 'sseo-note skg-hidden-note'));
       box.append(section('relations', ...parts));
     }
     const jobs = b.jobs?.items || (b.job ? [b.job] : []);
@@ -1203,8 +1217,18 @@
     for (const key of SECTIONS) {
       const target = document.getElementById('skg-sec-' + key); if (!target || seen.has(key)) continue; seen.add(key);
       const a = node('a', t('sec_' + key)); a.href = '#skg-sec-' + key;
-      a.addEventListener('click', ev => { ev.preventDefault(); target.scrollIntoView({ block: 'start' }); const h = target.querySelector('h3'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } });
+      a.addEventListener('click', ev => { ev.preventDefault(); target.open = true; target.scrollIntoView({ block: 'start' }); const h = target.querySelector('h3'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } });
       toc.append(a);
+    }
+    // on a phone every section can be folded away at once (0.11.5)
+    if (toc.childNodes.length && window.innerWidth < 768) {
+      const b = node('button', t('toc_collapse'), 'btn btn-default btn-xs skg-toc-toggle'); b.type = 'button'; b.dataset.open = '1';
+      b.addEventListener('click', () => {
+        const open = b.dataset.open !== '0';
+        for (const d of document.querySelectorAll('details.skg-bsec')) d.open = !open;
+        b.dataset.open = open ? '0' : '1'; b.textContent = t(open ? 'toc_expand' : 'toc_collapse');
+      });
+      toc.append(b);
     }
   }
 
@@ -1376,6 +1400,32 @@
     return t(n.type);
   }
   const clip = (text, max) => text.length > max ? text.slice(0, Math.max(1, max - 1)) + '…' : text;
+  // the width of an SVG text where the browser renders it, 0 where it does not (then the character estimate decides)
+  const measure = el => { try { const w = el.getComputedTextLength(); return Number.isFinite(w) ? w : 0; } catch (e) { return 0; } };
+  // the longest prefix of the text that fits the width, with an ellipsis where it is cut (0.11.5: measured, not counted)
+  function fitText(el, text, maxWidth, estimate) {
+    el.textContent = text;
+    const w = measure(el);
+    if (!w) { el.textContent = clip(text, estimate); return; }
+    if (w <= maxWidth) return;
+    let lo = 1, hi = Math.max(1, text.length - 1);
+    while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); el.textContent = text.slice(0, mid) + '…'; if (measure(el) <= maxWidth) lo = mid; else hi = mid - 1; }
+    el.textContent = text.slice(0, lo) + '…';
+  }
+  // two lines: the first breaks after a word where one fits, the second takes the rest
+  function fitLines(first, second, text, maxWidth, estimate) {
+    if (!second) { fitText(first, text, maxWidth, estimate); return; }
+    first.textContent = text; second.textContent = '';
+    const w = measure(first);
+    if (!w) { if (text.length > estimate) { first.textContent = text.slice(0, estimate); second.textContent = clip(text.slice(estimate), estimate); } return; }
+    if (w <= maxWidth) return;
+    let lo = 1, hi = Math.max(1, text.length - 1);
+    while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); first.textContent = text.slice(0, mid); if (measure(first) <= maxWidth) lo = mid; else hi = mid - 1; }
+    const space = text.lastIndexOf(' ', lo);
+    const cut = space > lo * 0.5 ? space : lo;
+    first.textContent = text.slice(0, cut).trim();
+    fitText(second, text.slice(cut).trim(), maxWidth, estimate);
+  }
   function edgeName(e) { return labels['p_' + e.type] || e.type; }
   function edgeShort(e) { return labels['e_' + e.type] || edgeName(e); }
   const groupOrder = n => ({ organization: 0, facility: 1, site: 1, service: 2, job: 3, place: 4 })[n.type] ?? (n.type === 'price' ? 5 : 6);
@@ -1488,7 +1538,10 @@
     const vertical = narrow || ring > 12 || outer > 0 || nodes.length <= 3;
     // layered: two columns on a phone, as many 190 px cards as fit (an even number) on a wider screen
     const cw = vertical ? Math.min(190, Math.floor((width - 2 * 8 - 14) / 2)) : 150;
-    const ch = 44, centreWidth = Math.min(width - 16, Math.round(cw * (vertical ? 1.5 : 1.4)));
+    const ch = narrow ? 58 : 44, centreWidth = Math.min(width - 16, Math.round(cw * (vertical ? 1.5 : 1.4)));
+    // the filters fold away on a phone until the reader opens them or came with filters of their own (0.11.5)
+    const filters = $('net-filters');
+    if (filters && filters.dataset.touched !== '1') filters.open = width >= 640 || new URLSearchParams(location.search).has('f');
     const half = id => id === g.center ? { hw: centreWidth / 2, hh: (ch + 8) / 2 } : { hw: cw / 2, hh: ch / 2 };
     const lay = vertical ? layered(nodes, edges, g.center, width, cw, ch) : radial(nodes, edges, g.center, cw, ch, centreWidth);
     const { pos, box: vb } = lay;
@@ -1589,15 +1642,19 @@
       el.append(svg('rect', { class: 'skg-card', x: -hw, y: -hh, width: 2 * hw, height: 2 * hh, rx: n.value ? 14 : 7 }));
       el.append(svg('rect', { class: 'skg-stripe', x: -hw, y: -hh, width: 6, height: 2 * hh, rx: 3 }));
       const chars = Math.max(6, Math.floor((2 * hw - 22) / 7.2));
-      const t1 = svg('text', { x: -hw + 13, y: -2, class: 'skg-n1' }); t1.textContent = clip(nodeLabel(n), chars);
-      const t2 = svg('text', { x: -hw + 13, y: 14, class: 'skg-n2' }); t2.textContent = clip(subLabel(n), Math.floor(chars * 1.15));
-      el.append(t1, t2);
+      // the name on one line, on a phone on two (0.11.5): measured once the card is in the document, estimated otherwise
+      const t1 = svg('text', { x: -hw + 13, y: narrow ? -12 : -2, class: 'skg-n1' });
+      const t1b = narrow ? svg('text', { x: -hw + 13, y: 2, class: 'skg-n1' }) : null;
+      const t2 = svg('text', { x: -hw + 13, y: narrow ? 18 : 14, class: 'skg-n2' });
+      el.append(t1, ...(t1b ? [t1b] : []), t2);
       const title = svg('title'); title.textContent = nodeLabel(n) + ' · ' + subLabel(n); el.append(title);
       const open = () => { select(n.id); nodeDetail(n, byId); };
       el.addEventListener('click', open); el.addEventListener('focus', open);
       el.addEventListener('mouseenter', () => highlight(n.id)); el.addEventListener('mouseleave', () => highlight(selected));
       el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } else if (ev.key === 'Escape') hideDetail(); });
       nodeLayer.append(el);
+      fitLines(t1, t1b, nodeLabel(n), 2 * hw - 22, chars);
+      fitText(t2, subLabel(n), 2 * hw - 22, Math.floor(chars * 1.15));
     }
     function highlight(id, other, edgeId) {
       for (const w of edgeEls) w.classList.toggle('skg-hl', edgeId ? w.dataset.edge === edgeId && w.dataset.from === id : !!id && (w.dataset.from === id || w.dataset.to === id));
@@ -1942,7 +1999,7 @@
   // -------------------------------------------------------------------- source
   async function source(doc) {
     const run = ++generation; message(t('loading'));
-    const data = await api('sources/' + encodeURIComponent(doc), { limit: 100 }); if (run !== generation) return;
+    const data = await api('sources/' + encodeURIComponent(doc), { limit: pageSize() }); if (run !== generation) return;
     const s = data.source;
     stats('source-facts', [['page', external(s.url)], ['hosts', s.host ? link(s.host, { view: 'objects', host: s.host }) : null],
       ['collections', (s.collections || []).join(', ')], ['doc_state', s.state], ['loaded', date(s.loaded_at)],
@@ -2172,6 +2229,7 @@
   });
   $('search').addEventListener('submit', e => { e.preventDefault(); navigate(objectQuery()); });
   $('net-form').addEventListener('submit', e => { e.preventDefault(); navigate(networkParams()); });
+  { const f = $('net-filters'); if (f) f.addEventListener('toggle', () => { f.dataset.touched = '1'; }); }
   $('f-list').addEventListener('change', () => {
     $('net-wrap').hidden = $('f-list').checked;
     history.replaceState(null, '', 'ScoutroKnowledge_p.html?' + new URLSearchParams({ ...networkParams(), ...(collection ? { collection } : {}) }));

@@ -61,6 +61,12 @@ public final class JsonLdExtractor {
 
     public static final String NAME = "jsonld";
     public static final String VERSION = "6"; // 6: money roles, product roles, own-shop offers (WP-F)
+    /**
+     * Prefix of the synthetic {@code ld_id} of a brand or maker without an {@code @id} (0.11.5): its name, scoped to the host.
+     * Deliberately no version 7: the version is part of every page's extractor key, a new one would read 177,853 pages again;
+     * pages read before 0.11.5 keep their stored facts until their next regular crawl.
+     */
+    public static final String BRAND_ID = "brand:";
 
     private final int maxExcerpt;
 
@@ -85,6 +91,15 @@ public final class JsonLdExtractor {
         final Set<String> names = new HashSet<>();
         /** Products and services a seller of the page offers (WP-F): no own-shop offer of the operator. */
         final Set<String> sold = new HashSet<>();
+        /** The key of the domain's label ("drolshagens" of drolshagens.de), or null. */
+        final String domainLabel;
+        /**
+         * Above zero while the nodes of a {@code brand} or {@code manufacturer} property are read (0.11.5): a brand or a maker is
+         * never the site's operator by its own {@code url}, gets no social profiles and one host-wide identity by its name.
+         */
+        int brandDepth;
+        /** While true, {@code sameAs} profiles of a node are not stored (a brand's profiles are not the operator's). */
+        boolean profilesOff;
 
         Run(final String pageUrl, final String host, final String language, final Extraction out, final ExtractContext ctx) {
             this.pageUrl = pageUrl;
@@ -96,9 +111,14 @@ public final class JsonLdExtractor {
             this.ctx = ctx == null ? ExtractContext.none() : ctx;
             final int dot = this.domain == null ? -1 : this.domain.indexOf('.');
             final String label = dot > 0 ? Normalizers.key(this.domain.substring(0, dot)) : null;
+            this.domainLabel = label;
             if (label != null) {
                 this.names.add(label);
             }
+        }
+
+        boolean inBrand() {
+            return this.brandDepth > 0;
         }
     }
 
@@ -324,13 +344,27 @@ public final class JsonLdExtractor {
             literal(run, m, Vocabulary.ALIAS, Normalizers.clip(alt, 300), p + "/alternateName", "alternateName: " + alt);
         }
 
+        // 0.11.5: a node under "brand" or "manufacturer" is a brand or a maker, not the operator, unless it carries the domain's own
+        // name (production: a product's brand "Golden-Ingwer" with the shop's url became the shop's operator and took its profiles);
+        // without an @id its name is its identity on this host, so every product page names the same brand
+        final boolean brandNode = run.inBrand() && Vocabulary.ORGANIZATION.equals(type)
+                && !(m.name != null && run.domainLabel != null && run.domainLabel.equals(Normalizers.key(m.name)));
+        if (brandNode && id == null && m.name != null && Normalizers.key(m.name) != null) {
+            m.ldId = BRAND_ID + Normalizers.key(m.name);
+        }
+
         identifiers(run, m, o, p);
-        contact(run, m, o, p);
+        run.profilesOff = brandNode;
+        try {
+            contact(run, m, o, p);
+        } finally {
+            run.profilesOff = false;
+        }
         business(run, m, o, p, schemaType, depth);
 
         // the organisation that describes itself on its own domain ({@code url} or {@code sameAs}), or a declared publisher, is the
         // site operator; without a legal form it is the domain's operator by the name it uses, a short name (0.10.6)
-        if (Vocabulary.ORGANIZATION.equals(type) && ownDomain(run, o)) {
+        if (Vocabulary.ORGANIZATION.equals(type) && !brandNode && ownDomain(run, o)) {
             if (legal != null) {
                 m.siteOperator = true;
             } else if (m.name != null) {
@@ -340,6 +374,35 @@ public final class JsonLdExtractor {
 
         relations(run, m, o, p, depth);
         return m.ref;
+    }
+
+    /**
+     * The brand {@code brand} names is the organisation's own: it links the page's own domain, or a word of its name (four letters
+     * or more) is a word of the organisation's name, its legal name or the domain's label, or starts one ("MusterCRM" of "Muster
+     * Software GmbH", "Pianohaus Edition" of "Das Pianohaus GmbH"; not "SCHIMMEL").
+     */
+    private static boolean ownBrand(final Run run, final Mention owner, final Mention brand, final JSONObject brandNode) {
+        if (ownDomain(run, brandNode)) {
+            return true;
+        }
+        final String key = Normalizers.key(brand.name);
+        if (key == null) {
+            return false;
+        }
+        for (final String own : new String[] {owner.name, owner.legalName, run.domainLabel}) {
+            final String ok = own == null ? null : Normalizers.key(own);
+            if (ok == null) {
+                continue;
+            }
+            for (final String w : key.split(" ")) {
+                for (final String o : ok.split(" ")) {
+                    if (Math.min(w.length(), o.length()) >= 4 && (w.startsWith(o) || o.startsWith(w))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** The node links the page's own registrable domain with its {@code url} or its {@code sameAs}. */
@@ -539,7 +602,7 @@ public final class JsonLdExtractor {
         for (final String f : strings(o.opt("faxNumber"))) {
             literal(run, m, Vocabulary.FAX, Normalizers.phone(f, run.callingCode), p + "/faxNumber", "faxNumber: " + f);
         }
-        for (final String same : strings(o.opt("sameAs"))) {
+        for (final String same : run.profilesOff ? List.<String>of() : strings(o.opt("sameAs"))) {
             final String profile = BusinessFacts.socialProfile(same);
             if (profile != null) {
                 literal(run, m, Vocabulary.SOCIAL_PROFILE, profile, p + "/sameAs", "sameAs: " + same);
@@ -1166,15 +1229,33 @@ public final class JsonLdExtractor {
             if (node == null) {
                 continue;
             }
-            final String ref = node(run, node, at, depth + 1, Vocabulary.ORGANIZATION);
+            final boolean brand = Vocabulary.BRAND_OF.equals(predicate) || Vocabulary.HAS_BRAND.equals(predicate)
+                    || Vocabulary.MANUFACTURER_OF.equals(predicate);
+            final String ref;
+            if (brand) {
+                run.brandDepth++;
+            }
+            try {
+                ref = node(run, node, at, depth + 1, Vocabulary.ORGANIZATION);
+            } finally {
+                if (brand) {
+                    run.brandDepth--;
+                }
+            }
             final Mention om = ref == null ? null : run.out.mention(ref);
             if (om == null || om.name == null || BusinessFacts.personLike(om.name) || !Vocabulary.ORGANIZATION.equals(om.type)) {
                 continue;
             }
+            String pred = predicate;
+            if (Vocabulary.BRAND_OF.equals(predicate) && !ownBrand(run, m, om, node)) {
+                // 0.11.5: "brand" of an organisation that names another maker's brand (a dealer: "SCHIMMEL" of a piano shop) is
+                // no brand of the organisation; the brand supplies it. An own brand shares the name or the domain.
+                pred = Vocabulary.SUPPLIER_OF;
+            }
             if (reversed) {
-                relation(run, ref, predicate, m.ref, at);
+                relation(run, ref, pred, m.ref, at);
             } else {
-                relation(run, m.ref, predicate, ref, at);
+                relation(run, m.ref, pred, ref, at);
             }
         }
     }
