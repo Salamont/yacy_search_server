@@ -2,7 +2,11 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased
+## 0.11.5 / 1.942-scoutro.39 — corrections: Discovery, knowledge graph, Anthropic, phone UI (one update from 0.11.4)
+
+One correction release on the published 0.11.4 (`8b8948958ab79b3ad8b2ddffd369f2fbd782db0e`): no schema change
+(knowledge graph 9, Discovery job store 1, Solr fields unchanged), no re-read of stored pages, no model call, no change
+to model configurations or the paused LLM queue. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.11.5.md).
 
 - LLM service `ANTHROPIC` (Anthropic) on its OpenAI-compatible Chat Completions, default hoststub
   `https://api.anthropic.com`. Every request (chat, streaming, RAG chat, model list and capability tests) carries
