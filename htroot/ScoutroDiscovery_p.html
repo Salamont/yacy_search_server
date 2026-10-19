@@ -36,7 +36,7 @@
         #(scoutroAdmin)#::<div class="scd-review" id="scd-review" hidden role="region" aria-labelledby="scd-review-title">
           <h3 id="scd-review-title">Unconfirmed crawl start</h3>
           <p>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.</p>
-          <p>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.</p>
+          <p>Deferring starts no crawl and no retry: it checks the crawl profiles once more, keeps the outcome unknown, holds the website so that it is never started again by itself, and lets Discovery continue. Accepted crawls are kept. Without a decision, Discovery defers such a start itself after the grace period.</p>
           <ul class="scd-review-list" id="scd-review-list"></ul>
         </div>#(/scoutroAdmin)#
       </section>
@@ -103,9 +103,16 @@
         <span data-scd-label="missing">Unavailable</span><span data-scd-label="minutes">minutes</span>
         <span data-scd-label="confirm_delete">Delete this job? Candidate state and existing crawls are retained.</span>
         <span data-scd-label="saved">Job saved</span><span data-scd-label="no_jobs">No discovery jobs configured.</span>
-        <span data-scd-label="defer">Defer start (outcome stays unknown)</span><span data-scd-label="held">Deferred starts</span>
-        <span data-scd-label="confirm_defer">Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.</span>
+        <span data-scd-label="defer">Defer start (no new crawl, no retry, outcome stays unknown)</span><span data-scd-label="held">Deferred starts</span>
+        <span data-scd-label="confirm_defer">Defer the unconfirmed crawl start for %1? This starts no crawl and no retry. The outcome stays unknown, and the website stays held until an administrator crawls it deliberately.</span>
         <span data-scd-label="deferred">Crawl start deferred; Discovery continues.</span>
+        <span data-scd-label="held_manual">deferred by an administrator</span><span data-scd-label="held_auto">deferred by Discovery after the grace period</span>
+        <span data-scd-label="review_grace">Checked %1 times without a crawl profile. Without a decision, Discovery defers this start itself after %2 more checks (at the earliest %3 minutes after the start); the website is then held with the outcome unknown.</span>
+        <span data-scd-label="review_grace_now">Checked %1 times without a crawl profile; Discovery defers this start itself at the next heartbeat.</span>
+        <span data-scd-label="auto_defer_error">The automatic deferral is postponed: %1. Discovery retries it at the next heartbeat.</span>
+        <span data-scd-label="worker_busy">Discovery is working right now; try again in a moment.</span>
+        <span data-scd-label="revision_conflict">The Discovery state changed meanwhile; the page was reloaded, please repeat the action.</span>
+        <span data-scd-label="profile_removed">Crawl profile removed; result unknown</span>
         <span data-scd-label="profile_backlog">Entire profile backlog</span><span data-scd-label="osm">OpenStreetMap / Geofabrik</span><span data-scd-label="freeworld">YaCy Network Search</span>
       </div>
     </main>

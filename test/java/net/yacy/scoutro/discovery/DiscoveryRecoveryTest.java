@@ -37,6 +37,8 @@ public class DiscoveryRecoveryTest {
     private final List<String> holds = new ArrayList<>();
     private DiscoveryService.Runner runner;
     private DiscoveryService.Runner hold;
+    /** when set, a state refresh (operation status) blocks until it is released */
+    private volatile CountDownLatch statusGate;
 
     @Before public void setup() throws Exception {
         this.data = this.tmp.newFolder("DATA").toPath();
@@ -56,7 +58,10 @@ public class DiscoveryRecoveryTest {
         };
         this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
             switch (init.getString("operation")) {
-                case "status": return new JsonObject().put("snapshot", new JsonObject().put("available", true));
+                case "status":
+                    final CountDownLatch gate = this.statusGate;
+                    if (gate != null) assertTrue(gate.await(10, TimeUnit.SECONDS));
+                    return new JsonObject().put("snapshot", new JsonObject().put("available", true));
                 case "hold": return this.hold.run(script, stateDir, snapshot, init, handler, timeout);
                 case "confirm":
                     for (final Object value : init.getJSONArray("confirmations")) handler.request("ack", new JsonObject().put("attempt_id", ((JsonObject) value).getString("id")));
@@ -81,7 +86,10 @@ public class DiscoveryRecoveryTest {
     private void open() throws Exception {
         this.service = new DiscoveryService(this.data, Path.of(".").toAbsolutePath(), this.config, this.state, this.heartbeat,
                 this.backend, this.now::get, JobSchema.Limits.hard(), this.runner, 30);
+        this.service.recoveryWaitMs = 0; // most tests want the immediate refusal; the wait has its own test
     }
+    /** past the grace period of the automatic deferral (section 16.2) */
+    private void grace() { this.now.addAndGet(DiscoveryService.AUTO_DEFER_MIN_AGE_MS + 60_000); }
     private String job(final String name, final long due, final boolean backlog) throws Exception {
         final JsonObject input = new JsonObject().put("name", name).put("profile", "new_profile").put("enabled", true);
         if (backlog) {
@@ -134,9 +142,10 @@ public class DiscoveryRecoveryTest {
         return a;
     }
 
-    @Test public void anUnconfirmedStartWithoutProfileBlocksEveryOtherJob() throws Exception {
+    /** inside the grace period of section 16.2 the batch waits for a decision; afterwards the coordinator decides (tests below) */
+    @Test public void anUnconfirmedStartWithoutProfileBlocksEveryOtherJobDuringTheGracePeriod() throws Exception {
         blocked();
-        for (int i = 0; i < 5; i++) { this.now.addAndGet(3_600_000); this.service.advance(); }
+        for (int i = 0; i < 3; i++) { this.now.addAndGet(5 * 60_000); this.service.advance(); }
         assertEquals("needs_review", active().getString("phase"));
         assertEquals("submitted_unknown", active().getString("error"));
         assertEquals("submitted_unknown", attempt(UNKNOWN).getString("state"));
@@ -430,6 +439,163 @@ public class DiscoveryRecoveryTest {
         assertEquals("deferred_unknown", pythonEntry(UNKNOWN).getJSONObject("automation_attempt").getString("state"));
         assertEquals("crawled", pythonEntry(ACCEPTED).getString("status"));
         assertEquals(List.of(UNKNOWN), this.holds);
+    }
+
+    // ---- 0.11.5, section 16.2: the coordinator defers an unconfirmed start itself after the grace period ----
+
+    @Test public void theCoordinatorDefersAnUnconfirmedStartAfterTheGracePeriodAndDiscoveryContinues() throws Exception {
+        final String job = blocked();                                               // reconciled twice, but younger than the grace
+        assertEquals("needs_review", active().getString("phase"));
+        final JsonObject review = this.service.status().getJSONObject("active_batch").getJSONArray("review").getJSONObject(0);
+        assertEquals(2, review.getInt("reconciled")); assertEquals(0, review.getInt("auto_defer_after"));
+        this.now.addAndGet(5 * 60_000); this.service.advance();                     // still inside the grace: nothing decided
+        assertEquals("submitted_unknown", attempt(UNKNOWN).getString("state")); assertTrue(this.holds.isEmpty());
+        grace(); this.service.advance();
+        final JsonObject deferred = attempt(UNKNOWN);
+        assertEquals("deferred", deferred.getString("state"));
+        final JsonObject decision = deferred.getJSONObject("decision");
+        assertEquals(DiscoveryService.SYSTEM_ACTOR, decision.getString("by")); assertTrue(decision.getBoolean("automatic"));
+        assertEquals("unknown", decision.getString("outcome")); assertFalse(decision.getBoolean("marker_found")); assertTrue(decision.getBoolean("candidate_held"));
+        assertEquals(List.of(UNKNOWN), this.holds);                                 // held through the real worker, once
+        final JsonObject entry = pythonEntry(UNKNOWN);
+        assertEquals("deferred_unknown", entry.getJSONObject("automation_attempt").getString("state"));
+        assertEquals(DiscoveryService.SYSTEM_ACTOR, entry.getJSONObject("automation_attempt").getString("decided_by"));
+        assertFalse(entry.has("status"));                                           // never "not submitted", never crawled
+        final JsonObject held = JobStore.job(this.service.store.read(), job).getJSONObject("runtime").getJSONArray("held_attempts").getJSONObject(0);
+        assertEquals(UNKNOWN, held.getString("domain")); assertTrue(held.getJSONObject("decision").getBoolean("automatic"));
+        // the batch left review in the same wakeup and waits for its accepted crawl; no second start anywhere
+        assertEquals("waiting_for_crawler", active().getString("phase")); assertFalse(active().has("error"));
+        assertEquals("accepted", attempt(ACCEPTED).getString("state"));
+        assertEquals(Map.of(ACCEPTED, 1, UNKNOWN, 1), this.backend.starts);
+        this.backend.terminate(ACCEPTED); this.service.advance();
+        assertNull(active());
+        final JsonObject last = this.service.store.read().getJSONArray("history").getJSONObject(0);
+        assertEquals(1, last.getInt("deferred_count")); assertEquals(1, last.getInt("automatic_deferred_count"));
+        this.service.advance();                                                     // the other job runs
+        assertEquals(Map.of(ACCEPTED, 1, UNKNOWN, 1, "firm-b.de", 1), this.backend.starts);
+        for (int round = 0; round < 3; round++) { this.now.addAndGet(3_600_000); this.service.advance(); }
+        assertEquals(1, (int) this.backend.starts.get(UNKNOWN));                   // the held website is never started again
+    }
+
+    @Test public void twoUnconfirmedStartsAreBothDeferredAndTheBatchCompletes() throws Exception {
+        this.plan.put("Two unknown", List.of(UNKNOWN, "second-unknown.de"));
+        this.backend.lose.add(UNKNOWN); this.backend.lose.add("second-unknown.de");
+        final DiscoveryService.Runner inner = this.runner;
+        this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
+            if (!"run".equals(init.getString("operation")) || !"Two unknown".equals(init.getJSONObject("job").getString("name"))) {
+                return inner.run(script, stateDir, snapshot, init, handler, timeout);
+            }
+            for (final String domain : this.plan.get("Two unknown")) {
+                try { handler.request("crawl", new JsonObject().put("domain", domain).put("url", "https://" + domain + "/")); }
+                catch (final ApiException e) { assertEquals("submitted_unknown", e.code()); }
+            }
+            return new JsonObject().put("error", "submitted_unknown");
+        };
+        open();
+        this.plan.put("Other job", List.of("firm-b.de"));
+        job("Two unknown", 1, false); job("Other job", 2, false); enable();
+        this.service.advance(); this.service.advance(); this.service.advance();
+        assertEquals(2, this.service.status().getJSONObject("active_batch").getJSONArray("review").length());
+        grace(); this.service.advance();
+        assertNull(active());                                                      // both deferred, nothing accepted to wait for
+        final JsonObject last = this.service.store.read().getJSONArray("history").getJSONObject(0);
+        assertEquals(2, last.getInt("deferred_count")); assertEquals(2, last.getInt("automatic_deferred_count"));
+        assertEquals(List.of(UNKNOWN, "second-unknown.de"), this.holds);
+        this.service.advance();
+        assertEquals(Map.of(UNKNOWN, 1, "second-unknown.de", 1, "firm-b.de", 1), this.backend.starts);
+    }
+
+    @Test public void aProfileThatTurnsUpDuringTheGracePeriodIsAcceptedNotDeferred() throws Exception {
+        blocked();
+        final String marker = attempt(UNKNOWN).getString("marker");
+        grace();
+        this.backend.crawls.put(new JsonObject().put("id", "late-crawl").put("state", "running").put("startMarker", marker));
+        this.service.advance();
+        assertEquals("accepted", attempt(UNKNOWN).getString("state")); assertEquals("late-crawl", attempt(UNKNOWN).getString("crawl_id"));
+        assertTrue(this.holds.isEmpty()); assertFalse(attempt(UNKNOWN).has("decision"));
+        assertEquals("waiting_for_crawler", active().getString("phase"));
+    }
+
+    @Test public void aHoldThatFailsPostponesTheAutomaticDeferralToTheNextHeartbeat() throws Exception {
+        blocked();
+        Files.createDirectories(this.state);
+        final Path file = this.state.resolve("state.json");
+        final String valid = Files.exists(file) ? Files.readString(file) : "{\"state_version\":2,\"domains\":{}}";
+        Files.writeString(file, "INVALID");
+        grace(); this.service.advance();
+        assertEquals("needs_review", active().getString("phase"));
+        assertEquals("submitted_unknown", attempt(UNKNOWN).getString("state"));
+        assertEquals("state_unreadable", attempt(UNKNOWN).getString("auto_defer_error"));
+        assertEquals("state_unreadable", this.service.status().getJSONObject("active_batch").getJSONArray("review").getJSONObject(0).getString("auto_defer_error"));
+        assertEquals("INVALID", Files.readString(file));                           // the unreadable state is left alone
+        Files.writeString(file, valid);
+        this.service.advance();
+        assertEquals("deferred", attempt(UNKNOWN).getString("state")); assertFalse(attempt(UNKNOWN).has("auto_defer_error"));
+        assertEquals("waiting_for_crawler", active().getString("phase"));
+    }
+
+    @Test public void theAutomaticDecisionSurvivesARestartAndAnOlderStoreStillLoads() throws Exception {
+        final String job = blocked();
+        grace(); this.service.advance();
+        final String decision = attempt(UNKNOWN).getJSONObject("decision").toString();
+        this.service.close(); open();                                              // reconciled, reconciled_at, decision.automatic validate
+        assertEquals("deferred", attempt(UNKNOWN).getString("state"));
+        assertEquals(decision, attempt(UNKNOWN).getJSONObject("decision").toString());
+        assertEquals(1, JobStore.job(this.service.store.read(), job).getJSONObject("runtime").getJSONArray("held_attempts").length());
+        this.backend.terminate(ACCEPTED); this.service.advance();
+        assertNull(active());
+    }
+
+    @Test public void aRemovedProfileOfAnAcceptedCrawlEndsTheBatchWithTheResultUnknown() throws Exception {
+        open();
+        this.plan.put("Accepted only", List.of(ACCEPTED));
+        this.plan.put("Other job", List.of("firm-b.de"));
+        job("Accepted only", 1, false); job("Other job", 2, false); enable();
+        this.service.advance();
+        assertEquals("waiting_for_crawler", active().getString("phase"));
+        this.backend.crawls = new JsonArray();                                     // stopped by hand or "delete terminated profiles"
+        this.service.advance();
+        assertNull(active());                                                      // not a dead end any more
+        final JsonObject last = this.service.store.read().getJSONArray("history").getJSONObject(0);
+        assertEquals(1, last.getInt("profile_removed_count")); assertEquals(1, last.getInt("attempt_count"));
+        assertFalse(last.has("deferred_count"));
+        assertFalse(last.toString().contains("not_submitted"));
+        this.service.advance();
+        assertEquals(Map.of(ACCEPTED, 1, "firm-b.de", 1), this.backend.starts);   // the other job runs, the website is not restarted
+    }
+
+    @Test public void resumeAndEnableWakeTheCoordinatorAtOnce() throws Exception {
+        open();
+        this.plan.put("Job", List.of(ACCEPTED));
+        job("Job", 1, false);
+        this.service.global("enable", revision()); idle();                          // enable ticks: the due job ran without a heartbeat
+        assertEquals(Map.of(ACCEPTED, 1), this.backend.starts);
+        this.backend.terminate(ACCEPTED); this.service.advance(); assertNull(active());
+        this.service.global("pause", revision());
+        this.plan.put("Job", List.of("firm-b.de"));
+        this.service.store.change(null, root -> JobStore.job(root, root.getJSONArray("jobs").getJSONObject(0).getJSONObject("definition").getString("id")).getJSONObject("runtime").put("next_due", 0));
+        assertEquals("paused", this.service.tick().getString("reason"));
+        this.service.global("resume", revision()); idle();
+        assertEquals(Map.of(ACCEPTED, 1, "firm-b.de", 1), this.backend.starts);
+    }
+
+    @Test public void aRecoveryDecisionWaitsForARunningStateRefreshInsteadOfRefusing() throws Exception {
+        blocked();
+        this.service.recoveryWaitMs = 5_000;
+        final String marker = attempt(UNKNOWN).getString("id"), run = active().getString("id");
+        final long seen = revision();
+        this.statusGate = new CountDownLatch(1);
+        this.now.addAndGet(60_000);
+        this.service.status();                                                     // starts the state refresh, which now holds the guard
+        final long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!this.service.workerBusy()) { assertTrue(System.nanoTime() < until); Thread.sleep(5); }
+        final CountDownLatch gate = this.statusGate;
+        new Thread(() -> { try { Thread.sleep(300); } catch (final InterruptedException ignored) { } gate.countDown(); }).start();
+        final JsonObject result = this.service.deferAttempt(marker, run, seen, "admin-anna"); // waited, then decided
+        this.statusGate = null; idle();
+        assertEquals("admin-anna", result.getJSONObject("decision").getString("by"));
+        assertFalse(result.getJSONObject("decision").getBoolean("automatic"));
+        assertEquals("deferred", attempt(UNKNOWN).getString("state"));
     }
 
     private static final class Backend implements DiscoveryService.Backend {

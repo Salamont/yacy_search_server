@@ -177,6 +177,43 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual((entry["status"], entry["crawl_id"]), ("crawled", "late-crawl"))
         self.assertEqual(entry["automation_attempt"], {"id": "a" * 32, "state": "accepted"})
 
+    def test_a_hold_checks_the_collection_of_its_own_candidate_only(self):
+        """0.11.5: another domain of the profile recorded under a foreign collection refuses a batch, never a hold."""
+        self.replenish(candidates(2))
+        self.state.profile_entry("firm-1.de", "future_profile")["collection"] = "other-index"
+        self.state.save()
+        init = {"operation": "hold", "job": job(), "collection": "future-index", "regions": {}, "holds": [self.hold()]}
+        report = automation.execute(d, self.state, init, None, self.tmp.name, self.tmp.name)
+        self.assertEqual(report["held"], 1)
+        self.assertEqual(d.State(self.tmp.name).profile_entry("firm-0.de", "future_profile")["automation_attempt"]["state"], "deferred_unknown")
+        with self.assertRaises(ValueError) as refused:           # the batch itself still refuses the foreign collection
+            automation.execute(d, self.state, dict(init, operation="run"), None, self.tmp.name, self.tmp.name)
+        self.assertEqual(str(refused.exception), "collection_conflict")
+
+    def test_the_four_held_production_candidates_stay_held_across_the_upgrade(self):
+        """The candidates deferred in production before 0.11.5 keep their hold: never selected, also not with force,
+        a repeated hold changes nothing, and the same state reads back unchanged."""
+        held = ["accsicherheitstechnik.de", "sonjasturm.de", "tarienna.eu", "codecamp-n.com"]
+        for i, domain in enumerate(held + ["free-1.de"]):
+            entry = {"collection": "future-index", "candidate_url": "https://%s/" % domain, "first_seen": NOW}
+            if domain in held:
+                entry["automation_attempt"] = {"id": ("%032x" % (i + 1)), "state": "deferred_unknown", "outcome": "unknown",
+                                               "run_id": "run-%d" % i, "submitted_at": NOW * 1000, "decided_at": NOW * 1000,
+                                               "decided_by": "admin-ben"}
+            self.state.put_profile_entry(domain, "future_profile", entry, NOW)
+        self.state.save()
+        before = copy.deepcopy(d.State(self.tmp.name).data)
+        self.assertEqual([s[0] for s in self.select(dict(job(), candidate_scope="profile_backlog"))], ["free-1.de"])
+        for domain in held:
+            entry = self.state.profile_entry(domain, "future_profile")
+            self.assertIsNone(d.selection_kind(entry, NOW, 30))
+            self.assertIsNone(d.selection_kind(entry, NOW, 30, force=True))
+            self.assertTrue(automation.held(entry))
+        self.assertEqual(automation.apply_holds(d, self.state, [self.hold(held[0], "%032x" % 1)], "future-index"), 0)
+        self.assertEqual(d.State(self.tmp.name).data, before)
+        counts = d.state_summary(self.state.data, NOW)["profiles"]["future_profile"]
+        self.assertEqual(counts["held"], 4)
+
     def test_the_hold_operation_runs_under_the_lock_also_while_paused_and_performs_no_action(self):
         self.replenish(candidates(1))
         self.state.set_paused(True)

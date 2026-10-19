@@ -54,6 +54,21 @@ public final class DiscoveryService implements AutoCloseable {
     static final java.util.Set<String> UNRESOLVED = java.util.Set.of("prepared", "submitted_unknown");
     /** Deferral records kept per job; the candidate's own hold in the Python state is never dropped. */
     static final int HELD_LIMIT = 100;
+    /**
+     * Reconciliations an unresolved start may stay without a crawl profile before the coordinator defers it itself
+     * (docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md, section 16.2); together with {@link #AUTO_DEFER_MIN_AGE_MS}.
+     */
+    static final int AUTO_DEFER_RECONCILIATIONS = 2;
+    /** Minimum age of an unresolved start before the coordinator defers it itself: two heartbeat intervals. */
+    static final long AUTO_DEFER_MIN_AGE_MS = 20 * 60_000L;
+    /** The actor recorded for a deferral the coordinator decided itself. */
+    public static final String SYSTEM_ACTOR = "system:reconcile";
+    /** The outcome recorded for an accepted crawl whose profile disappeared: it is not running, its result is unknown. */
+    static final String PROFILE_REMOVED = "profile_removed";
+    /** How long an administrator's recovery decision waits for the coordinator's guard before {@code worker_busy}. */
+    volatile long recoveryWaitMs = 20_000L;
+    /** True while a recovery decision waits for the guard: the status refresh then leaves the guard alone. */
+    private final AtomicBoolean recoveryPending = new AtomicBoolean();
     static final java.util.Set<String> PRECHECK_RESULTS = java.util.Set.of("dns", "robots", "blocked", "site_5xx");
     private static volatile DiscoveryService instance;
     public final JobStore store;
@@ -134,7 +149,7 @@ public final class DiscoveryService implements AutoCloseable {
         if (root.getBoolean("enabled") && !result.getJSONObject("heartbeat").getBoolean("enabled")) result.put("waiting_reason", "heartbeat_disabled_or_duplicate");
         try { result.put("config_revision", catalog().revision()); }
         catch (final ApiException e) { result.put("config_error", e.code()); }
-        if (this.clock.getAsLong() - this.snapshotAt > 30000) refreshState();
+        if (this.clock.getAsLong() - this.snapshotAt > 30000 && !this.recoveryPending.get()) refreshState();
         return DiscoveryStatus.project(root, result);
     }
     private static Object publicRun(final JsonObject run) {
@@ -228,7 +243,10 @@ public final class DiscoveryService implements AutoCloseable {
                 });
             }
         } catch (final IOException e) { throw unavailable(); }
-        if ("enable".equals(action) || "resume".equals(action)) this.waiting = "idle";
+        if ("enable".equals(action) || "resume".equals(action)) {
+            this.waiting = "idle";
+            tick(); // the same bounded wakeup the heartbeat gives: a due job need not wait for the next heartbeat
+        }
         return status();
     }
     public JsonObject requestRun(final String id, final String requestId) throws ApiException {
@@ -514,9 +532,17 @@ public final class DiscoveryService implements AutoCloseable {
                 : active != null ? "waiting_for_crawler" : answer.optJSONObject("report") == null ? "idle"
                 : answer.getJSONObject("report").optString("waiting_reason", "idle");
     }
+    /**
+     * One reconciliation per wakeup; it runs again at once only after the coordinator deferred an unresolved start
+     * itself (section 16.2), so that the batch leaves review in the same wakeup. Bounded by the number of attempts.
+     */
     private void reconcile() throws Exception {
+        for (int pass = 0; pass <= 500; pass++) if (!reconcileOnce()) return;
+    }
+    /** True if the coordinator decided something that calls for another pass right away. */
+    private boolean reconcileOnce() throws Exception {
         final JsonObject run = this.store.read().getJSONObject("active_run");
-        if (!run.getString("state_root").equals(this.stateRoot.toString())) { this.waiting = "state_root_changed"; return; }
+        if (!run.getString("state_root").equals(this.stateRoot.toString())) { this.waiting = "state_root_changed"; return false; }
         final JsonArray crawls = this.backend.crawls();
         final Map<String, JsonObject> ids = new java.util.HashMap<>(), markers = new java.util.HashMap<>();
         for (final Object value : crawls) {
@@ -526,14 +552,21 @@ public final class DiscoveryService implements AutoCloseable {
         }
         final AtomicBoolean unresolved = new AtomicBoolean();
         final long now = this.clock.getAsLong();
+        final java.util.List<String> overdue = new java.util.ArrayList<>(); // unresolved starts past the grace period
         change(null, root -> {
             final JsonObject active = root.getJSONObject("active_run");
             for (final Object value : active.getJSONArray("attempts")) {
                 final JsonObject intent = (JsonObject) value;
                 if (UNRESOLVED.contains(intent.getString("state"))) {
                     final JsonObject crawl = markers.get(intent.getString("marker"));
-                    if (crawl == null) unresolved.set(true);
-                    else intent.put("state", "accepted").put("crawl_id", crawl.getString("id"));
+                    if (crawl == null) {
+                        unresolved.set(true);
+                        // each reconciliation without a profile is counted with the attempt; after the grace period the
+                        // coordinator defers the start itself instead of blocking every batch until an administrator decides
+                        final int checked = intent.optInt("reconciled", 0) + 1;
+                        intent.put("reconciled", checked).put("reconciled_at", now);
+                        if (checked >= AUTO_DEFER_RECONCILIATIONS && now - intent.getLong("submitted_at") >= AUTO_DEFER_MIN_AGE_MS) overdue.add(intent.getString("id"));
+                    } else intent.put("state", "accepted").put("crawl_id", crawl.getString("id"));
                 } else if ("deferred".equals(intent.getString("state")) && markers.containsKey(intent.getString("marker"))) {
                     // late confirmation: the deferred start shows up after all; record it as accepted, keep the decision
                     final String id = markers.get(intent.getString("marker")).getString("id");
@@ -550,7 +583,10 @@ public final class DiscoveryService implements AutoCloseable {
                 if ("submitted_unknown".equals(runtime.optString("error"))) runtime.remove("error");
             }
         });
-        if (unresolved.get()) { this.waiting = "submitted_unknown"; return; }
+        if (unresolved.get()) {
+            this.waiting = "submitted_unknown";
+            return deferOverdue(overdue);
+        }
         final JsonObject updated = this.store.read().getJSONObject("active_run");
         final JsonArray confirmations = new JsonArray();
         for (final Object value : updated.getJSONArray("attempts")) {
@@ -561,7 +597,7 @@ public final class DiscoveryService implements AutoCloseable {
             final JsonObject init = initialization(updated, "confirm").put("confirmations", confirmations);
             final JsonObject answer = this.runner.run(this.script, this.stateRoot, this.snapshots.resolve(updated.getString("config_revision")), init,
                     (action, params) -> request(updated.getString("id"), action, params), this.timeout);
-            if (answer.has("error")) { this.waiting = answer.getString("error"); return; }
+            if (answer.has("error")) { this.waiting = answer.getString("error"); return false; }
         }
         boolean running = false;
         for (final Object value : updated.getJSONArray("attempts")) {
@@ -569,15 +605,50 @@ public final class DiscoveryService implements AutoCloseable {
             if (!"accepted".equals(intent.getString("state"))) continue;
             final JsonObject crawl = ids.get(intent.getString("crawl_id"));
             if (crawl == null) {
-                change(null, root -> root.getJSONObject("active_run").put("phase", "needs_review").put("error", "crawl_status_unknown"));
-                this.waiting = "crawl_status_unknown"; return;
+                // The profile is gone. YaCy moves a finished profile to the passive list and removes a profile only after
+                // its termination (CrawlProfileEditor_p), so this crawl is not running any more. Its result is unknown and
+                // is recorded as such: never as a successful crawl, never as a reason to start the website again.
+                if (!intent.has("outcome")) {
+                    change(null, root -> attempt(root.getJSONObject("active_run"), intent.getString("id")).put("outcome", PROFILE_REMOVED).put("outcome_at", now));
+                    ConcurrentLog.info("ScoutroDiscovery", "crawl profile of an accepted start removed before the batch completed; result unknown");
+                    observe("terminated", o -> o.terminated(intent.getString("marker"), updated.getString("job_id"), intent.getString("domain")));
+                }
+                continue;
             }
             if (!"terminated".equals(crawl.optString("state"))) running = true;
             else observe("terminated", o -> o.terminated(intent.getString("marker"), updated.getString("job_id"), intent.getString("domain")));
         }
-        if (running) { this.waiting = "waiting_for_crawler"; return; }
+        if (running) { this.waiting = "waiting_for_crawler"; return false; }
         change(null, DiscoveryService::complete);
         this.waiting = "idle";
+        return false;
+    }
+    /**
+     * Section 16.2: the coordinator defers unresolved starts whose grace period is over, exactly as an administrator would
+     * ({@link #decide}: the candidate is held first, the crawl profiles are read again right before the decision, the
+     * outcome stays unknown). One decision at a time; a hold that fails is retried at the next heartbeat and leaves the
+     * batch in review. True if a decision was taken or a profile turned up, so that reconciliation runs again at once.
+     */
+    private boolean deferOverdue(final java.util.List<String> overdue) throws ApiException {
+        boolean decided = false;
+        for (final String id : overdue) {
+            final JsonObject root = this.store.read();
+            final JsonObject run = root.optJSONObject("active_run");
+            if (run == null) return decided;
+            try {
+                decide(root, run.getString("id"), id, root.getLong("revision"), SYSTEM_ACTOR, true);
+                ConcurrentLog.info("ScoutroDiscovery", "unconfirmed crawl start deferred by the coordinator after the grace period; outcome kept unknown, candidate held");
+                decided = true;
+            } catch (final ApiException e) {
+                if ("attempt_found".equals(e.code())) { decided = true; continue; } // the next pass records the start as accepted
+                ConcurrentLog.warn("ScoutroDiscovery", "automatic deferral postponed to the next heartbeat: " + e.code());
+                change(null, next -> {
+                    final JsonObject active = next.optJSONObject("active_run");
+                    if (active != null) attempt(active, id).put("auto_defer_error", e.code());
+                });
+            }
+        }
+        return decided;
     }
     private static void complete(final JsonObject root) throws ApiException {
         final JsonObject run = root.getJSONObject("active_run");
@@ -626,55 +697,13 @@ public final class DiscoveryService implements AutoCloseable {
         if (attemptId == null || !attemptId.matches("[a-f0-9]{32}")) throw ApiException.invalid("attempt_id", "Expected the attempt id of the open batch.");
         if (runId == null || !runId.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) throw ApiException.invalid("run_id", "Expected the id of the open batch.");
         if (this.closed.get()) throw new ApiException(503, "shutdown", "Discovery is shutting down.");
-        if (!this.busy.compareAndSet(false, true)) throw new ApiException(409, "worker_busy", "Discovery is working right now; reload and try again in a moment.");
+        if (!acquireForRecovery()) throw new ApiException(409, "worker_busy", "Discovery is working right now; reload and try again in a moment.");
         final JsonObject decision;
         boolean found = false;
         try {
             final JsonObject root = this.store.read();
             if (root.getLong("revision") != revision) throw new ApiException(409, "revision_conflict", "Reload the current revision.");
-            final JsonObject run = reviewable(root, runId);
-            final JsonObject intent = open(run, attemptId);
-            markerAbsent(intent);
-            final long now = this.clock.getAsLong();
-            final JsonObject hold = new JsonObject().put("id", attemptId).put("domain", intent.getString("domain"))
-                    .put("profile", intent.getString("profile")).put("run_id", runId).put("submitted_at", intent.getLong("submitted_at"))
-                    .put("decided_at", now).put("decided_by", actor);
-            final JsonObject answer;
-            try {
-                answer = this.runner.run(this.script, this.stateRoot, this.snapshots.resolve(run.getString("config_revision")),
-                        initialization(run, "hold").put("holds", new JsonArray().put(hold)),
-                        (action, params) -> { throw new ApiException(403, "read_only", "Holding a candidate performs no action."); },
-                        Math.min(this.timeout, 120));
-            } catch (final ApiException e) {
-                throw e;
-            } catch (final Exception e) {
-                ConcurrentLog.warn("ScoutroDiscovery", "candidate hold failed: " + e.getClass().getSimpleName());
-                throw new ApiException(503, "hold_failed", "The hold of the candidate could not be confirmed; the job store was not changed. Retry once: holding again is safe.");
-            }
-            if (answer.has("error")) throw holdRefused(answer.getString("error"));
-            final int checked = markerAbsent(intent); // again, right before the decision
-            decision = new JsonObject().put("action", "defer").put("outcome", "unknown").put("by", actor).put("at", now)
-                    .put("run_id", runId).put("marker_found", false).put("profiles_checked", checked).put("candidate_held", true);
-            change(revision, next -> {
-                final JsonObject active = reviewable(next, runId);
-                final JsonObject attempt = open(active, attemptId).put("state", "deferred").put("decision", decision);
-                final JsonObject runtime = JobStore.job(next, active.getString("job_id")).getJSONObject("runtime");
-                final JsonArray held = runtime.optJSONArray("held_attempts") == null ? new JsonArray() : runtime.getJSONArray("held_attempts");
-                held.put(new JsonObject().put("attempt_id", attemptId).put("marker", attempt.getString("marker"))
-                        .put("domain", attempt.getString("domain")).put("profile", attempt.getString("profile"))
-                        .put("collection", active.getString("collection")).put("run_id", runId)
-                        .put("submitted_at", attempt.getLong("submitted_at")).put("state", "deferred").put("decision", decision));
-                final JsonArray bounded = new JsonArray();
-                for (int i = Math.max(0, held.length() - HELD_LIMIT); i < held.length(); i++) bounded.put(held.get(i));
-                runtime.put("held_attempts", bounded);
-                boolean remaining = false;
-                for (final Object value : active.getJSONArray("attempts")) remaining |= UNRESOLVED.contains(((JsonObject) value).getString("state"));
-                if (!remaining) {
-                    // the batch leaves review; reconciliation continues with its accepted crawls
-                    active.put("phase", "waiting_for_crawler").remove("error");
-                    if ("submitted_unknown".equals(runtime.optString("error"))) runtime.remove("error");
-                }
-            });
+            decision = decide(root, runId, attemptId, revision, actor, false);
         } catch (final ApiException e) {
             found = "attempt_found".equals(e.code());
             throw e;
@@ -685,6 +714,76 @@ public final class DiscoveryService implements AutoCloseable {
         ConcurrentLog.info("ScoutroDiscovery", "unconfirmed crawl start deferred by an administrator; outcome kept unknown");
         tick();
         return status().put("decision", decision);
+    }
+    /**
+     * Takes the coordinator's guard for a recovery decision, waiting a bounded time for a wakeup or a state refresh that
+     * holds it. The guard stays exclusive: no wakeup, reconciliation or dispatch runs while the decision is taken, and the
+     * revision the administrator saw is still checked before and atomically with the write.
+     */
+    private boolean acquireForRecovery() {
+        this.recoveryPending.set(true);
+        try {
+            final long deadline = System.nanoTime() + this.recoveryWaitMs * 1_000_000L;
+            while (!this.busy.compareAndSet(false, true)) {
+                if (this.closed.get() || System.nanoTime() > deadline) return false;
+                try { Thread.sleep(25); } catch (final InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+            }
+            return true;
+        } finally { this.recoveryPending.set(false); }
+    }
+    /**
+     * The deferral itself, for an administrator and for the coordinator alike (the caller holds the guard): the batch
+     * must be in review for this start, the crawl profiles are read before the hold and again right before the decision,
+     * the candidate is held in the Python state first, then the decision is recorded atomically with {@code revision}.
+     */
+    private JsonObject decide(final JsonObject root, final String runId, final String attemptId, final long revision, final String actor,
+            final boolean automatic) throws ApiException {
+        final JsonObject run = reviewable(root, runId);
+        final JsonObject intent = open(run, attemptId);
+        markerAbsent(intent);
+        final long now = this.clock.getAsLong();
+        final JsonObject hold = new JsonObject().put("id", attemptId).put("domain", intent.getString("domain"))
+                .put("profile", intent.getString("profile")).put("run_id", runId).put("submitted_at", intent.getLong("submitted_at"))
+                .put("decided_at", now).put("decided_by", actor);
+        final JsonObject answer;
+        try {
+            answer = this.runner.run(this.script, this.stateRoot, this.snapshots.resolve(run.getString("config_revision")),
+                    initialization(run, "hold").put("holds", new JsonArray().put(hold)),
+                    (action, params) -> { throw new ApiException(403, "read_only", "Holding a candidate performs no action."); },
+                    Math.min(this.timeout, 120));
+        } catch (final ApiException e) {
+            throw e;
+        } catch (final Exception e) {
+            ConcurrentLog.warn("ScoutroDiscovery", "candidate hold failed: " + e.getClass().getSimpleName());
+            throw new ApiException(503, "hold_failed", "The hold of the candidate could not be confirmed; the job store was not changed. Retry once: holding again is safe.");
+        }
+        if (answer.has("error")) throw holdRefused(answer.getString("error"));
+        final int checked = markerAbsent(intent); // again, right before the decision
+        final JsonObject decision = new JsonObject().put("action", "defer").put("outcome", "unknown").put("by", actor).put("at", now)
+                .put("run_id", runId).put("marker_found", false).put("profiles_checked", checked).put("candidate_held", true)
+                .put("automatic", automatic);
+        change(revision, next -> {
+            final JsonObject active = reviewable(next, runId);
+            final JsonObject attempt = open(active, attemptId).put("state", "deferred").put("decision", decision);
+            attempt.remove("auto_defer_error");
+            final JsonObject runtime = JobStore.job(next, active.getString("job_id")).getJSONObject("runtime");
+            final JsonArray held = runtime.optJSONArray("held_attempts") == null ? new JsonArray() : runtime.getJSONArray("held_attempts");
+            held.put(new JsonObject().put("attempt_id", attemptId).put("marker", attempt.getString("marker"))
+                    .put("domain", attempt.getString("domain")).put("profile", attempt.getString("profile"))
+                    .put("collection", active.getString("collection")).put("run_id", runId)
+                    .put("submitted_at", attempt.getLong("submitted_at")).put("state", "deferred").put("decision", decision));
+            final JsonArray bounded = new JsonArray();
+            for (int i = Math.max(0, held.length() - HELD_LIMIT); i < held.length(); i++) bounded.put(held.get(i));
+            runtime.put("held_attempts", bounded);
+            boolean remaining = false;
+            for (final Object value : active.getJSONArray("attempts")) remaining |= UNRESOLVED.contains(((JsonObject) value).getString("state"));
+            if (!remaining) {
+                // the batch leaves review; reconciliation continues with its accepted crawls
+                active.put("phase", "waiting_for_crawler").remove("error");
+                if ("submitted_unknown".equals(runtime.optString("error"))) runtime.remove("error");
+            }
+        });
+        return decision;
     }
     private JsonObject reviewable(final JsonObject root, final String runId) throws ApiException {
         final JsonObject run = root.optJSONObject("active_run");

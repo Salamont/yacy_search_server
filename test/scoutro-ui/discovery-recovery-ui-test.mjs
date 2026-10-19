@@ -22,13 +22,14 @@ try {
   check(await page.locator('#scd-review-title').textContent()==='Unconfirmed crawl start','360: review panel title');
   const item=page.locator('#scd-review-list li');
   check(await item.count()===1 && (await item.textContent()).includes('codecamp-n.com'),'360: the unconfirmed start is named');
-  check(await item.locator('button').textContent()==='Defer start (outcome stays unknown)','360: the action says the outcome stays unknown');
+  check(await item.locator('button').textContent()==='Defer start (no new crawl, no retry, outcome stays unknown)','360: the action says no crawl, no retry, outcome unknown');
+  check((await item.textContent()).includes('without a crawl profile'),'360: the grace period note is shown');
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'360: no horizontal overflow');
   let prompt='';
   page.once('dialog',dialog=>{prompt=dialog.message();dialog.dismiss();});
   await item.locator('button').click();
   await page.waitForTimeout(500);
-  check(prompt.includes('codecamp-n.com') && prompt.includes('not started again automatically'),`360: the confirmation names the website and the consequence: ${prompt}`);
+  check(prompt.includes('codecamp-n.com') && prompt.includes('no crawl and no retry') && prompt.includes('stays held'),`360: the confirmation names the website and the consequence: ${prompt}`);
   await page.reload(); await page.locator('#scd-review').waitFor({state:'visible'});
   check(await page.locator('#scd-review-list li').count()===1,'360: dismissing the dialog defers nothing');
   await shot(page,'discovery-recovery-360-en-US.png');
@@ -41,7 +42,7 @@ try {
   await page.locator('#scd-review').waitFor({state:'visible'});
   check(await page.locator('#scd-review-title').textContent()==='Unbestätigter Crawl-Start','de: review panel title');
   const action=page.locator('#scd-review-list li button');
-  check(await action.textContent()==='Start zurückstellen (Ausgang bleibt unbekannt)','de: action label');
+  check(await action.textContent()==='Start zurückstellen (kein neuer Crawl, kein Retry, Ausgang bleibt unbekannt)','de: action label');
   await shot(page,'discovery-recovery-1280-de-DE-before.png');
   page.once('dialog',dialog=>{prompt=dialog.message();dialog.accept();});
   await action.click();
@@ -52,6 +53,7 @@ try {
   const card=page.locator('.scd-job').filter({has:page.locator('h3',{hasText:'Prod StackFinder Sued-West'})});
   await card.locator('dt',{hasText:'Zurückgestellte Starts'}).waitFor();
   check((await card.textContent()).includes('codecamp-n.com'),'de: the job card lists the deferred start');
+  check((await card.textContent()).includes('von einem Administrator zurückgestellt'),'de: the job card names who decided');
   await shot(page,'discovery-recovery-1280-de-DE-after.png');
   check(errors.length===0,`1280: no JS errors ${errors}`);
   await context.close();

@@ -76,6 +76,10 @@ public final class JobStore {
                                 || !java.util.Set.of("prepared", "accepted", "not_submitted", "submitted_unknown", "deferred").contains(attempt.getString("state"))) throw new IOException("Invalid attempt");
                         if (attempt.has("decision") || "deferred".equals(attempt.getString("state"))) decision(attempt.getJSONObject("decision"));
                         attempt.getBoolean("state_applied"); nonnegative(attempt, "submitted_at"); nonnegative(attempt, "recrawl_days");
+                        // optional since 0.11.5: reconciliations without a profile, the postponed automatic deferral, a removed profile
+                        for (final String key : java.util.List.of("reconciled", "reconciled_at", "outcome_at")) if (attempt.has(key)) nonnegative(attempt, key);
+                        if (attempt.has("auto_defer_error") && !attempt.getString("auto_defer_error").matches("[a-z_]{1,64}")) throw new IOException("Invalid attempt");
+                        if (attempt.has("outcome") && !DiscoveryService.PROFILE_REMOVED.equals(attempt.getString("outcome"))) throw new IOException("Invalid attempt outcome");
                         if ("accepted".equals(attempt.getString("state")) && attempt.getString("crawl_id").isBlank()) throw new IOException("Missing crawl id");
                     }
                 }
@@ -92,6 +96,7 @@ public final class JobStore {
         if (!"defer".equals(decision.getString("action")) || !"unknown".equals(decision.getString("outcome"))
                 || decision.getString("by").isBlank()) throw new IOException("Invalid recovery decision");
         nonnegative(decision, "at");
+        if (decision.has("automatic")) decision.getBoolean("automatic"); // since 0.11.5: decided by the coordinator after the grace period
     }
 
     private static void nonnegative(final JsonObject object, final String key) throws IOException {

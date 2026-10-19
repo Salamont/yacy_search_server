@@ -560,13 +560,15 @@ public class DiscoveryAutomationTest {
         assertEquals("submitted_unknown", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
         assertEquals(1, this.backend.starts); assertTrue(this.service.store.read().getJSONArray("history").isEmpty());
     }
-    @Test public void acceptedMissingCrawlStaysNeedsReviewWithoutResubmitting() throws Exception {
+    /** 0.11.5: a removed profile means the crawl is not running; its result is unknown, the batch completes, nothing restarts */
+    @Test public void acceptedMissingCrawlCompletesWithTheResultUnknownWithoutResubmitting() throws Exception {
         open(); create("Job"); enable(); this.service.advance(); this.backend.crawls = new JsonArray();
-        this.service.advance(); this.service.advance();
-        assertEquals("needs_review", active().getString("phase")); assertEquals("crawl_status_unknown", active().getString("error"));
-        assertEquals("accepted", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
-        assertTrue(active().getJSONArray("attempts").getJSONObject(0).getBoolean("state_applied"));
-        assertEquals(1, this.backend.starts); assertTrue(this.service.store.read().getJSONArray("history").isEmpty());
+        this.service.advance();
+        assertTrue(this.service.store.read().isNull("active_run"));
+        final JsonObject last = this.service.store.read().getJSONArray("history").getJSONObject(0);
+        assertEquals(1, last.getInt("profile_removed_count")); assertEquals("completed", last.getString("phase"));
+        assertFalse(last.toString().contains("not_submitted")); assertFalse(last.toString().contains("crawl_status_unknown"));
+        assertEquals(1, this.backend.starts); // completing the batch starts nothing
     }
     @Test public void unknownStartReconcilesByMarkerAndDoesNotDoubleStart() throws Exception {
         open(); create("Job"); enable(); this.backend.loseReply = true; this.service.advance();
