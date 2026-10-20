@@ -230,8 +230,10 @@ main offering fits its collections. One request per domain and content, a few to
   busy, the next pass takes it).
 - **Signals** (family `llm`, kind `kg_home_fit`, the website's origin), only while the reading is current: the home
   page's content hash and the profiles' criteria version unchanged and its collection not `stale`. `mismatch` speaks
-  against its collection, `match` for it, `uncertain` gives none; `best` is spoken for once, unless a current reading
-  speaks against it. They count in every evaluation of the domain (`graph: true`, the scan, Discovery's submissions)
+  against its collection, `match` for it, `uncertain` gives none. `best` is never a signal, only a non-binding target
+  suggestion: kept in the assessment and named in the evidence of the reading's signals ("a hint only"). A collection
+  spoken for without an explicit `match` would block a correction (`contradicting_signals`) or steer its target. They
+  count in every evaluation of the domain (`graph: true`, the scan, Discovery's submissions)
   and only by the unchanged rule: an LLM verdict never suffices, not with OSM either; a `mismatch` alone makes at most a
   case for review.
 - **Counters** (`GET /scoutro/api/v1/kg/status`, `llm.processed.collectionFit`, in memory since the start): `asked`
@@ -358,8 +360,8 @@ a website signal that is never enough, `suggested`, an acceptance of rules versi
 `PlausibilityScanTest` (steps and cursor, a busy graph, two fingerprints, a new Discovery classification, home page
 reading or OSM signal assessed without reading the pages, assessments per collection and source, stale collections, one
 submission per domain, the targeted run, the fail-safe state, the Discovery fields of `state.json`; the home page's
-reading recorded per collection, counted only while current, unquoted without a signal, `best`, the targeted scan after
-a mismatch), `CollectionFitTest` (the LLM tier with a model stand-in: only a home page's first request asks, the system
+reading recorded per collection, counted only while current, unquoted without a signal, the targeted scan after a
+mismatch; `best` with an uncertain verdict beside signals against neither blocks nor steers a correction), `CollectionFitTest` (the LLM tier with a model stand-in: only a home page's first request asks, the system
 prompt, schema and prompt hash of 0.11.5, every other request and cache key byte for byte, the question within 500
 characters and 150 tokens, a longer one not asked (`fit_budget`), a missing or unquoted field `uncertain` with the
 extraction accepted, the field refused as before on a request without the question, a verdict per collection, a cache hit

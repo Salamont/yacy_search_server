@@ -410,22 +410,22 @@ public class PlausibilityScanTest {
         assertEquals("no rescan without a mismatch", 1, rescans.size());
         assertEquals(0, PlausibilityScan.homeSignals("unbelegt-muster.de", new AutoCorrect(this.state, this.clock::get).assessments("unbelegt-muster.de"),
                 id -> "EF56", "c1").size());
-        // the best collection is spoken for unless the reading speaks against it, also an assigned one it was uncertain about
+        // best is never a signal of its own, only a hint in the evidence: not for an uncertain assigned collection
         final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict bestOnly = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
                 "{\"verdicts\":{\"" + BAU + "\":\"uncertain\"},\"best\":\"" + STACK + "\",\"quote\":\"Feinkost und Confiserie\"}"), q, text);
         recorder.verdict("best-muster.de", "CCCCCChome03", "AA11", "TEST/m", "c1", bestOnly);
-        final List<AutoCorrect.Signal> bestSig = PlausibilityScan.homeSignals("best-muster.de",
-                new AutoCorrect(this.state, this.clock::get).assessments("best-muster.de"), id -> "AA11", "c1");
-        assertEquals(bestSig.toString(), 1, bestSig.size());
-        assertEquals(STACK, bestSig.get(0).collection);
-        assertEquals("for", bestSig.get(0).verdict);
-        final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict bestAgainst = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
-                "{\"verdicts\":{\"" + BAU + "\":\"mismatch\"},\"best\":\"" + BAU + "\",\"quote\":\"Feinkost und Confiserie\"}"), q, text);
-        recorder.verdict("wider-muster.de", "DDDDDDhome04", "BB22", "TEST/m", "c1", bestAgainst);
-        final List<AutoCorrect.Signal> widerSig = PlausibilityScan.homeSignals("wider-muster.de",
-                new AutoCorrect(this.state, this.clock::get).assessments("wider-muster.de"), id -> "BB22", "c1");
-        assertEquals("a best the reading speaks against is no signal: " + widerSig, 1, widerSig.size());
-        assertEquals("against", widerSig.get(0).verdict);
+        assertEquals("uncertain everywhere, best alone: no signal", 0, PlausibilityScan.homeSignals("best-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("best-muster.de"), id -> "AA11", "c1").size());
+        // a mismatch names its best collection as a hint in the evidence, never as a signal for it
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict hinted = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
+                "{\"verdicts\":{\"" + BAU + "\":\"mismatch\"},\"best\":\"" + STACK + "\",\"quote\":\"Feinkost und Confiserie\"}"), q, text);
+        recorder.verdict("hinweis-muster.de", "DDDDDDhome04", "BB22", "TEST/m", "c1", hinted);
+        final List<AutoCorrect.Signal> hintSig = PlausibilityScan.homeSignals("hinweis-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("hinweis-muster.de"), id -> "BB22", "c1");
+        assertEquals(hintSig.toString(), 1, hintSig.size());
+        assertEquals(BAU, hintSig.get(0).collection);
+        assertEquals("against", hintSig.get(0).verdict);
+        assertTrue(hintSig.get(0).evidence, hintSig.get(0).evidence.contains("a hint only: " + STACK));
         // the scan takes the current reading: one submission, the current collection the one with the mismatch
         this.graph.domain("misch-muster.de", false, STACK, BAU);
         this.graph.quiet.add("misch-muster.de");
@@ -436,6 +436,62 @@ public class PlausibilityScanTest {
         assertEquals(BAU, c.getString("from"));
         assertEquals("review", c.getString("result"));
         assertEquals("multiple_assignment", c.getString("reason"));
+    }
+
+    @Test
+    public void bestWithAnUncertainVerdictNeverBlocksOrSteersACorrection() throws Exception {
+        // the decision "uncertain gives no signal": best on an uncertain collection is a hint only, also beside signals against
+        final AutoCorrect engine = new AutoCorrect(this.state, this.clock::get);
+        final CollectionFitRecorder recorder = new CollectionFitRecorder(() -> engine, d -> null, () -> true, this.clock::get);
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Profiles profiles = net.yacy.scoutro.knowledge.sync.CollectionFit.read(
+                new File("tools/scoutro/discovery/profiles.json"));
+        final String text = "Feinkost und Confiserie: Pralinen und Trüffel.";
+        final AutoCorrect.Signal textFitAgainst = AutoCorrect.Signal.of(Json.obj("family", "text_fit", "verdict", "against", "collection", BAU,
+                "kind", "fits_other_vocabulary", "evidence", "no construction offer on 8 pages"), "gegen-muster.de");
+        final AutoCorrect.Signal osmAgainst = AutoCorrect.Signal.of(Json.obj("family", "origin", "verdict", "against", "collection", BAU,
+                "origin", "osm:node/42", "kind", "osm_tag", "evidence", "shop=confectionery"), "gegen-muster.de");
+        // 1. the current collection uncertain and named best: no signal for it, the correction stays a correction
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Question one = net.yacy.scoutro.knowledge.sync.CollectionFit.question(profiles,
+                List.of(BAU), List.of(), Map.of());
+        recorder.verdict("gegen-muster.de", "EEEEEEhome05", "CC33", "TEST/m", "c1", net.yacy.scoutro.knowledge.sync.CollectionFit.check(
+                new JSONObject("{\"verdicts\":{\"" + BAU + "\":\"uncertain\"},\"best\":\"" + BAU + "\",\"quote\":\"Feinkost und Confiserie\"}"),
+                one, text));
+        final List<AutoCorrect.Signal> home = PlausibilityScan.homeSignals("gegen-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("gegen-muster.de"), id -> "CC33", "c1");
+        assertEquals("no signal from an uncertain verdict, whatever best says: " + home, 0, home.size());
+        final List<AutoCorrect.Signal> signals = new ArrayList<>(List.of(textFitAgainst, osmAgainst));
+        signals.addAll(home);
+        AutoCorrect.Outcome o = AutoCorrect.evaluate(BAU, List.of(BAU), signals, FALLBACK, false);
+        assertEquals("never contradicting_signals from best: " + o.reason, AutoCorrect.CORRECT, o.result);
+        assertEquals("fallback_target", o.reason);
+        // 2. another assigned collection uncertain and named best, the current one a mismatch: best steers no target or hint
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Question two = net.yacy.scoutro.knowledge.sync.CollectionFit.question(profiles,
+                List.of(BAU, STACK), List.of(), Map.of());
+        recorder.verdict("ziel-muster.de", "FFFFFFhome06", "DD44", "TEST/m", "c1", net.yacy.scoutro.knowledge.sync.CollectionFit.check(
+                new JSONObject("{\"verdicts\":{\"" + BAU + "\":\"mismatch\",\"" + STACK + "\":\"uncertain\"},\"best\":\"" + STACK
+                        + "\",\"quote\":\"Feinkost und Confiserie\"}"), two, text));
+        final List<AutoCorrect.Signal> home2 = PlausibilityScan.homeSignals("ziel-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("ziel-muster.de"), id -> "DD44", "c1");
+        assertEquals(home2.toString(), 1, home2.size());
+        assertEquals("against", home2.get(0).verdict);
+        assertEquals(BAU, home2.get(0).collection);
+        final List<AutoCorrect.Signal> signals2 = new ArrayList<>(List.of(textFitAgainst, osmAgainst));
+        signals2.addAll(home2);
+        o = AutoCorrect.evaluate(BAU, List.of(BAU), signals2, FALLBACK, false);
+        assertEquals(AutoCorrect.CORRECT, o.result);
+        assertEquals("no specialist target from best: " + o.target, FALLBACK, o.target);
+        o = AutoCorrect.evaluate(BAU, List.of(BAU, STACK), signals2, FALLBACK, false);
+        assertEquals("multiple_assignment", o.reason);
+        assertEquals("the suggested target is not best's collection", FALLBACK, o.suggested);
+        // 3. an explicit, quoted match still speaks for its collection (unchanged)
+        recorder.verdict("treffer-muster.de", "GGGGGGhome07", "EE55", "TEST/m", "c1", net.yacy.scoutro.knowledge.sync.CollectionFit.check(
+                new JSONObject("{\"verdicts\":{\"" + BAU + "\":\"match\"},\"best\":\"" + BAU + "\",\"quote\":\"Feinkost und Confiserie\"}"),
+                one, text));
+        final List<AutoCorrect.Signal> home3 = PlausibilityScan.homeSignals("treffer-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("treffer-muster.de"), id -> "EE55", "c1");
+        assertEquals(home3.toString(), 1, home3.size());
+        assertEquals("for", home3.get(0).verdict);
+        assertFalse("best equal to the collection adds no hint", home3.get(0).evidence.contains("a hint only"));
     }
 
     @Test

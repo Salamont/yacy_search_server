@@ -301,9 +301,10 @@ final class PlausibilityScan {
     /**
      * The signals of the home page's reading by the model (source {@code kg_home}) that are current: the page's content and
      * the profiles' criteria version unchanged. Per collection: {@code mismatch} against it, {@code match} for it,
-     * {@code uncertain} nothing; the best collection named is spoken for unless a current reading speaks against it (also an
-     * assigned one the reading was uncertain about), once. Family
-     * {@code llm} (the website's origin), kind {@code kg_home_fit}, revision the content hash, criteria the criteria version.
+     * {@code uncertain} nothing. The best fitting collection the model names is never a signal of its own, only a hint for
+     * the reviewer in the evidence (an uncertain or unnamed collection spoken for would block a correction as
+     * {@code contradicting_signals} or steer its target). Family {@code llm} (the website's origin), kind
+     * {@code kg_home_fit}, revision the content hash, criteria the criteria version.
      *
      * @param contentHash the current content hash of a page (doc id -> hex), null if it is gone
      */
@@ -311,33 +312,19 @@ final class PlausibilityScan {
             final String criteria) {
         final List<AutoCorrect.Signal> out = new ArrayList<>();
         if (assessments == null || criteria == null) return out;
-        final Set<String> against = new TreeSet<>();
-        final Map<String, JSONObject> current = new TreeMap<>();
         for (final String c : new TreeSet<>(assessments.keySet())) {
             final JSONObject entry = assessments.optJSONObject(c);
             final JSONObject home = entry == null || entry.optBoolean("stale") ? null : entry.optJSONObject(AutoCorrect.KG_HOME);
             if (home == null || !criteria.equals(home.optString("criteriaVersion"))) continue;
             final String now = contentHash.apply(home.optString("docId", null));
             if (now == null || !now.equalsIgnoreCase(home.optString("contentHash"))) continue; // outdated: the page changed or is gone
-            current.put(c, home);
-            if (CollectionFitVerdicts.MISMATCH.equals(home.optString("result"))) against.add(c);
-        }
-        final Set<String> best = new TreeSet<>();
-        for (final Map.Entry<String, JSONObject> e : current.entrySet()) {
-            final JSONObject home = e.getValue();
             final String verdict = home.optString("result");
-            final String evidence = clip("Home page read by the model (" + home.optString("model") + "): " + home.optString("quote"), 500);
-            if (CollectionFitVerdicts.MISMATCH.equals(verdict) || CollectionFitVerdicts.MATCH.equals(verdict)) {
-                add(out, domain, CollectionFitVerdicts.MATCH.equals(verdict) ? AutoCorrect.FOR : AutoCorrect.AGAINST, e.getKey(), evidence,
-                        home.optString("contentHash"), criteria);
-            }
-            final String b = home.optString("best", "none");
-            final JSONObject own = current.get(b); // an assigned collection with its own match is spoken for already
-            if (!"none".equals(b) && !against.contains(b) && (own == null || !CollectionFitVerdicts.MATCH.equals(own.optString("result")))
-                    && best.add(b)) {
-                add(out, domain, AutoCorrect.FOR, b, clip("Best fitting collection of the home page read by the model (" + home.optString("model")
-                        + "): " + home.optString("quote"), 500), home.optString("contentHash"), criteria);
-            }
+            if (!CollectionFitVerdicts.MISMATCH.equals(verdict) && !CollectionFitVerdicts.MATCH.equals(verdict)) continue; // uncertain: none
+            final String best = home.optString("best", "none");
+            final String hint = "none".equals(best) || best.equals(c) ? "" : " (best fitting collection named by the model, a hint only: " + best + ")";
+            add(out, domain, CollectionFitVerdicts.MATCH.equals(verdict) ? AutoCorrect.FOR : AutoCorrect.AGAINST, c,
+                    clip("Home page read by the model (" + home.optString("model") + "): " + home.optString("quote") + hint, 500),
+                    home.optString("contentHash"), criteria);
         }
         return out;
     }

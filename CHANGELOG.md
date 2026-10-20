@@ -27,7 +27,8 @@ automation stays `off` and the new home page question stays off until switched o
   only with `scoutro.kg.llm.structuredOutput` `none` or `json_object`): the first request of a home page also asks, in at
   most 500 characters, whether the website fits its collections; no request of its own, system prompt, schema, extractor
   version and prompt hash unchanged, every other request byte for byte as before. A verdict per assigned collection
-  counts only with a verbatim quote of the page and only while the page is unchanged; it is recorded as the source
+  counts only with a verbatim quote of the page and only while the page is unchanged (the best fitting collection the
+  model names is a hint only, never a signal); it is recorded as the source
   `kg_home`, never a statement of the graph, and makes at most a case for review. Counters
   `llm.processed.collectionFit` of `GET /scoutro/api/v1/kg/status`.
 
