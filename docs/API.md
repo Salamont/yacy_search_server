@@ -454,6 +454,10 @@ filters, crawl starts and agent grants all take their choices from it.
   ```
 - `GET /v1/collections/autocorrect`, `POST /v1/collections/autocorrect/{evaluate,review,sample,accept,breaker-reset}` (administrator):
   the correction automation of collection assignments, off by default; see [autocorrect](SCOUTRO_COLLECTION_AUTOCORRECT.md).
+- `POST /v1/collections/autocorrect/scan`, `GET /v1/collections/autocorrect/assessments` (administrator): the plausibility
+  scan of the indexed domains in steps (no model, nothing written to the graph; `503 scan_busy` while the graph is paused or
+  a gate is closed) and its assessments per domain, collection and source; see
+  [autocorrect](SCOUTRO_COLLECTION_AUTOCORRECT.md#plausibility-scan-of-the-indexed-domains-no-model).
 - `GET|POST /v1/collections/decisions`, `POST /v1/collections/decisions/{apply,revoke,recover}`
   (administrator, same-origin JSON, at most 4 KiB, never an agent route): durable
   collection decisions of a domain, host or path. Every later index write (any

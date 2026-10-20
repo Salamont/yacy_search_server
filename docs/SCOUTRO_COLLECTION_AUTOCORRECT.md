@@ -115,6 +115,84 @@ origin names the domain or whose kind is `imprint`, `website`, `site_text` or `o
 evidence another origin already states is a copy and counts with that origin. The outcome lists each such case in
 `dependencies`.
 
+## Plausibility scan of the indexed domains (no model)
+
+The Discovery batch reports only the domains of its own runs, and only when its own signals change; the graph's signals
+of the many domains indexed before would never reach the automation. The scan assesses them in steps on an
+administrator's call (no daemon): `POST /v1/collections/autocorrect/scan`
+`{"maxDomains": 1..200 (50), "collection": optional, "restart": false, "domains": optional}`.
+
+- **Order and cursor.** The registrable domains of the graph's active pages with at least one specialist collection
+  (`KgRuntime.domainCollections`, through the indexes; the fallback collection alone is never scanned), sorted. The unit
+  is the domain: all its collections in the same step. The cursor (the last domain done) and the pass are kept in the
+  correction state (`scan`); a step after a restart of Scoutro goes on from it, the end of a pass is `done` and the next
+  call begins the next pass. Pausing is not calling it.
+- **Only while the graph allows it.** A step runs only while the graph runs, is not paused and its gates are open
+  (indexing queue, load, heap, YaCy's online caution, the same as for the graph's own scans); otherwise
+  `503 scan_busy` with the reason, the cursor stays. No model is called and nothing is written to the graph.
+- **Two fingerprints per domain and collection.** The rules' fingerprint (the content hashes of the domain's pages, the
+  vocabularies' version, the rules version, the collections, the domain's collection decisions) decides whether the
+  pages are read again (text fit, offer profile, structured data); the input's fingerprint (the rules' plus the stored
+  Discovery classifications of the domain, also those without a signal, the home page's reading by the model and the OSM
+  signals of the domain's case) whether the domain is assessed again at all. A new classification is assessed without
+  reading the pages again; an unchanged domain is skipped.
+- **Signals.** The rules' (structured, text fit, plausibility), the stored Discovery classifications read from
+  `state.json` as `scoutro_automation.autocorrect_signals` maps them (the model's `PASS` or `FAIL` only; a heuristic or
+  failed classification and `UNSURE` are shown, but no signal), the home page's reading by the model (when current), and
+  the OSM signals of the domain's last case (carried over, so the case never flips between Discovery's submission and the
+  scan's).
+- **One submission per domain.** While the mode is not `off` and a collection of the domain has a signal against it, the
+  domain is submitted once, through the unchanged rules: the current collection is the alphabetically first specialist
+  collection with a signal against it, the memberships are all of the domain's, the signals those of all its
+  collections. A domain in several specialist collections stays a case (`multiple_assignment`); an unchanged signal set
+  answers `unchanged`. A scan has the website's origin and the case's OSM signals only: it never makes a correction that
+  would not be made without it. In the mode `off` it assesses and submits nothing.
+- **Targeted run.** `"domains": [...]` (at most 200 registrable domains) assesses exactly these, also domains no
+  Discovery run crawled, and leaves the cursor alone: the run right after a classification of the uncertain domains.
+
+### Assessments
+
+The correction state keeps, per domain, collection and **source**, what each source found (`assessments`); no source
+replaces another's:
+
+```json
+"assessments": {
+  "drolshagens.de": {
+    "bauteamcheck-web": {
+      "rules":     {"result": "suspect", "rulesFingerprint": "…", "rulesVersion": "3", "signals": [...], "evidence": [...],
+                    "offered": 0, "topics": 0, "pages": 8, "offers": 10, "at": 0},
+      "discovery": {"result": "FAIL", "confidence": 0.97, "backend": "llm", "error": "", "criteriaVersion": "…",
+                    "classifiedAt": "…", "signal": true, "at": 0},
+      "kg_home":   {"result": "mismatch", "...": "see the home page's reading"},
+      "inputFingerprint": "…"
+    }
+  }
+}
+```
+
+The result of a pair is derived, never stored: `suspect` if a source speaks against the collection with a signal, else
+`match` if one speaks for it, else `uncertain`. A collection the domain no longer belongs to is marked `stale`, never
+deleted. At most 20 000 pairs: beyond, the assessed domains without an open case and with the oldest assessment go
+first; the cases are never touched. The state is written once per step; an unreadable state records and submits
+nothing. `GET /v1/collections/autocorrect/assessments?result=&collection=&source=&limit=` gives the counts per
+collection (derived results, sources, stale) and the newest pairs.
+
+### Uncertain domains: a classification only for them
+
+The rules decide most domains without a model. For the `uncertain` ones the existing Discovery classifier may be asked
+(one model request per domain, no new pipeline, no new prompt):
+
+1. Export the list: `GET .../assessments?result=uncertain&collection=bauteamcheck-web&limit=5000` (the `domain`s).
+2. Classify a **sample of 50** first: `scoutro-discovery classify --profile bauteamcheck --domain-file uncertain.txt
+   --max 50` (with `SCOUTRO_DISCOVERY_DIR`, `SCOUTRO_CONFIG_ROOT` and the model's `SCOUTRO_LLM_*` of the Discovery
+   tools; `--dry-run` first).
+3. Right after it: `POST .../scan {"domains": [the same list]}`, so the new classifications reach the automation at once,
+   also for domains no Discovery run crawled (`submit_autocorrect` reports only domains with a crawled profile entry).
+4. Look at the results, then the rest in bounded runs (`--max`).
+
+Without the targeted run the regular scan takes the new classifications in its next pass (the input's fingerprint), and
+the Discovery batch for its own domains.
+
 ## The rule
 
 1. At least **two independent origins** speak against the current specialist collection, at least one of them with a
@@ -189,6 +267,8 @@ specialist target) is never accepted at all.
   action of the mode; `graph` adds the knowledge graph's structured signals.
 - `POST .../review` `{"domain", "verdict": "approve|reject|correct|wrong", "target", "note"}`.
 - `POST .../sample` `{"size"}` — a random sample for the acceptance.
+- `POST .../scan` `{"maxDomains", "collection", "restart", "domains"}` — one step of the plausibility scan.
+- `GET .../assessments?result=&collection=&source=&limit=` — the scan's assessments.
 - `POST .../accept`, `POST .../breaker-reset`.
 
 ## Review page
@@ -222,9 +302,12 @@ Rollback: set the mode to `off`; revoke automatic decisions with `POST /v1/colle
 limit, breaker, the random sample, the 99 % acceptance with 299 error-free and the refusal with one error, the interim
 stage, the audit and its backlog, history, unreadable state, Clopper-Pearson and the reviews needed; the plausibility as
 a website signal that is never enough, `suggested`, an acceptance of rules version 2 outdated),
+`PlausibilityScanTest` (steps and cursor, a busy graph, two fingerprints, a new Discovery classification, home page
+reading or OSM signal assessed without reading the pages, assessments per collection and source, stale collections, one
+submission per domain, the targeted run, the fail-safe state, the Discovery fields of `state.json`),
 `PlausibilityTest` (the graph's offer profile and the plausibility on a running graph: foreign offers, a construction
 company with merchandise, with its services, a price list read by the rules alone, a short website, a collection
-without a vocabulary, the host index),
+without a vocabulary, the host index; the scan on a running graph without a model and without a graph write),
 `CollectionDecisionsApiTest` (off by default, proposal, approval as a manual decision on the real index, manual
 decision wins, the graph's structured signals, the text-fit rule, the 99 % defaults), `TextFitTest` (the running graph
 reads the offered categories of a domain through every vocabulary; now part of `scoutro-collection-decisions-test`),

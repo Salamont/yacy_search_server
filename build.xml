@@ -609,6 +609,7 @@
       <include name="net/yacy/scoutro/api/CrawlFlowTest.java"/>
       <include name="net/yacy/scoutro/api/DrolshagensPilotTest.java"/>
       <include name="net/yacy/scoutro/api/PlausibilityTest.java"/>
+      <include name="net/yacy/scoutro/api/PlausibilityScanTest.java"/>
       <include name="net/yacy/scoutro/knowledge/TextFitTest.java"/>
       <include name="net/yacy/scoutro/knowledge/KgTestSupport.java"/>
       <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
@@ -625,6 +626,7 @@
       <arg value="net.yacy.scoutro.api.CrawlFlowTest"/>
       <arg value="net.yacy.scoutro.api.DrolshagensPilotTest"/>
       <arg value="net.yacy.scoutro.api.PlausibilityTest"/>
+      <arg value="net.yacy.scoutro.api.PlausibilityScanTest"/>
       <arg value="net.yacy.scoutro.knowledge.TextFitTest"/>
     </java>
   </target>

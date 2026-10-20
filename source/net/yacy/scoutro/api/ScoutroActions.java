@@ -638,6 +638,19 @@ final class ScoutroActions {
         };
         final AutoCorrectApi api = new AutoCorrectApi(autocorrect(), decisions, decide, key -> sb == null ? null : sb.getConfig(key, null),
                 known, graph);
+        if (kg != null) {
+            final java.nio.file.Path state = sb == null ? null : net.yacy.scoutro.discovery.DiscoveryService.resolveRoot(System.getenv("SCOUTRO_DISCOVERY_DIR"),
+                    sb.getConfig("scoutro.discovery.stateRoot", ""), sb.getDataPath().toPath().resolve("DATA").resolve("SCOUTRO/discovery")).resolve("state.json");
+            api.withScan(scanGraph(kg), () -> state == null ? java.util.Map.of() : DomainEnrichment.StateFile.read(state), () -> {
+                final java.util.List<String> ids = new java.util.ArrayList<>();
+                try {
+                    for (final CollectionCatalog.Entry e : ScoutroActions.this.catalog.entries(false)) ids.add(e.id);
+                } catch (final ApiException e) {
+                    // no catalog: the domain's own collections only
+                }
+                return ids;
+            }, System::currentTimeMillis);
+        }
         switch (action) {
             case "report": return api.report(query);
             case "evaluate": return api.evaluate(body, actor);
@@ -645,8 +658,30 @@ final class ScoutroActions {
             case "accept": return api.accept(body, actor);
             case "breaker-reset": return api.breakerReset(body, actor);
             case "sample": return api.sample(body, actor);
+            case "scan": return api.scan(body, actor);
+            case "assessments": return api.assessments(query);
             default: throw new ApiException(404, "not_found", "Unknown correction automation route.");
         }
+    }
+
+    /** The plausibility scan's view of the running graph (read only). */
+    static PlausibilityScan.Graph scanGraph(final net.yacy.scoutro.knowledge.KgRuntime kg) {
+        return new PlausibilityScan.Graph() {
+            @Override public String busy() { return kg.scanBusy(); }
+            @Override public java.util.SortedMap<String, net.yacy.scoutro.knowledge.KgRuntime.DomainPages> domains() { return kg.domainCollections(); }
+            @Override public String pagesFingerprint(final String domain, final java.util.Collection<String> hosts) { return kg.pagesFingerprint(domain, hosts); }
+            @Override public String vocabularyVersion() { return kg.vocabularyVersion(); }
+            @Override public JSONObject textFit(final String domain, final java.util.Collection<String> collections, final java.util.Collection<String> hosts) {
+                return kg.textFit(domain, collections, hosts);
+            }
+            @Override public JSONObject offerProfile(final String domain, final java.util.Collection<String> collections, final java.util.Collection<String> hosts) {
+                return kg.offerProfile(domain, collections, hosts);
+            }
+            @Override public java.util.List<String[]> structuredIndustries(final String domain) { return kg.structuredIndustries(domain); }
+            @Override public java.util.Map<String, java.util.Set<String>> collectionNace(final java.util.Collection<String> collections) {
+                return kg.collectionNace(collections);
+            }
+        };
     }
 
     /** The collections the running knowledge graph follows; null if it is off (no graph data to protect). */

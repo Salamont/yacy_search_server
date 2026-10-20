@@ -60,6 +60,16 @@ plausibility signal alone is never enough for a correction, only for a case.
   target: 299 error-free reviews; one error needs 473, two need 628) with at
   least `minReviewed` (299) reviews and no error of high severity. A bound of
   95 % is shown as the interim stage, never as the operator release.
+- The **plausibility scan** of the domains indexed before (administrator, API only:
+  `POST /scoutro/api/v1/collections/autocorrect/scan` in steps of up to 200 domains,
+  `GET .../assessments` for the results) assesses each domain in each of its
+  collections from the rules, the stored Discovery classifications and the home
+  page's reading by the model, without a model call and without writing to the
+  knowledge graph; it waits (`503 scan_busy`) while the graph is paused or busy
+  indexing. A domain with a signal against its collection appears in this list
+  as a case; `uncertain` domains may be classified by Discovery
+  (`scoutro-discovery classify --domain-file`), then scanned again with
+  `{"domains": [...]}`.
 - After the acceptance a share of the automatic corrections
   (`scoutro.collections.autocorrect.auditRate`, 0.1) is drawn for the audit;
   20 unreviewed audit cases stop the automatic corrections until they are

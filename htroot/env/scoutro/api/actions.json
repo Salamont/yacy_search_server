@@ -5320,6 +5320,127 @@
       }
     },
     {
+      "name": "collections.autocorrect.scan",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, the plausibility of its offers, an LLM reading it) are one origin, an OSM tag, an LLM verdict or a plausibility finding never suffices, an absence or a crawl error is no signal. A case under review carries suggested, only a hint (rules version 3). A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. The plausibility scan of the indexed domains: each domain in each of its specialist collections from the graph's rules (structured data, text fit, plausibility of its offers), the stored Discovery classifications and the home page's reading by the model; no model call, nothing written to the graph. Two fingerprints per domain and collection: the rules' (pages, vocabularies, rules version, collections, decisions) decides whether the pages are read again, the input's (plus Discovery, the home page's reading and the OSM signals of the domain's case) whether it is assessed again. A domain with a signal against one of its collections is submitted once to the automation in its mode. 503 scan_busy (details.reason) while the graph is off or paused or a gate (indexing queue, load, heap, online caution) is closed; the cursor is kept. Returns the domains of the step, counters (read, reused, unchanged, suspect, submitted, fallbackOnly, notInGraph), the actions of the submissions, done and the scan state (cursor, pass).",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/autocorrect/scan",
+        "successStatus": 200
+      },
+      "parameters": {
+        "maxDomains": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50,
+          "description": "Domains of this step after the cursor.",
+          "in": "body",
+          "required": false
+        },
+        "collection": {
+          "type": "string",
+          "description": "Only the domains of this collection.",
+          "in": "body",
+          "required": false
+        },
+        "restart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Begin a new pass from the first domain.",
+          "in": "body",
+          "required": false
+        },
+        "domains": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string"
+          },
+          "description": "Exactly these registrable domains (the run after a classification); the cursor stays.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionAutocorrectResult",
+      "errors": [
+        400,
+        401,
+        403,
+        413,
+        415,
+        503
+      ],
+      "cli": "HTTP POST /scoutro/api/v1/collections/autocorrect/scan (administrator)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.autocorrect.assessments",
+      "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, the plausibility of its offers, an LLM reading it) are one origin, an OSM tag, an LLM verdict or a plausibility finding never suffices, an absence or a crawl error is no signal. A case under review carries suggested, only a hint (rules version 3). A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. The plausibility scan of the indexed domains: each domain in each of its specialist collections from the graph's rules (structured data, text fit, plausibility of its offers), the stored Discovery classifications and the home page's reading by the model; no model call, nothing written to the graph. Two fingerprints per domain and collection: the rules' (pages, vocabularies, rules version, collections, decisions) decides whether the pages are read again, the input's (plus Discovery, the home page's reading and the OSM signals of the domain's case) whether it is assessed again. A domain with a signal against one of its collections is submitted once to the automation in its mode. 503 scan_busy (details.reason) while the graph is off or paused or a gate (indexing queue, load, heap, online caution) is closed; the cursor is kept. Counts per collection (match, suspect, uncertain derived from the sources; source:rules, source:kg_home, source:discovery; stale) and the newest pairs of domain and collection with each source's entry; the uncertain ones are the domains a classification may be asked about.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/collections/autocorrect/assessments",
+        "successStatus": 200
+      },
+      "parameters": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "match",
+            "suspect",
+            "uncertain"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "Only this derived result."
+        },
+        "collection": {
+          "type": "string",
+          "in": "query",
+          "required": false,
+          "description": "Only this collection."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "rules",
+            "kg_home",
+            "discovery"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "Only pairs with this source."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "default": 200,
+          "in": "query",
+          "required": false,
+          "description": "Pairs listed."
+        }
+      },
+      "returns": "CollectionAutocorrectResult",
+      "errors": [
+        400,
+        401,
+        403,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/collections/autocorrect/assessments (administrator)",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "collections.autocorrect.sample",
       "description": "Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments: mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data, text, the plausibility of its offers, an LLM reading it) are one origin, an OSM tag, an LLM verdict or a plausibility finding never suffices, an absence or a crawl error is no signal. A case under review carries suggested, only a hint (rules version 3). A manual decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's, one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies). Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least scoutro.collections.autocorrect.minReviewed (299) reviewed, the one-sided 95 % Clopper-Pearson lower bound >= minLowerBound (0.99, the 99 % target; 0.95 is only the interim stage, never the operator release), no error of high severity, for the current rules version; within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate, 0.1, of the automatic corrections) wait for their review; everything else is a proposal. Returns the draw (population, drawn, domains) and the statistics (all, sample, audit; reviewsForTarget, stage none, interim_95 or target_99).",
       "mutating": true,
@@ -22054,6 +22175,36 @@
     "CollectionAutocorrectResult": {
       "type": "object",
       "additionalProperties": true
+    },
+    "CollectionAutocorrectScan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxDomains": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50,
+          "description": "Domains of this step after the cursor."
+        },
+        "collection": {
+          "type": "string",
+          "description": "Only the domains of this collection."
+        },
+        "restart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Begin a new pass from the first domain."
+        },
+        "domains": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string"
+          },
+          "description": "Exactly these registrable domains (the run after a classification); the cursor stays."
+        }
+      }
     },
     "AuthUser": {
       "type": "object",

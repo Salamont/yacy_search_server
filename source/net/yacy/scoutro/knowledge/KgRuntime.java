@@ -1628,7 +1628,7 @@ public final class KgRuntime {
     }
 
     /**
-     * {doc_id, url, host, doc_rowid} of the active pages of a registrable domain, in the order of the graph (at most
+     * {doc_id, url, host, doc_rowid, content hash} of the active pages of a registrable domain, in the order of the graph (at most
      * {@link #DOMAIN_PAGES}): through the domain's host ids where it has any (the index), else by its url as before.
      *
      * @param hostIds the domain's host ids ({@link #domainHosts}), or null to look them up
@@ -1637,7 +1637,8 @@ public final class KgRuntime {
         final java.util.Collection<String> hosts = hostIds != null ? hostIds : domainHosts().getOrDefault(domain, java.util.Set.of());
         final java.util.List<String[]> pages = new java.util.ArrayList<>();
         this.store.read(c -> {
-            final StringBuilder sql = new StringBuilder("SELECT doc_id, url, doc_rowid FROM kg_doc WHERE state = 1 AND ");
+            final StringBuilder sql = new StringBuilder("SELECT doc_id, url, doc_rowid, hex(coalesce(content_hash, input_hash)) FROM kg_doc"
+                    + " WHERE state = 1 AND ");
             if (hosts.isEmpty()) {
                 sql.append("url LIKE ?");
             } else {
@@ -1662,7 +1663,7 @@ public final class KgRuntime {
                             host = null;
                         }
                         if (host != null && domain.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT)))) {
-                            pages.add(new String[] {r.getString(1), r.getString(2), host, Long.toString(r.getLong(3))});
+                            pages.add(new String[] {r.getString(1), r.getString(2), host, Long.toString(r.getLong(3)), r.getString(4)});
                         }
                     }
                 }
@@ -1670,6 +1671,88 @@ public final class KgRuntime {
             return null;
         });
         return pages;
+    }
+
+    /** The tracked pages of one registrable domain: its collections and its host ids (the plausibility scan). */
+    public static final class DomainPages {
+        public final java.util.Set<String> collections = new java.util.TreeSet<>();
+        public final java.util.Set<String> hosts = new java.util.TreeSet<>();
+    }
+
+    /**
+     * Every registrable domain with active pages, with the collections of its pages and its host ids, sorted by domain (the
+     * plausibility scan reads it once per step): one row per host and collection through the indexes. Empty while the graph
+     * is off.
+     */
+    public java.util.SortedMap<String, DomainPages> domainCollections() {
+        final java.util.SortedMap<String, DomainPages> out = new java.util.TreeMap<>();
+        if (this.state != State.RUNNING || this.store == null) return out;
+        try {
+            this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT d.host_id, k.name, min(d.url) FROM kg_doc d"
+                        + " JOIN kg_doc_collection dc ON dc.doc_rowid = d.doc_rowid JOIN kg_collection k ON k.coll_id = dc.coll_id"
+                        + " WHERE d.state = 1 AND d.host_id IS NOT NULL GROUP BY d.host_id, k.name");
+                        java.sql.ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        final String domain = registrableDomainOf(r.getString(3));
+                        if (domain == null) continue;
+                        final DomainPages d = out.computeIfAbsent(domain, k -> new DomainPages());
+                        d.hosts.add(r.getString(1));
+                        d.collections.add(r.getString(2));
+                    }
+                }
+                // pages without a host id (rare): by their url, then read by the url as before (no host to look up)
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT d.url, k.name FROM kg_doc d JOIN kg_doc_collection dc"
+                        + " ON dc.doc_rowid = d.doc_rowid JOIN kg_collection k ON k.coll_id = dc.coll_id WHERE d.state = 1 AND d.host_id IS NULL");
+                        java.sql.ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        final String domain = registrableDomainOf(r.getString(1));
+                        if (domain != null) out.computeIfAbsent(domain, k -> new DomainPages()).collections.add(r.getString(2));
+                    }
+                }
+                return null;
+            });
+        } catch (final KgException e) {
+            return new java.util.TreeMap<>(); // no graph, nothing to scan
+        }
+        return out;
+    }
+
+    /**
+     * The content of a domain's active pages as one fingerprint (doc ids and content hashes, at most {@link #DOMAIN_PAGES}):
+     * another page or another text gives another value; null while the graph is off.
+     */
+    public String pagesFingerprint(final String domain, final java.util.Collection<String> hostIds) {
+        if (this.state != State.RUNNING || this.store == null || domain == null) return null;
+        try {
+            final java.util.TreeSet<String> parts = new java.util.TreeSet<>();
+            for (final String[] p : domainPages(domain, hostIds)) parts.add(p[0] + ":" + p[4]);
+            final byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(String.join("\n", parts)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            final StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < 12; i++) hex.append(String.format("%02x", h[i]));
+            return hex.toString();
+        } catch (final java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        } catch (final KgException e) {
+            return null;
+        }
+    }
+
+    /** The version of the vocabularies in force (categories, NACE, signals): part of the plausibility scan's fingerprint. */
+    public String vocabularyVersion() {
+        return net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version();
+    }
+
+    /**
+     * Why the plausibility scan may not read now, or null: the graph not running, its manual pause, or a closed gate
+     * (indexing queue, load, heap, YaCy's online caution), the same as for the graph's own scans.
+     */
+    public String scanBusy() {
+        if (this.state != State.RUNNING || this.store == null) return "graph_" + this.state.name().toLowerCase(java.util.Locale.ROOT);
+        if (this.guard != null && this.guard.manualPause()) return "graph_paused";
+        final Gates g = this.gates;
+        return g == null ? null : g.closed(true);
     }
 
     /**

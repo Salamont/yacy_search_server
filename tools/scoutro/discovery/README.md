@@ -138,7 +138,7 @@ scoutro-discovery status
 scoutro-discovery start [--profile edelsenior] [--dry-run] [--max-domains 5]
 scoutro-discovery pause
 scoutro-discovery resume
-scoutro-discovery classify [--profile edelsenior] [--domain example.de] [--backend auto|llm|heuristic] [--dry-run]
+scoutro-discovery classify [--profile edelsenior] [--domain example.de] [--domain-file list.txt] [--backend auto|llm|heuristic] [--dry-run]
 scoutro-discovery search --profile edelsenior --query "Pflegeheim Köln" --verdict PASS
 scoutro-discovery export --profile edelsenior [--verdict PASS]
 scoutro-discovery selftest
@@ -296,6 +296,15 @@ was produced with; it is stored in every record as
   re-classifies it — bump it only for real criteria changes.)
 - Single domains: `classify --profile <p> --domain <d> --reclassify`;
   everything of a profile regardless of version: `--reclassify`.
+- A list of domains: `classify --profile <p> --domain-file <file>` (one
+  domain per line, blank lines and `#` comments skipped; the same as one
+  `--domain` per line, `--max` still bounds the run). Used for the domains the
+  plausibility scan of the collection automation leaves `uncertain`: export
+  them from `GET /scoutro/api/v1/collections/autocorrect/assessments?result=uncertain`,
+  classify a sample of 50 first, then call
+  `POST /scoutro/api/v1/collections/autocorrect/scan {"domains": [...]}` with
+  the same list so the new results reach the automation at once
+  (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md, "Uncertain domains").
 - Which records are outdated: `export --profile <p>` and compare
   `classifier.criteria_version`.
 - `2026-10-08.1`: stackfinder fails coaching, training, personnel, management

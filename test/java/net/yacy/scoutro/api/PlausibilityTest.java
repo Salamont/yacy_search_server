@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
@@ -203,6 +204,52 @@ public class PlausibilityTest {
         assertTrue(!((JSONObject) misc[2]).getJSONObject("collections").has(MISC));
         assertTrue(!plausibilityAgainst(misc));
         assertEquals(AutoCorrectApi.UNCERTAIN, misc[1]);
+    }
+
+    @Test
+    public void theScanReadsTheRunningGraphWithoutAModelAndWritesNothingToIt() throws Exception {
+        page("https://feinkost-muster.de/", BAU, products(product("Pralinen", "12.90")), "Feinkost Muster: Pralinen, Trüffel und Geschenke.");
+        page("https://feinkost-muster.de/shop/trueffel", BAU, products(product("Trüffel", "8.50"), product("Geschenkkorb", "39.00")), "Trüffel.");
+        page("https://bau-muster.de/leistungen", BAU, null, "Unsere Leistungen: Dachdeckerarbeiten, Trockenbau und Innenausbau aus einer Hand.");
+        page("https://misc-muster.de/", MISC, null, "Etwas anderes.");
+        settle();
+        final String graphBefore = graphState();
+        final java.nio.file.Path dir = this.tmp.newFolder("collections").toPath();
+        final net.yacy.scoutro.collections.CollectionDecisions decisions = new net.yacy.scoutro.collections.CollectionDecisions(
+                new net.yacy.scoutro.collections.DecisionStore(dir, this.tmp.newFolder("settings").toPath().resolve("marker")), "sonstige", false,
+                this.clock::get);
+        final Map<String, String> settings = new java.util.HashMap<>(Map.of(AutoCorrectApi.MODE_KEY, "simulate"));
+        final AutoCorrectApi api = new AutoCorrectApi(new AutoCorrect(dir.resolve("autocorrect.json").toFile(), this.clock::get), decisions, null,
+                settings::get, Set.of(BAU, MISC, "sonstige")::contains, null).withScan(ScoutroActions.scanGraph(this.kg), Map::of, () -> IDS, this.clock::get);
+        JSONObject r = api.scan(new JSONObject(), "admin");
+        assertEquals(r.toString(), 3, r.getInt("domains"));
+        assertEquals(r.toString(), 1, r.getJSONObject("counters").getInt("suspect"));
+        assertEquals(1, r.getJSONObject("actions").getInt("recorded"));
+        assertTrue(r.getBoolean("done"));
+        final JSONObject a = api.assessments(Map.of());
+        assertEquals(a.toString(), 1, a.getJSONObject("counts").getJSONObject(BAU).getInt("suspect"));
+        assertEquals(a.toString(), 1, a.getJSONObject("counts").getJSONObject(BAU).getInt("match"));
+        assertEquals(a.toString(), 1, a.getJSONObject("counts").getJSONObject(MISC).getInt("uncertain"));
+        // a second pass: nothing changed, nothing read; never a model, never a write to the graph
+        r = api.scan(new JSONObject(), "admin");
+        assertEquals(r.toString(), 3, r.getJSONObject("counters").getInt("unchanged"));
+        assertEquals("no model and no graph write", graphBefore, graphState());
+        // a paused graph: the scan waits
+        this.kg.pause();
+        try {
+            api.scan(new JSONObject(), "admin");
+            fail("a scan while the graph is paused");
+        } catch (final ApiException e) {
+            assertEquals("scan_busy", e.code());
+        }
+        this.kg.resume();
+    }
+
+    /** What a model call or a graph write would change: the LLM queue, statements, evidence, changes, the documents. */
+    private String graphState() throws Exception {
+        return KgTestSupport.count(this.kg, "SELECT count(*) FROM kg_llm_work") + "/" + KgTestSupport.count(this.kg, "SELECT count(*) FROM kg_statement")
+                + "/" + KgTestSupport.count(this.kg, "SELECT count(*) FROM kg_evidence") + "/" + KgTestSupport.count(this.kg, "SELECT count(*) FROM kg_change")
+                + "/" + KgTestSupport.count(this.kg, "SELECT coalesce(max(processed_at), 0) FROM kg_doc");
     }
 
     @Test

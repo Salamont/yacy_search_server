@@ -225,6 +225,11 @@ final class AutoCorrectApi {
     private final Function<String, String> config;
     private final java.util.function.Predicate<String> known;
     private final Graph graph;
+    /** The plausibility scan's view of the graph, of Discovery's state and of the catalog; null without a running graph. */
+    private PlausibilityScan.Graph scanGraph;
+    private java.util.function.Supplier<Map<String, DomainEnrichment.DomainState>> discovery = Map::of;
+    private java.util.function.Supplier<java.util.Collection<String>> catalog = List::of;
+    private java.util.function.LongSupplier clock = System::currentTimeMillis;
 
     AutoCorrectApi(final AutoCorrect engine, final CollectionDecisions decisions, final CollectionDecisionsApi decide,
             final Function<String, String> config, final java.util.function.Predicate<String> known, final Graph graph) {
@@ -234,6 +239,16 @@ final class AutoCorrectApi {
         this.config = config;
         this.known = known;
         this.graph = graph;
+    }
+
+    /** The scan's sources (the routes scan and assessments); without them the scan answers 503 scan_busy. */
+    AutoCorrectApi withScan(final PlausibilityScan.Graph scanGraph, final java.util.function.Supplier<Map<String, DomainEnrichment.DomainState>> discovery,
+            final java.util.function.Supplier<java.util.Collection<String>> catalog, final java.util.function.LongSupplier clock) {
+        this.scanGraph = scanGraph;
+        this.discovery = discovery;
+        this.catalog = catalog;
+        this.clock = clock;
+        return this;
     }
 
     AutoCorrect.Mode mode() {
@@ -339,6 +354,92 @@ final class AutoCorrectApi {
                     intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), auditRateSetting(), this::apply, actor);
         } catch (final IOException e) {
             throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written: " + e.getMessage());
+        }
+    }
+
+    /**
+     * One step of the plausibility scan (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): {@code maxDomains} (1 to 200, 50) domains
+     * after the cursor, of {@code collection} only, from the start with {@code restart}, or exactly {@code domains} (at most
+     * 200, the cursor stays). No model, nothing written to the graph; 503 scan_busy while the graph is off or paused or a
+     * gate is closed.
+     */
+    JSONObject scan(final JSONObject body, final String actor) throws ApiException {
+        for (final String k : body.keySet()) {
+            if (!Set.of("maxDomains", "collection", "restart", "domains").contains(k)) throw ApiException.invalid(k, "Unknown field.");
+        }
+        final Object m = body.opt("maxDomains");
+        if (m != null && (!(m instanceof Integer) || (Integer) m < 1 || (Integer) m > PlausibilityScan.MAX_DOMAINS)) {
+            throw ApiException.invalid("maxDomains", "1 to " + PlausibilityScan.MAX_DOMAINS + ".");
+        }
+        final String collection = body.has("collection") ? body.optString("collection", "") : null;
+        if (collection != null && !this.known.test(collection)) throw new ApiException(400, "collection_unknown", "Unknown collection: " + collection);
+        final Object restart = body.opt("restart");
+        if (restart != null && !(restart instanceof Boolean)) throw ApiException.invalid("restart", "true or false.");
+        final List<String> domains;
+        try {
+            domains = body.has("domains") ? PlausibilityScan.domains(body.optJSONArray("domains")) : null;
+        } catch (final IllegalArgumentException e) {
+            throw ApiException.invalid("domains", "At most " + PlausibilityScan.MAX_DOMAINS + " registrable domains such as example.com.");
+        }
+        if (body.has("domains") && body.optJSONArray("domains") == null) throw ApiException.invalid("domains", "An array of domains.");
+        if (this.engine.unavailable()) throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
+        if (this.scanGraph == null) throw new ApiException(503, "scan_busy", "The knowledge graph does not run.", Json.obj("reason", "graph_off"));
+        final AutoCorrect.Mode mode = mode();
+        final PlausibilityScan scan = new PlausibilityScan(this.engine, this.scanGraph, this.discovery, new PlausibilityScan.Decisions() {
+            @Override
+            public List<String> revisions(final String domain) {
+                final List<String> out = new ArrayList<>();
+                for (final CollectionDecision d : AutoCorrectApi.this.decisions.activeOf(domain)) out.add(d.id + ":" + d.revision + ":" + d.decidedAt);
+                java.util.Collections.sort(out);
+                return out;
+            }
+
+            @Override
+            public boolean manual(final String domain) {
+                for (final CollectionDecision d : AutoCorrectApi.this.decisions.activeOf(domain)) if (d.basis == CollectionDecision.Basis.MANUAL) return true;
+                return false;
+            }
+        }, this.catalog, this.decisions.fallback(), (domain, current, memberships, signals, manual) -> this.engine.submit(domain, current, memberships,
+                signals, this.decisions.fallback(), manual, mode, intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), auditRateSetting(), this::apply, actor),
+                mode != AutoCorrect.Mode.OFF, this.clock);
+        try {
+            return Json.put(scan.step(m == null ? PlausibilityScan.DEFAULT_DOMAINS : (Integer) m, collection, Boolean.TRUE.equals(restart), domains),
+                    "mode", mode.name().toLowerCase(Locale.ROOT));
+        } catch (final PlausibilityScan.Busy e) {
+            throw new ApiException(503, "scan_busy", "The scan waits: " + e.reason + ". The cursor is kept.", Json.obj("reason", e.reason));
+        } catch (final IOException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written: " + e.getMessage());
+        } catch (final IllegalStateException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
+        }
+    }
+
+    /** The assessments of the plausibility scan: counts per collection and source, and the pairs of {@code result}, {@code collection}, {@code source}. */
+    JSONObject assessments(final Map<String, String> query) throws ApiException {
+        for (final String k : query.keySet()) {
+            if (!Set.of("result", "collection", "source", "limit").contains(k)) throw ApiException.invalid(k, "Unknown parameter.");
+        }
+        final String result = query.get("result");
+        if (result != null && !Set.of(MATCH, SUSPECT, UNCERTAIN).contains(result)) throw ApiException.invalid("result", "match, suspect or uncertain.");
+        final String source = query.get("source");
+        if (source != null && !Set.of(AutoCorrect.RULES, AutoCorrect.KG_HOME, AutoCorrect.DISCOVERY).contains(source)) {
+            throw ApiException.invalid("source", "rules, kg_home or discovery.");
+        }
+        final String collection = query.get("collection");
+        if (collection != null && !this.known.test(collection)) throw new ApiException(400, "collection_unknown", "Unknown collection: " + collection);
+        int limit = 200;
+        if (query.containsKey("limit")) {
+            try {
+                limit = Integer.parseInt(query.get("limit"));
+            } catch (final NumberFormatException e) {
+                limit = -1;
+            }
+            if (limit < 0 || limit > 5000) throw ApiException.invalid("limit", "0 to 5000.");
+        }
+        try {
+            return this.engine.assessmentReport(result, collection, source, limit);
+        } catch (final IllegalStateException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
         }
     }
 

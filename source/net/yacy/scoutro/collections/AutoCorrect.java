@@ -84,6 +84,8 @@ public final class AutoCorrect {
     static final int MAX_AUDIT_BACKLOG = 20;
     static final Set<String> REVIEWED = Set.of("approved", "rejected", "correct", "wrong");
     static final int MAX_SIGNALS = 50;
+    /** Signals one submission takes at most (the routes refuse more). */
+    public static final int MAX_SIGNALS_PUBLIC = MAX_SIGNALS;
 
     /** One signal about a domain. */
     public static final class Signal {
@@ -548,6 +550,188 @@ public final class AutoCorrect {
         return this.state.optJSONObject("breaker");
     }
 
+    // ------------------------------------------------------------------------------------------- assessments
+
+    /** Sources of an assessment: the rules of the plausibility scan, the home page's reading by the model, Discovery. */
+    public static final String RULES = "rules", KG_HOME = "kg_home", DISCOVERY = "discovery";
+    static final Set<String> SOURCES = Set.of(RULES, KG_HOME, DISCOVERY);
+    /** Assessments kept at most, as (domain, collection) pairs; the oldest without an open case go first. */
+    static final int MAX_ASSESSMENTS = 20_000;
+
+    private JSONObject assessmentsState() {
+        JSONObject a = this.state.optJSONObject("assessments");
+        if (a == null) {
+            a = new JSONObject();
+            put(this.state, "assessments", a);
+        }
+        return a;
+    }
+
+    private void requireReadable() {
+        if (this.problem != null) throw new IllegalStateException("state_unreadable");
+    }
+
+    /**
+     * The assessments of a domain ({@code {collection: {source: {...}, "inputFingerprint", "stale"}}}, a copy); empty if
+     * none. Each source keeps its own entry: a new assessment of one source never replaces another's (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md).
+     */
+    public synchronized JSONObject assessments(final String domain) {
+        requireReadable();
+        final JSONObject d = assessmentsState().optJSONObject(domain);
+        return d == null ? new JSONObject() : copy(d);
+    }
+
+    /** Records the assessment of one source of a domain in a collection; the other sources and collections stay (memory until {@link #persist}). */
+    public synchronized void assess(final String domain, final String collection, final String source, final JSONObject value) {
+        requireReadable();
+        if (!SOURCES.contains(source)) throw new IllegalArgumentException("source");
+        if (!CollectionDecision.COLLECTION.matcher(collection).matches()) throw new IllegalArgumentException("collection");
+        final JSONObject byCollection = assessmentsState().optJSONObject(domain) == null ? new JSONObject() : assessmentsState().optJSONObject(domain);
+        final JSONObject entry = byCollection.optJSONObject(collection) == null ? new JSONObject() : byCollection.optJSONObject(collection);
+        put(entry, source, value);
+        entry.remove("stale");
+        put(byCollection, collection, entry);
+        put(assessmentsState(), domain, byCollection);
+    }
+
+    /** The fingerprint of every input of a domain's assessment in a collection (the scan skips it while it is unchanged). */
+    public synchronized void inputFingerprint(final String domain, final String collection, final String fingerprint) {
+        requireReadable();
+        final JSONObject byCollection = assessmentsState().optJSONObject(domain);
+        final JSONObject entry = byCollection == null ? null : byCollection.optJSONObject(collection);
+        if (entry != null) put(entry, "inputFingerprint", fingerprint);
+    }
+
+    /** Marks the assessed collections of a domain that are no membership any more as stale; nothing is deleted. */
+    public synchronized void memberships(final String domain, final java.util.Collection<String> collections) {
+        requireReadable();
+        final JSONObject byCollection = assessmentsState().optJSONObject(domain);
+        if (byCollection == null) return;
+        for (final String c : byCollection.keySet()) {
+            final JSONObject entry = byCollection.optJSONObject(c);
+            if (entry == null) continue;
+            if (collections.contains(c)) entry.remove("stale");
+            else put(entry, "stale", true);
+        }
+    }
+
+    /** The origin signals (OSM, register) of the domain's case as stored: what a scan carries over (none without a case). */
+    public synchronized List<Signal> originSignals(final String domain) {
+        requireReadable();
+        final List<Signal> out = new ArrayList<>();
+        final JSONObject c = this.state.optJSONObject("cases").optJSONObject(domain);
+        final JSONArray signals = c == null ? null : c.optJSONArray("signals");
+        for (int i = 0; signals != null && i < signals.length(); i++) {
+            final JSONObject o = signals.optJSONObject(i);
+            if (o != null && ORIGIN.equals(o.optString("family"))) out.add(Signal.fromJson(o));
+        }
+        return out;
+    }
+
+    /** The state of the plausibility scan (cursor, pass, counters), a copy; empty before the first step. */
+    public synchronized JSONObject scanState() {
+        requireReadable();
+        final JSONObject s = this.state.optJSONObject("scan");
+        return s == null ? new JSONObject() : copy(s);
+    }
+
+    public synchronized void scanState(final JSONObject scan) {
+        requireReadable();
+        put(this.state, "scan", scan);
+    }
+
+    /**
+     * Writes the assessments and the scan state (one write per step, not per domain); beyond {@link #MAX_ASSESSMENTS} pairs
+     * the oldest assessed domains without an open case are dropped first. Fails while the state is unreadable.
+     */
+    public synchronized void persist() throws IOException {
+        requireReadable();
+        final JSONObject all = assessmentsState();
+        int pairs = 0;
+        for (final String d : all.keySet()) pairs += all.optJSONObject(d) == null ? 0 : all.optJSONObject(d).length();
+        if (pairs > MAX_ASSESSMENTS) {
+            final JSONObject cases = this.state.optJSONObject("cases");
+            final List<String> domains = new ArrayList<>();
+            for (final String d : all.keySet()) {
+                final JSONObject c = cases.optJSONObject(d);
+                final boolean open = c != null && ("proposed".equals(c.optString("status")) || "simulated".equals(c.optString("status")))
+                        && !NONE.equals(c.optString("result"));
+                if (!open) domains.add(d);
+            }
+            domains.sort((a, b) -> Long.compare(newest(all.optJSONObject(a)), newest(all.optJSONObject(b))));
+            for (final String d : domains) {
+                if (pairs <= MAX_ASSESSMENTS) break;
+                pairs -= all.optJSONObject(d).length();
+                all.remove(d);
+            }
+        }
+        save();
+    }
+
+    private static long newest(final JSONObject byCollection) {
+        long at = 0;
+        for (final String c : byCollection.keySet()) {
+            final JSONObject entry = byCollection.optJSONObject(c);
+            for (final String src : SOURCES) {
+                final JSONObject v = entry == null ? null : entry.optJSONObject(src);
+                if (v != null) at = Math.max(at, v.optLong("at"));
+            }
+        }
+        return at;
+    }
+
+    /**
+     * The overall result of a domain in a collection, derived from its sources (never stored): {@code suspect} if a source
+     * speaks against it with a signal, else {@code match} if one speaks for it, else {@code uncertain}.
+     */
+    public static String derived(final JSONObject entry) {
+        if (entry == null) return "uncertain";
+        final JSONObject rules = entry.optJSONObject(RULES), home = entry.optJSONObject(KG_HOME), disc = entry.optJSONObject(DISCOVERY);
+        final boolean discSignal = disc != null && disc.optBoolean("signal");
+        final boolean homeSignal = home != null && home.optBoolean("signal", true) && !home.optBoolean("outdated");
+        if (rules != null && "suspect".equals(rules.optString("result")) || homeSignal && "mismatch".equals(home.optString("result"))
+                || discSignal && "FAIL".equals(disc.optString("result"))) return "suspect";
+        if (rules != null && "match".equals(rules.optString("result")) || homeSignal && "match".equals(home.optString("result"))
+                || discSignal && "PASS".equals(disc.optString("result"))) return "match";
+        return "uncertain";
+    }
+
+    /**
+     * The assessments for the report: counts per collection, source and result (derived), and the newest pairs matching
+     * {@code result} (derived), {@code collection} and {@code source} (each null for any), at most {@code limit}.
+     */
+    public synchronized JSONObject assessmentReport(final String result, final String collection, final String source, final int limit) {
+        requireReadable();
+        final JSONObject all = assessmentsState();
+        final Map<String, Map<String, Integer>> counts = new TreeMap<>();
+        final List<JSONObject> items = new ArrayList<>();
+        for (final String d : new TreeSet<>(all.keySet())) {
+            final JSONObject byCollection = all.optJSONObject(d);
+            for (final String c : new TreeSet<>(byCollection.keySet())) {
+                final JSONObject entry = byCollection.optJSONObject(c);
+                if (entry == null) continue;
+                final String r = derived(entry);
+                final Map<String, Integer> k = counts.computeIfAbsent(c, x -> new TreeMap<>());
+                k.merge(r, 1, Integer::sum);
+                for (final String src : SOURCES) if (entry.has(src)) k.merge("source:" + src, 1, Integer::sum);
+                if (entry.optBoolean("stale")) k.merge("stale", 1, Integer::sum);
+                if (result != null && !result.equals(r) || collection != null && !collection.equals(c) || source != null && !entry.has(source)) continue;
+                final JSONObject item = obj("domain", d, "collection", c, "result", r, "stale", entry.optBoolean("stale"), "at", newest(obj(c, entry)));
+                for (final String src : SOURCES) if (entry.has(src)) put(item, src, entry.optJSONObject(src));
+                items.add(item);
+            }
+        }
+        items.sort((a, b) -> Long.compare(b.optLong("at"), a.optLong("at")));
+        final JSONArray list = new JSONArray();
+        for (final JSONObject i : items) {
+            if (list.length() >= limit) break;
+            list.put(i);
+        }
+        final JSONObject c = new JSONObject();
+        for (final Map.Entry<String, Map<String, Integer>> e : counts.entrySet()) put(c, e.getKey(), new JSONObject(e.getValue()));
+        return obj("counts", c, "matching", items.size(), "items", list, "scan", this.state.optJSONObject("scan"));
+    }
+
     // -------------------------------------------------------------------------------------------- acceptance
 
     /** Every case, current and kept in the history. */
@@ -769,6 +953,14 @@ public final class AutoCorrect {
             throw new IllegalArgumentException(k, e);
         }
         return o;
+    }
+
+    private static JSONObject copy(final JSONObject o) {
+        try {
+            return new JSONObject(o.toString());
+        } catch (final JSONException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static String clip(final String s, final int max) {
