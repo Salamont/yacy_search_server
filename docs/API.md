@@ -923,7 +923,12 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `droppedInvalidByReason` has every reason code (0 if it never occurred,
     docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3) and adds up to `droppedInvalid`.
     All `processed` counters are in memory since the start and reset by a
-    restart; no model answer is stored. `structuredOutput`: what the
+    restart; no model answer is stored. `processed.collectionFit`: the
+    collection fit asked in home pages' requests (`asked`, `status` per
+    `valid`/`fit_missing`/`fit_invalid`/`fit_unquoted`, `verdicts`,
+    `budgetSkipped`, `delivered`, `sinkErrors`, refusals with and without
+    the question, average measured tokens of both kinds of request; no page
+    text; docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). `structuredOutput`: what the
     endpoint is asked for (`setting`, `api` `ollama_native` (Ollama's
     `/api/chat` with `format`) or `openai_compatible`, the model's format `capability`
     of the current probe, an older value counts as `unknown`, for

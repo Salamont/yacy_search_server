@@ -457,6 +457,8 @@ public class ScoutroApiServlet extends HttpServlet {
     public void init() throws javax.servlet.ServletException {
         super.init();
         CaptureRuntime.start();
+        // the collection fit of home pages: the Discovery profiles and the correction state (only read while switched on)
+        net.yacy.scoutro.knowledge.sync.CollectionFit.install(ScoutroActions::discoveryProfiles, CollectionFitRecorder.running());
         try {
             KgRuntime.start();
         } catch (final Throwable t) {

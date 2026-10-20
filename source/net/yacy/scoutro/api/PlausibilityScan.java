@@ -298,6 +298,67 @@ final class PlausibilityScan {
         return answer == null ? "none" : answer.optString("action", "none");
     }
 
+    /**
+     * The signals of the home page's reading by the model (source {@code kg_home}) that are current: the page's content and
+     * the profiles' criteria version unchanged. Per collection: {@code mismatch} against it, {@code match} for it,
+     * {@code uncertain} nothing; the best collection named is spoken for unless a current reading speaks against it (also an
+     * assigned one the reading was uncertain about), once. Family
+     * {@code llm} (the website's origin), kind {@code kg_home_fit}, revision the content hash, criteria the criteria version.
+     *
+     * @param contentHash the current content hash of a page (doc id -> hex), null if it is gone
+     */
+    static List<AutoCorrect.Signal> homeSignals(final String domain, final JSONObject assessments, final java.util.function.Function<String, String> contentHash,
+            final String criteria) {
+        final List<AutoCorrect.Signal> out = new ArrayList<>();
+        if (assessments == null || criteria == null) return out;
+        final Set<String> against = new TreeSet<>();
+        final Map<String, JSONObject> current = new TreeMap<>();
+        for (final String c : new TreeSet<>(assessments.keySet())) {
+            final JSONObject entry = assessments.optJSONObject(c);
+            final JSONObject home = entry == null || entry.optBoolean("stale") ? null : entry.optJSONObject(AutoCorrect.KG_HOME);
+            if (home == null || !criteria.equals(home.optString("criteriaVersion"))) continue;
+            final String now = contentHash.apply(home.optString("docId", null));
+            if (now == null || !now.equalsIgnoreCase(home.optString("contentHash"))) continue; // outdated: the page changed or is gone
+            current.put(c, home);
+            if (CollectionFitVerdicts.MISMATCH.equals(home.optString("result"))) against.add(c);
+        }
+        final Set<String> best = new TreeSet<>();
+        for (final Map.Entry<String, JSONObject> e : current.entrySet()) {
+            final JSONObject home = e.getValue();
+            final String verdict = home.optString("result");
+            final String evidence = clip("Home page read by the model (" + home.optString("model") + "): " + home.optString("quote"), 500);
+            if (CollectionFitVerdicts.MISMATCH.equals(verdict) || CollectionFitVerdicts.MATCH.equals(verdict)) {
+                add(out, domain, CollectionFitVerdicts.MATCH.equals(verdict) ? AutoCorrect.FOR : AutoCorrect.AGAINST, e.getKey(), evidence,
+                        home.optString("contentHash"), criteria);
+            }
+            final String b = home.optString("best", "none");
+            final JSONObject own = current.get(b); // an assigned collection with its own match is spoken for already
+            if (!"none".equals(b) && !against.contains(b) && (own == null || !CollectionFitVerdicts.MATCH.equals(own.optString("result")))
+                    && best.add(b)) {
+                add(out, domain, AutoCorrect.FOR, b, clip("Best fitting collection of the home page read by the model (" + home.optString("model")
+                        + "): " + home.optString("quote"), 500), home.optString("contentHash"), criteria);
+            }
+        }
+        return out;
+    }
+
+    private static void add(final List<AutoCorrect.Signal> out, final String domain, final String verdict, final String collection, final String evidence,
+            final String revision, final String criteria) {
+        try {
+            out.add(AutoCorrect.Signal.of(Json.obj("family", AutoCorrect.LLM, "verdict", verdict, "collection", collection, "kind", "kg_home_fit",
+                    "evidence", evidence, "revision", clip(revision, 80), "criteria", clip(criteria, 40)), domain));
+        } catch (final IllegalArgumentException e) {
+            // no valid signal (an unknown collection name): none
+        }
+    }
+
+    /** The verdicts of the home page's reading ({@code CollectionFit}), as the scan reads them. */
+    static final class CollectionFitVerdicts {
+        static final String MATCH = "match", MISMATCH = "mismatch";
+
+        private CollectionFitVerdicts() {}
+    }
+
     /** Signals of a stored Discovery classification, as scoutro_automation.autocorrect_signals maps them: the model's PASS or FAIL only. */
     static List<AutoCorrect.Signal> discoverySignals(final String domain, final DomainEnrichment.DomainState state) {
         final List<AutoCorrect.Signal> out = new ArrayList<>();

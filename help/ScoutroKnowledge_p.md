@@ -481,6 +481,14 @@ memory; every restart resets them, so they are no long-term statistics.
   the former mood probe counts as unknown. An Ollama model is asked on
   Ollama's native `/api/chat` with the schema as `format` (status
   `api: ollama_native`); every other service on `/v1/chat/completions`.
+- **Collection fit of home pages** (`scoutro.kg.llm.collectionFit`, off by
+  default; only with `scoutro.kg.llm.structuredOutput` `none` or
+  `json_object`): the first request of a home page also asks, in at most 500
+  characters, whether the website fits its collections. The prompt, the
+  schema and the extraction are unchanged; the answer is never a statement
+  and goes to the [correction proposals](ScoutroCollections_p.md) as a
+  reading of the home page. Counters: `llm.processed.collectionFit` of the
+  status.
 
 ## Collections
 
@@ -701,7 +709,7 @@ text; links to crawled pages open in a new tab without a referrer.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`), its scan per collection (`llm.selection`), request budget (`llm.context`), long pages read on to the end of their content (`llm.continuation`), how much of the done pages' text was read (`llm.documents.coverage`), refusal samples (`llm.refusalSamples`), what the tier keeps between readings (`llm.storage`) and the backlog over the last day (`llm.backlog`) |
+| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`; the collection fit of home pages, `llm.processed.collectionFit`), its scan per collection (`llm.selection`), request budget (`llm.context`), long pages read on to the end of their content (`llm.continuation`), how much of the done pages' text was read (`llm.documents.coverage`), refusal samples (`llm.refusalSamples`), what the tier keeps between readings (`llm.storage`) and the backlog over the last day (`llm.backlog`) |
 | `/scoutro/api/v1/kg/llm-refusals` | GET | Samples of what the LLM tier dropped or refused since the start, newest first (`reason`, `limit` 1–100): reason, item, predicate, types, page, chunk and an excerpt of at most 160 characters without person names, e-mail addresses or phone numbers; in memory only (at most 500, 20 per reason, 128 KiB, seven days) |
 | `/scoutro/api/v1/kg/identity-preview` | POST | Identity change preview for one `domain` (`productUrl`, `providerServiceKey`, `limit` ≤ 200): baseline and preview counts, `documentsChanged`, `merges`, `conflicts`, `llm` estimate; writes nothing, calls no model; 503 `sync_unavailable` without the Solr synchronisation |
 | `/scoutro/api/v1/kg/assessments` | GET, POST | Assessments: list (`status` active, revoked, all; `limit`); without `token` a preview, with the preview's `token` stored and applied (actions `withdraw`, `reclassify`, `assert` with `quote`); 409 `assessment_preview_stale`, `assessment_too_large`, `assessment_source_unavailable`, 422 `assessment_quote_not_in_source` |

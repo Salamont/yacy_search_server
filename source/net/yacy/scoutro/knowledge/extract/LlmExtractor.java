@@ -481,6 +481,16 @@ public final class LlmExtractor {
      */
     public static String userPrompt(final PromptGuard guard, final Chunk chunk, final String title, final String domain,
             final String language, final List<Known> known, final Collection<String> kinds) {
+        return userPrompt(guard, chunk, title, domain, language, known, kinds, null);
+    }
+
+    /**
+     * {@link #userPrompt(PromptGuard, Chunk, String, String, String, List, Collection)} with an operator's question after the
+     * instruction and before the DATA block (the collection fit of a home page, {@code CollectionFit}); null adds nothing,
+     * so every other request is byte for byte the same.
+     */
+    public static String userPrompt(final PromptGuard guard, final Chunk chunk, final String title, final String domain,
+            final String language, final List<Known> known, final Collection<String> kinds, final String extra) {
         final StringBuilder data = new StringBuilder();
         data.append("site: ").append(domain == null ? "" : domain).append('\n');
         data.append("language: ").append(language == null ? "" : language).append('\n');
@@ -499,6 +509,9 @@ public final class LlmExtractor {
         }
         sb.append("Extract from the page between ").append(guard.dataBegin()).append(" and ").append(guard.dataEnd())
                 .append(". Answer with the JSON object only.\n");
+        if (extra != null) {
+            sb.append(extra);
+        }
         sb.append(guard.data(data.toString()));
         return sb.toString();
     }
@@ -517,6 +530,17 @@ public final class LlmExtractor {
     /** {@link #cacheKey} for the prompt with the hash {@code promptHash} (the active one, {@link KnowledgePrompt#hash}). */
     public static byte[] cacheKey(final String promptHash, final String model, final Chunk chunk, final String title, final String domain,
             final String language, final List<Known> known, final Collection<String> kinds) {
+        return cacheKey(promptHash, model, chunk, title, domain, language, known, kinds, null);
+    }
+
+    /**
+     * {@link #cacheKey(String, String, Chunk, String, String, String, List, Collection)} of a request with an operator's
+     * question ({@link #userPrompt(PromptGuard, Chunk, String, String, String, List, Collection, String)}): the question is
+     * part of the key, so another question (another collection, other profiles) is never answered from the cache; null gives
+     * the key as before.
+     */
+    public static byte[] cacheKey(final String promptHash, final String model, final Chunk chunk, final String title, final String domain,
+            final String language, final List<Known> known, final Collection<String> kinds, final String extra) {
         final StringBuilder sb = new StringBuilder();
         sb.append(NAME).append('\u0000').append(VERSION).append('\u0000').append(promptHash).append('\u0000').append(model)
                 .append('\u0000').append(domain).append('\u0000').append(language).append('\u0000')
@@ -530,6 +554,9 @@ public final class LlmExtractor {
             sb.append(String.join(",", kinds));
         }
         sb.append('\u0000').append(chunk.text);
+        if (extra != null) {
+            sb.append('\u0000').append(extra);
+        }
         try {
             return MessageDigest.getInstance("SHA-256").digest(sb.toString().getBytes(StandardCharsets.UTF_8));
         } catch (final NoSuchAlgorithmException e) {
@@ -1251,6 +1278,31 @@ public final class LlmExtractor {
     }
 
     // ------------------------------------------------------------ helpers
+
+    /**
+     * The answer without one field of its top-level object, and that field: {answer, value or null}. An answer that is no
+     * JSON object, or has no such field, is returned as it is (the validator then judges it as before).
+     */
+    public static Object[] splitField(final String answer, final String field) {
+        if (answer == null) {
+            return new Object[] {null, null};
+        }
+        try {
+            final String json = unfence(answer);
+            if (json.isEmpty() || json.charAt(0) != '{') {
+                return new Object[] {answer, null};
+            }
+            final org.json.JSONTokener tok = new org.json.JSONTokener(json);
+            final Object v = tok.nextValue();
+            if (!(v instanceof JSONObject) || tok.nextClean() != 0 || ((JSONObject) v).opt(field) == null) {
+                return new Object[] {answer, null};
+            }
+            final Object value = ((JSONObject) v).remove(field);
+            return new Object[] {v.toString(), value};
+        } catch (final JSONException | RuntimeException e) {
+            return new Object[] {answer, null};
+        }
+    }
 
     /** A single fenced block ({@code ```json ... ```}) is unwrapped; nothing else is repaired. */
     /** The answer as the validator reads it (a fence removed), or null if it is no single JSON object. Diagnostics only. */

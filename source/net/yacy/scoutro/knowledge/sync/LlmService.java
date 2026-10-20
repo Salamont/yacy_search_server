@@ -230,6 +230,70 @@ public final class LlmService {
         /** Pages read before the continuations existed: checked by the audit, and marked for a continuation. */
         final AtomicLong auditedDocs = new AtomicLong();
         final AtomicLong backfilledDocs = new AtomicLong();
+        /**
+         * The collection fit of home pages (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): requests that asked it (fresh calls),
+         * how the field was, the verdicts, questions not asked for their length, verdicts handed over and the sink's failures;
+         * the refusals of the extraction with and without the question; the measured tokens of both kinds of request.
+         */
+        final AtomicLong fitAsked = new AtomicLong();
+        final Map<String, AtomicLong> fitStatus = new ConcurrentHashMap<>();
+        final Map<String, AtomicLong> fitVerdicts = new ConcurrentHashMap<>();
+        final AtomicLong fitBudgetSkipped = new AtomicLong();
+        final AtomicLong fitDelivered = new AtomicLong();
+        final AtomicLong fitSinkErrors = new AtomicLong();
+        final AtomicLong fitRefused = new AtomicLong();
+        final AtomicLong otherAnswers = new AtomicLong();
+        final AtomicLong otherRefused = new AtomicLong();
+        final long[] fitTokens = new long[3], otherTokens = new long[3]; // answers with usage, prompt tokens, answer tokens
+
+        void fit(final CollectionFit.Verdict v, final boolean refused) {
+            this.fitAsked.incrementAndGet();
+            this.fitStatus.computeIfAbsent(v.status, k -> new AtomicLong()).incrementAndGet();
+            for (final String verdict : v.verdicts.values()) this.fitVerdicts.computeIfAbsent(verdict, k -> new AtomicLong()).incrementAndGet();
+            if (refused) this.fitRefused.incrementAndGet();
+        }
+
+        void withoutFit(final boolean refused) {
+            this.otherAnswers.incrementAndGet();
+            if (refused) this.otherRefused.incrementAndGet();
+        }
+
+        void usage(final JSONObject u, final boolean fit) {
+            if (u == null || u.opt("promptTokens") == null && u.opt("answerTokens") == null) return;
+            final long[] t = fit ? this.fitTokens : this.otherTokens;
+            synchronized (t) {
+                t[0]++;
+                t[1] += u.optLong("promptTokens");
+                t[2] += u.optLong("answerTokens");
+            }
+        }
+
+        JSONObject fitJson() {
+            final JSONObject status = new JSONObject(), verdicts = new JSONObject();
+            for (final String k : List.of(CollectionFit.VALID, CollectionFit.MISSING, CollectionFit.INVALID, CollectionFit.UNQUOTED)) {
+                final AtomicLong n = this.fitStatus.get(k);
+                KgJson.put(status, k, n == null ? 0L : n.get());
+            }
+            for (final String k : List.of(CollectionFit.MATCH, CollectionFit.MISMATCH, CollectionFit.UNCERTAIN)) {
+                final AtomicLong n = this.fitVerdicts.get(k);
+                KgJson.put(verdicts, k, n == null ? 0L : n.get());
+            }
+            final long[] f, o;
+            synchronized (this.fitTokens) {
+                f = this.fitTokens.clone();
+            }
+            synchronized (this.otherTokens) {
+                o = this.otherTokens.clone();
+            }
+            return KgJson.obj("asked", this.fitAsked.get(), "status", status, "verdicts", verdicts, "budgetSkipped", this.fitBudgetSkipped.get(),
+                    "delivered", this.fitDelivered.get(), "sinkErrors", this.fitSinkErrors.get(),
+                    "refusedWithQuestion", this.fitRefused.get(), "answersWithoutQuestion", this.otherAnswers.get(),
+                    "refusedWithoutQuestion", this.otherRefused.get(),
+                    "tokensWithQuestion", KgJson.obj("answers", f[0], "promptAverage", f[0] == 0 ? null : f[1] / f[0], "answerAverage",
+                            f[0] == 0 ? null : f[2] / f[0]),
+                    "tokensWithoutQuestion", KgJson.obj("answers", o[0], "promptAverage", o[0] == 0 ? null : o[1] / o[0], "answerAverage",
+                            o[0] == 0 ? null : o[2] / o[0]));
+        }
 
         Counters() {
             for (final String reason : LlmExtractor.INVALID_REASONS) {
@@ -377,7 +441,9 @@ public final class LlmService {
                     "auditedDocs",
                     this.auditedDocs.get(),
                     "backfilledDocs",
-                    this.backfilledDocs.get());
+                    this.backfilledDocs.get(),
+                    "collectionFit",
+                    fitJson());
         }
     }
 
@@ -1293,8 +1359,15 @@ public final class LlmService {
                 : !continuation && (this.cfg.llmContinuationChunks == 0 || legal(d.url)) ? LlmQueue.TEXT_CUT
                 : LlmQueue.MORE_TEXT;
         final int unread = contentRead ? 0 : contentEnd - readUpTo;
-        final RequestBudget budget = budget(p);
+        // the collection fit: asked only in the first request of a home page's first reading, never a request of its own
+        // (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md, "Home page reading"); every other request is as before
+        final CollectionFit.Question fitAsked = continuation ? null : fitQuestion(d, row, base, domain);
+        final CollectionFit.Question fit = fitAsked != null && fitAsked.asked() ? fitAsked : null;
+        final RequestBudget budget = fit == null ? budget(p) : budget(p).withExtra(fit.text.length());
         final RequestBudget.Plan plan = reading.plan(budget, chunks);
+        final RequestBudget.Part fitPart = fit == null || plan.parts.isEmpty() ? null : plan.parts.get(0);
+        // too long a question is not asked: its verdict is uncertain (fit_budget), handed over as an answered one's
+        CollectionFit.Verdict fitVerdict = fitAsked != null && fit == null ? CollectionFit.skipped(fitAsked) : null;
         if (plan.refused) {
             // a request that does not fit the window is never sent (the model would drop the start of the prompt)
             this.counters.contextRefused.incrementAndGet();
@@ -1310,7 +1383,8 @@ public final class LlmService {
         final List<List<LlmExtractor.Known>> acceptedKnown = new ArrayList<>();
         final List<byte[]> keys = new ArrayList<>();
         final Set<String> requiredKeys=new java.util.HashSet<>();
-        for(RequestBudget.Part part:plan.parts)requiredKeys.add(LlmProgress.key(LlmExtractor.cacheKey(p.hash,m,part.chunk,title,domain,d.language,part.known,kinds)));
+        for(RequestBudget.Part part:plan.parts)requiredKeys.add(LlmProgress.key(LlmExtractor.cacheKey(p.hash,m,part.chunk,title,domain,d.language,part.known,kinds,
+                part == fitPart ? fit.text : null)));
         final LlmProgress progress;
         try{progress=this.store.read(c->LlmProgress.load(c,item.docId,requiredKeys));}
         catch(KgException e){
@@ -1324,15 +1398,20 @@ public final class LlmService {
                 if(this.stopping)throw new LlmTiming.Deferred("stopping");
                 this.timing.chunk(session);
             }catch(LlmTiming.Deferred e){defer(item,progress,e.reason);return;}
-            final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, partKnown, kinds);
+            final String extra = part == fitPart ? fit.text : null;
+            final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, partKnown, kinds, extra);
             keys.add(key);
             final ExtractionCache.Entry resumed=progress.get(key);
             final ExtractionCache.Entry cached = resumed!=null?resumed:this.store.read(c -> ExtractionCache.get(c, key));
             if (cached != null) {
                 if(resumed==null)this.counters.cacheHits.incrementAndGet();
                 progress.put(key,cached.status,cached.value);
+                if (extra != null) {
+                    // the verdict is stored with the answer: a cache hit keeps it
+                    fitVerdict = CollectionFit.cached(cached.value == null ? null : cached.value.optJSONObject(CollectionFit.FIELD), fit);
+                }
                 if (cached.status == ExtractionCache.STATUS_OK) {
-                    accepted.add(cached.value);
+                    accepted.add(without(cached.value, CollectionFit.FIELD));
                     acceptedKnown.add(partKnown);
                 }
                 continue;
@@ -1345,7 +1424,7 @@ public final class LlmService {
             final java.util.concurrent.atomic.AtomicBoolean breakerLease=new java.util.concurrent.atomic.AtomicBoolean();
             final java.util.concurrent.atomic.AtomicBoolean logicalCounted=new java.util.concurrent.atomic.AtomicBoolean();
             try {
-                answer = reading.ask(this.client, this.cfg, p, part,
+                answer = reading.ask(this.client, this.cfg, p, part, extra,
                         ()->startRequest(item,row,continuation,m,session,breakerLease,logicalCounted));
             } catch (LlmClient.Deferred e) {
                 if(breakerLease.get())this.breaker.deferred();
@@ -1358,7 +1437,22 @@ public final class LlmService {
                 return;
             }
             this.breaker.success();
-            final LlmExtractor.Result r = reading.check(answer, part);
+            this.counters.usage(this.client.lastUsage(), extra != null);
+            // the field of the collection fit is validated apart; the extraction is checked as every other answer
+            Object fitField = null;
+            String checked = answer;
+            if (extra != null) {
+                final Object[] split = LlmExtractor.splitField(answer, CollectionFit.FIELD);
+                checked = (String) split[0];
+                fitField = split[1];
+            }
+            final LlmExtractor.Result r = reading.check(checked, part);
+            if (extra != null) {
+                fitVerdict = CollectionFit.check(fitField, fit, chunk.text);
+                this.counters.fit(fitVerdict, r.refused != null);
+            } else {
+                this.counters.withoutFit(r.refused != null);
+            }
             final long sampledAt = this.clock.getAsLong();
             if (r.refused != null) {
                 this.refusalSamples.add(sampledAt, item.docId, chunk.offset, domain, p.hash,
@@ -1377,8 +1471,11 @@ public final class LlmService {
                 this.counters.accepted(r);
                 value = r.accepted;
                 status = ExtractionCache.STATUS_OK;
-                accepted.add(value);
+                accepted.add(without(value, CollectionFit.FIELD));
                 acceptedKnown.add(partKnown);
+            }
+            if (fitVerdict != null && extra != null) {
+                KgJson.put(value, CollectionFit.FIELD, fitVerdict.json()); // cached with the answer, never applied
             }
             progress.put(key,status,value);
             try{checkpoint(item,progress);}catch(KgException e){
@@ -1407,14 +1504,120 @@ public final class LlmService {
         this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
         this.counters.chunksSplit.addAndGet(plan.splits);
         boolean handedBack = false;
+        final boolean[] published = new boolean[1];
         try {
             handedBack = publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate(), reason, continuation,
-                    unread, next, LlmQueue.FULL_TEXT.equals(reason) ? pageText.moved : 0);
+                    unread, next, LlmQueue.FULL_TEXT.equals(reason) ? pageText.moved : 0, published);
+            if (published[0] && fitVerdict != null) {
+                fitVerdict(domain, item.docId, row, m, fitAsked, fitVerdict);
+            }
         } finally {
             // an item handed back for the page's new input may be claimed by another worker already: not released again
             if (!handedBack && this.store.read(c -> queued(c, item.docId)))
                 defer(item, progress, this.reason == null ? "publication_deferred" : this.reason);
         }
+    }
+
+    /**
+     * The collection fit's question for a home page (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md), or null: switched on
+     * ({@link KgConfig#llmCollectionFit}), the page a home page, the profiles and the sink installed, the page in a collection
+     * with a profile, and at least one of them without a reading of this content under these criteria. The assigned ones
+     * without a reading first (at most three); the other profiles those the rules read on the page first, then alphabetical.
+     */
+    private CollectionFit.Question fitQuestion(final SolrDoc d, final DocRow row, final Extraction base, final String domain) {
+        if (!this.cfg.llmCollectionFit || domain == null || !RuleExtractor.homePage(d.url)) {
+            return null;
+        }
+        final CollectionFit.Sink sink = CollectionFit.sink();
+        final CollectionFit.Profiles profiles = CollectionFit.profiles();
+        if (sink == null || profiles == null) {
+            return null;
+        }
+        final List<String> mine = CollectionFit.profiled(profiles, row.collections);
+        if (mine.isEmpty()) {
+            return null;
+        }
+        final String content = hex(row.llmInput());
+        final List<String> assigned = new ArrayList<>(), current = new ArrayList<>();
+        for (final String c : mine) {
+            boolean needed;
+            try {
+                needed = sink.needed(domain, c, content, profiles.criteria);
+            } catch (final RuntimeException e) {
+                needed = true;
+            }
+            (needed ? assigned : current).add(c);
+        }
+        if (assigned.isEmpty()) {
+            return null;
+        }
+        assigned.addAll(current);
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        final Set<String> onPage = new java.util.HashSet<>();
+        for (final net.yacy.scoutro.knowledge.extract.Claim c : base.claims()) {
+            if ((net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate) || net.yacy.scoutro.knowledge.extract.Vocabulary.TOPIC
+                    .equals(c.predicate)) && c.value != null && c.value.indexOf('/') > 0) {
+                onPage.add(c.value.substring(0, c.value.indexOf('/')));
+            }
+        }
+        final Map<String, String> labels = new java.util.HashMap<>(), vocabularyOf = new java.util.HashMap<>();
+        for (final String c : profiles.byCollection.keySet()) {
+            final String v = this.cfg.vocabularyOf(c, vocab.categories.collections);
+            final net.yacy.scoutro.knowledge.vocab.Categories.Vocab entry = v == null ? null : vocab.categories.vocabulary(v);
+            if (entry != null) {
+                vocabularyOf.put(c, v);
+                labels.put(c, entry.de);
+            }
+        }
+        final List<String> others = new ArrayList<>(profiles.byCollection.keySet());
+        others.removeAll(assigned);
+        others.sort(java.util.Comparator.comparing((String c) -> onPage.contains(vocabularyOf.get(c)) ? 0 : 1).thenComparing(c -> c));
+        final CollectionFit.Question q = CollectionFit.question(profiles, assigned, others, labels);
+        if (q != null && !q.asked()) {
+            this.counters.fitBudgetSkipped.incrementAndGet();
+        }
+        return q;
+    }
+
+    /** Hands a published home page's verdict to the sink; a failure there never touches the extraction. */
+    private void fitVerdict(final String domain, final String docId, final DocRow row, final String model, final CollectionFit.Question q,
+            final CollectionFit.Verdict v) {
+        final CollectionFit.Sink sink = CollectionFit.sink();
+        if (sink == null) {
+            return;
+        }
+        try {
+            sink.verdict(domain, docId, hex(row.llmInput()), model, q.criteria, v);
+            this.counters.fitDelivered.incrementAndGet();
+        } catch (final Throwable t) {
+            this.counters.fitSinkErrors.incrementAndGet();
+            LOG.warn("collection fit not recorded: " + t.getClass().getSimpleName());
+        }
+    }
+
+    private static String hex(final byte[] b) {
+        if (b == null) {
+            return null;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final byte x : b) {
+            sb.append(String.format("%02X", x));
+        }
+        return sb.toString();
+    }
+
+    /** A copy of an answer without one field (the collection fit is never applied); the answer itself if it has none. */
+    static JSONObject without(final JSONObject o, final String field) {
+        if (o == null || o.opt(field) == null) {
+            return o;
+        }
+        final JSONObject out = new JSONObject();
+        for (final String k : o.keySet()) {
+            if (!field.equals(k)) {
+                KgJson.put(out, k, o.opt(k));
+            }
+        }
+        return out;
     }
 
     /**
@@ -1739,7 +1942,7 @@ public final class LlmService {
      */
     private boolean publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
             final String m, final String promptHash,final long estimate, final String reason, final boolean continuation,
-            final int unread, final ReadProgress next, final int navigationSkipped) throws KgException {
+            final int unread, final ReadProgress next, final int navigationSkipped, final boolean[] published) throws KgException {
         final long now = this.clock.getAsLong();
         if (this.stopping) {
             release(item, now, false);
@@ -1807,6 +2010,7 @@ public final class LlmService {
             return false;
         }
         if (result[0].outcome == Publisher.Outcome.PUBLISHED) {
+            published[0] = true;
             // a page is published once; its continuation adds to that publication
             (continuation ? this.counters.continuationDocs : this.counters.published).incrementAndGet();
             this.counters.statements.addAndGet(result[0].statements);

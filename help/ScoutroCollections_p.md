@@ -70,6 +70,11 @@ plausibility signal alone is never enough for a correction, only for a case.
   as a case; `uncertain` domains may be classified by Discovery
   (`scoutro-discovery classify --domain-file`), then scanned again with
   `{"domains": [...]}`.
+- New domains: with `scoutro.kg.llm.collectionFit` the knowledge graph's model
+  also judges, in its request of the home page, whether the website fits each
+  of its collections (no request of its own). Only a judgement with a verbatim
+  quote of the page counts, only while the page is unchanged; a mismatch makes
+  at most a case for review, never a correction by itself.
 - After the acceptance a share of the automatic corrections
   (`scoutro.collections.autocorrect.auditRate`, 0.1) is drawn for the audit;
   20 unreviewed audit cases stop the automatic corrections until they are

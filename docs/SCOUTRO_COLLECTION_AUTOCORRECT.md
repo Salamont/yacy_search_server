@@ -27,7 +27,7 @@ criteria version:
 | `structured` | the knowledge graph: an explicit NACE code of a JSON-LD `@type` | the website |
 | `text_fit` | the knowledge graph: the categories the rules read as offered on the domain's pages, per collection vocabulary | the website |
 | `plausibility` | the knowledge graph: the website offers clearly something else (offers with structured or quoted evidence, none of the current vocabulary, no word of it on the pages) | the website |
-| `llm` | Discovery: the stored classification of the site by the model | the website |
+| `llm` | Discovery: the stored classification of the site by the model; the knowledge graph's LLM tier: the reading of the home page ([Home page reading](#home-page-reading-in-the-llm-tiers-own-request), off by default) | the website |
 | `origin` | Discovery: the OSM object a profile's rule matched; a register entry submitted by an operator | its source system (`osm`, `register`) |
 
 Signals derived from the website itself are **one origin**, whatever their family: the same website or the same
@@ -146,7 +146,7 @@ administrator's call (no daemon): `POST /v1/collections/autocorrect/scan`
   collection with a signal against it, the memberships are all of the domain's, the signals those of all its
   collections. A domain in several specialist collections stays a case (`multiple_assignment`); an unchanged signal set
   answers `unchanged`. A scan has the website's origin and the case's OSM signals only: it never makes a correction that
-  would not be made without it. In the mode `off` it assesses and submits nothing.
+  would not be made without it. In the mode `off` it records the assessments and submits nothing.
 - **Targeted run.** `"domains": [...]` (at most 200 registrable domains) assesses exactly these, also domains no
   Discovery run crawled, and leaves the cursor alone: the run right after a classification of the uncertain domains.
 
@@ -192,6 +192,58 @@ The rules decide most domains without a model. For the `uncertain` ones the exis
 
 Without the targeted run the regular scan takes the new classifications in its next pass (the input's fingerprint), and
 the Discovery batch for its own domains.
+
+## Home page reading in the LLM tier's own request
+
+New domains need no request of their own: the knowledge graph's LLM tier reads every home page anyway. With
+`scoutro.kg.llm.collectionFit=true` (default `false`) its first request of a home page also asks whether the website's
+main offering fits its collections. One request per domain and content, a few tokens more, no other request changed.
+
+- **Only then.** The setting is on and `scoutro.kg.llm.structuredOutput` is `none` or `json_object` (no schema with
+  `additionalProperties:false` goes to the provider; with `auto` or `json_schema` it stays off). The Discovery profiles
+  (`profiles.json`, the same file as `scoutro.discovery.configRoot` / `SCOUTRO_CONFIG_ROOT` / `DATA/SCOUTRO/config`) are
+  readable. The page is a home page (`/` or an index file), its reading's first request (never a continuation, never a
+  later part of the plan), in at least one specialist collection with a profile, and at least one of them has no
+  reading of this content (content hash) under these criteria (`criteria_version` of the profiles).
+- **Unchanged:** the system prompt, the schema, the extractor version and the prompt hash; every other request and its
+  cache key byte for byte. The question is in the user message only, before the page's DATA block (operator text, no
+  page data). Its cache key has the question added, so an answer with a verdict is never taken for one without.
+- **The question** (at most 500 characters, about 150 tokens by the request budget's estimate, which counts it): the
+  assigned collections (at most 3, those without a current reading first) with their profile's topic (100 characters,
+  60 each for two or three), the other profiles by id and label (40 characters each; those whose vocabulary the rules
+  read on the page first, then alphabetical, dropped from the end when the length runs out), and a fixed instruction
+  that names itself the exception to rule 9 of the system prompt ("entities, claims and values, nothing else"). When
+  the assigned collections alone do not fit, the question is not asked; the reading is `uncertain` (`fit_budget`).
+- **The answer:** one more top-level field, `collection_fit`:
+  `{"verdicts": {"<assigned id>": "match|mismatch|uncertain", ...}, "best": "<a named id>|none", "quote": "<verbatim page
+  text, at most 200 characters>"}`. It is split off before the extraction's check, which is unchanged (without the
+  question the field is still `unknown_field`), and checked apart: an id not asked makes the whole field invalid, a
+  missing one or a value outside the enumeration is `uncertain`, `best` not named is `none`. **Without a quote found in
+  the page text every verdict is `uncertain`, `match` included, and `best` is `none`**: an unquoted match would block a
+  correction just as an unquoted mismatch would cause one. A missing (`fit_missing`), invalid (`fit_invalid`) or
+  unquoted (`fit_unquoted`) field leaves the extraction accepted. The verdict is kept with the cached answer (a cache
+  hit keeps it) and never becomes a statement or evidence.
+- **Where it goes.** After the page is published, the verdict is recorded per assigned collection as the source
+  `kg_home` in the [assessments](#assessments) (`result`, `best`, `quote`, `model`, `criteriaVersion`, `contentHash`,
+  `docId`, `status`, `signal`, `at`). A failure there is counted and never touches the extraction. With a `mismatch` and
+  the mode not `off`, the domain is assessed at once by a targeted scan (`{"domains": [domain]}`; while the graph is
+  busy, the next pass takes it).
+- **Signals** (family `llm`, kind `kg_home_fit`, the website's origin), only while the reading is current: the home
+  page's content hash and the profiles' criteria version unchanged and its collection not `stale`. `mismatch` speaks
+  against its collection, `match` for it, `uncertain` gives none; `best` is spoken for once, unless a current reading
+  speaks against it. They count in every evaluation of the domain (`graph: true`, the scan, Discovery's submissions)
+  and only by the unchanged rule: an LLM verdict never suffices, not with OSM either; a `mismatch` alone makes at most a
+  case for review.
+- **Counters** (`GET /scoutro/api/v1/kg/status`, `llm.processed.collectionFit`, in memory since the start): `asked`
+  (fresh requests with the question), `status` (`valid`, `fit_missing`, `fit_invalid`, `fit_unquoted`), `verdicts`
+  (`match`, `mismatch`, `uncertain`), `budgetSkipped`, `delivered`, `sinkErrors`, the extraction's refusals with and
+  without the question (`refusedWithQuestion`, `answersWithoutQuestion`, `refusedWithoutQuestion`) and the measured
+  tokens of both kinds of request (`tokensWithQuestion`, `tokensWithoutQuestion`: answers with the provider's usage,
+  average prompt and answer tokens). No page text, no quote. The share of `valid` answers decides whether a system prompt
+  of its own for home pages is needed (a later stage: a prompt hash of its own).
+- **Not for:** the model quality test (it sets its own collections; the question stays off and its fingerprint is
+  unchanged). Pages read before the setting was switched on are asked when their home page is read again (its content
+  changes) or through Discovery's classification of the uncertain domains (above).
 
 ## The rule
 
@@ -268,7 +320,8 @@ specialist target) is never accepted at all.
 - `POST .../review` `{"domain", "verdict": "approve|reject|correct|wrong", "target", "note"}`.
 - `POST .../sample` `{"size"}` — a random sample for the acceptance.
 - `POST .../scan` `{"maxDomains", "collection", "restart", "domains"}` — one step of the plausibility scan.
-- `GET .../assessments?result=&collection=&source=&limit=` — the scan's assessments.
+- `GET .../assessments?result=&collection=&source=&limit=` — the scan's assessments (sources `rules`, `discovery`,
+  `kg_home`).
 - `POST .../accept`, `POST .../breaker-reset`.
 
 ## Review page
@@ -304,7 +357,13 @@ stage, the audit and its backlog, history, unreadable state, Clopper-Pearson and
 a website signal that is never enough, `suggested`, an acceptance of rules version 2 outdated),
 `PlausibilityScanTest` (steps and cursor, a busy graph, two fingerprints, a new Discovery classification, home page
 reading or OSM signal assessed without reading the pages, assessments per collection and source, stale collections, one
-submission per domain, the targeted run, the fail-safe state, the Discovery fields of `state.json`),
+submission per domain, the targeted run, the fail-safe state, the Discovery fields of `state.json`; the home page's
+reading recorded per collection, counted only while current, unquoted without a signal, `best`, the targeted scan after
+a mismatch), `CollectionFitTest` (the LLM tier with a model stand-in: only a home page's first request asks, the system
+prompt, schema and prompt hash of 0.11.5, every other request and cache key byte for byte, the question within 500
+characters and 150 tokens, a longer one not asked (`fit_budget`), a missing or unquoted field `uncertain` with the
+extraction accepted, the field refused as before on a request without the question, a verdict per collection, a cache hit
+keeps the verdict, never a statement, a failing sink, off with a schema sent),
 `PlausibilityTest` (the graph's offer profile and the plausibility on a running graph: foreign offers, a construction
 company with merchandise, with its services, a price list read by the rules alone, a short website, a collection
 without a vocabulary, the host index; the scan on a running graph without a model and without a graph write),

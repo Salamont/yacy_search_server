@@ -1739,6 +1739,24 @@ public final class KgRuntime {
         }
     }
 
+    /** The content hash of an active page (hex, as the LLM tier's reading identifies it), or null. */
+    public String contentHash(final String docId) {
+        if (this.state != State.RUNNING || this.store == null || docId == null) return null;
+        try {
+            return this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT hex(coalesce(content_hash, input_hash)) FROM kg_doc WHERE doc_id = ?"
+                        + " AND state = 1")) {
+                    ps.setString(1, docId);
+                    try (java.sql.ResultSet r = ps.executeQuery()) {
+                        return r.next() ? r.getString(1) : null;
+                    }
+                }
+            });
+        } catch (final KgException e) {
+            return null;
+        }
+    }
+
     /** The version of the vocabularies in force (categories, NACE, signals): part of the plausibility scan's fingerprint. */
     public String vocabularyVersion() {
         return net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version();

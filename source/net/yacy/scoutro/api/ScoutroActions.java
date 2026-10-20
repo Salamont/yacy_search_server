@@ -584,6 +584,26 @@ final class ScoutroActions {
         return autocorrect;
     }
 
+    /** The correction state of the running peer (the collection fit's recorder reads and writes it). */
+    static net.yacy.scoutro.collections.AutoCorrect autocorrectEngine() throws ApiException {
+        return autocorrect();
+    }
+
+    /** The file of the Discovery profiles (profiles.json under scoutro.discovery.configRoot), or null without the running peer. */
+    static java.io.File discoveryProfiles() {
+        final net.yacy.search.Switchboard sb = net.yacy.search.Switchboard.getSwitchboard();
+        if (sb == null) return null;
+        return net.yacy.scoutro.discovery.DiscoveryService.resolveRoot(System.getenv("SCOUTRO_CONFIG_ROOT"), sb.getConfig("scoutro.discovery.configRoot", ""),
+                sb.getDataPath().toPath().resolve("DATA").resolve("SCOUTRO/config")).resolve("profiles.json").toFile();
+    }
+
+    /** The current home page readings of a domain as signals (the evaluation and the scan read them alike). */
+    static java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> homeSignals(final net.yacy.scoutro.knowledge.KgRuntime kg,
+            final String domain, final JSONObject assessments) {
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Profiles profiles = net.yacy.scoutro.knowledge.sync.CollectionFit.profiles();
+        return PlausibilityScan.homeSignals(domain, assessments, kg::contentHash, profiles == null ? null : profiles.criteria);
+    }
+
     /** The correction automation (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md); administrator only, off by default. */
     JSONObject collectionAutocorrect(final String action, final Map<String, String> query, final JSONObject body, final String actor)
             throws ApiException {
@@ -633,6 +653,11 @@ final class ScoutroActions {
                 final java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> out = new java.util.ArrayList<>(
                         AutoCorrectApi.textFitSignals(domain, current, fit));
                 out.addAll(AutoCorrectApi.plausibilitySignals(domain, current, kg.offerProfile(domain, ids), fit));
+                try {
+                    out.addAll(homeSignals(kg, domain, autocorrect().assessments(domain)));
+                } catch (final ApiException | IllegalStateException e) {
+                    // no readable correction state: no home page reading
+                }
                 return out;
             }
         };
@@ -680,6 +705,10 @@ final class ScoutroActions {
             @Override public java.util.List<String[]> structuredIndustries(final String domain) { return kg.structuredIndustries(domain); }
             @Override public java.util.Map<String, java.util.Set<String>> collectionNace(final java.util.Collection<String> collections) {
                 return kg.collectionNace(collections);
+            }
+            @Override public java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> homeSignals(final String domain, final JSONObject assessments,
+                    final java.util.Collection<String> hosts) {
+                return ScoutroActions.homeSignals(kg, domain, assessments);
             }
         };
     }

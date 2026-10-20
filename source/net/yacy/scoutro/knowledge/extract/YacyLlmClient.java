@@ -225,7 +225,18 @@ public final class YacyLlmClient implements LlmClient {
     private final AtomicLong servedUnreported = new AtomicLong();
     static final int SERVED_MAX = 10;
 
+    /** The last report of this thread's answer ({@link #lastUsage}). */
+    private final ThreadLocal<JSONObject> lastUsage = new ThreadLocal<>();
+
+    @Override
+    public JSONObject lastUsage() {
+        final JSONObject u = this.lastUsage.get();
+        this.lastUsage.remove();
+        return u;
+    }
+
     private void record(final JSONObject u) {
+        this.lastUsage.set(u);
         this.usageReports.incrementAndGet();
         final String servedModel = u.optString("servedModel", "");
         if (servedModel.isEmpty()) {

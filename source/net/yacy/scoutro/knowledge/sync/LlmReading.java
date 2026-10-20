@@ -89,13 +89,24 @@ public final class LlmReading {
 
     /** The user message of one request (the page's chunk in its DATA block, with the known entities it is asked with). */
     public String userPrompt(final RequestBudget.Part part) {
-        return LlmExtractor.userPrompt(new PromptGuard(), part.chunk, this.title, this.domain, this.language, part.known, this.kinds);
+        return userPrompt(part, null);
+    }
+
+    /** The user message with an operator's question before the DATA block ({@link CollectionFit}); null: as before. */
+    public String userPrompt(final RequestBudget.Part part, final String extra) {
+        return LlmExtractor.userPrompt(new PromptGuard(), part.chunk, this.title, this.domain, this.language, part.known, this.kinds, extra);
     }
 
     /** One request: the system prompt, the user message, the schema and the settings of the tier; every transport is admitted by {@code gate}. */
     public String ask(final LlmClient client, final KgConfig cfg, final KnowledgePrompt p, final RequestBudget.Part part,
             final LlmClient.RequestGate gate) throws IOException {
-        return client.complete(p.text, userPrompt(part), LlmExtractor.SCHEMA, cfg.llmTimeoutMillis, cfg.llmStructuredOutput, gate);
+        return ask(client, cfg, p, part, null, gate);
+    }
+
+    /** {@link #ask(LlmClient, KgConfig, KnowledgePrompt, RequestBudget.Part, LlmClient.RequestGate)} with an operator's question. */
+    public String ask(final LlmClient client, final KgConfig cfg, final KnowledgePrompt p, final RequestBudget.Part part, final String extra,
+            final LlmClient.RequestGate gate) throws IOException {
+        return client.complete(p.text, userPrompt(part, extra), LlmExtractor.SCHEMA, cfg.llmTimeoutMillis, cfg.llmStructuredOutput, gate);
     }
 
     /** The validation of the model's answer to one request. */

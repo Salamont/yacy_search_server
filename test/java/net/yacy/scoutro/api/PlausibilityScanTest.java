@@ -367,6 +367,78 @@ public class PlausibilityScanTest {
     }
 
     @Test
+    public void aHomePageReadingIsRecordedPerCollectionAndCountsOnlyWhileCurrent() throws Exception {
+        // K5: the model's reading of a home page in two collections, recorded per collection as the source kg_home
+        final AutoCorrect engine = new AutoCorrect(this.state, this.clock::get);
+        final List<String> rescans = new ArrayList<>();
+        final CollectionFitRecorder recorder = new CollectionFitRecorder(() -> engine, d -> rescans.add(d), () -> true, this.clock::get);
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Question q = net.yacy.scoutro.knowledge.sync.CollectionFit.question(
+                net.yacy.scoutro.knowledge.sync.CollectionFit.read(new File("tools/scoutro/discovery/profiles.json")), List.of(BAU, STACK), List.of(), Map.of());
+        final String text = "Feinkost und Confiserie: Pralinen und Trüffel.";
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict v = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
+                "{\"verdicts\":{\"" + BAU + "\":\"mismatch\",\"" + STACK + "\":\"match\"},\"best\":\"" + STACK + "\",\"quote\":\"Feinkost und Confiserie\"}"),
+                q, text);
+        assertTrue(recorder.needed("misch-muster.de", BAU, "AB12", "c1"));
+        recorder.verdict("misch-muster.de", "AAAAAAhome01", "AB12", "TEST/m", "c1", v);
+        assertEquals("a mismatch with the automation on: the domain is scanned again", List.of("misch-muster.de"), rescans);
+        assertFalse("this content under these criteria is read", recorder.needed("misch-muster.de", BAU, "ab12", "c1"));
+        assertTrue("another content", recorder.needed("misch-muster.de", BAU, "CD34", "c1"));
+        assertTrue("other criteria", recorder.needed("misch-muster.de", BAU, "AB12", "c2"));
+        final JSONObject stored = new AutoCorrect(this.state, this.clock::get).assessments("misch-muster.de");
+        assertEquals("mismatch", stored.getJSONObject(BAU).getJSONObject("kg_home").getString("result"));
+        assertEquals("match", stored.getJSONObject(STACK).getJSONObject("kg_home").getString("result"));
+        assertEquals("Feinkost und Confiserie", stored.getJSONObject(BAU).getJSONObject("kg_home").getString("quote"));
+        // the signals only while the page's content and the criteria are current
+        List<AutoCorrect.Signal> sig = PlausibilityScan.homeSignals("misch-muster.de", stored, id -> "ab12", "c1");
+        assertEquals(sig.toString(), 2, sig.size());
+        boolean against = false, match = false;
+        for (final AutoCorrect.Signal x : sig) {
+            assertEquals("llm", x.family);
+            assertEquals("kg_home_fit", x.kind);
+            assertEquals("website:misch-muster.de", x.origin);
+            against |= BAU.equals(x.collection) && "against".equals(x.verdict);
+            match |= STACK.equals(x.collection) && "for".equals(x.verdict);
+        }
+        assertTrue(against && match);
+        assertEquals("the page changed", 0, PlausibilityScan.homeSignals("misch-muster.de", stored, id -> "CD34", "c1").size());
+        assertEquals("the page is gone", 0, PlausibilityScan.homeSignals("misch-muster.de", stored, id -> null, "c1").size());
+        assertEquals("other criteria", 0, PlausibilityScan.homeSignals("misch-muster.de", stored, id -> "AB12", "c2").size());
+        // an unquoted reading (K7): recorded, but no signal at all
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict unquoted = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
+                "{\"verdicts\":{\"" + BAU + "\":\"match\"},\"best\":\"none\",\"quote\":\"Wir bauen\"}"), q, text);
+        recorder.verdict("unbelegt-muster.de", "BBBBBBhome02", "EF56", "TEST/m", "c1", unquoted);
+        assertEquals("no rescan without a mismatch", 1, rescans.size());
+        assertEquals(0, PlausibilityScan.homeSignals("unbelegt-muster.de", new AutoCorrect(this.state, this.clock::get).assessments("unbelegt-muster.de"),
+                id -> "EF56", "c1").size());
+        // the best collection is spoken for unless the reading speaks against it, also an assigned one it was uncertain about
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict bestOnly = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
+                "{\"verdicts\":{\"" + BAU + "\":\"uncertain\"},\"best\":\"" + STACK + "\",\"quote\":\"Feinkost und Confiserie\"}"), q, text);
+        recorder.verdict("best-muster.de", "CCCCCChome03", "AA11", "TEST/m", "c1", bestOnly);
+        final List<AutoCorrect.Signal> bestSig = PlausibilityScan.homeSignals("best-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("best-muster.de"), id -> "AA11", "c1");
+        assertEquals(bestSig.toString(), 1, bestSig.size());
+        assertEquals(STACK, bestSig.get(0).collection);
+        assertEquals("for", bestSig.get(0).verdict);
+        final net.yacy.scoutro.knowledge.sync.CollectionFit.Verdict bestAgainst = net.yacy.scoutro.knowledge.sync.CollectionFit.check(new JSONObject(
+                "{\"verdicts\":{\"" + BAU + "\":\"mismatch\"},\"best\":\"" + BAU + "\",\"quote\":\"Feinkost und Confiserie\"}"), q, text);
+        recorder.verdict("wider-muster.de", "DDDDDDhome04", "BB22", "TEST/m", "c1", bestAgainst);
+        final List<AutoCorrect.Signal> widerSig = PlausibilityScan.homeSignals("wider-muster.de",
+                new AutoCorrect(this.state, this.clock::get).assessments("wider-muster.de"), id -> "BB22", "c1");
+        assertEquals("a best the reading speaks against is no signal: " + widerSig, 1, widerSig.size());
+        assertEquals("against", widerSig.get(0).verdict);
+        // the scan takes the current reading: one submission, the current collection the one with the mismatch
+        this.graph.domain("misch-muster.de", false, STACK, BAU);
+        this.graph.quiet.add("misch-muster.de");
+        this.graph.homeSignals.add(new JSONArray(List.of(PlausibilityScan.json(sig.get(0)), PlausibilityScan.json(sig.get(1)))));
+        final JSONObject r = scan("domains", new JSONArray(List.of("misch-muster.de")));
+        assertEquals(r.toString(), 1, r.getJSONObject("counters").getInt("submitted"));
+        final JSONObject c = caseOf("misch-muster.de");
+        assertEquals(BAU, c.getString("from"));
+        assertEquals("review", c.getString("result"));
+        assertEquals("multiple_assignment", c.getString("reason"));
+    }
+
+    @Test
     public void theDiscoveryStateGivesBackendErrorAndCriteria() throws Exception {
         classify("x-muster.de", "bauteamcheck", BAU, "FAIL", "llm", "");
         final Object[] rec = DomainEnrichment.StateFile.parse(this.discovery).get("x-muster.de").classifications.get("bauteamcheck");
