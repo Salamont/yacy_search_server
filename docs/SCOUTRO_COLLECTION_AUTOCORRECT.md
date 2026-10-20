@@ -26,6 +26,7 @@ criteria version:
 |---|---|---|
 | `structured` | the knowledge graph: an explicit NACE code of a JSON-LD `@type` | the website |
 | `text_fit` | the knowledge graph: the categories the rules read as offered on the domain's pages, per collection vocabulary | the website |
+| `plausibility` | the knowledge graph: the website offers clearly something else (offers with structured or quoted evidence, none of the current vocabulary, no word of it on the pages) | the website |
 | `llm` | Discovery: the stored classification of the site by the model | the website |
 | `origin` | Discovery: the OSM object a profile's rule matched; a register entry submitted by an operator | its source system (`osm`, `register`) |
 
@@ -39,7 +40,13 @@ JSON-LD block never counts twice. An absence (`missing_industry`, `no_category`,
 ...) from the indexed text and runs the rules of tier 2 once per page with **every** collection's vocabulary, so all
 collections are judged on the same text; no model is called. A category the rules read as offered (on a services or
 prices page, or with an explicit offer cue elsewhere; a mere mention is a `topic`) counts for the vocabulary it belongs
-to. `AutoCorrectApi.textFitSignals`:
+to. **Text fit 2** (rules version 3): a role word (`hersteller`, `händler`, `handel`, `dienstleister`, `lieferant`,
+`anbieter`, `produzent`, `vertrieb`, ...; `BusinessRules.isRoleCategory`) names what an organisation is, never what it
+offers, and is no fit to a vocabulary, not even as a topic: the word "Hersteller" of a nut confectioner no longer speaks
+for a construction collection. Per collection the result counts `offered` (categories read as offered) and `topics`
+(categories only named) apart. The domain's pages are found through the host index (`kg_doc_host`, one row per host,
+`KgRuntime.domainHosts`); only a domain whose pages have no host id is read by its url as before.
+`AutoCorrectApi.textFitSignals` (criteria `text_fit/2`):
 
 - a collection whose vocabulary has offers on the pages is spoken **for** (`offers_vocabulary_categories`); another
   collection only with at least 2 categories on at least 2 pages;
@@ -47,7 +54,41 @@ to. `AutoCorrectApi.textFitSignals`:
   least 3 pages with text **and** another collection qualifies: a fit elsewhere, never an absence alone;
 - a collection without a vocabulary is never judged; fewer than 3 pages with text give no signal.
 
-The text fit is read only while the mode is not `off` (`evaluate` with `"textFit": false` leaves it out).
+The text fit is read only while the mode is not `off` (`evaluate` with `"textFit": false` leaves it out, together with
+the plausibility, which reads the same pages).
+
+### Plausibility (computed, no model)
+
+A domain can be in a collection whose vocabulary has no word for what it offers, and no other collection's vocabulary
+may have one either (a nut confectioner in a construction collection): the text fit then never speaks against it.
+`KgRuntime.offerProfile` reads, from the graph only, the services and products the domain's active pages offer:
+
+- an offer counts with **tier 1** evidence (JSON-LD: an `offers` relation, or the price of a `Product`/`Service`
+  through its `Offer`) or **tier 3** evidence (the model's offer or price, with the verbatim quote it was published
+  with); a reading of the rules alone (tier 2, for example the labels of a price list) never counts;
+- per service: its name (the same name on several pages is one offer), tiers, categories and pages; per collection with
+  a vocabulary: how many of the services have a category of it.
+
+`AutoCorrectApi.plausibilitySignals` speaks **against** the current collection (family `plausibility`, kind
+`foreign_offers`, criteria `plausibility/1`) only with a positive finding, all of these:
+
+1. at least 3 different offered services or products on at least 2 pages (as above);
+2. none of them has a category of the current collection's vocabulary;
+3. the text fit reads neither an offered category nor a topic of that vocabulary (role words excepted) on at least one
+   page with text;
+4. the current collection has a vocabulary.
+
+Otherwise there is no signal and the domain is uncertain. The evidence names at most 5 services with their tiers. The
+signal is the website's (origin `website:<domain>`) and neither structured nor a text fit: alone or with an OSM tag it
+makes a case for the administrator (`review`), never a correction; with the OSM rule for the collection the
+contradiction is visible (`review / contradicting_signals`).
+
+### Assessment of a domain (report)
+
+`AutoCorrectApi.assess` sums up a domain in one collection for the report and the choice of the cases the model may be
+asked about, never as a rule of the automation: `suspect` with a signal against the collection (structured, text fit,
+plausibility, LLM), `match` with an offered category of its vocabulary or a structured signal for it and nothing
+against, else `uncertain` (too little to judge).
 
 ### Discovery signals (connected)
 
@@ -86,7 +127,10 @@ evidence another origin already states is a copy and counts with that origin. Th
 5. A domain in several specialist collections (a multiple assignment) is never corrected automatically (review).
 
 Outcomes: `none`, `review` (with the reason) or `correct` (target, severity `medium` for the fallback, `high` for
-another specialist collection).
+another specialist collection). A case under review carries `suggested` (rules version 3), only a hint for the
+administrator and no part of the fingerprint: the specialist collection for which the rule of a target holds, else the
+one other specialist collection the signals speak for with nothing against it, else the fallback collection; the review
+page preselects it for **Approve**, nothing moves before the approval.
 
 ## Protection
 
@@ -176,10 +220,17 @@ Rollback: set the mode to `off`; revoke automatic decisions with `POST /v1/colle
 
 `AutoCorrectTest` (rules, independence, source dependency, absence refused, modes, fingerprint, hysteresis, daily
 limit, breaker, the random sample, the 99 % acceptance with 299 error-free and the refusal with one error, the interim
-stage, the audit and its backlog, history, unreadable state, Clopper-Pearson and the reviews needed),
+stage, the audit and its backlog, history, unreadable state, Clopper-Pearson and the reviews needed; the plausibility as
+a website signal that is never enough, `suggested`, an acceptance of rules version 2 outdated),
+`PlausibilityTest` (the graph's offer profile and the plausibility on a running graph: foreign offers, a construction
+company with merchandise, with its services, a price list read by the rules alone, a short website, a collection
+without a vocabulary, the host index),
 `CollectionDecisionsApiTest` (off by default, proposal, approval as a manual decision on the real index, manual
 decision wins, the graph's structured signals, the text-fit rule, the 99 % defaults), `TextFitTest` (the running graph
-reads the offered categories of a domain through every vocabulary), `DiscoveryAutomationTest` (the `autocorrect`
+reads the offered categories of a domain through every vocabulary; now part of `scoutro-collection-decisions-test`),
+`DrolshagensPilotTest` (the production case: the role word is no fit, one product is no finding, the shop's products are
+a plausibility case, with the OSM rule for the collection `contradicting_signals`, `suggested` the fallback, no model
+call), `DiscoveryAutomationTest` (the `autocorrect`
 action only while the automation is on, the run's collection, input limits), `test_automation.py` (Discovery signals
 from the stored classifications and OSM matches, nothing sent while off, unchanged signals not sent again) and
-`collections-autocorrect-ui-test.mjs` (review page, EN/DE, phone).
+`collections-autocorrect-ui-test.mjs` (review page, EN/DE, phone; the suggested target preselected and named).

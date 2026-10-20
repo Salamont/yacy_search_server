@@ -1653,7 +1653,8 @@ paths["/v1/collections/decisions"] = {
 _auto_desc = ("Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). The correction automation of collection assignments:"
     " mode scoutro.collections.autocorrect.mode off (default), simulate, propose or apply. A correction needs two independent origins against the"
     " current collection, one of them with a structured or text-fit signal, and no signal for it; the website's own signals (structured data,"
-    " text, an LLM reading it) are one origin, an OSM tag or an LLM verdict never suffices, an absence or a crawl error is no signal. A manual"
+    " text, the plausibility of its offers, an LLM reading it) are one origin, an OSM tag, an LLM verdict or a plausibility finding never"
+    " suffices, an absence or a crawl error is no signal. A case under review carries suggested, only a hint (rules version 3). A manual"
     " decision always wins, a multiple assignment is never corrected automatically. Signals count by their source: the website's,"
     " one source system (osm:way/1 and osm:node/7 are osm), and a copy of another origin's evidence with that origin (outcome.dependencies)."
     " Apply acts only after an accepted acceptance measured on a random sample (POST .../sample): every drawn case reviewed, at least"
@@ -1662,7 +1663,7 @@ _auto_desc = ("Administrator only, same-site JSON body (docs/SCOUTRO_COLLECTION_
     " within maxPerDay, while the breaker is closed (a wrong automatic correction opens it) and while fewer than 20 audit cases (auditRate,"
     " 0.1, of the automatic corrections) wait for their review; everything else is a proposal.")
 schemas["CollectionAutocorrectSignal"] = {"type": "object", "required": ["family", "verdict", "collection", "evidence"], "additionalProperties": True, "properties": {
-    "family": {"type": "string", "enum": ["structured", "text_fit", "llm", "origin"]}, "verdict": {"type": "string", "enum": ["against", "for"]},
+    "family": {"type": "string", "enum": ["structured", "text_fit", "llm", "origin", "plausibility"]}, "verdict": {"type": "string", "enum": ["against", "for"]},
     "collection": {"type": "string"}, "origin": {"type": "string", "description": "origin family only (osm:..., register:...); the website's own families get website:<domain>."},
     "kind": {"type": "string", "description": "missing_industry, no_industry, no_category, crawl_error, unreachable, empty, not_found and timeout are refused."},
     "evidence": {"type": "string", "maxLength": 500}, "revision": {"type": "string"}, "criteria": {"type": "string"}}}
@@ -1670,7 +1671,7 @@ schemas["CollectionAutocorrectEvaluate"] = {"type": "object", "required": ["doma
     "domain": {"type": "string"}, "collection": {"type": "string", "description": "The domain's current specialist collection."},
     "memberships": {"type": "array", "items": {"type": "string"}}, "signals": {"type": "array", "maxItems": 50, "items": ref("CollectionAutocorrectSignal")},
     "graph": {"type": "boolean", "default": True, "description": "Add the knowledge graph's structured signals (explicit NACE codes of JSON-LD types)."},
-    "textFit": {"type": "boolean", "default": True, "description": "Add the text fit (only while the mode is not off): the categories the rules read as offered on up to 8 pages of the domain, per collection vocabulary; against the current collection only when its vocabulary has no offer on at least 3 pages and another collection's has at least 2 categories on 2 pages."}}}
+    "textFit": {"type": "boolean", "default": True, "description": "Add the text fit and the plausibility (only while the mode is not off): the categories the rules read as offered on up to 8 pages of the domain, per collection vocabulary (a role word such as Hersteller is no fit); against the current collection only when its vocabulary has no offer on at least 3 pages and another collection's has at least 2 categories on 2 pages. The plausibility speaks against it only when the graph holds at least 3 offered services on 2 pages with JSON-LD or quoted model evidence, none of its vocabulary, and no word of the vocabulary is on the pages."}}}
 schemas["CollectionAutocorrectReview"] = {"type": "object", "required": ["domain", "verdict"], "additionalProperties": False, "properties": {
     "domain": {"type": "string"}, "verdict": {"type": "string", "enum": ["approve", "reject", "correct", "wrong"]},
     "target": {"type": "string", "description": "approve: the target collection (required for a case under review)."}, "note": {"type": "string", "maxLength": 300}}}
@@ -1680,7 +1681,7 @@ schemas["CollectionAutocorrectAccept"] = {"type": "object", "additionalPropertie
 schemas["CollectionAutocorrectResult"] = {"type": "object", "additionalProperties": True}
 paths["/v1/collections/autocorrect"] = {"get": op("collections.autocorrect.report", "Report of the correction automation", _auto_desc + " Settings, breaker, acceptance, the statistics (evaluated, corrections, reviewed, precision, lowerBound95, errorsBySeverity, coverage) and the newest cases (limit 0-5000, 200).", ["crawls"],
     {**ok("Report.", "CollectionAutocorrectResult"), **errs("400", "401", "403", "503")}, params=[q("limit", {"type": "integer", "minimum": 0, "maximum": 5000, "default": 200}, "Cases listed.")])}
-paths["/v1/collections/autocorrect/evaluate"] = {"post": op("collections.autocorrect.evaluate", "Evaluate a domain's collection with its signals", _auto_desc + " Returns the outcome (none, review, correct; reason, target, severity, fingerprint, independent origins) and the action of the mode (none, recorded, proposed, applied, unchanged, refused:<why>). The same fingerprint never acts twice; an automatically decided domain changes again only with a new revision and a new signal set.", ["crawls"],
+paths["/v1/collections/autocorrect/evaluate"] = {"post": op("collections.autocorrect.evaluate", "Evaluate a domain's collection with its signals", _auto_desc + " Returns the outcome (none, review, correct; reason, target, severity, suggested, fingerprint, independent origins) and the action of the mode (none, recorded, proposed, applied, unchanged, refused:<why>). The same fingerprint never acts twice; an automatically decided domain changes again only with a new revision and a new signal set.", ["crawls"],
     {**ok("Outcome and action.", "CollectionAutocorrectResult"), **errs("400", "401", "403", "409", "413", "415", "503")}, body="CollectionAutocorrectEvaluate", mutating=True)}
 paths["/v1/collections/autocorrect/sample"] = {"post": op("collections.autocorrect.sample", "Draw a random sample for the acceptance", _auto_desc + " Returns the draw (population, drawn, domains) and the statistics (all, sample, audit; reviewsForTarget, stage none, interim_95 or target_99).", ["crawls"],
     {**ok("Draw and statistics.", "CollectionAutocorrectResult"), **errs("400", "401", "403", "413", "415", "503")}, body="CollectionAutocorrectSample", mutating=True)}

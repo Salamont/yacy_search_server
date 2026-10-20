@@ -624,6 +624,17 @@ final class ScoutroActions {
                 final java.util.List<String> ids = ids(current);
                 return ids == null ? java.util.List.of() : AutoCorrectApi.textFitSignals(domain, current, kg.textFit(domain, ids));
             }
+
+            @Override
+            public java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> website(final String domain, final String current) {
+                final java.util.List<String> ids = ids(current);
+                if (ids == null) return java.util.List.of();
+                final org.json.JSONObject fit = kg.textFit(domain, ids);
+                final java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> out = new java.util.ArrayList<>(
+                        AutoCorrectApi.textFitSignals(domain, current, fit));
+                out.addAll(AutoCorrectApi.plausibilitySignals(domain, current, kg.offerProfile(domain, ids), fit));
+                return out;
+            }
         };
         final AutoCorrectApi api = new AutoCorrectApi(autocorrect(), decisions, decide, key -> sb == null ? null : sb.getConfig(key, null),
                 known, graph);

@@ -25,7 +25,8 @@ const cases = () => [
     status: 'proposed', sample: { at: 1, by: 'admin' }, signals: [signal('text_fit', 'against', 'edelsenior-web', 'website:dach-muster.de'),
       signal('origin', 'against', 'edelsenior-web', 'osm:niedersachsen')] },
   { domain: 'unklar-muster.de', from: 'edelsenior-web', target: null, result: 'review', reason: 'one_origin_only', status: 'proposed',
-    signals: [signal('llm', 'against', 'edelsenior-web', 'website:unklar-muster.de')] },
+    suggested: 'sonstige', signals: [signal('llm', 'against', 'edelsenior-web', 'website:unklar-muster.de'),
+      signal('plausibility', 'against', 'edelsenior-web', 'website:unklar-muster.de')] },
   { domain: 'auto-muster.de', from: 'edelsenior-web', target: 'sonstige', result: 'correct', reason: 'fallback_target', severity: 'medium',
     status: 'applied', sample: { at: 2, by: 'audit', audit: true }, signals: [] }];
 const report = breaker => ({ available: true, breaker: { open: breaker }, acceptance: { accepted: false },
@@ -79,7 +80,12 @@ try {
     await page.locator('#sca-table tbody tr[data-domain="dach-muster.de"] button').first().click();
     await page.waitForFunction(() => document.getElementById('sca-message').textContent.length > 0);
     check(JSON.stringify(posts[0]) === JSON.stringify(['review', { domain: 'dach-muster.de', verdict: 'approve' }]), 'approve posts the domain: ' + JSON.stringify(posts[0]) + where);
-    // a case for review needs the target
+    // a case for review needs the target: the suggested one is preselected and named as a hint
+    const review = page.locator('#sca-table tbody tr[data-domain="unklar-muster.de"]');
+    check(await review.locator('select').inputValue() === 'sonstige', 'the suggested target is preselected' + where);
+    check((await review.textContent()).includes(language === 'de' ? 'Vorgeschlagenes Ziel: sonstige' : 'Suggested target: sonstige'),
+      'the suggestion is named as a hint' + where);
+    check((await review.textContent()).includes('plausibility against edelsenior-web'), 'the plausibility signal is listed' + where);
     await page.locator('#sca-table tbody tr[data-domain="unklar-muster.de"] select').selectOption('sonstige');
     await page.locator('#sca-table tbody tr[data-domain="unklar-muster.de"] button').first().click();
     await page.waitForFunction(n => window.__posts !== n, 0).catch(() => {});

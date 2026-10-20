@@ -50,7 +50,13 @@ public final class AutoCorrect {
     public static final String TEXT_FIT = "text_fit";
     public static final String LLM = "llm";
     public static final String ORIGIN = "origin";
-    static final Set<String> FAMILIES = Set.of(STRUCTURED, TEXT_FIT, LLM, ORIGIN);
+    /**
+     * The website offers clearly something else (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): offers the graph holds with
+     * structured or quoted evidence, none of them in the current collection's vocabulary and no word of that vocabulary on
+     * the pages. A website signal like the others; never a structured or text-fit signal, so never enough for a correction.
+     */
+    public static final String PLAUSIBILITY = "plausibility";
+    static final Set<String> FAMILIES = Set.of(STRUCTURED, TEXT_FIT, LLM, ORIGIN, PLAUSIBILITY);
     /** Kinds that state an absence or a failure: never a signal. */
     static final Set<String> NO_SIGNAL = Set.of("missing_industry", "no_industry", "no_category", "crawl_error", "unreachable", "empty",
             "not_found", "timeout");
@@ -69,7 +75,7 @@ public final class AutoCorrect {
      * Version of the rules and of the signal grouping: an acceptance measured with other rules does not hold for these
      * ({@code acceptance_outdated}).
      */
-    public static final String RULES_VERSION = "2";
+    public static final String RULES_VERSION = "3";
     /** The quality target of the programme: a lower bound of 99 % (one-sided, 95 % confidence) on the sampled reviews. */
     public static final double TARGET = 0.99;
     /** The interim stage: 95 % (59 error-free reviews); never the operator release. */
@@ -152,6 +158,11 @@ public final class AutoCorrect {
         public final String from;
         public final String target;
         public final String severity;
+        /**
+         * Only a hint for the review (never applied by itself, no part of the fingerprint): for a case under review the
+         * specialist collection the signals speak for, else the fallback collection; the target of a correction.
+         */
+        public String suggested;
         public final String fingerprint;
         public final List<Signal> signals;
         public final Set<String> againstOrigins;
@@ -179,7 +190,7 @@ public final class AutoCorrect {
             final JSONArray s = new JSONArray();
             for (final Signal x : this.signals) s.put(x.toJson());
             return obj("result", this.result, "reason", this.reason, "from", this.from, "target", this.target, "severity", this.severity,
-                    "fingerprint", this.fingerprint, "independentOrigins", new JSONArray(this.againstOrigins), "dependencies",
+                    "suggested", this.suggested, "fingerprint", this.fingerprint, "independentOrigins", new JSONArray(this.againstOrigins), "dependencies",
                     new JSONArray(this.dependencies), "signals", s);
         }
     }
@@ -194,7 +205,32 @@ public final class AutoCorrect {
             final boolean manual) {
         final List<String> dependencies = new ArrayList<>();
         final Map<Signal, String> group = groups(signals, dependencies);
-        return evaluate(current, memberships, signals, fallback, manual, group).with(dependencies);
+        final Outcome o = evaluate(current, memberships, signals, fallback, manual, group).with(dependencies);
+        o.suggested = CORRECT.equals(o.result) ? o.target : REVIEW.equals(o.result) ? suggest(current, signals, fallback, group) : null;
+        return o;
+    }
+
+    /**
+     * The hint for a case under review: the specialist collection for which the rule of a target holds; else the one other
+     * specialist collection the signals speak for and nothing against; else the fallback collection.
+     */
+    static String suggest(final String current, final List<Signal> signals, final String fallback, final Map<Signal, String> group) {
+        final Map<String, Map<String, Set<String>>> forTarget = new TreeMap<>();
+        final Set<String> againstTarget = new TreeSet<>();
+        for (final Signal s : signals) {
+            if (s.collection.equals(current) || s.collection.equals(fallback)) continue;
+            if (FOR.equals(s.verdict)) {
+                forTarget.computeIfAbsent(s.collection, k -> new TreeMap<>()).computeIfAbsent(group.get(s), k -> new LinkedHashSet<>()).add(s.family);
+            } else {
+                againstTarget.add(s.collection);
+            }
+        }
+        forTarget.keySet().removeAll(againstTarget);
+        final List<String> strong = new ArrayList<>();
+        for (final Map.Entry<String, Map<String, Set<String>>> e : forTarget.entrySet()) if (independent(e.getValue())) strong.add(e.getKey());
+        if (strong.size() == 1) return strong.get(0);
+        if (strong.isEmpty() && forTarget.size() == 1) return forTarget.keySet().iterator().next();
+        return fallback;
     }
 
     /**
@@ -392,7 +428,7 @@ public final class AutoCorrect {
             put(this.state, "history", history);
         }
         final JSONObject c = obj("domain", domain, "from", o.from, "target", o.target, "result", o.result, "reason", o.reason,
-                "severity", o.severity, "fingerprint", o.fingerprint, "revisions", new JSONArray(revisions(signals)), "signals",
+                "severity", o.severity, "suggested", o.suggested, "fingerprint", o.fingerprint, "revisions", new JSONArray(revisions(signals)), "signals",
                 o.toJson().optJSONArray("signals"), "at", this.clock.getAsLong(), "mode", mode.name().toLowerCase(Locale.ROOT));
         String action;
         if (mode == Mode.SIMULATE || NONE.equals(o.result)) {

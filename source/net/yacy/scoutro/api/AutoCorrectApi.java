@@ -48,6 +48,76 @@ final class AutoCorrectApi {
         default List<AutoCorrect.Signal> textFit(final String domain, final String current) {
             return List.of();
         }
+
+        /**
+         * Every signal read from the domain's pages in one reading: the text fit and the plausibility of its offers
+         * ({@link #plausibilitySignals}); by default the text fit alone.
+         */
+        default List<AutoCorrect.Signal> website(final String domain, final String current) {
+            return textFit(domain, current);
+        }
+    }
+
+    /** Offered services (structured or quoted evidence) the plausibility needs at least, on at least this many pages. */
+    static final int PLAUSIBILITY_MIN_SERVICES = 3;
+    static final int PLAUSIBILITY_MIN_PAGES = 2;
+
+    /**
+     * The plausibility signal of a domain (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): against the current collection
+     * ({@code foreign_offers}) only with a positive finding, never for an absence alone; all of these hold:
+     * <ol>
+     * <li>the graph holds at least {@link #PLAUSIBILITY_MIN_SERVICES} different offered services or products on at least
+     * {@link #PLAUSIBILITY_MIN_PAGES} pages with structured evidence (JSON-LD, tier 1) or the model's quoted offer (tier 3),
+     * never a rule's reading alone ({@code KgRuntime.offerProfile});</li>
+     * <li>none of them has a category of the current collection's vocabulary;</li>
+     * <li>the text fit reads neither an offered category nor a topic of that vocabulary on the pages (role words such as
+     * "Hersteller" are no topic of it), on at least one page with text;</li>
+     * <li>the current collection has a vocabulary.</li>
+     * </ol>
+     * Otherwise no signal: the domain is uncertain.
+     */
+    static List<AutoCorrect.Signal> plausibilitySignals(final String domain, final String current, final JSONObject offers, final JSONObject fit) {
+        final List<AutoCorrect.Signal> out = new ArrayList<>();
+        if (offers == null || fit == null || fit.optInt("pages") < 1) return out;
+        final JSONObject mineFit = fit.optJSONObject("collections") == null ? null : fit.optJSONObject("collections").optJSONObject(current);
+        final JSONObject mineOffers = offers.optJSONObject("collections") == null ? null : offers.optJSONObject("collections").optJSONObject(current);
+        if (mineFit == null || mineOffers == null) return out; // no vocabulary: never judged
+        if (mineFit.optInt("offered") > 0 || mineFit.optInt("topics") > 0 || mineOffers.optInt("services") > 0) return out;
+        final JSONArray services = offers.optJSONArray("services");
+        if (services == null || services.length() < PLAUSIBILITY_MIN_SERVICES || offers.optInt("offerPages") < PLAUSIBILITY_MIN_PAGES) return out;
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < services.length() && names.size() < 5; i++) {
+            final JSONObject svc = services.optJSONObject(i);
+            final JSONArray tiers = svc.optJSONArray("tiers");
+            final List<String> t = new ArrayList<>();
+            for (int j = 0; tiers != null && j < tiers.length(); j++) t.add(String.valueOf(tiers.opt(j)));
+            names.add(svc.optString("name") + " (tier " + String.join("/", t) + ")");
+        }
+        final String evidence = services.length() + " offered services or products on " + offers.optInt("offerPages") + " pages, none of the vocabulary "
+                + mineFit.optString("vocabulary") + " and no word of it on " + fit.optInt("pages") + " pages: " + String.join(", ", names);
+        out.add(AutoCorrect.Signal.of(Json.obj("family", AutoCorrect.PLAUSIBILITY, "verdict", AutoCorrect.AGAINST, "collection", current, "kind",
+                "foreign_offers", "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "plausibility/1"), domain));
+        return out;
+    }
+
+    /** Results of the assessment of a domain in one collection (the report, never a rule of the automation). */
+    static final String MATCH = "match", SUSPECT = "suspect", UNCERTAIN = "uncertain";
+
+    /**
+     * The assessment of a domain in {@code collection} from its signals and its text fit: {@link #SUSPECT} with a signal
+     * against it, {@link #MATCH} with an offered category of its vocabulary or a structured signal for it and nothing against,
+     * else {@link #UNCERTAIN} (too little to judge: the cases the model may be asked about).
+     */
+    static String assess(final String collection, final List<AutoCorrect.Signal> signals, final JSONObject fit) {
+        boolean against = false, structuredFor = false;
+        for (final AutoCorrect.Signal sig : signals) {
+            if (!collection.equals(sig.collection)) continue;
+            if (AutoCorrect.AGAINST.equals(sig.verdict) && !AutoCorrect.ORIGIN.equals(sig.family)) against = true;
+            if (AutoCorrect.FOR.equals(sig.verdict) && AutoCorrect.STRUCTURED.equals(sig.family)) structuredFor = true;
+        }
+        if (against) return SUSPECT;
+        final JSONObject mine = fit == null || fit.optJSONObject("collections") == null ? null : fit.optJSONObject("collections").optJSONObject(collection);
+        return structuredFor || mine != null && mine.optInt("offered") > 0 ? MATCH : UNCERTAIN;
     }
 
     /**
@@ -91,7 +161,7 @@ final class AutoCorrectApi {
     private static AutoCorrect.Signal textSignal(final String domain, final String verdict, final String collection, final String kind,
             final String evidence) {
         return AutoCorrect.Signal.of(Json.obj("family", AutoCorrect.TEXT_FIT, "verdict", verdict, "collection", collection, "kind", kind,
-                "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "text_fit/1"), domain);
+                "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "text_fit/2"), domain);
     }
 
     /**
@@ -260,7 +330,7 @@ final class AutoCorrectApi {
             signals.addAll(this.graph.structured(domain, current));
         }
         if (body.optBoolean("textFit", true) && this.graph != null && mode() != AutoCorrect.Mode.OFF) {
-            signals.addAll(this.graph.textFit(domain, current)); // reads the domain's pages: only when the automation is on
+            signals.addAll(this.graph.website(domain, current)); // reads the domain's pages: only when the automation is on
         }
         boolean manual = false;
         for (final CollectionDecision d : this.decisions.activeOf(domain)) manual |= d.basis == CollectionDecision.Basis.MANUAL;

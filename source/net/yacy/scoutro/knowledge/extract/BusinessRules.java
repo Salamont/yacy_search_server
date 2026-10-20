@@ -273,7 +273,12 @@ public final class BusinessRules {
             "großhandel", "einzelhandel", "dienstleister", "lieferant", "lieferanten", "anbieter", "produzent", "produzenten", "vertrieb");
 
     static boolean roleCategory(final Categories.Entry entry) {
-        return entry != null && entry.code != null && ROLE_CATEGORIES.contains(entry.code.toLowerCase(java.util.Locale.ROOT));
+        return entry != null && isRoleCategory(entry.code);
+    }
+
+    /** True for the code of a role word ("hersteller", "händler", ...): what an organisation is, never what it offers. */
+    public static boolean isRoleCategory(final String code) {
+        return code != null && ROLE_CATEGORIES.contains(code.toLowerCase(java.util.Locale.ROOT));
     }
 
     private void services(final Run run, final double confidence) {
