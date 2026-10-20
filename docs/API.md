@@ -454,6 +454,10 @@ filters, crawl starts and agent grants all take their choices from it.
   ```
 - `GET /v1/collections/autocorrect`, `POST /v1/collections/autocorrect/{evaluate,review,sample,accept,breaker-reset}` (administrator):
   the correction automation of collection assignments, off by default; see [autocorrect](SCOUTRO_COLLECTION_AUTOCORRECT.md).
+- `POST /v1/collections/autocorrect/scan`, `GET /v1/collections/autocorrect/assessments` (administrator): the plausibility
+  scan of the indexed domains in steps (no model, nothing written to the graph; `503 scan_busy` while the graph is paused or
+  a gate is closed) and its assessments per domain, collection and source; see
+  [autocorrect](SCOUTRO_COLLECTION_AUTOCORRECT.md#plausibility-scan-of-the-indexed-domains-no-model).
 - `GET|POST /v1/collections/decisions`, `POST /v1/collections/decisions/{apply,revoke,recover}`
   (administrator, same-origin JSON, at most 4 KiB, never an agent route): durable
   collection decisions of a domain, host or path. Every later index write (any
@@ -919,7 +923,12 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `droppedInvalidByReason` has every reason code (0 if it never occurred,
     docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3) and adds up to `droppedInvalid`.
     All `processed` counters are in memory since the start and reset by a
-    restart; no model answer is stored. `structuredOutput`: what the
+    restart; no model answer is stored. `processed.collectionFit`: the
+    collection fit asked in home pages' requests (`asked`, `status` per
+    `valid`/`fit_missing`/`fit_invalid`/`fit_unquoted`, `verdicts`,
+    `budgetSkipped`, `delivered`, `sinkErrors`, refusals with and without
+    the question, average measured tokens of both kinds of request; no page
+    text; docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). `structuredOutput`: what the
     endpoint is asked for (`setting`, `api` `ollama_native` (Ollama's
     `/api/chat` with `format`) or `openai_compatible`, the model's format `capability`
     of the current probe, an older value counts as `unknown`, for

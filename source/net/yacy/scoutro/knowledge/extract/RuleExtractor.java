@@ -176,6 +176,17 @@ public final class RuleExtractor {
         this.business = new BusinessRules(maxExcerpt);
     }
 
+    /** True for the home page of a host: no path, "/" or an index page ("/index.html", "/home", "/de", ...). */
+    public static boolean homePage(final String url) {
+        String path;
+        try {
+            path = url == null ? null : new URI(url).getRawPath();
+        } catch (final Exception e) {
+            return false;
+        }
+        return url != null && (path == null || path.isEmpty() || "/".equals(path) || path.matches("(?i)^/(?:index\\.(?:html?|php)|home|start|de|en)/?$"));
+    }
+
     /** True if tier 2 reads the text of this page (imprint, contact and similar paths or titles, home page, pages with structured data). */
     public static boolean candidate(final String url, final List<String> titles, final Extraction tier1) {
         if (tier1 != null && !tier1.subjects(1).isEmpty()) {

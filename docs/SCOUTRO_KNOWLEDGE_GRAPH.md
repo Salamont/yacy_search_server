@@ -1117,6 +1117,7 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 | `llm.parallel`, `llm.timeoutSeconds`, `llm.maxAttempts`, `llm.breakerFailures`, `llm.breakerMaxBackoffMinutes`, `llm.maxDocsPerHost` | 1, 120, 2, 3, 60, 25 | advanced |
 | `llm.answerReserveTokens` (tokens of the context window kept for the answer, at most the row's output cap), `llm.continuationChunks` (chunks one continuation pass reads of a long page's content; passes repeat until the content is read; 0: none) ([27](#27-llm-tier-coverage-selection-request-budget-long-pages-missing-text-and-diagnostics)) | 1 200 (256–32 768), 5 (0–20) | advanced |
 | `llm.structuredOutput` (`auto`, `json_schema`, `json_object`, `none`) | auto | advanced |
+| `llm.collectionFit` (a home page's first request also asks whether the website fits its collections; only with `llm.structuredOutput` `none` or `json_object`, [27.10](#2710-the-collection-fit-of-a-home-page)) | false | advanced |
 | `llm.maxRequestsPerDay` (model requests per UTC day, 0: no cap), `llm.weight.<collection>` (share of each scan batch, 1–10) ([collection move, priority and cap](SCOUTRO_KG_COLLECTION_MOVE.md)) | 0, 1 | advanced |
 | `gate.maxIndexingQueue`, `gate.maxLoad`, `gate.minFreeHeapMB` | 20, 2.5, 256 | advanced |
 | `source.*`, `changes.*`, `cache.maxPercent` | [7.2](#72-settings) | advanced |
@@ -2472,7 +2473,7 @@ A read-only analysis of the validator (the only measured shares are those of 0.9
 
 ### 27.8 Measurements, storage and lifecycle
 
-- **Intake and output** (counters since the start, `llm.processed`): `queued` (pages the scans queued: the LLM-relevant intake), `skippedNotCandidate`, `skippedNotSelected`, `skippedHostCap` (pages unsuitable or out of the selection, no request), `published` (first readings), `continuationDocs` (passes), `calls` and `requestStarts` (requests), `chunksSplit`, `cacheHits`; failures and repetitions: `callFailures`, `timeouts`, `failedDocs`, `unconfirmedRetries`, `continuationRetries`, `abortedChanged`; `averageRequestMillis` over ended requests.
+- **Intake and output** (counters since the start, `llm.processed`): `queued` (pages the scans queued: the LLM-relevant intake), `skippedNotCandidate`, `skippedNotSelected`, `skippedHostCap` (pages unsuitable or out of the selection, no request), `published` (first readings), `continuationDocs` (passes), `calls` and `requestStarts` (requests), `chunksSplit`, `cacheHits`; failures and repetitions: `callFailures`, `timeouts`, `failedDocs`, `unconfirmedRetries`, `continuationRetries`, `abortedChanged`; `averageRequestMillis` over ended requests; the collection fit of home pages (`collectionFit`, 27.10).
 - **Waiting:** `processed.queueWait`: how long first readings and continuations waited in the queue until taken (per take, average and maximum).
 - **Backlog over time:** `llm.backlog`: one sample per 15 minutes over the last day (in memory) of the pages still to examine, the queue, the pages a continuation reads on and their unread characters, and the change of the pages to examine per hour (negative: the backlog shrinks).
 - **What the tier keeps between readings** (`llm.storage`): progress rows (one per page marked `more_text`, positions only) and checkpoints (answered chunks of an unfinished reading), rows and bytes each. A progress row goes when its page is read, cut, changed, reset or removed (pruned, at most 16 a minute, also at start); checkpoints go with their page's reading. The refusal samples are bounded in memory (27.7). Evidence, statements, the change history and backups are never pruned by any of this.
@@ -2483,6 +2484,19 @@ A read-only analysis of the validator (the only measured shares are those of 0.9
 - **Additional model requests** come only from continuations, splits by the budget, and an answer re-asked after a page changed during its call. A page of 20,000 characters costs 2 to 3 requests more and is read whole; the example reference page of about 67,000 characters costs about 14 more requests in three passes (about 55,000 characters), spread behind the first readings. In the sample of the analysis 5 to 15 % of the pages are longer than 12,000 characters. Navigation behind a page's content costs nothing any more (27.4).
 - **Fewer wasted requests:** pages are no longer re-asked after a restart because they were found again, a vocabulary change no longer throws answers away, and an audited page is never read again from its start.
 - **Not addressed here:** PDF price lists (blacklisted), the crawl's 15 pages per domain, the per-host cap of 25 for large sites, pages that only a script renders, and model errors the validator must refuse. robots.txt, the blacklist and the validator's rules are unchanged.
+
+### 27.10 The collection fit of a home page
+
+With `scoutro.kg.llm.collectionFit=true` and `llm.structuredOutput` `none` or `json_object`, the first request of a home
+page's reading also asks whether the website's main offering fits its specialist collections (the profiles of
+Discovery's `profiles.json`): a question of at most 500 characters in the user message, before the DATA block; the model
+adds the field `collection_fit`. The system prompt, the schema, `LlmExtractor.VERSION` and the prompt hash are
+unchanged, so no page is read again for it; every other request and cache key is byte for byte as before, and the
+request budget counts the question. The field is split off before the validator, checked apart (a verdict per assigned
+collection, a verbatim quote found in the page text, else every verdict `uncertain`), kept with the cached answer and
+never applied: no statement, no evidence. A published home page's verdict goes to the correction automation as the
+source `kg_home` ([automatic correction, Home page reading](SCOUTRO_COLLECTION_AUTOCORRECT.md#home-page-reading-in-the-llm-tiers-own-request));
+a failure there never touches the extraction. Counters: `llm.processed.collectionFit`.
 
 ## 28. Collections named by the operator, vocabulary profiles
 

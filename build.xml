@@ -552,6 +552,7 @@
       <arg value="net.yacy.scoutro.knowledge.sync.LlmTimingTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.LlmProgressTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.LlmServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.CollectionFitTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.YacyLlmClientTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.StructuredOutputNegotiationTest"/>
       <arg value="net.yacy.scoutro.knowledge.KgRuntimeTest"/>
@@ -608,6 +609,10 @@
       <include name="net/yacy/scoutro/api/DiscoveryGatewayTest.java"/>
       <include name="net/yacy/scoutro/api/CrawlFlowTest.java"/>
       <include name="net/yacy/scoutro/api/DrolshagensPilotTest.java"/>
+      <include name="net/yacy/scoutro/api/PlausibilityTest.java"/>
+      <include name="net/yacy/scoutro/api/PlausibilityScanTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/TextFitTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/KgTestSupport.java"/>
       <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
     </javac>
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
@@ -621,6 +626,9 @@
       <arg value="net.yacy.scoutro.api.DiscoveryGatewayTest"/>
       <arg value="net.yacy.scoutro.api.CrawlFlowTest"/>
       <arg value="net.yacy.scoutro.api.DrolshagensPilotTest"/>
+      <arg value="net.yacy.scoutro.api.PlausibilityTest"/>
+      <arg value="net.yacy.scoutro.api.PlausibilityScanTest"/>
+      <arg value="net.yacy.scoutro.knowledge.TextFitTest"/>
     </java>
   </target>
 
@@ -902,6 +910,7 @@
         <include name="docs/SCOUTRO_RELEASE_0.10.9.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.11.4.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.11.5.md"/>
+        <include name="docs/SCOUTRO_RELEASE_0.11.6.md"/>
         <include name="readme.txt"/>
         <include name="gpl.txt"/>
         <include name="ChangeLog"/>

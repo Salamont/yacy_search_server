@@ -72,6 +72,63 @@ public class AutoCorrectTest {
     }
 
     @Test
+    public void thePlausibilityIsAWebsiteSignalAndNeverEnough() throws Exception {
+        // a plausibility finding and an LLM reading of the same website are one origin: a case, never a correction
+        AutoCorrect.Outcome o = eval(list(signal(AutoCorrect.PLAUSIBILITY, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.LLM, "against", "edelsenior", null, "r1")));
+        assertEquals(AutoCorrect.REVIEW, o.result);
+        assertEquals("one_origin_only", o.reason);
+        assertEquals(1, o.againstOrigins.size());
+        assertEquals("sonstige", o.suggested);
+        // with an independent origin (OSM) still no correction: the plausibility is neither structured nor a text fit
+        o = eval(list(signal(AutoCorrect.PLAUSIBILITY, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:way/1", "t1")));
+        assertEquals(AutoCorrect.REVIEW, o.result);
+        assertEquals("no_structured_or_text_signal", o.reason);
+        // the OSM rule for the collection: the contradiction is visible, the fallback suggested
+        o = eval(list(signal(AutoCorrect.PLAUSIBILITY, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.ORIGIN, "for", "edelsenior", "osm:niedersachsen", "t1")));
+        assertEquals(AutoCorrect.REVIEW, o.result);
+        assertEquals("contradicting_signals", o.reason);
+        assertEquals("sonstige", o.suggested);
+        assertEquals(null, o.target);
+        // a specialist collection the website speaks for is suggested, never applied: a case has no target
+        o = eval(list(signal(AutoCorrect.PLAUSIBILITY, "against", "edelsenior", null, "r1"), signal(AutoCorrect.LLM, "for", "stackfinder", null, "r1")));
+        assertEquals(AutoCorrect.REVIEW, o.result);
+        assertEquals("stackfinder", o.suggested);
+        assertEquals(null, o.target);
+        assertEquals("stackfinder", o.toJson().getString("suggested"));
+        // nothing against: nothing suggested
+        o = eval(list(signal(AutoCorrect.ORIGIN, "for", "edelsenior", "osm:niedersachsen", "t1")));
+        assertEquals(AutoCorrect.NONE, o.result);
+        assertEquals(null, o.suggested);
+        // a manual decision wins over the plausibility as over every signal
+        o = AutoCorrect.evaluate("edelsenior", List.of("edelsenior"), list(signal(AutoCorrect.PLAUSIBILITY, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.STRUCTURED, "against", "edelsenior", null, "r1"), signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:way/1", "t1")),
+                "sonstige", true);
+        assertEquals(AutoCorrect.NONE, o.result);
+        assertEquals("manual_decision", o.reason);
+    }
+
+    @Test
+    public void anAcceptanceOfTheRulesVersion2IsOutdated() throws Exception {
+        assertEquals("3", AutoCorrect.RULES_VERSION);
+        final File f = new File(this.tmp.getRoot(), "autocorrect.json");
+        final AutoCorrect a = new AutoCorrect(f, this.clock::get);
+        a.revokeAcceptance("admin"); // writes the file
+        final JSONObject state = new JSONObject(new String(Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8));
+        state.put("acceptance", AutoCorrect.obj("accepted", true, "rulesVersion", "2", "stage", "target_99"));
+        Files.write(f.toPath(), state.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        final AutoCorrect b = new AutoCorrect(f, this.clock::get);
+        final JSONObject r = b.submit(D, "edelsenior", List.of("edelsenior"), list(signal(AutoCorrect.STRUCTURED, "against", "edelsenior", null, "r1"),
+                signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:way/1", "t1")), "sonstige", false, AutoCorrect.Mode.APPLY, 10,
+                (domain, from, target, evidence, auto, actor) -> AutoCorrect.obj("id", "kcd_x"), "x");
+        assertEquals("proposed", r.getString("action"));
+        assertEquals("acceptance_outdated", r.getJSONObject("case").getString("held"));
+        assertEquals("sonstige", r.getJSONObject("case").getString("suggested"));
+    }
+
+    @Test
     public void aSpecialistTargetNeedsTheSameRuleOtherwiseTheFallback() {
         final AutoCorrect.Outcome o = eval(list(signal(AutoCorrect.STRUCTURED, "against", "edelsenior", null, "r1"),
                 signal(AutoCorrect.ORIGIN, "against", "edelsenior", "osm:way/1", "t1"), signal(AutoCorrect.STRUCTURED, "for", "bauteamcheck", null, "r1"),

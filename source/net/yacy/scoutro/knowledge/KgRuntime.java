@@ -1586,58 +1586,229 @@ public final class KgRuntime {
 
     /** Pages of a domain the text fit reads at most (WP-H); the offer pages first. */
     static final int TEXT_FIT_PAGES = 8;
+    /** Tracked pages of a domain the text fit and the offer profile consider at most. */
+    static final int DOMAIN_PAGES = 2000;
     private static final java.util.regex.Pattern OFFER_PAGE = java.util.regex.Pattern.compile(
             "(?i)leistung|angebot|service|produkt|sortiment|preis|ueber-uns|uber-uns|about|unternehmen");
+
+    /**
+     * The host ids ({@code kg_doc.host_id}) of the tracked pages per registrable domain, read through the index
+     * {@code kg_doc_host} (one row per host): the plausibility scan reads it once per step and then finds a domain's pages
+     * through the index instead of a scan of every page's url. Empty while the graph is off.
+     */
+    public java.util.Map<String, java.util.Set<String>> domainHosts() {
+        final java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();
+        if (this.state != State.RUNNING || this.store == null) return out;
+        try {
+            this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT d.host_id, d.url FROM kg_doc d JOIN (SELECT min(doc_rowid) AS r"
+                        + " FROM kg_doc WHERE host_id IS NOT NULL GROUP BY host_id) m ON d.doc_rowid = m.r");
+                        java.sql.ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        final String domain = registrableDomainOf(r.getString(2));
+                        if (domain != null) out.computeIfAbsent(domain, k -> new java.util.TreeSet<>()).add(r.getString(1));
+                    }
+                }
+                return null;
+            });
+        } catch (final KgException e) {
+            return new java.util.TreeMap<>(); // no graph, no hosts
+        }
+        return out;
+    }
+
+    private static String registrableDomainOf(final String url) {
+        if (url == null) return null;
+        try {
+            final String host = new java.net.URI(url).getHost();
+            return host == null ? null : net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT));
+        } catch (final java.net.URISyntaxException e) {
+            return null;
+        }
+    }
+
+    /**
+     * {doc_id, url, host, doc_rowid, content hash} of the active pages of a registrable domain, in the order of the graph (at most
+     * {@link #DOMAIN_PAGES}): through the domain's host ids where it has any (the index), else by its url as before.
+     *
+     * @param hostIds the domain's host ids ({@link #domainHosts}), or null to look them up
+     */
+    private java.util.List<String[]> domainPages(final String domain, final java.util.Collection<String> hostIds) throws KgException {
+        final java.util.Collection<String> hosts = hostIds != null ? hostIds : domainHosts().getOrDefault(domain, java.util.Set.of());
+        final java.util.List<String[]> pages = new java.util.ArrayList<>();
+        this.store.read(c -> {
+            final StringBuilder sql = new StringBuilder("SELECT doc_id, url, doc_rowid, hex(coalesce(content_hash, input_hash)) FROM kg_doc"
+                    + " WHERE state = 1 AND ");
+            if (hosts.isEmpty()) {
+                sql.append("url LIKE ?");
+            } else {
+                sql.append("host_id IN (");
+                for (int i = 0; i < hosts.size(); i++) sql.append(i == 0 ? "?" : ",?");
+                sql.append(')');
+            }
+            sql.append(" ORDER BY doc_rowid LIMIT ").append(DOMAIN_PAGES);
+            try (java.sql.PreparedStatement ps = c.prepareStatement(sql.toString())) {
+                int i = 1;
+                if (hosts.isEmpty()) {
+                    ps.setString(i, "%" + domain.replace("%", "").replace("_", "") + "%");
+                } else {
+                    for (final String h : hosts) ps.setString(i++, h);
+                }
+                try (java.sql.ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        String host;
+                        try {
+                            host = new java.net.URI(r.getString(2)).getHost();
+                        } catch (final java.net.URISyntaxException e) {
+                            host = null;
+                        }
+                        if (host != null && domain.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT)))) {
+                            pages.add(new String[] {r.getString(1), r.getString(2), host, Long.toString(r.getLong(3)), r.getString(4)});
+                        }
+                    }
+                }
+            }
+            return null;
+        });
+        return pages;
+    }
+
+    /** The tracked pages of one registrable domain: its collections and its host ids (the plausibility scan). */
+    public static final class DomainPages {
+        public final java.util.Set<String> collections = new java.util.TreeSet<>();
+        public final java.util.Set<String> hosts = new java.util.TreeSet<>();
+    }
+
+    /**
+     * Every registrable domain with active pages, with the collections of its pages and its host ids, sorted by domain (the
+     * plausibility scan reads it once per step): one row per host and collection through the indexes. Empty while the graph
+     * is off.
+     */
+    public java.util.SortedMap<String, DomainPages> domainCollections() {
+        final java.util.SortedMap<String, DomainPages> out = new java.util.TreeMap<>();
+        if (this.state != State.RUNNING || this.store == null) return out;
+        try {
+            this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT d.host_id, k.name, min(d.url) FROM kg_doc d"
+                        + " JOIN kg_doc_collection dc ON dc.doc_rowid = d.doc_rowid JOIN kg_collection k ON k.coll_id = dc.coll_id"
+                        + " WHERE d.state = 1 AND d.host_id IS NOT NULL GROUP BY d.host_id, k.name");
+                        java.sql.ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        final String domain = registrableDomainOf(r.getString(3));
+                        if (domain == null) continue;
+                        final DomainPages d = out.computeIfAbsent(domain, k -> new DomainPages());
+                        d.hosts.add(r.getString(1));
+                        d.collections.add(r.getString(2));
+                    }
+                }
+                // pages without a host id (rare): by their url, then read by the url as before (no host to look up)
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT d.url, k.name FROM kg_doc d JOIN kg_doc_collection dc"
+                        + " ON dc.doc_rowid = d.doc_rowid JOIN kg_collection k ON k.coll_id = dc.coll_id WHERE d.state = 1 AND d.host_id IS NULL");
+                        java.sql.ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        final String domain = registrableDomainOf(r.getString(1));
+                        if (domain != null) out.computeIfAbsent(domain, k -> new DomainPages()).collections.add(r.getString(2));
+                    }
+                }
+                return null;
+            });
+        } catch (final KgException e) {
+            return new java.util.TreeMap<>(); // no graph, nothing to scan
+        }
+        return out;
+    }
+
+    /**
+     * The content of a domain's active pages as one fingerprint (doc ids and content hashes, at most {@link #DOMAIN_PAGES}):
+     * another page or another text gives another value; null while the graph is off.
+     */
+    public String pagesFingerprint(final String domain, final java.util.Collection<String> hostIds) {
+        if (this.state != State.RUNNING || this.store == null || domain == null) return null;
+        try {
+            final java.util.TreeSet<String> parts = new java.util.TreeSet<>();
+            for (final String[] p : domainPages(domain, hostIds)) parts.add(p[0] + ":" + p[4]);
+            final byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(String.join("\n", parts)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            final StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < 12; i++) hex.append(String.format("%02x", h[i]));
+            return hex.toString();
+        } catch (final java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        } catch (final KgException e) {
+            return null;
+        }
+    }
+
+    /** The content hash of an active page (hex, as the LLM tier's reading identifies it), or null. */
+    public String contentHash(final String docId) {
+        if (this.state != State.RUNNING || this.store == null || docId == null) return null;
+        try {
+            return this.store.read(c -> {
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT hex(coalesce(content_hash, input_hash)) FROM kg_doc WHERE doc_id = ?"
+                        + " AND state = 1")) {
+                    ps.setString(1, docId);
+                    try (java.sql.ResultSet r = ps.executeQuery()) {
+                        return r.next() ? r.getString(1) : null;
+                    }
+                }
+            });
+        } catch (final KgException e) {
+            return null;
+        }
+    }
+
+    /** The version of the vocabularies in force (categories, NACE, signals): part of the plausibility scan's fingerprint. */
+    public String vocabularyVersion() {
+        return net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version();
+    }
+
+    /**
+     * Why the plausibility scan may not read now, or null: the graph not running, its manual pause, or a closed gate
+     * (indexing queue, load, heap, YaCy's online caution), the same as for the graph's own scans.
+     */
+    public String scanBusy() {
+        if (this.state != State.RUNNING || this.store == null) return "graph_" + this.state.name().toLowerCase(java.util.Locale.ROOT);
+        if (this.guard != null && this.guard.manualPause()) return "graph_paused";
+        final Gates g = this.gates;
+        return g == null ? null : g.closed(true);
+    }
 
     /**
      * The text fit of a domain (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): the categories the rules of tier 2 read as
      * offered on up to {@link #TEXT_FIT_PAGES} of its active pages (the indexed text, no model), counted per collection
      * through the collection's vocabulary; all vocabularies are read at once, so every collection is judged on the same
-     * text. {@code {"pages": pages with text, "collections": {c: {"vocabulary", "categories": [...], "pages"}}}}; a collection
-     * without a vocabulary is not in it. Empty while the graph or its Solr synchronisation is off.
+     * text. {@code {"pages": pages with text, "collections": {c: {"vocabulary", "categories": [...], "pages", "offered",
+     * "topics"}}}}: {@code categories} are the offered categories and the topics, {@code offered} counts the categories the
+     * rules read as offered ({@code category}), {@code topics} those only named ({@code topic}); a role word such as
+     * "Hersteller" is never counted (text fit 2). A collection without a vocabulary is not in it. Empty while the graph or its
+     * Solr synchronisation is off.
      */
     public org.json.JSONObject textFit(final String domain, final java.util.Collection<String> collections) {
+        return textFit(domain, collections, null);
+    }
+
+    /** {@link #textFit(String, java.util.Collection)} with the domain's host ids ({@link #domainHosts}, null: looked up). */
+    public org.json.JSONObject textFit(final String domain, final java.util.Collection<String> collections, final java.util.Collection<String> hostIds) {
         final org.json.JSONObject out = new org.json.JSONObject();
         final EmbeddedSolrSource s = this.source;
         if (this.state != State.RUNNING || this.store == null || s == null || domain == null) return KgJson.put(out, "pages", 0);
-        final java.util.List<String[]> pages = new java.util.ArrayList<>();
+        final java.util.List<String[]> pages;
         try {
-            this.store.read(c -> {
-                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT doc_id, url FROM kg_doc WHERE state = 1 AND url LIKE ?"
-                        + " ORDER BY doc_rowid LIMIT 2000")) {
-                    ps.setString(1, "%" + domain.replace("%", "").replace("_", "") + "%");
-                    try (java.sql.ResultSet r = ps.executeQuery()) {
-                        while (r.next()) {
-                            String host;
-                            try {
-                                host = new java.net.URI(r.getString(2)).getHost();
-                            } catch (final java.net.URISyntaxException e) {
-                                host = null;
-                            }
-                            if (host != null && domain.equals(net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT)))) {
-                                pages.add(new String[] {r.getString(1), r.getString(2), host});
-                            }
-                        }
-                    }
-                }
-                return null;
-            });
+            pages = domainPages(domain, hostIds);
         } catch (final KgException e) {
             return KgJson.put(out, "pages", 0); // no graph, no signal
         }
         pages.sort(java.util.Comparator.comparing((String[] p) -> OFFER_PAGE.matcher(p[1]).find() ? 0 : 1));
         // every collection's vocabulary at once
         final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
-        final java.util.Map<String, String> vocabularyOf = new java.util.TreeMap<>();
-        for (final String c : collections) {
-            final String v = this.config.vocabularyOf(c, vocab.categories.collections);
-            if (v != null && vocab.categories.vocabulary(v) != null) vocabularyOf.put(c, v);
-        }
+        final java.util.Map<String, String> vocabularyOf = vocabularies(collections, vocab);
         final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = new net.yacy.scoutro.knowledge.extract.ExtractContext(vocab,
                 new java.util.TreeSet<>(vocabularyOf.values()), false, false, vocabularyOf.keySet());
         final net.yacy.scoutro.knowledge.extract.RuleExtractor rules = new net.yacy.scoutro.knowledge.extract.RuleExtractor(
                 this.config.extractMaxExcerptChars, this.config.extractMaxRuleInputChars);
         final java.util.Map<String, java.util.Set<String>> categories = new java.util.TreeMap<>();
+        final java.util.Map<String, java.util.Set<String>> offered = new java.util.TreeMap<>();
+        final java.util.Map<String, java.util.Set<String>> topics = new java.util.TreeMap<>();
         final java.util.Map<String, Integer> pagesOf = new java.util.TreeMap<>();
         int read = 0;
         for (final String[] p : pages) {
@@ -1655,25 +1826,179 @@ public final class KgRuntime {
             rules.extract(text, p[1], p[2], "de", ex, ctx, java.util.List.of(), java.util.List.of());
             final java.util.Set<String> here = new java.util.TreeSet<>();
             for (final net.yacy.scoutro.knowledge.extract.Claim c : ex.claims()) {
-                // a category of an offered service or a topic of the page (0.11.5: a role word such as "Hersteller" is a topic,
-                // no service; the vocabulary's fit to the text is the same)
-                if (!(net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate)
-                        || net.yacy.scoutro.knowledge.extract.Vocabulary.TOPIC.equals(c.predicate)) || c.value == null) continue;
+                // a category of an offered service or a topic of the page; a role word such as "Hersteller" names what an
+                // organisation is, never what it offers, and is no fit to a vocabulary (text fit 2)
+                final boolean category = net.yacy.scoutro.knowledge.extract.Vocabulary.CATEGORY.equals(c.predicate);
+                if (!(category || net.yacy.scoutro.knowledge.extract.Vocabulary.TOPIC.equals(c.predicate)) || c.value == null) continue;
                 for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : ctx.vocabularies) {
-                    if (v.categories.containsKey(c.value)) {
-                        categories.computeIfAbsent(v.name, k -> new java.util.TreeSet<>()).add(c.value);
-                        here.add(v.name);
-                    }
+                    final net.yacy.scoutro.knowledge.vocab.Categories.Entry entry = v.categories.get(c.value);
+                    if (entry == null || net.yacy.scoutro.knowledge.extract.BusinessRules.isRoleCategory(entry.code)) continue;
+                    categories.computeIfAbsent(v.name, k -> new java.util.TreeSet<>()).add(c.value);
+                    (category ? offered : topics).computeIfAbsent(v.name, k -> new java.util.TreeSet<>()).add(c.value);
+                    here.add(v.name);
                 }
             }
             for (final String v : here) pagesOf.merge(v, 1, Integer::sum);
         }
         final org.json.JSONObject byCollection = new org.json.JSONObject();
         for (final java.util.Map.Entry<String, String> e : vocabularyOf.entrySet()) {
+            final java.util.Set<String> mine = offered.getOrDefault(e.getValue(), java.util.Set.of());
+            final java.util.Set<String> named = new java.util.TreeSet<>(topics.getOrDefault(e.getValue(), java.util.Set.of()));
+            named.removeAll(mine);
             KgJson.put(byCollection, e.getKey(), KgJson.obj("vocabulary", e.getValue(), "categories",
-                    new org.json.JSONArray(categories.getOrDefault(e.getValue(), java.util.Set.of())), "pages", pagesOf.getOrDefault(e.getValue(), 0)));
+                    new org.json.JSONArray(categories.getOrDefault(e.getValue(), java.util.Set.of())), "pages", pagesOf.getOrDefault(e.getValue(), 0),
+                    "offered", mine.size(), "topics", named.size()));
         }
         return KgJson.obj("pages", read, "collections", byCollection);
+    }
+
+    /** The vocabulary of each collection that has one. */
+    private java.util.Map<String, String> vocabularies(final java.util.Collection<String> collections,
+            final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab) {
+        final java.util.Map<String, String> vocabularyOf = new java.util.TreeMap<>();
+        for (final String c : collections) {
+            final String v = this.config.vocabularyOf(c, vocab.categories.collections);
+            if (v != null && vocab.categories.vocabulary(v) != null) vocabularyOf.put(c, v);
+        }
+        return vocabularyOf;
+    }
+
+    /** Statements of an offer the offer profile reads: an offer relation and the price of an offer. */
+    private static final java.util.Set<String> OFFER_PREDICATES = java.util.Set.of(net.yacy.scoutro.knowledge.extract.Vocabulary.OFFERS,
+            net.yacy.scoutro.knowledge.extract.Vocabulary.PRICE);
+
+    /**
+     * The offer profile of a domain (plausibility, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): the services and products its
+     * active pages offer with evidence the graph already holds, read only, no model, no page text. An offer counts with
+     * evidence of tier 1 (JSON-LD: an {@code offers} relation, or the price of a {@code Product}/{@code Service} through its
+     * {@code Offer}) or of tier 3 (the model's offer, with the verbatim quote it was published with); tier 2 alone (a rule's
+     * reading, a price list's label) never counts. Per service: name, tiers, its categories and its pages; per collection
+     * with a vocabulary the number of these services with a category of it. {@code {"pages", "services": [...],
+     * "offerPages", "collections": {c: {"vocabulary", "services"}}}}; empty while the graph is off or the query fails, which is
+     * no signal.
+     */
+    public org.json.JSONObject offerProfile(final String domain, final java.util.Collection<String> collections) {
+        return offerProfile(domain, collections, null);
+    }
+
+    /** {@link #offerProfile(String, java.util.Collection)} with the domain's host ids ({@link #domainHosts}, null: looked up). */
+    public org.json.JSONObject offerProfile(final String domain, final java.util.Collection<String> collections,
+            final java.util.Collection<String> hostIds) {
+        final org.json.JSONObject empty = KgJson.obj("pages", 0, "services", new org.json.JSONArray(), "offerPages", 0, "collections",
+                new org.json.JSONObject());
+        if (this.state != State.RUNNING || this.store == null || domain == null) return empty;
+        // service -> {name, tiers, categories, pages}
+        final java.util.Map<Long, Object[]> services = new java.util.LinkedHashMap<>();
+        final int[] pageCount = {0};
+        try {
+            final java.util.List<String[]> pages = domainPages(domain, hostIds);
+            pageCount[0] = pages.size();
+            final java.util.Map<Long, String> docOf = new java.util.HashMap<>();
+            for (final String[] p : pages) docOf.put(Long.parseLong(p[3]), p[0]);
+            final java.util.List<Long> rowids = new java.util.ArrayList<>(docOf.keySet());
+            this.store.read(c -> {
+                for (int from = 0; from < rowids.size(); from += 500) {
+                    final java.util.List<Long> part = rowids.subList(from, Math.min(rowids.size(), from + 500));
+                    final StringBuilder in = new StringBuilder();
+                    for (int i = 0; i < part.size(); i++) in.append(i == 0 ? "?" : ",?");
+                    // the service of an offer: the object of an offers relation, the subject of a price
+                    try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT CASE WHEN p.name = 'offers' THEN s.obj_ent ELSE s.subj END,"
+                            + " e.tier, e.doc_rowid, e.excerpt FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid"
+                            + " JOIN kg_vocab p ON p.term_id = s.pred AND p.kind = 2 AND p.name IN ('" + String.join("','", OFFER_PREDICATES) + "')"
+                            + " WHERE e.doc_rowid IN (" + in + ") AND e.tier IN (1, 3) LIMIT " + DOMAIN_PAGES)) {
+                        for (int i = 0; i < part.size(); i++) ps.setLong(i + 1, part.get(i));
+                        try (java.sql.ResultSet r = ps.executeQuery()) {
+                            while (r.next()) {
+                                final long ent = r.getLong(1);
+                                if (r.wasNull()) continue;
+                                final int tier = r.getInt(2);
+                                final String excerpt = r.getString(4);
+                                // the model's offer counts only with its verbatim quote
+                                if (tier == 3 && (excerpt == null || excerpt.isBlank())) continue;
+                                final Object[] svc = services.computeIfAbsent(ent, k -> new Object[] {null, new java.util.TreeSet<Integer>(),
+                                        new java.util.TreeSet<String>(), new java.util.TreeSet<String>()});
+                                @SuppressWarnings("unchecked") final java.util.Set<Integer> tiers = (java.util.Set<Integer>) svc[1];
+                                @SuppressWarnings("unchecked") final java.util.Set<String> docs = (java.util.Set<String>) svc[3];
+                                tiers.add(tier);
+                                docs.add(docOf.get(r.getLong(3)));
+                            }
+                        }
+                    }
+                }
+                // only services (and products), active: their names and categories
+                final java.util.Iterator<java.util.Map.Entry<Long, Object[]>> it = services.entrySet().iterator();
+                while (it.hasNext()) {
+                    final java.util.Map.Entry<Long, Object[]> e = it.next();
+                    try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT p.name, s.obj_val FROM kg_entity n JOIN kg_vocab t ON t.term_id = n.type"
+                            + " AND t.kind = 1 AND t.name = '" + net.yacy.scoutro.knowledge.extract.Vocabulary.SERVICE + "'"
+                            + " JOIN kg_statement s ON s.subj = n.ent_rowid JOIN kg_vocab p ON p.term_id = s.pred AND p.kind = 2 AND p.name IN ('name', 'category')"
+                            + " WHERE n.ent_rowid = ? AND n.status = 1 AND s.obj_val IS NOT NULL AND s.current_sources > 0 LIMIT 50")) {
+                        ps.setLong(1, e.getKey());
+                        boolean service = false;
+                        try (java.sql.ResultSet r = ps.executeQuery()) {
+                            while (r.next()) {
+                                service = true;
+                                if ("name".equals(r.getString(1))) {
+                                    if (e.getValue()[0] == null) e.getValue()[0] = r.getString(2);
+                                } else {
+                                    @SuppressWarnings("unchecked") final java.util.Set<String> cats = (java.util.Set<String>) e.getValue()[2];
+                                    cats.add(r.getString(2));
+                                }
+                            }
+                        }
+                        if (!service || e.getValue()[0] == null) it.remove(); // no service, or one without a name to show
+                    }
+                }
+                return null;
+            });
+        } catch (final KgException | RuntimeException e) {
+            return empty; // no graph, no signal
+        }
+        // distinct by name: the same product on several pages is one offer
+        final java.util.Map<String, Object[]> byName = new java.util.TreeMap<>();
+        for (final Object[] svc : services.values()) {
+            final String key = net.yacy.scoutro.knowledge.resolve.Normalizers.key((String) svc[0]);
+            if (key == null) continue;
+            final Object[] seen = byName.get(key);
+            if (seen == null) {
+                byName.put(key, svc);
+            } else {
+                @SuppressWarnings("unchecked") final java.util.Set<Integer> t = (java.util.Set<Integer>) seen[1];
+                @SuppressWarnings("unchecked") final java.util.Set<String> c2 = (java.util.Set<String>) seen[2];
+                @SuppressWarnings("unchecked") final java.util.Set<String> d = (java.util.Set<String>) seen[3];
+                @SuppressWarnings("unchecked") final java.util.Set<Integer> t2 = (java.util.Set<Integer>) svc[1];
+                @SuppressWarnings("unchecked") final java.util.Set<String> cs = (java.util.Set<String>) svc[2];
+                @SuppressWarnings("unchecked") final java.util.Set<String> d2 = (java.util.Set<String>) svc[3];
+                t.addAll(t2);
+                c2.addAll(cs);
+                d.addAll(d2);
+            }
+        }
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot vocab = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        final java.util.Map<String, String> vocabularyOf = vocabularies(collections, vocab);
+        final java.util.Map<String, Integer> inVocabulary = new java.util.TreeMap<>();
+        final java.util.Set<String> offerPages = new java.util.TreeSet<>();
+        final org.json.JSONArray list = new org.json.JSONArray();
+        for (final Object[] svc : byName.values()) {
+            @SuppressWarnings("unchecked") final java.util.Set<String> cats = (java.util.Set<String>) svc[2];
+            @SuppressWarnings("unchecked") final java.util.Set<String> docs = (java.util.Set<String>) svc[3];
+            offerPages.addAll(docs);
+            for (final java.util.Map.Entry<String, String> e : vocabularyOf.entrySet()) {
+                for (final String cat : cats) {
+                    if (cat.startsWith(e.getValue() + "/")) {
+                        inVocabulary.merge(e.getKey(), 1, Integer::sum);
+                        break;
+                    }
+                }
+            }
+            list.put(KgJson.obj("name", svc[0], "tiers", new org.json.JSONArray((java.util.Set<?>) svc[1]), "categories", new org.json.JSONArray(cats),
+                    "pages", docs.size()));
+        }
+        final org.json.JSONObject byCollection = new org.json.JSONObject();
+        for (final java.util.Map.Entry<String, String> e : vocabularyOf.entrySet()) {
+            KgJson.put(byCollection, e.getKey(), KgJson.obj("vocabulary", e.getValue(), "services", inVocabulary.getOrDefault(e.getKey(), 0)));
+        }
+        return KgJson.obj("pages", pageCount[0], "services", list, "offerPages", offerPages.size(), "collections", byCollection);
     }
 
     /** The NACE codes of each collection's vocabulary (none for a collection without one). */

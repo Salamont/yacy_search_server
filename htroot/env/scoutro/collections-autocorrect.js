@@ -74,6 +74,7 @@
       var p = row.insertCell();
       p.appendChild(el('div', (c.from || '—') + ' ' + label('ac_to') + ' ' + (c.target || label('ac_review_case'))));
       p.appendChild(el('div', c.result + ' · ' + c.reason + (c.severity ? ' · ' + c.severity : ''), 'scoutro-hint'));
+      if (c.result === 'review' && c.suggested) p.appendChild(el('div', fill(label('ac_suggested'), c.suggested), 'scoutro-hint'));
       row.insertCell().appendChild(signals(c));
       var s = row.insertCell();
       s.appendChild(el('span', label('ac_st_' + c.status)));
@@ -83,7 +84,9 @@
       if (c.status === 'proposed' || c.status === 'simulated') {
         if (c.result === 'review') {
           var sel = el('select', null, 'form-control'); sel.setAttribute('aria-label', label('ac_target'));
-          collections.forEach(function (id) { if (id !== c.from) { var o = el('option', id); o.value = id; sel.appendChild(o); } });
+          collections.forEach(function (id) {
+            if (id !== c.from) { var o = el('option', id); o.value = id; o.selected = id === c.suggested; sel.appendChild(o); }
+          });
           act.appendChild(sel);
           act.appendChild(button(label('ac_approve'), 'btn-primary', function () {
             if (!window.confirm(label('ac_approve_question'))) return Promise.resolve();

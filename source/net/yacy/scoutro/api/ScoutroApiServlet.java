@@ -253,7 +253,11 @@ public class ScoutroApiServlet extends HttpServlet {
                         expect(method, parts, 4, "GET");
                         return this.actions.collectionAutocorrect("report", queryParams(request), null, actor);
                     }
-                    if (parts.length == 5 && java.util.Set.of("evaluate", "review", "accept", "breaker-reset", "sample").contains(parts[4])) {
+                    if (parts.length == 5 && "assessments".equals(parts[4])) {
+                        expect(method, parts, 5, "GET");
+                        return this.actions.collectionAutocorrect("assessments", queryParams(request), null, actor);
+                    }
+                    if (parts.length == 5 && java.util.Set.of("evaluate", "review", "accept", "breaker-reset", "sample", "scan").contains(parts[4])) {
                         expect(method, parts, 5, "POST");
                         return this.actions.collectionAutocorrect(parts[4], null, jsonBody(request, MAX_BODY_BYTES), actor);
                     }
@@ -453,6 +457,8 @@ public class ScoutroApiServlet extends HttpServlet {
     public void init() throws javax.servlet.ServletException {
         super.init();
         CaptureRuntime.start();
+        // the collection fit of home pages: the Discovery profiles and the correction state (only read while switched on)
+        net.yacy.scoutro.knowledge.sync.CollectionFit.install(ScoutroActions::discoveryProfiles, CollectionFitRecorder.running());
         try {
             KgRuntime.start();
         } catch (final Throwable t) {

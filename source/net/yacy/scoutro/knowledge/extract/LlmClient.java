@@ -130,6 +130,14 @@ public interface LlmClient {
         return null;
     }
 
+    /**
+     * What the endpoint reported for the last answer of this thread ({@code promptTokens}, {@code answerTokens}), taken
+     * once; null without a report.
+     */
+    default JSONObject lastUsage() {
+        return null;
+    }
+
     /** {@link #window()} as last read, without asking the server (the status). */
     default Window lastWindow() {
         return window();

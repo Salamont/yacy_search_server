@@ -109,6 +109,8 @@ public final class KgConfig {
     public static final String LLM_MAX_DOCS_PER_HOST = "scoutro.kg.llm.maxDocsPerHost";
     /** What the LLM tier asks the endpoint for: auto (by the model's format capability), json_schema, json_object, none. */
     public static final String LLM_STRUCTURED_OUTPUT = "scoutro.kg.llm.structuredOutput";
+    /** The collection fit asked in a home page's request (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md); off by default. */
+    public static final String LLM_COLLECTION_FIT = "scoutro.kg.llm.collectionFit";
     public static final String EXTRACT_MAX_INPUT_CHARS = "scoutro.kg.extract.maxInputChars";
     public static final String CACHE_MAX_PERCENT = "scoutro.kg.cache.maxPercent";
     public static final String BACKUP_KEEP = "scoutro.kg.backup.keep";
@@ -250,6 +252,12 @@ public final class KgConfig {
     public final int llmMaxDocsPerHost;
     /** {@link #LLM_STRUCTURED_OUTPUT}; transport only, no part of the extractor identity or of the selection. */
     public final String llmStructuredOutput;
+    /**
+     * {@link #LLM_COLLECTION_FIT}: a home page's first request also asks whether the website fits its collections, only
+     * where no schema forbids the extra field ({@link #llmStructuredOutput} {@code none} or {@code json_object}); no part of
+     * the extractor identity or the prompt hash.
+     */
+    public final boolean llmCollectionFit;
     /** Independently replaceable timing policy; deliberately absent from all extraction/selection identities. */
     public volatile net.yacy.scoutro.knowledge.sync.LlmSchedule llmSchedule;
     public final int extractMaxInputChars;
@@ -388,6 +396,7 @@ public final class KgConfig {
         this.llmBreakerMaxBackoffMillis = 60_000L * p.longValue(LLM_BREAKER_MAX_BACKOFF_MINUTES, 60, 5, 1440);
         this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
         this.llmStructuredOutput = p.choice(LLM_STRUCTURED_OUTPUT, "auto", List.of("auto", "json_schema", "json_object", "none"));
+        this.llmCollectionFit = p.bool(LLM_COLLECTION_FIT, false) && ("none".equals(this.llmStructuredOutput) || "json_object".equals(this.llmStructuredOutput));
         this.llmSchedule=net.yacy.scoutro.knowledge.sync.LlmSchedule.read(p.lookup.apply(net.yacy.scoutro.knowledge.sync.LlmSchedule.KEY));
         this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
         this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);

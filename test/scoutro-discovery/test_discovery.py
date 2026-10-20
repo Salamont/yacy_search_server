@@ -641,6 +641,25 @@ class CliTests(CliBase):
         self.assertEqual(out["profiles"]["edelsenior"]["domains"][0]["error"], "not_configured")
         self.assertEqual(out["profiles"]["edelsenior"]["counts"]["UNSURE"], 1)
 
+    def test_domain_file_is_the_same_as_repeated_domain(self):
+        # the uncertain list of the plausibility scan: one domain per line, comments and blank lines skipped
+        path = os.path.join(self.tmp.name, "uncertain.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# uncertain in edelsenior-web\nsonnenhof-pflege.de\n\nuni-koeln.de\nsonnenhof-pflege.de\n")
+        by_file = json.loads(self.run_cli("classify", "--profile", "edelsenior", "--backend", "heuristic", "--delay", "0",
+                                          "--dry-run", "--domain-file", path).stdout)
+        by_flag = json.loads(self.run_cli("classify", "--profile", "edelsenior", "--backend", "heuristic", "--delay", "0",
+                                          "--dry-run", "--domain", "sonnenhof-pflege.de", "--domain", "uni-koeln.de").stdout)
+        self.assertEqual([d["domain"] for d in by_file["profiles"]["edelsenior"]["domains"]], ["sonnenhof-pflege.de", "uni-koeln.de"])
+        self.assertEqual(by_file["profiles"]["edelsenior"]["domains"], by_flag["profiles"]["edelsenior"]["domains"])
+        # together with --domain, and --max still bounds the run
+        out = json.loads(self.run_cli("classify", "--profile", "edelsenior", "--backend", "heuristic", "--delay", "0",
+                                      "--domain-file", path, "--domain", "koelner-zeitung.de", "--max", "2").stdout)
+        self.assertEqual(sum(1 for d in out["profiles"]["edelsenior"]["domains"] if d["verdict"]), 2)
+        p = self.run_cli("classify", "--profile", "edelsenior", "--domain-file", path + ".missing", ok=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("--domain-file", p.stderr)
+
     def test_existing_selftest(self):
         self.run_cli("selftest")
 

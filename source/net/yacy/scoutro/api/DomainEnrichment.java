@@ -59,7 +59,11 @@ interface DomainEnrichment {
     final class DomainState {
         /** profile -> {collection, region} */
         final Map<String, String[]> profiles = new HashMap<>();
-        /** profile -> classification record (with its collection) */
+        /**
+         * profile -> classification record: {verdict, confidence, profile, collection, classified at (ms), backend, error,
+         * criteria version, first reason ("code: text"), classified at as stored}; the fields from the backend on are read for
+         * the plausibility scan (the same reading as scoutro_automation.autocorrect_signals).
+         */
         final Map<String, Object[]> classifications = new HashMap<>();
     }
 
@@ -215,9 +219,14 @@ interface DomainEnrichment {
                         final Object confidence = r.opt("confidence");
                         String collection = text(r, "collection");
                         if (collection == null && s.profiles.containsKey(p)) collection = s.profiles.get(p)[0];
+                        final JSONObject classifier = r.optJSONObject("classifier");
+                        final org.json.JSONArray reasons = r.optJSONArray("reasons");
+                        final JSONObject first = reasons == null ? null : reasons.optJSONObject(0);
                         s.classifications.put(p, new Object[] {verdict,
                                 confidence instanceof Number ? ((Number) confidence).doubleValue() : null, p, collection,
-                                time(text(r, "classified_at"))});
+                                time(text(r, "classified_at")), classifier == null ? null : text(classifier, "backend"),
+                                classifier == null ? null : text(classifier, "error", ""), classifier == null ? null : text(classifier, "criteria_version", ""),
+                                first == null ? null : text(first, "code", "") + ": " + text(first, "text", ""), text(r, "classified_at", "")});
                     }
                 }
                 if (!s.profiles.isEmpty() || !s.classifications.isEmpty()) out.put(name.toLowerCase(java.util.Locale.ROOT), s);

@@ -67,6 +67,25 @@ public final class RequestBudget {
                 + FRAME_TOKENS;
     }
 
+    private RequestBudget(final int window, final int reserve, final int fixedTokens) {
+        this.window = window;
+        this.reserve = reserve;
+        this.fixedTokens = fixedTokens;
+    }
+
+    /**
+     * This budget with an operator's question of {@code chars} characters in the user message of a document's requests
+     * (the collection fit of a home page): counted for each of them, so the request that carries it still fits.
+     */
+    public RequestBudget withExtra(final int chars) {
+        return new RequestBudget(this.window, this.reserve, this.fixedTokens + extraTokens(chars));
+    }
+
+    /** Estimated tokens of an operator's question of {@code chars} characters in the user message. */
+    public static int extraTokens(final int chars) {
+        return tokens(chars, TEXT);
+    }
+
     static int tokens(final int chars, final double perToken) {
         return (int) Math.ceil(chars / perToken);
     }

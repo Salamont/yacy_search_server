@@ -33,14 +33,21 @@ The correction automation (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md) finds
 websites that are in the wrong specialist collection. It is **off** unless
 `scoutro.collections.autocorrect.mode` says `simulate`, `propose` or `apply`,
 and it uses independent signals only: the website's structured data and the
-categories its pages offer (text fit, read by the rules, no model), the
-Discovery classification of the site, and OpenStreetMap. Signals of the
-website count as one source, two OpenStreetMap objects as one, a copied
-statement with the source it repeats. An absence or a crawl error is never a
-signal.
+categories its pages offer (text fit, read by the rules, no model; a role word
+such as "Hersteller" is no fit), the plausibility of its offers (the website
+offers clearly something else: products or services the knowledge graph holds
+from JSON-LD or from the model's quoted reading, none of them in the
+collection's vocabulary and no word of it on the pages), the Discovery
+classification of the site, and OpenStreetMap. Signals of the website count as
+one source, two OpenStreetMap objects as one, a copied statement with the
+source it repeats. An absence or a crawl error is never a signal; a
+plausibility signal alone is never enough for a correction, only for a case.
 
 - The list shows each case: the current collection and the target (or that it
   needs a review), the signals by source, its status and whether it was drawn.
+  A case for review shows a **suggested target** (a specialist collection the
+  signals speak for, else the fallback collection), preselected for
+  **Approve**; it is only a hint, nothing moves until you approve.
 - **Approve** applies a proposal as a manual collection decision (a case for
   review asks for the target), **Reject** keeps the website where it is.
   **Right** and **Wrong** judge a correction without applying it; a wrong
@@ -53,6 +60,21 @@ signal.
   target: 299 error-free reviews; one error needs 473, two need 628) with at
   least `minReviewed` (299) reviews and no error of high severity. A bound of
   95 % is shown as the interim stage, never as the operator release.
+- The **plausibility scan** of the domains indexed before (administrator, API only:
+  `POST /scoutro/api/v1/collections/autocorrect/scan` in steps of up to 200 domains,
+  `GET .../assessments` for the results) assesses each domain in each of its
+  collections from the rules, the stored Discovery classifications and the home
+  page's reading by the model, without a model call and without writing to the
+  knowledge graph; it waits (`503 scan_busy`) while the graph is paused or busy
+  indexing. A domain with a signal against its collection appears in this list
+  as a case; `uncertain` domains may be classified by Discovery
+  (`scoutro-discovery classify --domain-file`), then scanned again with
+  `{"domains": [...]}`.
+- New domains: with `scoutro.kg.llm.collectionFit` the knowledge graph's model
+  also judges, in its request of the home page, whether the website fits each
+  of its collections (no request of its own). Only a judgement with a verbatim
+  quote of the page counts, only while the page is unchanged; a mismatch makes
+  at most a case for review, never a correction by itself.
 - After the acceptance a share of the automatic corrections
   (`scoutro.collections.autocorrect.auditRate`, 0.1) is drawn for the audit;
   20 unreviewed audit cases stop the automatic corrections until they are

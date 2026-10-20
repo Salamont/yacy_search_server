@@ -49,11 +49,13 @@ import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
 /**
  * The pilot of the data quality programme on isolated test data, end to end on the integration branch (R1 to R4): the
  * nut confectioner drolshagens.de, crawled into bauteamcheck-web (construction vocabulary) through an OSM rule, with
- * the word "Hersteller" that the construction vocabulary reads as {@code construction.handel/hersteller}. The correction
- * automation in simulation writes nothing and, from the website alone, sees no reason to move it (the vocabulary fits
- * the wrong collection); the administrator's exact decision moves the domain to the fallback collection, the graph
- * reads its pages again without the construction vocabulary (no model), names, products and identities stay, and
- * discovery may not crawl it into bauteamcheck-web again.
+ * the word "Hersteller" that the construction vocabulary reads as {@code construction.handel/hersteller}. The role word is
+ * no fit to the construction vocabulary (text fit 2); with one product the website is no finding (uncertain), with the
+ * products of the production case it offers clearly something else (plausibility): a case for the administrator, never a
+ * move, also against the OSM signal for the collection. The correction automation in simulation writes nothing; the
+ * administrator's exact decision moves the domain to the fallback collection, the graph reads its pages again without the
+ * construction vocabulary (no model), names, products and identities stay, and discovery may not crawl it into
+ * bauteamcheck-web again.
  */
 public class DrolshagensPilotTest {
 
@@ -67,6 +69,10 @@ public class DrolshagensPilotTest {
             + "\"url\":\"https://drolshagens.de/\",\"telephone\":\"+49 551 123456\"}";
     private static final String PRODUCT = "{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"Drolshagens Nuss-Spezialitäten\","
             + "\"offers\":{\"@type\":\"Offer\",\"price\":\"9.00\",\"priceCurrency\":\"EUR\"}}";
+    /** Two more products of the shop, each with its offer (the production case had ten). */
+    private static final String PRODUCTS = "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Product\",\"name\":\"Gebrannte Mandeln\","
+            + "\"offers\":{\"@type\":\"Offer\",\"price\":\"4.50\",\"priceCurrency\":\"EUR\"}},{\"@type\":\"Product\",\"name\":\"Präsentkorb\","
+            + "\"offers\":{\"@type\":\"Offer\",\"price\":\"29.00\",\"priceCurrency\":\"EUR\"}}]}";
     private static final String TEXT = "Drolshagens Nuss-Spezialitäten: Hersteller von gebrannten Mandeln, Nüssen und Popcorn."
             + " Herstellung in eigener Manufaktur seit 1950. Unser Sortiment und unsere Leistungen: Nüsse, Mandeln, Geschenke.";
 
@@ -237,6 +243,14 @@ public class DrolshagensPilotTest {
             public List<AutoCorrect.Signal> textFit(final String domain, final String current) {
                 return AutoCorrectApi.textFitSignals(domain, current, DrolshagensPilotTest.this.kg.textFit(domain, ids));
             }
+
+            @Override
+            public List<AutoCorrect.Signal> website(final String domain, final String current) {
+                final JSONObject fit = DrolshagensPilotTest.this.kg.textFit(domain, ids);
+                final List<AutoCorrect.Signal> out = new ArrayList<>(AutoCorrectApi.textFitSignals(domain, current, fit));
+                out.addAll(AutoCorrectApi.plausibilitySignals(domain, current, DrolshagensPilotTest.this.kg.offerProfile(domain, ids), fit));
+                return out;
+            }
         };
         return new AutoCorrectApi(new AutoCorrect(this.decisionDir.resolve("autocorrect.json").toFile(), this.clock::get), this.decisions,
                 decide(), settings::get, KNOWN::contains, graph);
@@ -248,6 +262,8 @@ public class DrolshagensPilotTest {
         return o;
     }
 
+    private static final String OSM_FOR = "{\"family\":\"origin\",\"verdict\":\"for\",\"collection\":\"" + BAU + "\","
+            + "\"origin\":\"osm:niedersachsen\",\"kind\":\"osm_rule\",\"evidence\":\"OSM tags[2] of bauteamcheck matched: office=company\"}";
     private static final String OSM_AGAINST = "{\"family\":\"origin\",\"verdict\":\"against\",\"collection\":\"" + BAU + "\","
             + "\"origin\":\"osm:node/42\",\"kind\":\"osm_tag\",\"evidence\":\"shop=confectionery\",\"revision\":\"t1\"}";
 
@@ -266,24 +282,40 @@ public class DrolshagensPilotTest {
         assertTrue(organisations > 0);
         final long modelCalls = count("SELECT count(*) FROM kg_llm_work");
 
+        // the shop's other products (the production case had ten): two more on the about page, each with its offer
+        page("CCCCCCdrols3", "https://www.drolshagens.de/ueber-uns", BAU, PRODUCTS, TEXT);
+        client().commit();
+        settle();
+
         // 1. the correction automation in simulation: it reads the graph, records a case, writes nothing
         final Map<String, String> settings = new HashMap<>();
         settings.put(AutoCorrectApi.MODE_KEY, "simulate");
         AutoCorrectApi ac = autocorrect(settings);
         assertEquals("simulate", ac.settings().getString("mode"));
         JSONObject r = ac.evaluate(body("domain", "drolshagens.de", "collection", BAU), "admin");
-        final String websiteOnly = r.getJSONObject("outcome").getString("result");
-        assertEquals("the website alone (the vocabulary fits the wrong collection) is no reason to move it", "none", websiteOnly);
-        assertEquals(List.of(BAU), collections("AAAAAAdrols1"));
-        assertTrue(this.decisions.activeOf("drolshagens.de").isEmpty());
-        // with the OSM tag against it: still a simulation
-        r = ac.evaluate(body("domain", "drolshagens.de", "collection", BAU, "signals", new JSONArray().put(new JSONObject(OSM_AGAINST))), "admin");
-        final String withOsm = r.getJSONObject("outcome").getString("result");
-        assertEquals("the OSM tag against the website's fit: a case for the administrator, never a move", "review", withOsm);
-        assertEquals("contradicting_signals", r.getJSONObject("outcome").getString("reason"));
+        assertFalse("the role word is no fit to the construction vocabulary (text fit 2)", hasSignal(r, "text_fit", "for", BAU));
+        assertTrue("three products of the shop, no construction offer, no construction word: " + r, hasSignal(r, "plausibility", "against", BAU));
+        assertEquals("the website alone is a case for the administrator, never a move", "review", r.getJSONObject("outcome").getString("result"));
+        assertEquals("one_origin_only", r.getJSONObject("outcome").getString("reason"));
+        assertEquals(FALLBACK, r.getJSONObject("outcome").getString("suggested"));
         assertEquals("simulated", r.getJSONObject("case").getString("status"));
         assertEquals(List.of(BAU), collections("AAAAAAdrols1"));
         assertTrue(this.decisions.activeOf("drolshagens.de").isEmpty());
+        // the production case: the OSM rule speaks for the collection; the contradiction is visible, never a move
+        r = ac.evaluate(body("domain", "drolshagens.de", "collection", BAU, "signals", new JSONArray().put(new JSONObject(OSM_FOR))), "admin");
+        assertEquals("review", r.getJSONObject("outcome").getString("result"));
+        assertEquals("contradicting_signals", r.getJSONObject("outcome").getString("reason"));
+        assertEquals(FALLBACK, r.getJSONObject("outcome").getString("suggested"));
+        assertEquals(FALLBACK, r.getJSONObject("case").getString("suggested"));
+        assertEquals("simulated", r.getJSONObject("case").getString("status"));
+        // with an OSM tag against it: two origins, but neither structured nor a text fit: still only a case
+        r = ac.evaluate(body("domain", "drolshagens.de", "collection", BAU, "signals", new JSONArray().put(new JSONObject(OSM_AGAINST))), "admin");
+        assertEquals("review", r.getJSONObject("outcome").getString("result"));
+        assertEquals("no_structured_or_text_signal", r.getJSONObject("outcome").getString("reason"));
+        assertEquals("simulated", r.getJSONObject("case").getString("status"));
+        assertEquals(List.of(BAU), collections("AAAAAAdrols1"));
+        assertTrue(this.decisions.activeOf("drolshagens.de").isEmpty());
+        assertEquals("no model call for any of it", modelCalls, count("SELECT count(*) FROM kg_llm_work"));
 
         // 2. the administrator's exact decision: preview, then apply
         final JSONObject req = body("domain", "drolshagens.de", "collections", new JSONArray(List.of(FALLBACK)), "reason", "fachlich_falsch",
@@ -333,6 +365,45 @@ public class DrolshagensPilotTest {
         assertEquals("manual_decision", r.getJSONObject("outcome").optString("reason"));
         assertEquals(CollectionDecision.Basis.MANUAL, this.decisions.activeOf("drolshagens.de").get(0).basis);
         assertEquals(List.of(FALLBACK), collections("BBBBBBdrols2"));
+    }
+
+    @Test
+    public void oneProductIsNoFinding() throws Exception {
+        // the fixture as it was: one product on the products page, the role word "Hersteller" on every page
+        final Map<String, String> settings = new HashMap<>();
+        settings.put(AutoCorrectApi.MODE_KEY, "simulate");
+        final JSONObject r = autocorrect(settings).evaluate(body("domain", "drolshagens.de", "collection", BAU), "admin");
+        assertFalse("the role word is no fit to the construction vocabulary (text fit 2)", hasSignal(r, "text_fit", "for", BAU));
+        assertFalse("one product is no positive finding: " + r, hasSignal(r, "plausibility", "against", BAU));
+        assertEquals("none", r.getJSONObject("outcome").getString("result"));
+        assertEquals("no_signal_against", r.getJSONObject("outcome").getString("reason"));
+        final List<String> ids = new ArrayList<>(new TreeSet<>(KNOWN));
+        final JSONObject fit = this.kg.textFit("drolshagens.de", ids);
+        final JSONObject offers = this.kg.offerProfile("drolshagens.de", ids);
+        assertEquals(offers.toString(), 1, offers.getJSONArray("services").length());
+        assertEquals(fit.toString(), 0, fit.getJSONObject("collections").getJSONObject(BAU).getInt("offered"));
+        assertEquals(fit.toString(), 0, fit.getJSONObject("collections").getJSONObject(BAU).getInt("topics"));
+        final List<AutoCorrect.Signal> signals = new ArrayList<>(AutoCorrectApi.textFitSignals("drolshagens.de", BAU, fit));
+        signals.addAll(AutoCorrectApi.plausibilitySignals("drolshagens.de", BAU, offers, fit));
+        assertEquals(AutoCorrectApi.UNCERTAIN, AutoCorrectApi.assess(BAU, signals, fit));
+        // the construction company with its services page: its offers are of the vocabulary, a match (its home page alone only
+        // names construction topics, which keeps it from any plausibility signal but is no positive fit)
+        page("EEEEEEbaufi2", "https://bau-firma.de/leistungen", BAU, null, "Unsere Leistungen: Dachdeckerarbeiten, Trockenbau und Innenausbau"
+                + " aus einer Hand. Fordern Sie ein Angebot an.");
+        client().commit();
+        settle();
+        final JSONObject bauFit = this.kg.textFit("bau-firma.de", ids);
+        assertTrue(bauFit.toString(), bauFit.getJSONObject("collections").getJSONObject(BAU).getInt("offered") > 0);
+        assertEquals(AutoCorrectApi.MATCH, AutoCorrectApi.assess(BAU, AutoCorrectApi.textFitSignals("bau-firma.de", BAU, bauFit), bauFit));
+    }
+
+    private static boolean hasSignal(final JSONObject evaluation, final String family, final String verdict, final String collection) throws Exception {
+        final JSONArray signals = evaluation.getJSONObject("outcome").getJSONArray("signals");
+        for (int i = 0; i < signals.length(); i++) {
+            final JSONObject s = signals.getJSONObject(i);
+            if (family.equals(s.getString("family")) && verdict.equals(s.getString("verdict")) && collection.equals(s.getString("collection"))) return true;
+        }
+        return false;
     }
 
     @Test

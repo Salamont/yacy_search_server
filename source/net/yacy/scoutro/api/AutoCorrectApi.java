@@ -48,6 +48,76 @@ final class AutoCorrectApi {
         default List<AutoCorrect.Signal> textFit(final String domain, final String current) {
             return List.of();
         }
+
+        /**
+         * Every signal read from the domain's pages in one reading: the text fit and the plausibility of its offers
+         * ({@link #plausibilitySignals}); by default the text fit alone.
+         */
+        default List<AutoCorrect.Signal> website(final String domain, final String current) {
+            return textFit(domain, current);
+        }
+    }
+
+    /** Offered services (structured or quoted evidence) the plausibility needs at least, on at least this many pages. */
+    static final int PLAUSIBILITY_MIN_SERVICES = 3;
+    static final int PLAUSIBILITY_MIN_PAGES = 2;
+
+    /**
+     * The plausibility signal of a domain (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): against the current collection
+     * ({@code foreign_offers}) only with a positive finding, never for an absence alone; all of these hold:
+     * <ol>
+     * <li>the graph holds at least {@link #PLAUSIBILITY_MIN_SERVICES} different offered services or products on at least
+     * {@link #PLAUSIBILITY_MIN_PAGES} pages with structured evidence (JSON-LD, tier 1) or the model's quoted offer (tier 3),
+     * never a rule's reading alone ({@code KgRuntime.offerProfile});</li>
+     * <li>none of them has a category of the current collection's vocabulary;</li>
+     * <li>the text fit reads neither an offered category nor a topic of that vocabulary on the pages (role words such as
+     * "Hersteller" are no topic of it), on at least one page with text;</li>
+     * <li>the current collection has a vocabulary.</li>
+     * </ol>
+     * Otherwise no signal: the domain is uncertain.
+     */
+    static List<AutoCorrect.Signal> plausibilitySignals(final String domain, final String current, final JSONObject offers, final JSONObject fit) {
+        final List<AutoCorrect.Signal> out = new ArrayList<>();
+        if (offers == null || fit == null || fit.optInt("pages") < 1) return out;
+        final JSONObject mineFit = fit.optJSONObject("collections") == null ? null : fit.optJSONObject("collections").optJSONObject(current);
+        final JSONObject mineOffers = offers.optJSONObject("collections") == null ? null : offers.optJSONObject("collections").optJSONObject(current);
+        if (mineFit == null || mineOffers == null) return out; // no vocabulary: never judged
+        if (mineFit.optInt("offered") > 0 || mineFit.optInt("topics") > 0 || mineOffers.optInt("services") > 0) return out;
+        final JSONArray services = offers.optJSONArray("services");
+        if (services == null || services.length() < PLAUSIBILITY_MIN_SERVICES || offers.optInt("offerPages") < PLAUSIBILITY_MIN_PAGES) return out;
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < services.length() && names.size() < 5; i++) {
+            final JSONObject svc = services.optJSONObject(i);
+            final JSONArray tiers = svc.optJSONArray("tiers");
+            final List<String> t = new ArrayList<>();
+            for (int j = 0; tiers != null && j < tiers.length(); j++) t.add(String.valueOf(tiers.opt(j)));
+            names.add(svc.optString("name") + " (tier " + String.join("/", t) + ")");
+        }
+        final String evidence = services.length() + " offered services or products on " + offers.optInt("offerPages") + " pages, none of the vocabulary "
+                + mineFit.optString("vocabulary") + " and no word of it on " + fit.optInt("pages") + " pages: " + String.join(", ", names);
+        out.add(AutoCorrect.Signal.of(Json.obj("family", AutoCorrect.PLAUSIBILITY, "verdict", AutoCorrect.AGAINST, "collection", current, "kind",
+                "foreign_offers", "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "plausibility/1"), domain));
+        return out;
+    }
+
+    /** Results of the assessment of a domain in one collection (the report, never a rule of the automation). */
+    static final String MATCH = "match", SUSPECT = "suspect", UNCERTAIN = "uncertain";
+
+    /**
+     * The assessment of a domain in {@code collection} from its signals and its text fit: {@link #SUSPECT} with a signal
+     * against it, {@link #MATCH} with an offered category of its vocabulary or a structured signal for it and nothing against,
+     * else {@link #UNCERTAIN} (too little to judge: the cases the model may be asked about).
+     */
+    static String assess(final String collection, final List<AutoCorrect.Signal> signals, final JSONObject fit) {
+        boolean against = false, structuredFor = false;
+        for (final AutoCorrect.Signal sig : signals) {
+            if (!collection.equals(sig.collection)) continue;
+            if (AutoCorrect.AGAINST.equals(sig.verdict) && !AutoCorrect.ORIGIN.equals(sig.family)) against = true;
+            if (AutoCorrect.FOR.equals(sig.verdict) && AutoCorrect.STRUCTURED.equals(sig.family)) structuredFor = true;
+        }
+        if (against) return SUSPECT;
+        final JSONObject mine = fit == null || fit.optJSONObject("collections") == null ? null : fit.optJSONObject("collections").optJSONObject(collection);
+        return structuredFor || mine != null && mine.optInt("offered") > 0 ? MATCH : UNCERTAIN;
     }
 
     /**
@@ -91,7 +161,7 @@ final class AutoCorrectApi {
     private static AutoCorrect.Signal textSignal(final String domain, final String verdict, final String collection, final String kind,
             final String evidence) {
         return AutoCorrect.Signal.of(Json.obj("family", AutoCorrect.TEXT_FIT, "verdict", verdict, "collection", collection, "kind", kind,
-                "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "text_fit/1"), domain);
+                "evidence", evidence.length() > 500 ? evidence.substring(0, 500) : evidence, "criteria", "text_fit/2"), domain);
     }
 
     /**
@@ -155,6 +225,11 @@ final class AutoCorrectApi {
     private final Function<String, String> config;
     private final java.util.function.Predicate<String> known;
     private final Graph graph;
+    /** The plausibility scan's view of the graph, of Discovery's state and of the catalog; null without a running graph. */
+    private PlausibilityScan.Graph scanGraph;
+    private java.util.function.Supplier<Map<String, DomainEnrichment.DomainState>> discovery = Map::of;
+    private java.util.function.Supplier<java.util.Collection<String>> catalog = List::of;
+    private java.util.function.LongSupplier clock = System::currentTimeMillis;
 
     AutoCorrectApi(final AutoCorrect engine, final CollectionDecisions decisions, final CollectionDecisionsApi decide,
             final Function<String, String> config, final java.util.function.Predicate<String> known, final Graph graph) {
@@ -164,6 +239,16 @@ final class AutoCorrectApi {
         this.config = config;
         this.known = known;
         this.graph = graph;
+    }
+
+    /** The scan's sources (the routes scan and assessments); without them the scan answers 503 scan_busy. */
+    AutoCorrectApi withScan(final PlausibilityScan.Graph scanGraph, final java.util.function.Supplier<Map<String, DomainEnrichment.DomainState>> discovery,
+            final java.util.function.Supplier<java.util.Collection<String>> catalog, final java.util.function.LongSupplier clock) {
+        this.scanGraph = scanGraph;
+        this.discovery = discovery;
+        this.catalog = catalog;
+        this.clock = clock;
+        return this;
     }
 
     AutoCorrect.Mode mode() {
@@ -260,7 +345,7 @@ final class AutoCorrectApi {
             signals.addAll(this.graph.structured(domain, current));
         }
         if (body.optBoolean("textFit", true) && this.graph != null && mode() != AutoCorrect.Mode.OFF) {
-            signals.addAll(this.graph.textFit(domain, current)); // reads the domain's pages: only when the automation is on
+            signals.addAll(this.graph.website(domain, current)); // reads the domain's pages: only when the automation is on
         }
         boolean manual = false;
         for (final CollectionDecision d : this.decisions.activeOf(domain)) manual |= d.basis == CollectionDecision.Basis.MANUAL;
@@ -269,6 +354,92 @@ final class AutoCorrectApi {
                     intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), auditRateSetting(), this::apply, actor);
         } catch (final IOException e) {
             throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written: " + e.getMessage());
+        }
+    }
+
+    /**
+     * One step of the plausibility scan (docs/SCOUTRO_COLLECTION_AUTOCORRECT.md): {@code maxDomains} (1 to 200, 50) domains
+     * after the cursor, of {@code collection} only, from the start with {@code restart}, or exactly {@code domains} (at most
+     * 200, the cursor stays). No model, nothing written to the graph; 503 scan_busy while the graph is off or paused or a
+     * gate is closed.
+     */
+    JSONObject scan(final JSONObject body, final String actor) throws ApiException {
+        for (final String k : body.keySet()) {
+            if (!Set.of("maxDomains", "collection", "restart", "domains").contains(k)) throw ApiException.invalid(k, "Unknown field.");
+        }
+        final Object m = body.opt("maxDomains");
+        if (m != null && (!(m instanceof Integer) || (Integer) m < 1 || (Integer) m > PlausibilityScan.MAX_DOMAINS)) {
+            throw ApiException.invalid("maxDomains", "1 to " + PlausibilityScan.MAX_DOMAINS + ".");
+        }
+        final String collection = body.has("collection") ? body.optString("collection", "") : null;
+        if (collection != null && !this.known.test(collection)) throw new ApiException(400, "collection_unknown", "Unknown collection: " + collection);
+        final Object restart = body.opt("restart");
+        if (restart != null && !(restart instanceof Boolean)) throw ApiException.invalid("restart", "true or false.");
+        final List<String> domains;
+        try {
+            domains = body.has("domains") ? PlausibilityScan.domains(body.optJSONArray("domains")) : null;
+        } catch (final IllegalArgumentException e) {
+            throw ApiException.invalid("domains", "At most " + PlausibilityScan.MAX_DOMAINS + " registrable domains such as example.com.");
+        }
+        if (body.has("domains") && body.optJSONArray("domains") == null) throw ApiException.invalid("domains", "An array of domains.");
+        if (this.engine.unavailable()) throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
+        if (this.scanGraph == null) throw new ApiException(503, "scan_busy", "The knowledge graph does not run.", Json.obj("reason", "graph_off"));
+        final AutoCorrect.Mode mode = mode();
+        final PlausibilityScan scan = new PlausibilityScan(this.engine, this.scanGraph, this.discovery, new PlausibilityScan.Decisions() {
+            @Override
+            public List<String> revisions(final String domain) {
+                final List<String> out = new ArrayList<>();
+                for (final CollectionDecision d : AutoCorrectApi.this.decisions.activeOf(domain)) out.add(d.id + ":" + d.revision + ":" + d.decidedAt);
+                java.util.Collections.sort(out);
+                return out;
+            }
+
+            @Override
+            public boolean manual(final String domain) {
+                for (final CollectionDecision d : AutoCorrectApi.this.decisions.activeOf(domain)) if (d.basis == CollectionDecision.Basis.MANUAL) return true;
+                return false;
+            }
+        }, this.catalog, this.decisions.fallback(), (domain, current, memberships, signals, manual) -> this.engine.submit(domain, current, memberships,
+                signals, this.decisions.fallback(), manual, mode, intSetting(MAX_PER_DAY_KEY, 10, 0, 1000), auditRateSetting(), this::apply, actor),
+                mode != AutoCorrect.Mode.OFF, this.clock);
+        try {
+            return Json.put(scan.step(m == null ? PlausibilityScan.DEFAULT_DOMAINS : (Integer) m, collection, Boolean.TRUE.equals(restart), domains),
+                    "mode", mode.name().toLowerCase(Locale.ROOT));
+        } catch (final PlausibilityScan.Busy e) {
+            throw new ApiException(503, "scan_busy", "The scan waits: " + e.reason + ". The cursor is kept.", Json.obj("reason", e.reason));
+        } catch (final IOException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state could not be written: " + e.getMessage());
+        } catch (final IllegalStateException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
+        }
+    }
+
+    /** The assessments of the plausibility scan: counts per collection and source, and the pairs of {@code result}, {@code collection}, {@code source}. */
+    JSONObject assessments(final Map<String, String> query) throws ApiException {
+        for (final String k : query.keySet()) {
+            if (!Set.of("result", "collection", "source", "limit").contains(k)) throw ApiException.invalid(k, "Unknown parameter.");
+        }
+        final String result = query.get("result");
+        if (result != null && !Set.of(MATCH, SUSPECT, UNCERTAIN).contains(result)) throw ApiException.invalid("result", "match, suspect or uncertain.");
+        final String source = query.get("source");
+        if (source != null && !Set.of(AutoCorrect.RULES, AutoCorrect.KG_HOME, AutoCorrect.DISCOVERY).contains(source)) {
+            throw ApiException.invalid("source", "rules, kg_home or discovery.");
+        }
+        final String collection = query.get("collection");
+        if (collection != null && !this.known.test(collection)) throw new ApiException(400, "collection_unknown", "Unknown collection: " + collection);
+        int limit = 200;
+        if (query.containsKey("limit")) {
+            try {
+                limit = Integer.parseInt(query.get("limit"));
+            } catch (final NumberFormatException e) {
+                limit = -1;
+            }
+            if (limit < 0 || limit > 5000) throw ApiException.invalid("limit", "0 to 5000.");
+        }
+        try {
+            return this.engine.assessmentReport(result, collection, source, limit);
+        } catch (final IllegalStateException e) {
+            throw new ApiException(503, "autocorrect_unavailable", "The correction state is unreadable.");
         }
     }
 
