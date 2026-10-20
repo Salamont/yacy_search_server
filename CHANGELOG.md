@@ -2,6 +2,35 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.11.6 / 1.942-scoutro.40 — plausibility of a domain's collection (one update from 0.11.5)
+
+One update on the published 0.11.5 (`e45d21dabe203adae92abe7bdeda28ddaaa5b33f`): no schema change (knowledge graph 9,
+Discovery job store 1, Solr fields unchanged), no re-read of stored pages, no model call by the update; the correction
+automation stays `off` and the new home page question stays off until switched on.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.11.6.md).
+
+- Correction automation of collection assignments (WP-H), rules without a model: the text fit no longer counts role
+  words ("Hersteller", "Händler", ...) for a vocabulary (`text_fit/2`); a new website signal `plausibility`
+  (`plausibility/1`) speaks against the current collection only when the domain offers at least three services on at
+  least two pages with structured or quoted evidence, none of them in the current vocabulary, and no offer or topic of
+  that vocabulary is on the pages; it is never enough for a correction, only for a case. A case for review names a
+  **suggested target** (preselected on the review page, a hint only). Rules version 3: an acceptance of the former rules
+  is outdated. docs/SCOUTRO_COLLECTION_AUTOCORRECT.md.
+- Plausibility scan of the domains indexed before (administrator, API only, no model, no write to the graph):
+  `POST /scoutro/api/v1/collections/autocorrect/scan` in steps of up to 200 domains while the graph allows it
+  (`503 scan_busy` otherwise), with a cursor kept across restarts, two fingerprints per domain and collection (the rules'
+  input and the whole input with the stored Discovery classifications, the home page's reading and the OSM signals), one
+  submission per domain and a targeted run (`"domains"`). `GET .../assessments` lists the assessments per domain,
+  collection and source (`rules`, `discovery`, `kg_home`; `stale` when a collection is gone, never deleted).
+  `scoutro-discovery classify --domain-file` classifies exactly the uncertain domains of a list.
+- Collection fit of home pages in the knowledge graph's LLM request (`scoutro.kg.llm.collectionFit`, **off by default**,
+  only with `scoutro.kg.llm.structuredOutput` `none` or `json_object`): the first request of a home page also asks, in at
+  most 500 characters, whether the website fits its collections; no request of its own, system prompt, schema, extractor
+  version and prompt hash unchanged, every other request byte for byte as before. A verdict per assigned collection
+  counts only with a verbatim quote of the page and only while the page is unchanged; it is recorded as the source
+  `kg_home`, never a statement of the graph, and makes at most a case for review. Counters
+  `llm.processed.collectionFit` of `GET /scoutro/api/v1/kg/status`.
+
 ## 0.11.5 / 1.942-scoutro.39 — corrections: Discovery, knowledge graph, Anthropic, phone UI (one update from 0.11.4)
 
 One correction release on the published 0.11.4 (`8b8948958ab79b3ad8b2ddffd369f2fbd782db0e`): no schema change
