@@ -13,8 +13,57 @@ import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 /** Six explicit rule groups. No target industry, company-name classification or LLM matching. */
 public final class MatchingRules {
+    /** The rules' patterns, compiled once (0.11.8: they were compiled again for every contribution read). */
+    private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
     public static final String VERSION="1";
+    /**
+     * The checks of one read (0.11.8), by signal, actor and offer: within one read transaction they give the same answer for
+     * every contribution that shares them, and a projection of 10,000 contributions asked them again for each (read_timeout).
+     * Off unless a reader opens it with {@link #openMemo()}; the matching run never uses it.
+     */
+    private static final ThreadLocal<Map<String,Object>> MEMO=new ThreadLocal<>();
+    @FunctionalInterface private interface Check<T>{T get()throws SQLException;}
+    /** Starts the memo of this thread's read; {@link #closeMemo()} ends it. Returns false if one was already open (nested read). */
+    public static boolean openMemo(){if(MEMO.get()!=null)return false;MEMO.set(new HashMap<>());return true;}
+    public static void closeMemo(){MEMO.remove();}
+    @SuppressWarnings("unchecked")
+    private static <T> T memo(String key,Check<T> check)throws SQLException {
+        Map<String,Object> m=MEMO.get();if(m==null)return check.get();
+        if(m.containsKey(key))return (T)m.get(key);
+        T value=check.get();m.put(key,value);return value;
+    }
     private MatchingRules() { }
+    /**
+     * Within an open memo: the answers of {@link #hasPosting} and the retirement candidates of {@link #systemRetired} for the
+     * observations the contributions of {@code entity} refer to, in two queries instead of two per observation (0.11.8). An
+     * observation without a source revision or an actor is left to the single queries.
+     */
+    public static void preload(Connection c,String entity,Collection<Observation> observations)throws SQLException {
+        Map<String,Object> m=MEMO.get();if(m==null)return;
+        String ids="SELECT r.observation_id FROM kg_match_ref r JOIN kg_match_contribution mc ON mc.public_id=r.contribution_id"
+                +" WHERE mc.provider_id=? OR mc.candidate_id=?";
+        Set<String> postings=new HashSet<>();
+        try(PreparedStatement p=c.prepareStatement("SELECT DISTINCT o.source_id,o.content_revision FROM kg_observation o WHERE o.public_id IN ("+ids+")"
+                +" AND EXISTS(SELECT 1 FROM kg_observation j WHERE j.source_id=o.source_id AND j.content_revision=o.content_revision AND j.subject_type='job')")) {
+            p.setString(1,entity);p.setString(2,entity);
+            try(ResultSet r=p.executeQuery()){while(r.next())postings.add(r.getString(1)+"\0"+r.getString(2));}
+        }
+        Map<String,Map<String,List<Observation>>> retirements=new HashMap<>();
+        try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='system_signal' AND json_valid(value)"
+                +" AND organization_id IN (SELECT o.organization_id FROM kg_observation o WHERE o.public_id IN ("+ids+"))"
+                +" AND assertion_status='recorded' AND json_extract(value,'$.context') IN('shutdown','completed_migration') ORDER BY observation_rowid")) {
+            p.setString(1,entity);p.setString(2,entity);
+            try(ResultSet r=p.executeQuery()){while(r.next()) {
+                Observation later=Observation.read(c,r);
+                if(later.value.opt("product") instanceof String product)
+                    retirements.computeIfAbsent(later.actor,k->new HashMap<>()).computeIfAbsent(product,k->new ArrayList<>()).add(later);
+            }}
+        }
+        for(Observation o:observations) {
+            if(o.source!=null&&o.revision!=null)m.putIfAbsent("hasPosting\0"+o.source+"\0"+o.revision,postings.contains(o.source+"\0"+o.revision));
+            if(o.actor!=null)m.putIfAbsent("retirements\0"+o.actor,retirements.getOrDefault(o.actor,Map.of()));
+        }
+    }
 
     public static final class Observation {
         public String id,actor,originalActor,subject,type,predicate,text,source,url,revision,status,assertedAt;
@@ -32,6 +81,24 @@ public final class MatchingRules {
                     +" JOIN kg_observation b USING(observation_rowid) JOIN kg_collection k USING(coll_id) WHERE b.public_id=? ORDER BY k.name")) {
                 s.setString(1,o.id);try(ResultSet names=s.executeQuery()){while(names.next())o.collections.put(names.getInt(1),names.getString(2));}
             }return o;
+        }
+        /**
+         * The observations the matching contributions of {@code entity} refer to, with their collections, in two queries
+         * (0.11.8: one read of an entity with 40,000 contributions read 80,000 times one observation).
+         */
+        public static Map<String,Observation> referencedBy(Connection c,String entity)throws SQLException {
+            String ids="SELECT r.observation_id FROM kg_match_ref r JOIN kg_match_contribution m ON m.public_id=r.contribution_id"
+                    +" WHERE m.provider_id=? OR m.candidate_id=?";
+            Map<String,Observation> out=new HashMap<>();
+            try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE public_id IN ("+ids+")")) {
+                p.setString(1,entity);p.setString(2,entity);
+                try(ResultSet r=p.executeQuery()){while(r.next()){Observation o=fields(r);out.put(o.id,o);}}
+            }
+            try(PreparedStatement s=c.prepareStatement("SELECT b.public_id,k.coll_id,k.name FROM kg_observation_scope os"
+                    +" JOIN kg_observation b USING(observation_rowid) JOIN kg_collection k USING(coll_id) WHERE b.public_id IN ("+ids+")")) {
+                s.setString(1,entity);s.setString(2,entity);
+                try(ResultSet names=s.executeQuery()){while(names.next()){Observation o=out.get(names.getString(1));if(o!=null)o.collections.put(names.getInt(2),names.getString(3));}}
+            }return out;
         }
         /** The row without its collections (enough for {@link #offers}, which never authorizes anything). */
         static Observation fields(ResultSet r)throws SQLException {
@@ -68,10 +135,14 @@ public final class MatchingRules {
         public final List<String> uncertainties=new ArrayList<>();
         public final List<Observation> extra=new ArrayList<>();
     }
-    private static boolean has(String text,String regex){return Pattern.compile("(?iu)"+regex).matcher(text).find();}
+    private static boolean has(String text,String regex){return PATTERNS.computeIfAbsent(regex,r->Pattern.compile("(?iu)"+r)).matcher(text).find();}
     private static String compact(String text){return text.toLowerCase(Locale.ROOT).replaceAll("\\s+"," ").trim();}
 
     public static List<Offer> offers(Observation o) {
+        if(MEMO.get()==null)return offersOf(o);
+        try{return memo("offers\0"+o.id+"\0"+o.status,()->offersOf(o));}catch(SQLException e){throw new IllegalStateException(e);}
+    }
+    private static List<Offer> offersOf(Observation o) {
         if(!o.usable()||"job".equals(o.type))return List.of();
         boolean service="service".equals(o.type)&&List.of("name","category","description").contains(o.predicate)
                 &&o.identity.optJSONArray("assignment")!=null&&o.identity.optJSONArray("assignment").length()>0;
@@ -188,6 +259,10 @@ public final class MatchingRules {
     }
     /** Re-reads the stored quote with the current shared parser; an unconfirmed product/context pair no longer qualifies. */
     static boolean contextConfirmed(Observation signal,String context) {
+        if(MEMO.get()==null)return contextConfirmedOf(signal,context);
+        try{return memo("context\0"+signal.id+"\0"+context,()->contextConfirmedOf(signal,context));}catch(SQLException e){throw new IllegalStateException(e);}
+    }
+    private static boolean contextConfirmedOf(Observation signal,String context) {
         String product=signal.value.optString("product"),section=signal.value.optString("section","text");
         List<String> names=new ArrayList<>();names.add(null);names.addAll(actorNames(signal));
         for(String name:names)for(String value:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,signal.text,section,signal.type,name)) {
@@ -197,6 +272,9 @@ public final class MatchingRules {
     }
     /** The employer offers the same product support itself (an offered capability or an assigned service, as for providers). */
     private static boolean offersItself(Connection c,String actor,Offer offer)throws SQLException {
+        return memo("offersItself\0"+actor+"\0"+offer.rule+"\0"+offer.key,()->offersItselfOf(c,actor,offer));
+    }
+    private static boolean offersItselfOf(Connection c,String actor,Offer offer)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE organization_id=? AND assertion_status='recorded' AND"
                 +" ((predicate='system_signal' AND json_valid(value) AND json_extract(value,'$.context')='offered_capability'"
                 +" AND json_extract(value,'$.product')=?) OR (subject_type='service' AND predicate IN('name','category','description')))"
@@ -209,7 +287,11 @@ public final class MatchingRules {
     private static boolean ownCapacity(Observation signal) {
         JSONArray names=signal.identity.optJSONArray("subject");String title="";
         if(names!=null)for(int i=0;i<names.length();i++){JSONObject n=names.optJSONObject(i);if(n!=null&&"name".equals(n.optString("predicate")))title+=" "+n.optString("value");}
-        return has(title,"SAP.Berater|IT.Berater|SAP.Consultant|Revit.Trainer|Archicad.Trainer|BIM.Berater|CAD.Berater|Coach");
+        // In-house and key-user roles serve the employer's own systems: a customer need, not delivery capacity (0.11.8).
+        if(has(title,"In.?house|Key.?User"))return false;
+        // Words may also stand between product and role: "SAP Senior Berater", "Freiberuflicher SAP Consultant" (0.11.8).
+        return has(title,"SAP.Berater|IT.Berater|SAP.Consultant|Revit.Trainer|Archicad.Trainer|BIM.Berater|CAD.Berater|Coach"
+                +"|\\b(?:SAP|IT|BIM|CAD)\\b[^,;|]{0,40}?\\b(?:Berater|Consultant)|\\b(?:Revit|Archicad)\\b[^,;|]{0,40}?\\bTrainer");
     }
     private static String regionName(Observation evidence) {
         String kind=evidence.value.optString("kind");
@@ -218,6 +300,9 @@ public final class MatchingRules {
         return kind.isEmpty()?compact(evidence.value.optString("literal")):"";
     }
     private static boolean hasPosting(Connection c,Observation signal)throws SQLException {
+        return memo("hasPosting\0"+signal.source+"\0"+signal.revision,()->hasPostingOf(c,signal));
+    }
+    private static boolean hasPostingOf(Connection c,Observation signal)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT 1 FROM kg_observation WHERE source_id=? AND content_revision=? AND subject_type='job' LIMIT 1")) {
             p.setString(1,signal.source);p.setString(2,signal.revision);try(ResultSet r=p.executeQuery()){return r.next();}
         }
@@ -225,6 +310,10 @@ public final class MatchingRules {
     /** A company passage on a posting page cannot bypass job policy or the employer exclusion.
      * Only one source-declared employer for that revision grounds the passage; mixed postings defer it. */
     private static Observation postingEmployer(Connection c,Observation signal,List<Observation> supplied,Viewer v)throws SQLException {
+        StringBuilder key=new StringBuilder("postingEmployer\0").append(signal.id);for(Observation o:supplied)key.append('\0').append(o.id);
+        return memo(key.toString(),()->postingEmployerOf(c,signal,supplied,v));
+    }
+    private static Observation postingEmployerOf(Connection c,Observation signal,List<Observation> supplied,Viewer v)throws SQLException {
         List<Observation> assignments=new ArrayList<>();Set<String> actors=new HashSet<>();
         try(PreparedStatement p=c.prepareStatement("SELECT 1 FROM kg_observation WHERE source_id=? AND content_revision=? AND subject_type='job'"
                 +" AND (organization_id IS NULL OR original_organization_id IS NULL OR organization_id<>original_organization_id) LIMIT 1")) {
@@ -242,6 +331,9 @@ public final class MatchingRules {
         return assignments.isEmpty()?null:assignments.get(0);
     }
     private static boolean itConsultancy(Connection c,String actor)throws SQLException {
+        return memo("itConsultancy\0"+actor,()->itConsultancyOf(c,actor));
+    }
+    private static boolean itConsultancyOf(Connection c,String actor)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT value FROM kg_observation WHERE organization_id=? AND predicate='business_role_evidence'"
                 +" AND assertion_status='recorded' AND json_valid(value)")) {
             p.setString(1,actor);try(ResultSet r=p.executeQuery()){while(r.next()) {
@@ -264,31 +356,43 @@ public final class MatchingRules {
         }return o.observedAt;
     }
     private static boolean systemRetired(Connection c,Observation signal)throws SQLException {
-        return latestSystemChange(c,signal,null)!=null;
+        return memo("systemRetired\0"+signal.id,()->latestSystemChange(c,signal,null)!=null);
     }
     public static Observation latestSystemChange(Connection c,Observation signal,Viewer permitted)throws SQLException {
         Long floor=effectiveTime(signal,true);if(floor==null)return null;
         Observation latest=null;long latestTime=Long.MIN_VALUE;
+        for(Observation later:retirementsOf(c,signal)) {
+            Long time=effectiveTime(later,false);if(time==null||time<=floor||!later.accessible(permitted))continue;
+            String scope=signal.value.optString("scope","unspecified"),other=later.value.optString("scope","unspecified");
+            if(!"organization".equals(other)&&("unspecified".equals(scope)||!scope.equals(other)))continue;
+            String context=later.value.optString("context"),role=later.value.optString("system_role");
+            boolean retires=false;
+            if("planned_migration".equals(signal.value.optString("context"))) {
+                String plannedRole=signal.value.optString("system_role");
+                if("source".equals(plannedRole)&&("shutdown".equals(context)||"source".equals(role)))retires=true;
+                if("target".equals(plannedRole)&&"completed_migration".equals(context)&&"target".equals(role))retires=true;
+            } else if("shutdown".equals(context)||"source".equals(role))retires=true;
+            if(retires&&time>latestTime){latest=later;latestTime=time;}
+        }return latest;
+    }
+    /** The recorded shutdowns and completed migrations of the signal's product at its actor, preloaded or read. */
+    @SuppressWarnings("unchecked")
+    private static List<Observation> retirementsOf(Connection c,Observation signal)throws SQLException {
+        String product=signal.value.optString("product");Map<String,Object> m=MEMO.get();
+        Object preloaded=m==null||product.isEmpty()?null:m.get("retirements\0"+signal.actor);
+        if(preloaded!=null)return ((Map<String,List<Observation>>)preloaded).getOrDefault(product,List.of());
+        List<Observation> out=new ArrayList<>();
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='system_signal' AND json_valid(value)"
                 +" AND json_extract(value,'$.product')=? AND organization_id=? AND assertion_status='recorded'"
                 +" AND json_extract(value,'$.context') IN('shutdown','completed_migration')")) {
-            p.setString(1,signal.value.optString("product"));p.setString(2,signal.actor);
-            try(ResultSet r=p.executeQuery()){while(r.next()) {
-                Observation later=Observation.read(c,r);Long time=effectiveTime(later,false);if(time==null||time<=floor||!later.accessible(permitted))continue;
-                String scope=signal.value.optString("scope","unspecified"),other=later.value.optString("scope","unspecified");
-                if(!"organization".equals(other)&&("unspecified".equals(scope)||!scope.equals(other)))continue;
-                String context=later.value.optString("context"),role=later.value.optString("system_role");
-                boolean retires=false;
-                if("planned_migration".equals(signal.value.optString("context"))) {
-                    String plannedRole=signal.value.optString("system_role");
-                    if("source".equals(plannedRole)&&("shutdown".equals(context)||"source".equals(role)))retires=true;
-                    if("target".equals(plannedRole)&&"completed_migration".equals(context)&&"target".equals(role))retires=true;
-                } else if("shutdown".equals(context)||"source".equals(role))retires=true;
-                if(retires&&time>latestTime){latest=later;latestTime=time;}
-            }}
-        }return latest;
+            p.setString(1,product);p.setString(2,signal.actor);
+            try(ResultSet r=p.executeQuery()){while(r.next())out.add(Observation.read(c,r));}
+        }return out;
     }
     private static boolean needRetired(Connection c,Observation signal)throws SQLException {
+        return memo("needRetired\0"+signal.id,()->needRetiredOf(c,signal));
+    }
+    private static boolean needRetiredOf(Connection c,Observation signal)throws SQLException {
         String project=signal.value.optString("project");Long floor=effectiveTime(signal,true);
         if(project.isBlank()||floor==null)return false;
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='business_need_signal' AND json_valid(value)"

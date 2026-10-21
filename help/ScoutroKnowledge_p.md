@@ -174,6 +174,16 @@ all collections and the page says so.
   **outdated** after `scoutro.kg.prices.staleDays` (180; per collection
   `scoutro.kg.prices.staleDays.<collection>`); a validity date of the source
   wins (**expired**).
+- **Topics of the website** (0.11.8): subjects the site names without
+  offering them, that is without a price, without offer wording and not on a
+  services page (for example a menu entry or a line on the home page). Each
+  topic is listed with its sources and marked **no proof of an offer**. A
+  topic never feeds customer or partner suggestions and never excludes a
+  company from them. A subject a shown service already carries is not
+  repeated. API field `website_topics` of the business view: the `topic`
+  statements with `value` (category code), `label_de`, `label_en`, status,
+  confidence and `source_docs`, like other coded facts; absent when there are
+  none.
 - **Other amounts:** amounts the sources name that are no price of the
   business, each with its role: **statutory benefit** (an insurance or the law
   pays it, such as the Entlastungsbetrag), **donation**, **subsidy**, or

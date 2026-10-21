@@ -320,6 +320,28 @@ public class MatchingTest {
         observation(candidate,"organization","business_role_evidence",KgJson.obj("role","system_integrator","context","own_offered_services"),"Wir bieten Systemintegration an.","b");
         assertEquals(0,page("a","b").getInt("total"));
     }
+    @Test public void aWebsiteTopicIsNoOfferForTheMatching()throws Exception {
+        // 0.11.8: a category the site only names (a topic) never makes a provider; its service does
+        observation(provider,"organization","topic",KgJson.obj("literal","software/sap"),"SAP | IT-Beratung | Kontakt","a");
+        signal("Wir nutzen SAP intern.","organization");run();assertEquals(0,count());assertEquals(0,page("a","b").getInt("total"));
+        offer("SAP Beratung");run();assertEquals(1,page("a","b").getInt("total"));
+    }
+    @Test public void consultantTitlesWithWordsBetweenAreOwnCapacity()throws Exception {
+        // 0.11.8: an SAP consultancy hiring an "SAP Senior Berater" delivers SAP consulting itself; it is no customer.
+        offer("SAP Beratung");
+        for(String title:List.of("SAP Senior Berater (m/w/d)","Freiberuflicher SAP Consultant","Senior SAP FI/CO-Berater","Revit BIM Trainerin")) {
+            jobTitle=title;signal(title.startsWith("Revit")?"Revit Kenntnisse erforderlich.":"SAP Kenntnisse erforderlich.","job");
+        }
+        jobTitle="Engineer";run();assertEquals(0,page("a","b").getInt("total"));
+    }
+    @Test public void inhouseKeyUserAndSkilledJobsOfCustomersStayCustomerNeeds()throws Exception {
+        // 0.11.8: an industrial firm hiring for its own SAP stays a possible customer.
+        offer("SAP Beratung");
+        for(String title:List.of("Finanzbuchhalter (SAP-Kenntnisse)","SAP Inhouse Consultant","SAP In-House Berater","SAP Key-User Einkauf")) {
+            jobTitle=title;String job=signal("SAP Kenntnisse erforderlich.","job");jobTitle="Engineer";run();
+            assertEquals(title,1,page("a","b").getInt("total"));withdraw(job);assertEquals(title,0,page("a","b").getInt("total"));
+        }
+    }
     @Test public void projectCompletionOnlyRetiresTheIdentifiedProject()throws Exception {
         offer("Architektur");need("Wir planen den Neubau unseres Werkes in Berlin, Projekt Alpha.");need("Wir planen den Neubau unseres Werkes in Hamburg, Projekt Beta.");run();
         need("Der Neubau unseres Werkes in Berlin, Projekt Alpha, ist abgeschlossen.");

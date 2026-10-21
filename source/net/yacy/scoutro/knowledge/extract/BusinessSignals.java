@@ -21,6 +21,8 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
  * of an extractor identity, so it re-extracts nothing by itself; matching re-reads stored quotes.
  */
 public final class BusinessSignals {
+    /** The patterns of the inline expressions, compiled once (0.11.8: they were compiled again on every read of a quote). */
+    private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
     public static final String VERSION="3";
     private static final Pattern CUSTOMERS=p("Kundenprojekt|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
@@ -59,7 +61,7 @@ public final class BusinessSignals {
     /** Section of signals read on a reference page ({@link #referencePage}). */
     public static final String REFERENCES="references";
     private BusinessSignals() { }
-    private static Pattern p(String regex) {return Pattern.compile("(?iu)"+regex);}
+    private static Pattern p(String regex) {return PATTERNS.computeIfAbsent(regex,r->Pattern.compile("(?iu)"+r));}
 
     public static void extract(String text,Mention actor,Extraction out,int tier,int kind,String section,String locator) {
         if(text==null||actor==null)return;

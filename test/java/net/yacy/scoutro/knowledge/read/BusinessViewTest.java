@@ -552,6 +552,53 @@ public class BusinessViewTest {
         assertTrue(strings(d2.getJSONArray("nodes"), "label").contains("Haus Birke"));
     }
 
+    /**
+     * 0.11.8: the topics of a website (categories it names without an offer cue) are listed apart with their sources, never as
+     * services; a category a shown service carries is not repeated. A care operator like LIVAID, a consultancy like STELLWERK.
+     */
+    @Test
+    public void websiteTopicsAreListedApartWithTheirSourcesAndNeverAsServices() throws Exception {
+        final String care = "{\"@type\":\"Organization\",\"name\":\"Muster Pflegedienst GmbH\",\"url\":\"https://www.muster-pflegedienst.de/\"}";
+        publish(doc("MPHOMEhost07", "https://www.muster-pflegedienst.de/", "edelsenior-web"), care,
+                "Ratgeber. Was ist eigentlich Tagespflege? Viele Familien informieren sich über Kurzzeitpflege.", ctx("care", "edelsenior-web", true),
+                this.now - DAY);
+        final Viewer v = viewer("edelsenior-web");
+        JSONObject view = new BusinessView(this.reader).entity(entity("Muster Pflegedienst GmbH"), v, false);
+        assertFalse("a topic is no service", view.has("services"));
+        JSONArray topics = view.getJSONArray("website_topics");
+        final List<String> codes = strings(topics, "value");
+        java.util.Collections.sort(codes);
+        assertEquals(List.of("care/kurzzeitpflege", "care/tagespflege"), codes);
+        for (int i = 0; i < topics.length(); i++) {
+            final JSONObject t = topics.getJSONObject(i);
+            assertFalse(t.optString("label_de").isEmpty());
+            assertEquals("https://www.muster-pflegedienst.de/", t.getJSONArray("source_docs").getJSONObject(0).getString("url"));
+            assertTrue(t.getString("statement").startsWith("kgs_"));
+        }
+        // its services page offers day care: a service now, and no longer repeated as a topic
+        publish(doc("MPLEIShost07", "https://www.muster-pflegedienst.de/leistungen", "edelsenior-web"), care, "Leistungen. Tagespflege in Berlin.",
+                ctx("care", "edelsenior-web", true), this.now - DAY);
+        view = new BusinessView(this.reader).entity(entity("Muster Pflegedienst GmbH"), v, false);
+        assertTrue(view.has("services"));
+        assertEquals(List.of("care/kurzzeitpflege"), strings(view.getJSONArray("website_topics"), "value"));
+
+        // a consultancy whose home page names its fields only as menu entries
+        final String sap = "{\"@type\":\"Organization\",\"name\":\"Muster Stellwerk GmbH\",\"url\":\"https://www.muster-stellwerk.de/\"}";
+        publish(doc("MSHOMEhost08", "https://www.muster-stellwerk.de/", "stackfinder-web"), sap,
+                "Willkommen bei Muster Stellwerk. SAP | IT-Beratung | Karriere | Kontakt", ctx("software", "stackfinder-web", false), this.now - DAY);
+        view = new BusinessView(this.reader).entity(entity("Muster Stellwerk GmbH"), viewer("stackfinder-web"), false);
+        assertFalse(view.has("services"));
+        final List<String> fields = strings(view.getJSONArray("website_topics"), "value");
+        java.util.Collections.sort(fields);
+        assertEquals(List.of("software/it_beratung", "software/sap"), fields);
+        // the caller's collection decides: the care collection does not see the consultancy's topics
+        try {
+            assertFalse(new BusinessView(this.reader).entity(entity("Muster Stellwerk GmbH"), v, false).has("website_topics"));
+        } catch (final KgReader.NotFound e) {
+            // invisible as a whole
+        }
+    }
+
     @Test
     public void theComparisonListsEveryPriceWithConditionsDatesAndSources() throws Exception {
         final JSONObject compare = new BusinessGraph(this.reader).compare("care/tagespflege", 50, viewer("edelsenior-web"));

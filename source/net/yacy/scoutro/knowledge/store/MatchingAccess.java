@@ -8,6 +8,8 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.*;
 /** Conjunction of evidence dependencies, with alternative scopes per dependency. */
 public final class MatchingAccess {
     private MatchingAccess() { }
+    /** The chain of a contribution as a column of a query over {@code kg_match_contribution m} (one query instead of one per row). */
+    public static final String CHAIN_COLUMN=MatchingSchema.CHAIN;
     public static boolean allowed(String chain,Viewer v) {
         try {
             JSONArray refs=new JSONArray(chain);if(refs.length()==0)return false;

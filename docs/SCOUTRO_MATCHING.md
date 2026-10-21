@@ -102,6 +102,14 @@ quotes from the read-only production analysis, re-run through the shipped parser
   capacity, not a customer need. There is no blanket exclusion of consultancies or
   product vendors: a separately evidenced own use or need of the same company still
   matches (tested).
+- A posting whose title names a consulting or training role for the product is
+  delivery capacity too (0.11.8: words may stand between product and role, so "SAP
+  Senior Berater", "Freiberuflicher SAP Consultant" and "Senior SAP FI/CO-Berater" count
+  like "SAP-Berater"). An in-house or key-user title ("SAP Inhouse Consultant", "SAP
+  Key-User") is the employer's own need and stays a customer reason. The rule version
+  stays 1; stored contributions are checked with the title pattern when they are read.
+  A topic of the website (a category the site only names) is no offer and excludes
+  nobody.
 - Missing dates stay unknown: no expiry and no present use is inferred
   (`historical_not_reconfirmed`, `observation_date_unknown`), as before.
 
@@ -205,7 +213,15 @@ completed partitions, cycle completion and `deferred` reason.
 
 Before grouping/ranking/counting/paging, reads check every current dependency
 scope and re-evaluate policy, actor assignment, rule version, assertions, role,
-system/project change and regional match. Additional evidence collections must
+system/project change and regional match. Since 0.11.8 a read validates every
+contribution with the facts ordering needs (score, keys, other side) and builds the
+evidence only for the shown page: the observations an entity's contributions refer to,
+the posting pages of their sources and the shutdowns of their actors' systems are read in
+a few queries per read, a memo answers repeated checks, and statements are reused within
+the read. The answer is the same as before (groups, order, `total`, every field; tested
+against the former path). Local load test: 40,000 contributions with few shared signals
+1.4–2.0 s, 40,000 with a different signal and actor each 3.8–5.4 s (before: far beyond the
+5 s read limit). Additional evidence collections must
 be permitted. Inaccessible stronger reasons cannot displace visible weaker ones.
 Neither hidden memberships nor hidden reason counts are emitted. Ordinary facts,
 sources, weak links and structural relationships keep A's original view boundary.
