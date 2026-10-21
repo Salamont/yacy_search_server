@@ -28705,6 +28705,13 @@
               }
             }
           },
+          "website_topics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KgLiteral"
+            },
+            "description": "0.11.8: the website's topics, categories it names without an offer cue (no offer wording, no price, not on a services page), each with its sources; no proof of an offer and never a matching input. A category a listed service carries is not repeated."
+          },
           "prices": {
             "type": "array",
             "items": {

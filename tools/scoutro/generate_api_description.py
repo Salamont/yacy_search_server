@@ -765,6 +765,7 @@ schemas["KgBusinessView"] = {"type": "object", "description": "The object view: 
     "services": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, "offer": {"type": "string"},
         "categories": {"type": "array", "items": ref("KgLiteral")}, "description": {"type": "string"}, "prices": {"type": "integer"},
         "amounts": {"type": "integer", "description": "Amounts of this service that are no price (in amounts)."}}}},
+    "website_topics": {"type": "array", "items": ref("KgLiteral"), "description": "0.11.8: the website's topics, categories it names without an offer cue (no offer wording, no price, not on a services page), each with its sources; no proof of an offer and never a matching input. A category a listed service carries is not repeated."},
     "prices": {"type": "array", "items": ref("KgPrice")},
     "amounts": {"type": "array", "items": ref("KgAmount"), "description": "Amounts that are no price of the business (WP-F): statutory benefits, donations, subsidies and amounts of unclear role, each with its role; never counted as a price."},
     "contacts": {"type": "object", "description": "Organisation contacts only (phone, fax, email of role mailboxes, contact_point, contact_form, opening_hours, directions, social_profile, url); never persons.", "additionalProperties": {"type": "array", "items": ref("KgLiteral")}},
