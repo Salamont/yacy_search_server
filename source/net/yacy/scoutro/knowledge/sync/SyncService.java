@@ -613,6 +613,7 @@ public final class SyncService {
         final long now = this.clock.getAsLong();
         final String[] meta = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
             this.terms.seed(tx);
+            KgSchema.ensureCategoryIndex(tx); // 0.12.0: the possible competitors' lookup
             KgStore.putMeta(tx,"observation_vocabulary",net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION+"-"
                     + net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version());
             WorkQueue.resetClaims(tx);

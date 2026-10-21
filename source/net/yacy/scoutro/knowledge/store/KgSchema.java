@@ -437,6 +437,29 @@ public final class KgSchema {
     public static final String META_UPGRADE = "upgrade";
     /** The LLM tier's extractor (version and prompt hash) of the last start; a new version re-examines every document, a new prompt hash does not. */
     public static final String META_LLM_EXTRACTOR = "llm_extractor";
+    /** 0.12.0: the partial index of the category statements by value (the possible competitors of an organisation). */
+    public static final String CATEGORY_INDEX = "kg_statement_category";
+
+    /**
+     * Creates {@link #CATEGORY_INDEX} if it is missing (0.12.0, idempotent). It names the predicate's own row ID, which the
+     * vocabulary assigns per graph, so it is no migration and no schema version: an older Scoutro opens the graph unchanged and
+     * leaves the index unused. Without the vocabulary row nothing is done.
+     */
+    public static void ensureCategoryIndex(final java.sql.Connection tx) throws java.sql.SQLException {
+        Long category = null;
+        try (java.sql.PreparedStatement ps = tx.prepareStatement("SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'category'");
+                java.sql.ResultSet r = ps.executeQuery()) {
+            if (r.next()) {
+                category = r.getLong(1);
+            }
+        }
+        if (category != null) {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.execute("CREATE INDEX IF NOT EXISTS " + CATEGORY_INDEX + " ON kg_statement (obj_val, subj) WHERE pred = " + category);
+            }
+        }
+    }
+
     /** 0.12.0: the rule version whose candidate rule decided the pages skipped as {@code not_candidate}. */
     public static final String META_LLM_CANDIDATE_RULES = "llm_candidate_rules";
     /** End of the last derivation of linked_to, same_operator and the suggested matches. */

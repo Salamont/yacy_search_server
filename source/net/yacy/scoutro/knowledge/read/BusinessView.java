@@ -75,7 +75,6 @@ public final class BusinessView {
     static final int MAX_JOBS = 100;
     static final int MAX_RELATIONS = 200;
     static final int MAX_DERIVED = 100;
-    static final int MAX_COMPETITORS = 50;
 
     static final Set<String> CONTACT_PREDICATES = Set.of(Vocabulary.PHONE, Vocabulary.FAX, Vocabulary.EMAIL, Vocabulary.WEBSITE,
             Vocabulary.CONTACT_FORM, Vocabulary.CONTACT_POINT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS, Vocabulary.SOCIAL_PROFILE,
@@ -344,11 +343,12 @@ public final class BusinessView {
         if (!topics.isEmpty()) {
             KgJson.put(out, "website_topics", literals(topics, cats, nace, docs));
         }
-        // 0.12.0 (B1): possible competitors, the organisations offering a service of the same category in the viewer's
-        // collections; derived at reading, never a fact, a customer relation or a matching input
-        final JSONArray competitors = competitors(c, ent, offered, v, cats);
-        if (competitors.length() > 0) {
-            KgJson.put(out, "competitors", KgJson.obj("items", competitors, "basis", "shared_offered_categories", "fact", false));
+        // 0.12.0 (B1): possible competitors are read on demand, per category the entity offers itself ({@link Competitors});
+        // this first read names the categories only
+        final Set<String> ownOffers = Competitors.offered(c, ent, v);
+        if (!ownOffers.isEmpty()) {
+            KgJson.put(out, "competitors", KgJson.obj("categories", Competitors.categories(ownOffers, cats), "path",
+                    "entities/" + overview.optString("id") + "/competitors", "fact", false));
         }
         if (prices.length() > 0) {
             KgJson.put(out, "prices", prices);
@@ -953,57 +953,6 @@ public final class BusinessView {
                 "business", Vocabulary.BUSINESS_RELATIONS.contains(f.stat.predicate), "other", entityRef(c, other, v));
         fact(o, f);
         return o;
-    }
-
-    /**
-     * 0.12.0 (B1): the organisations that offer a service of one of these categories (an offers fact to a service with that
-     * category, both visible to the viewer), the most shared categories first, at most {@link #MAX_COMPETITORS}. A topic is no
-     * offer and makes nobody a competitor; the entity itself is left out.
-     */
-    private static JSONArray competitors(final Connection c, final long ent, final Set<String> categories, final Viewer v, final Categories cats)
-            throws SQLException {
-        final JSONArray out = new JSONArray();
-        final List<String> codes = new ArrayList<>(categories);
-        codes.removeIf(s -> s == null || s.isEmpty());
-        if (codes.isEmpty()) {
-            return out;
-        }
-        final StringBuilder in = new StringBuilder();
-        for (int i = 0; i < codes.size(); i++) {
-            in.append(i == 0 ? "?" : ",?");
-        }
-        try (PreparedStatement ps = c.prepareStatement("SELECT o.subj, group_concat(DISTINCT k.obj_val) FROM kg_statement k"
-                + " JOIN kg_statement o ON o.obj_ent = k.subj AND o.pred = (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'offers')"
-                + " WHERE k.pred = (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'category') AND k.obj_val IN (" + in + ")"
-                + " AND o.subj <> ? AND " + KgReader.visibleStatement(v, "o") + " AND " + KgReader.visibleStatement(v, "k")
-                + " GROUP BY o.subj ORDER BY count(DISTINCT k.obj_val) DESC, o.subj LIMIT " + (4 * MAX_COMPETITORS))) {
-            int n = 1;
-            for (final String code : codes) {
-                ps.setString(n++, code);
-            }
-            ps.setLong(n, ent);
-            try (ResultSet rs = ps.executeQuery()) {
-                final List<long[]> rows = new ArrayList<>();
-                final List<String> shared = new ArrayList<>();
-                while (rs.next()) {
-                    rows.add(new long[] {rs.getLong(1)});
-                    shared.add(rs.getString(2));
-                }
-                for (int i = 0; i < rows.size() && out.length() < MAX_COMPETITORS; i++) {
-                    final long other = rows.get(i)[0];
-                    if (!visible(c, other, v)) {
-                        continue;
-                    }
-                    final JSONArray same = new JSONArray();
-                    for (final String code : new TreeSet<>(List.of(shared.get(i).split(",")))) {
-                        final Categories.Entry e = cats.code(Vocabulary.CATEGORY, code);
-                        same.put(KgJson.obj("value", code, "label_de", e == null ? null : e.de, "label_en", e == null ? null : e.en));
-                    }
-                    out.put(KgJson.obj("other", entityRef(c, other, v), "shared_categories", same, "label", "suggestion"));
-                }
-            }
-        }
-        return out;
     }
 
     static JSONObject entityRef(final Connection c, final long ent, final Viewer v) throws SQLException {
