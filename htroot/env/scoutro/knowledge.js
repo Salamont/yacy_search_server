@@ -970,6 +970,40 @@
   // a smaller page of statements and sources on a phone (0.11.5)
   const pageSize = () => window.innerWidth < 768 ? 25 : 100;
   function entityLink(ref) { return ref ? nameLink(ref, ref.id, ref.type) : node('span', t('missing')); }
+  // the possible competitors of one category, a page at a time from entities/{id}/competitors (0.12.0, B1): one line per offer
+  // of another organisation, with its service and the source pages the viewer may see
+  function competitorCategory(id, c) {
+    const box = node('details', null, 'skg-competitor-category'); box.dataset.category = c.value;
+    const items = node('ul', null, 'skg-statements'), more = node('button', t('more'), 'btn btn-default btn-sm');
+    more.type = 'button'; more.hidden = true;
+    let next = null;
+    const read = cursor => guarded(async () => {
+      more.disabled = true;
+      try {
+        const run = generation;
+        const page = await api('entities/' + encodeURIComponent(id) + '/competitors', { category: c.value, cursor, limit: pageSize() });
+        if (run !== generation) return;
+        for (const x of page.items) items.append(competitorItem(x));
+        next = page.next; more.hidden = next == null;
+        if (!items.children.length) items.append(node('li', t(next == null ? 'competitors_none' : 'competitors_partial'), 'sseo-note skg-competitor-none'));
+        else items.querySelector('.skg-competitor-none')?.remove();
+      } catch (e) { if (cursor == null) delete box.dataset.loaded; throw e; } finally { more.disabled = false; }
+    });
+    box.addEventListener('toggle', () => { if (box.open && !box.dataset.loaded) { box.dataset.loaded = '1'; read(null); } });
+    more.addEventListener('click', () => read(next));
+    box.append(node('summary', codeLabel(c) || c.value), items, more); return box;
+  }
+  function competitorItem(x) {
+    const head = node('div', null, 'skg-statement-head');
+    head.append(entityLink(x.other), ' · ', x.service?.id ? link(x.service.name || t('unnamed_service'), { view: 'object', id: x.service.id }) : t('unnamed_service'));
+    const li = node('li', null, 'skg-statement skg-competitor'); li.append(head); li.dataset.competitor = x.other?.id || '';
+    if (x.source_docs?.length) {
+      const src = node('p', null, 'sseo-note skg-competitor-sources');
+      x.source_docs.forEach((d, i) => src.append(i ? ' · ' : '', external(d.url), ' (', link(t('source_view'), { view: 'source', doc: d.doc_id }), ')'));
+      li.append(src);
+    }
+    return li;
+  }
   function relationItem(r) {
     const head = node('div', null, 'skg-statement-head');
     const other = node('span'); other.append(entityLink(r.other)); const role = roleBadge(r.other?.role); if (role) other.append(' ', role);
@@ -1146,11 +1180,9 @@
       return li;
     })));
     if (b.website_topics?.length) box.append(section('website_topics', node('p', t('website_topics_note'), 'sseo-note'), list(b.website_topics, topicItem)));
-    if (b.competitors?.items?.length) box.append(section('competitors', node('p', t('competitors_note'), 'sseo-note'), list(b.competitors.items, x => {
-      const head = node('div', null, 'skg-statement-head'); head.append(entityLink(x.other), ' · ',
-        node('span', (x.shared_categories || []).map(c => codeLabel(c) || c.value).join(' · '), 'skg-value'));
-      const li = node('li', null, 'skg-statement skg-competitor'); li.append(head); li.dataset.competitor = x.other?.id || ''; return li;
-    })));
+    // 0.12.0 (B1): the business view names only the categories; their possible competitors are read when a category is opened
+    if (b.competitors?.categories?.length) box.append(section('competitors', node('p', t('competitors_note'), 'sseo-note'),
+      ...b.competitors.categories.map(c => competitorCategory(b.id, c))));
     if (b.prices?.length) box.append(section('prices', priceTable(b.prices)));
     if (b.amounts?.length) box.append(section('amounts', node('p', t('amt_note'), 'sseo-note'), amountTable(b.amounts)));
     if (b.contacts && Object.keys(b.contacts).length) {

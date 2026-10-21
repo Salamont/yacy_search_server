@@ -19075,8 +19075,14 @@
     <trans-unit id="1c4a5098" xml:space="preserve" approved="no" translate="yes">
        <source>Possible competitors</source>
     </trans-unit>
-    <trans-unit id="e927e8b3" xml:space="preserve" approved="no" translate="yes">
-       <source>Organisations that offer a service of the same category in the selected collections, the most shared categories first. A suggestion from evidenced offers, no fact and no customer relation; a topic of a website makes nobody a competitor. A company can be a competitor and still a possible customer for another need.</source>
+    <trans-unit id="12de6746" xml:space="preserve" approved="no" translate="yes">
+       <source>Per category the company offers itself: the evidenced offers of other organisations of a service of the same category in the selected collections, one line per offer with its sources, read when the category is opened. A suggestion, no fact and no customer relation; a topic of a website makes nobody a competitor. A company can be a competitor and still a possible customer for another need. Not part of the export or the change feed.</source>
+    </trans-unit>
+    <trans-unit id="3d0b101" xml:space="preserve" approved="no" translate="yes">
+       <source>No other organisation offers a service of this category in the selected collections.</source>
+    </trans-unit>
+    <trans-unit id="e7b4f7e0" xml:space="preserve" approved="no" translate="yes">
+       <source>No offer of another organisation among the services read so far; more can be read.</source>
     </trans-unit>
     <trans-unit id="cf7d35cf" xml:space="preserve" approved="no" translate="yes">
        <source>Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.</source>

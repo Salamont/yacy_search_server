@@ -184,6 +184,18 @@ all collections and the page says so.
   statements with `value` (category code), `label_de`, `label_en`, status,
   confidence and `source_docs`, like other coded facts; absent when there are
   none.
+- **Possible competitors** (0.12.0): the business view lists only the
+  categories the company offers itself (the categories of its shown, current
+  offers). Opening a category reads its possible competitors: the evidenced
+  offers of other organisations of a service of the same category in the
+  selected collections, one line per offer with the other company, its own
+  service and up to three source pages the viewer may see; "More" reads the
+  next page. A competitor is a suggestion, no fact, no customer relation and
+  no input of the customer and partner suggestions; a topic of a website
+  makes nobody a competitor, and a company can be a competitor and still a
+  possible customer for another need. Competitors are read on demand and are
+  **not part of the export or the change feed**. API:
+  `entities/{id}/competitors?category&cursor&limit` (below).
 - **Other amounts:** amounts the sources name that are no price of the
   business, each with its role: **statutory benefit** (an insurance or the law
   pays it, such as the Entlastungsbetrag), **donation**, **subsidy**, or
