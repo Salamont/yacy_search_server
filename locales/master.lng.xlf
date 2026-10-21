@@ -19072,6 +19072,12 @@
     <trans-unit id="548bbd7f" xml:space="preserve" approved="no" translate="yes">
        <source>Topics of the website</source>
     </trans-unit>
+    <trans-unit id="1c4a5098" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible competitors</source>
+    </trans-unit>
+    <trans-unit id="e927e8b3" xml:space="preserve" approved="no" translate="yes">
+       <source>Organisations that offer a service of the same category in the selected collections, the most shared categories first. A suggestion from evidenced offers, no fact and no customer relation; a topic of a website makes nobody a competitor. A company can be a competitor and still a possible customer for another need.</source>
+    </trans-unit>
     <trans-unit id="cf7d35cf" xml:space="preserve" approved="no" translate="yes">
        <source>Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.</source>
     </trans-unit>

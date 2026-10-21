@@ -1096,7 +1096,7 @@
     li.append(dl);
     return li;
   }
-  const SECTIONS = ['overview', 'industry', 'services', 'website_topics', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'website_technologies', 'audiences', 'matches', 'sources', 'facts'];
+  const SECTIONS = ['overview', 'industry', 'services', 'website_topics', 'competitors', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'website_technologies', 'audiences', 'matches', 'sources', 'facts'];
   // a software or system mention with its context and source (0.10.2): a requirement is no proof of use, client work is the client's
   function systemItem(x) {
     const head = node('div', null, 'skg-statement-head');
@@ -1146,6 +1146,11 @@
       return li;
     })));
     if (b.website_topics?.length) box.append(section('website_topics', node('p', t('website_topics_note'), 'sseo-note'), list(b.website_topics, topicItem)));
+    if (b.competitors?.items?.length) box.append(section('competitors', node('p', t('competitors_note'), 'sseo-note'), list(b.competitors.items, x => {
+      const head = node('div', null, 'skg-statement-head'); head.append(entityLink(x.other), ' · ',
+        node('span', (x.shared_categories || []).map(c => codeLabel(c) || c.value).join(' · '), 'skg-value'));
+      const li = node('li', null, 'skg-statement skg-competitor'); li.append(head); li.dataset.competitor = x.other?.id || ''; return li;
+    })));
     if (b.prices?.length) box.append(section('prices', priceTable(b.prices)));
     if (b.amounts?.length) box.append(section('amounts', node('p', t('amt_note'), 'sseo-note'), amountTable(b.amounts)));
     if (b.contacts && Object.keys(b.contacts).length) {

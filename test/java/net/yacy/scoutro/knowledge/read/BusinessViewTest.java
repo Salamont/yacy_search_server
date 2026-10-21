@@ -599,6 +599,36 @@ public class BusinessViewTest {
         }
     }
 
+    /**
+     * 0.12.0 (B1): possible competitors offer a service of the same category in the viewer's collections, the most shared
+     * categories first; a topic makes nobody a competitor, another collection is not seen, the company itself is left out.
+     */
+    @Test
+    public void competitorsOfferTheSameCategoryAndTopicsMakeNone() throws Exception {
+        final ExtractContext sw = ctx("software", "stackfinder-web", false);
+        final String org = "{\"@type\":\"Organization\",\"name\":\"%s\",\"url\":\"https://www.%s/\"}";
+        publish(doc("ALPHA1host09", "https://www.alpha-beratung.de/leistungen", "stackfinder-web"), String.format(org, "Alpha Beratung GmbH",
+                "alpha-beratung.de"), "Leistungen. SAP S/4HANA und IT-Beratung für den Mittelstand.", sw, this.now - DAY);
+        publish(doc("BETA01host10", "https://www.beta-consult.de/leistungen", "stackfinder-web"), String.format(org, "Beta Consult GmbH",
+                "beta-consult.de"), "Leistungen. SAP-Beratung und IT-Beratung.", sw, this.now - DAY);
+        publish(doc("ETA001host13", "https://www.eta-it.de/leistungen", "stackfinder-web"), String.format(org, "Eta IT GmbH", "eta-it.de"),
+                "Leistungen. IT-Beratung.", sw, this.now - DAY);
+        publish(doc("GAMMA1host11", "https://www.gamma-it.de/", "stackfinder-web"), String.format(org, "Gamma Industrie GmbH", "gamma-it.de"),
+                "Willkommen. SAP | IT-Beratung | Kontakt", sw, this.now - DAY);
+        publish(doc("DELTA1host12", "https://www.delta-sap.de/leistungen", "bauteamcheck-web"), String.format(org, "Delta SAP GmbH",
+                "delta-sap.de"), "Leistungen. SAP-Beratung und IT-Beratung.", ctx("software", "bauteamcheck-web", false), this.now - DAY);
+        final JSONObject competitors = new BusinessView(this.reader).entity(entity("Alpha Beratung GmbH"), viewer("stackfinder-web"), false)
+                .getJSONObject("competitors");
+        assertFalse(competitors.getBoolean("fact"));
+        final JSONArray items = competitors.getJSONArray("items");
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < items.length(); i++) {
+            names.add(items.getJSONObject(i).getJSONObject("other").optString("name"));
+        }
+        assertEquals("most shared categories first; no topic, no other collection, not itself", List.of("Beta Consult GmbH", "Eta IT GmbH"), names);
+        assertEquals(List.of("software/it_beratung", "software/sap"), strings(items.getJSONObject(0).getJSONArray("shared_categories"), "value"));
+    }
+
     @Test
     public void theComparisonListsEveryPriceWithConditionsDatesAndSources() throws Exception {
         final JSONObject compare = new BusinessGraph(this.reader).compare("care/tagespflege", 50, viewer("edelsenior-web"));

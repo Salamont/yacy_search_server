@@ -39,6 +39,7 @@ import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
 import net.yacy.scoutro.knowledge.store.KgSchema;
+import net.yacy.scoutro.knowledge.extract.RuleExtractor;
 import net.yacy.scoutro.knowledge.store.KgStore;
 
 /**
@@ -709,6 +710,40 @@ public class LlmServiceTest {
         settleLlm();
         assertEquals("3:not_candidate", llmStatus("AAAAAAhost01"));
         assertEquals(0, this.model.calls.get());
+    }
+
+    /**
+     * 0.12.0: a new candidate rule decides once more about the pages skipped as no candidate. The page of one service, skipped
+     * under rule/7, is read; a page that is still no candidate is skipped again without a request; a later start decides
+     * nothing again.
+     */
+    @Test
+    public void aNewCandidateRuleDecidesOnceMoreAboutSkippedPages() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/pflege-beratung/demenz/", "c1", LD, TEXT, "Demenzberatung");
+        add("BBBBBBhost01", "https://www.muster-pflege.de/blog/rezepte", "c1", null, "Ein Rezept für Apfelkuchen.", "Rezepte");
+        settleSync();
+        settleLlm();
+        final int calls = this.model.calls.get();
+        // as rule/7 left them: both skipped as no candidate
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("UPDATE kg_doc SET llm_status = 3, llm_reason = 'not_candidate' WHERE doc_id IN ('AAAAAAhost01', 'BBBBBBhost01')");
+            }
+            return null;
+        });
+        putMeta(KgSchema.META_LLM_CANDIDATE_RULES, "7");
+        restart();
+        settleLlm();
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        assertEquals("3:not_candidate", llmStatus("BBBBBBhost01"));
+        assertTrue(strings("SELECT code FROM kg_event").contains("llm_candidates_changed"));
+        assertEquals(RuleExtractor.VERSION, strings("SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_LLM_CANDIDATE_RULES + "'").get(0));
+        final int after = this.model.calls.get();
+        assertTrue("the rest page is never asked: " + calls + " -> " + after, after <= calls + 1);
+        restart();
+        settleLlm();
+        assertEquals("nothing is decided again", after, this.model.calls.get());
+        assertEquals("3:not_candidate", llmStatus("BBBBBBhost01"));
     }
 
     @Test
