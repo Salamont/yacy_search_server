@@ -18,29 +18,38 @@ import net.yacy.scoutro.knowledge.store.*;
  * view reads it. {@code shared}: one candidate whose few signals match the offers of many providers (STELLWERK, 10,644
  * contributions in production); {@code distinct}: one provider whose offer matches as many candidates, every row with its
  * own signal and actor (the largest providers, up to 37,560). Not a unit test; run by hand:
- * {@code java ... SuggestionsLoadProbe <new dir> shared|distinct <contributions>}.
+ * {@code java ... SuggestionsLoadProbe <new dir> shared|distinct <contributions> [read budget ms, default 5000]}.
+ * <p>
+ * The data is built with a generous read budget; the store is then opened again with the given budget (production: 5,000 ms)
+ * and a real clock for the read leases, so a read that runs longer ends with {@code read_timeout} as in production. Each round
+ * reads what the object view and the API read: the suggestion page (25 and 100 groups), the full business view (it embeds
+ * the first 100 groups) and the contribution page of the first group.
  */
 public final class SuggestionsLoadProbe {
     static final long NOW = 1_800_000_000_000L;
     private static int serial;
 
     public static void main(final String[] args) throws Exception {
-        if (args.length != 3) throw new IllegalArgumentException("<new dir> shared|distinct <contributions>");
+        if (args.length != 3 && args.length != 4) throw new IllegalArgumentException("<new dir> shared|distinct <contributions> [read budget ms]");
         final Path root = Path.of(args[0]);
         if (Files.exists(root)) throw new IllegalArgumentException("refusing existing data");
         Files.createDirectories(root);
         final boolean shared = "shared".equals(args[1]);
         final int n = Integer.parseInt(args[2]);
+        final String budget = args.length > 3 ? args[3] : "5000";
         final Map<String, String> settings = new HashMap<>(KgTestSupport.enabled());
         settings.put(KgConfig.JOBS_COLLECTIONS, "a,b,c");
         settings.put(KgConfig.READ_MAX_TRANSACTION_MILLIS, "60000");
         final KgConfig cfg = KgTestSupport.config(settings);
+        settings.put(KgConfig.READ_MAX_TRANSACTION_MILLIS, budget);
+        final KgConfig readCfg = KgTestSupport.config(settings);
         final KgPaths paths = new KgPaths(root.toFile());
+        final String target;
+        final JSONObject report;
         try (KgStore store = KgStore.open(paths, cfg, new StorageGuard(cfg, paths, new KgTestSupport.Probe(), () -> NOW), KgStore.SQLITE, () -> NOW)) {
             store.write(WriteClass.SYSTEM, 0, c -> { new Terms().seed(c); return null; });
             final String signal = BusinessSignals.read("system_signal", "Wir nutzen SAP intern.", "text", "organization", "Candidate").get(0);
             final long t0 = System.nanoTime();
-            final String target;
             if (shared) {
                 // one candidate with 10 signals (10 pages), n/10 providers with one SAP offer each
                 target = KgIds.entityId("organization", "test", "", "candidate");
@@ -74,21 +83,48 @@ public final class SuggestionsLoadProbe {
             } while (!run.getBoolean("cycle_complete") && runs < 200);
             final double match = (System.nanoTime() - t1) / 1e9;
             final long contributions = store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_match_contribution"));
-            final KgReader reader = new KgReader(store, cfg, () -> NOW);
+            report = KgJson.obj("mode", args[1], "contributions", contributions, "seed_s", seed, "match_s", match, "match_runs", runs,
+                    "read_budget_ms", readCfg.readMaxTransactionMillis);
+        }
+        // the reads: the production read budget, a real clock for the leases (the reader keeps the data's clock)
+        try (KgStore store = KgStore.open(paths, readCfg, new StorageGuard(readCfg, paths, new KgTestSupport.Probe(), () -> NOW), KgStore.SQLITE,
+                System::currentTimeMillis)) {
+            final KgReader reader = new KgReader(store, readCfg, () -> NOW);
             final Suggestions suggestions = new Suggestions(reader);
             final KgChangeLog.Viewer origin = reader.viewer(List.of(shared ? "b" : "a")), all = reader.viewer(List.of("a", "b"));
             final JSONArray reads = new JSONArray();
-            int total = -1;
+            String proposal = null;
             for (int round = 0; round < 3; round++) {
-                for (final int limit : new int[] {25, 100}) {
+                for (final String call : List.of("suggestions_25", "suggestions_100", "business", "contributions_25")) {
                     final long t = System.nanoTime();
-                    final JSONObject page = suggestions.page(target, 0, limit, origin, all);
-                    total = page.getInt("total");
-                    reads.put(KgJson.obj("round", round, "limit", limit, "seconds", (System.nanoTime() - t) / 1e9, "items", page.getJSONArray("items").length()));
+                    final JSONObject r = KgJson.obj("round", round, "call", call);
+                    try {
+                        switch (call) {
+                            case "suggestions_25":
+                            case "suggestions_100": {
+                                final JSONObject page = suggestions.page(target, 0, "suggestions_25".equals(call) ? 25 : 100, origin, all);
+                                KgJson.put(r, "groups", page.getInt("total"));
+                                if (proposal == null && page.getJSONArray("items").length() > 0) {
+                                    proposal = page.getJSONArray("items").getJSONObject(0).getString("id");
+                                }
+                                break;
+                            }
+                            case "business":
+                                new BusinessView(reader).entity(target, origin, all, false);
+                                break;
+                            default:
+                                if (proposal != null) KgJson.put(r, "items", suggestions.contributions(target, proposal, 0, 25, origin, all)
+                                        .getJSONArray("items").length());
+                        }
+                        KgJson.put(r, "seconds", (System.nanoTime() - t) / 1e9);
+                    } catch (final KgException e) {
+                        KgJson.put(r, "seconds", (System.nanoTime() - t) / 1e9);
+                        KgJson.put(r, "error", e.code());
+                    }
+                    reads.put(r);
                 }
             }
-            final JSONObject report = KgJson.obj("mode", args[1], "contributions", contributions, "groups", total, "seed_s", seed, "match_s", match,
-                    "match_runs", runs, "reads", reads);
+            KgJson.put(report, "reads", reads);
             Files.writeString(root.resolve("load-report.json"), report.toString(2));
             System.out.println(report.toString(2));
         } finally {
