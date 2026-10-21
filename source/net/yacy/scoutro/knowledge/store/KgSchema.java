@@ -462,6 +462,11 @@ public final class KgSchema {
 
     /** 0.12.0: the rule version whose candidate rule decided the pages skipped as {@code not_candidate}. */
     public static final String META_LLM_CANDIDATE_RULES = "llm_candidate_rules";
+    /**
+     * 0.12.0: set once the services pages the LLM tier read without an accepted service were made to do again with the
+     * new title proof (rule/8, {@code LlmQueue.SERVICE_RECHECK}); a later rule version does not repeat it by itself.
+     */
+    public static final String META_LLM_SERVICE_RECHECK = "llm_service_recheck";
     /** End of the last derivation of linked_to, same_operator and the suggested matches. */
     public static final String META_DERIVED_AT = "derived_at";
 }

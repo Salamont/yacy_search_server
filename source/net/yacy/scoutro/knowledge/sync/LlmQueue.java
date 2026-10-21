@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import net.yacy.scoutro.knowledge.extract.BusinessRules;
 import net.yacy.scoutro.knowledge.store.KgStore;
 
 /**
@@ -73,6 +74,11 @@ final class LlmQueue {
      * just short is read whole and gets no reason (it is counted, {@link LlmService#thinText}).
      */
     static final String TEXT_MISSING = "text_missing";
+    /**
+     * To do once more (0.12.0): a services page the tier read without an accepted service; the worker asks the model
+     * again instead of its cache, whose answer kept only what the former proof accepted.
+     */
+    static final String SERVICE_RECHECK = "service_recheck";
     /** Queue priority of a continuation: after every first reading, until it waited {@link #AGING_MILLIS}. */
     static final int CONTINUATION_PRIORITY = 8;
     /**
@@ -527,6 +533,72 @@ final class LlmQueue {
             ps.setInt(1, STATUS_SKIPPED);
             ps.setString(2, reason);
             return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * The services pages the tier read without an accepted service (0.12.0): done, not continued, active, a services page
+     * or the page of one service by its address ({@link BusinessRules#kinds}) and no offer of the LLM tier evidenced by
+     * the page. Read in row order, {@code limit} rows of done pages at a time.
+     */
+    static List<String> serviceRecheck(final Connection c, final long offers, final long after, final int limit, final long[] last)
+            throws SQLException {
+        final List<String> out = new ArrayList<>();
+        last[0] = -1L;
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.url, EXISTS (SELECT 1 FROM kg_evidence e"
+                + " INDEXED BY kg_evidence_doc JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid WHERE e.doc_rowid = d.doc_rowid"
+                + " AND e.tier = 3 AND s.pred = ?) FROM kg_doc d INDEXED BY kg_doc_llm_status WHERE d.llm_status = " + STATUS_DONE
+                + " AND d.doc_rowid > ? AND d.state = 1 AND coalesce(d.llm_reason, '') <> '" + MORE_TEXT + "' ORDER BY d.doc_rowid LIMIT ?")) {
+            ps.setLong(1, offers);
+            ps.setLong(2, after);
+            ps.setInt(3, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    last[0] = rs.getLong(1);
+                    if (rs.getInt(4) == 0 && servicesPage(rs.getString(3))) {
+                        out.add(rs.getString(2));
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    static boolean servicesPage(final String url) {
+        final java.util.Set<BusinessRules.PageKind> kinds = BusinessRules.kinds(url, null);
+        return kinds.contains(BusinessRules.PageKind.SERVICES) || kinds.contains(BusinessRules.PageKind.SERVICE_DETAIL);
+    }
+
+    /** Makes every page of {@link #serviceRecheck(Connection, long, long, int, long[])} to do once more; the number made. */
+    static int serviceRecheck(final Connection tx) throws SQLException {
+        final Long offers;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = ?")) {
+            ps.setString(1, net.yacy.scoutro.knowledge.extract.Vocabulary.OFFERS);
+            try (ResultSet rs = ps.executeQuery()) {
+                offers = rs.next() ? rs.getLong(1) : null;
+            }
+        }
+        if (offers == null) {
+            return 0;
+        }
+        int n = 0;
+        final long[] last = {0L};
+        for (long after = 0L; last[0] >= 0L; after = last[0]) {
+            for (final String docId : serviceRecheck(tx, offers, after, 2000, last)) {
+                if (recheck(tx, docId)) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    /** Makes a done document to do once more, asked without the cache ({@link #SERVICE_RECHECK}). */
+    static boolean recheck(final Connection tx, final String docId) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = '" + SERVICE_RECHECK + "'"
+                + " WHERE doc_id = ? AND llm_status = " + STATUS_DONE + " AND state = 1")) {
+            ps.setString(1, docId);
+            return ps.executeUpdate() > 0;
         }
     }
 

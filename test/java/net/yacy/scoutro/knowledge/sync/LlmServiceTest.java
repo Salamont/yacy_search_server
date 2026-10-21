@@ -746,6 +746,43 @@ public class LlmServiceTest {
         assertEquals("3:not_candidate", llmStatus("BBBBBBhost01"));
     }
 
+    /**
+     * 0.12.0 (C3): once per graph, the services pages the tier read without an accepted service are asked again, without
+     * the cache; a services page with an accepted service and any other page keep their reading.
+     */
+    @Test
+    public void servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/leistungen/", "c1", LD, "Leistungen. Wir pflegen mit Herz und Verstand.", "Leistungen");
+        add("BBBBBBhost01", "https://www.muster-pflege.de/impressum", "c1", LD, "Impressum. Muster Pflege gGmbH, Berlin.");
+        add("CCCCCChost02", "https://www.muster-dienst.de/leistungen/", "c1", null, TEXT, "Leistungen");
+        settleSync();
+        settleLlm();
+        assertEquals("a new graph has nothing to ask again", RuleExtractor.VERSION,
+                strings("SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_LLM_SERVICE_RECHECK + "'").get(0));
+        assertTrue("the services page with an accepted service", count("SELECT count(*) FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
+                + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE d.doc_id = 'CCCCCChost02'"
+                + " AND e.tier = 3 AND v.name = 'offers'") > 0L);
+        final int calls = this.model.calls.get();
+        // as a graph of 0.11.8 is: read under the former proof, without the record
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("DELETE FROM kg_meta WHERE key = '" + KgSchema.META_LLM_SERVICE_RECHECK + "'");
+            }
+            return null;
+        });
+        restart();
+        settleLlm();
+        assertEquals("only the services page without a service is asked, past its cache", calls + 1, this.model.calls.get());
+        assertTrue(this.model.users.get(this.model.users.size() - 1).contains("Wir pflegen mit Herz"));
+        for (final String id : List.of("AAAAAAhost01", "BBBBBBhost01", "CCCCCChost02")) {
+            assertEquals(id, "1:", llmStatus(id));
+        }
+        assertTrue(strings("SELECT code FROM kg_event").contains("llm_service_recheck"));
+        restart();
+        settleLlm();
+        assertEquals("once per graph", calls + 1, this.model.calls.get());
+    }
+
     @Test
     public void changedInputReplacesTheLlmResult() throws Exception {
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);

@@ -666,6 +666,19 @@ public final class LlmService {
             }
         }
         KgStore.putMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES, RuleExtractor.VERSION);
+        // 0.12.0 (C3): the services pages the tier read without an accepted service are asked once more, without the cache
+        // whose answer kept only what the former proof accepted; every other page keeps its reading. Once per graph.
+        if (KgStore.getMeta(tx, KgSchema.META_LLM_SERVICE_RECHECK) == null) {
+            if (rules != null || lastExtractor != null || upgraded) {
+                final int n = LlmQueue.serviceRecheck(tx);
+                if (n > 0) {
+                    LlmQueue.resetCursors(tx);
+                    KgStore.event(tx, 1, "llm_service_recheck", n + " services pages read without an accepted service are asked once"
+                            + " more under rule/" + RuleExtractor.VERSION, this.clock.getAsLong());
+                }
+            }
+            KgStore.putMeta(tx, KgSchema.META_LLM_SERVICE_RECHECK, RuleExtractor.VERSION);
+        }
     }
 
     /** Uses an activated prompt from the next document on (KgRuntime.promptActivate has stored it). */
@@ -1294,6 +1307,7 @@ public final class LlmService {
             complete(item); // removed, unavailable, already marked or out of the selection: nothing to do
             return;
         }
+        final boolean recheck = !continuation && LlmQueue.SERVICE_RECHECK.equals(row.llmReason);
         final SolrDoc d;
         try {
             d = this.solr.get(Collections.singletonList(item.docId), SolrDoc.PROCESS_FIELDS).get(item.docId);
@@ -1423,7 +1437,8 @@ public final class LlmService {
             final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, partKnown, kinds, extra);
             keys.add(key);
             final ExtractionCache.Entry resumed=progress.get(key);
-            final ExtractionCache.Entry cached = resumed!=null?resumed:this.store.read(c -> ExtractionCache.get(c, key));
+            // a page made to do once more for its services (0.12.0) is asked again: its cached answer is replaced
+            final ExtractionCache.Entry cached = resumed!=null?resumed:recheck?null:this.store.read(c -> ExtractionCache.get(c, key));
             if (cached != null) {
                 if(resumed==null)this.counters.cacheHits.incrementAndGet();
                 progress.put(key,cached.status,cached.value);
