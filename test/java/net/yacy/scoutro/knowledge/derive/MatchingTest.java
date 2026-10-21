@@ -320,6 +320,14 @@ public class MatchingTest {
         observation(candidate,"organization","business_role_evidence",KgJson.obj("role","system_integrator","context","own_offered_services"),"Wir bieten Systemintegration an.","b");
         assertEquals(0,page("a","b").getInt("total"));
     }
+    @Test public void everyReasonNamesItsKindOfEvidence()throws Exception {
+        // 0.12.0 (B2): a stated use, a job's requirement, a stated need
+        offer("SAP Beratung");signal("Wir nutzen SAP intern.","organization");signal("SAP Kenntnisse erforderlich.","job");run();
+        JSONArray reasons=page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions");
+        Set<String> kinds=new TreeSet<>();for(int i=0;i<reasons.length();i++)kinds.add(reasons.getJSONObject(i).getString("evidence_kind"));
+        assertEquals(Set.of("use","job_requirement"),kinds);
+        assertEquals("need",net.yacy.scoutro.knowledge.read.MatchingProjection.evidenceKind("planned_migration"));
+    }
     @Test public void aWebsiteTopicIsNoOfferForTheMatching()throws Exception {
         // 0.11.8: a category the site only names (a topic) never makes a provider; its service does
         observation(provider,"organization","topic",KgJson.obj("literal","software/sap"),"SAP | IT-Beratung | Kontakt","a");
