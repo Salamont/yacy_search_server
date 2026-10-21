@@ -437,6 +437,8 @@ public final class KgSchema {
     public static final String META_UPGRADE = "upgrade";
     /** The LLM tier's extractor (version and prompt hash) of the last start; a new version re-examines every document, a new prompt hash does not. */
     public static final String META_LLM_EXTRACTOR = "llm_extractor";
+    /** 0.12.0: the rule version whose candidate rule decided the pages skipped as {@code not_candidate}. */
+    public static final String META_LLM_CANDIDATE_RULES = "llm_candidate_rules";
     /** End of the last derivation of linked_to, same_operator and the suggested matches. */
     public static final String META_DERIVED_AT = "derived_at";
 }

@@ -554,6 +554,11 @@ public final class BusinessView {
         final String id = KgReader.publicId(c, s);
         final JSONObject o = KgJson.obj("id", id, "name", name, "offer", offer.stat.publicId);
         fact(o, offer);
+        // 0.12.0: an offer only the page's structure shows (its title, a list, the service's own page), by the rules alone
+        if (offer.stat.kinds.size() == 1 && offer.stat.kinds.contains("rule")
+                && net.yacy.scoutro.knowledge.extract.BusinessRules.structural(offer.confidence)) {
+            KgJson.put(o, "offer_evidence", "structural");
+        }
         collect(offer, docs);
         KgJson.put(o, "categories", codes(categories, cats, KgVocabularies.get().nace, docs));
         if (!descriptions.isEmpty()) {

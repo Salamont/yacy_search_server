@@ -50,9 +50,12 @@ public final class LlmReading {
     public final List<LlmExtractor.Known> known;
     /** The facility kinds the model may assign for the page's collections. */
     public final Set<String> kinds;
+    /** 0.12.0: the title of a page that shows the site's offers ({@link BusinessRules#offerTitle}); null otherwise. */
+    public final String serviceTitle;
 
     private LlmReading(final String title, final String domain, final String language, final List<LlmExtractor.Known> known,
-            final Set<String> kinds) {
+            final Set<String> kinds, final String serviceTitle) {
+        this.serviceTitle = serviceTitle;
         this.title = title;
         this.domain = domain;
         this.language = language;
@@ -67,7 +70,7 @@ public final class LlmReading {
      */
     public static LlmReading of(final KgConfig cfg, final SolrDoc d, final Collection<String> collections, final Extraction base) {
         return new LlmReading(d.titles.isEmpty() ? null : d.titles.get(0), Normalizers.registrableDomain(BaseTiers.host(d)), d.language,
-                LlmExtractor.known(base), cfg.llmKinds(collections));
+                LlmExtractor.known(base), cfg.llmKinds(collections), BusinessRules.offerTitle(d.url, d.titles));
     }
 
     /**
@@ -111,12 +114,12 @@ public final class LlmReading {
 
     /** The validation of the model's answer to one request. */
     public LlmExtractor.Result check(final String answer, final RequestBudget.Part part) {
-        return LlmExtractor.validate(answer, part.chunk, part.known, this.kinds);
+        return LlmExtractor.validate(answer, part.chunk, part.known, this.kinds, LlmExtractor.SAMPLES, this.serviceTitle);
     }
 
     /** As {@link #check(String, RequestBudget.Part)}, keeping up to {@code samples} dropped items (the quality check's diagnostics). */
     public LlmExtractor.Result check(final String answer, final RequestBudget.Part part, final int samples) {
-        return LlmExtractor.validate(answer, part.chunk, part.known, this.kinds, samples);
+        return LlmExtractor.validate(answer, part.chunk, part.known, this.kinds, samples, this.serviceTitle);
     }
 
     /**
@@ -124,7 +127,13 @@ public final class LlmReading {
      * and the job titles the rules see as positions of the page (a job they see as a menu entry is none of the model's either).
      */
     public static ExtractContext context(final KgConfig cfg, final SolrDoc d, final String stored) {
-        return BaseTiers.context(cfg, d).withJobTitles(BusinessRules.jobTitleKeys(stored, d.url, d.titles)).withServiceText(stored);
+        return context(cfg, d, stored, null);
+    }
+
+    /** {@link #context(KgConfig, SolrDoc, String)} with the page's tiers 1 and 2: their subject offers what the page's title shows. */
+    public static ExtractContext context(final KgConfig cfg, final SolrDoc d, final String stored, final Extraction base) {
+        return BaseTiers.context(cfg, d).withJobTitles(BusinessRules.jobTitleKeys(stored, d.url, d.titles)).withServiceText(stored)
+                .withServiceTitle(BusinessRules.offerTitle(d.url, d.titles), BusinessRules.pageSubject(base));
     }
 
     // ------------------------------------------------------------ a page given as text

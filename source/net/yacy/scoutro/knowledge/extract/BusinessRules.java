@@ -69,6 +69,12 @@ public final class BusinessRules {
     public static final String SITE_REF = "rule:site";
     static final double SERVICE_PAGE_CONFIDENCE = 0.65;
     static final double HOME_PAGE_CONFIDENCE = 0.5;
+    /**
+     * 0.12.0: the confidence of a service whose offer only the page's structure shows (its title or brand line, a bulleted
+     * list, the title of its own service page), not an offer sentence, a heading or a price: below every explicit offer, so the
+     * view can tell it apart ({@link #structural}).
+     */
+    public static final double STRUCTURAL_CONFIDENCE = 0.4;
     static final int MAX_SERVICES = 25;
     static final int MAX_PRICES = 40;
     static final int MAX_RELATIONS = 40;
@@ -83,7 +89,26 @@ public final class BusinessRules {
     static final int AD_WINDOW = 6000;
 
     /** What a page is about, from its path and titles (several at once). */
-    public enum PageKind { HOME, SERVICES, PRICES, CAREERS, PARTNERS, REFERENCES, ABOUT, AUDIENCE, CONTACT, IMPRINT }
+    public enum PageKind { HOME, SERVICES, PRICES, CAREERS, PARTNERS, REFERENCES, ABOUT, AUDIENCE, CONTACT, IMPRINT,
+        /** 0.12.0: a page of one service of the site ("/sap-beratung/sap-cash-management/"): its title names what it offers. */
+        SERVICE_DETAIL }
+
+    /** True for the confidence of a structurally evidenced offer ({@link #STRUCTURAL_CONFIDENCE}). */
+    public static boolean structural(final double confidence) {
+        return Math.abs(confidence - STRUCTURAL_CONFIDENCE) < 1e-9;
+    }
+
+    /**
+     * The title of a page whose title or brand line shows what the site offers (0.12.0): its home page, a services page or
+     * the page of one service; null for any other page or without a title.
+     */
+    public static String offerTitle(final String url, final List<String> titles) {
+        if (titles == null || titles.isEmpty() || titles.get(0) == null || titles.get(0).isBlank()) {
+            return null;
+        }
+        final Set<PageKind> k = kinds(url, titles);
+        return k.contains(PageKind.HOME) || k.contains(PageKind.SERVICES) || k.contains(PageKind.SERVICE_DETAIL) ? titles.get(0) : null;
+    }
 
     private static final Map<PageKind, Pattern> PATHS = new LinkedHashMap<>();
     static {
@@ -103,7 +128,13 @@ public final class BusinessRules {
                 + "|fuer-privatkunden|for-business|for-whom)(?:[./_\\-]|$)"));
         PATHS.put(PageKind.CONTACT, Pattern.compile("(?i)(?:^|/)(?:kontakt|contact|anfahrt|standort|standorte|location)(?:[./_\\-]|$)"));
         PATHS.put(PageKind.IMPRINT, Pattern.compile("(?i)(?:^|/)(?:impressum|imprint|legal-?notice)(?:[./_\\-]|$)"));
+        PATHS.put(PageKind.SERVICE_DETAIL, Pattern.compile("(?iu)(?:^|/)(?:[\\p{L}\\p{N}]+-)*(?:beratung|consulting|dienstleistungen?"
+                + "|loesungen|lösungen)(?:[./_\\-]|$)"));
     }
+    /** A path of news, articles or guides: no page of a service of the site, whatever its words (0.12.0). */
+    private static final Pattern EDITORIAL_PATH = Pattern.compile("(?iu)(?:^|/)(?:blog|news|aktuelles|aktuell|presse|press|magazin"
+            + "|magazine|artikel|beitrag|beitraege|beiträge|ratgeber|wissen|insights|events?|veranstaltungen|termine|glossar|faq|jobs?"
+            + "|karriere|stellen\\w*)(?:[./_\\-]|$)");
     private static final Pattern TITLE_SERVICES = Pattern.compile("(?iu)\\b(?:leistungen|angebot|services|unsere\\s+leistungen)\\b");
     private static final Pattern TITLE_PRICES = Pattern.compile("(?iu)\\b(?:preise|kosten|tarife|pricing|preisliste)\\b");
     private static final Pattern TITLE_CAREERS = Pattern.compile("(?iu)\\b(?:karriere|jobs|stellenangebote?|career|careers)\\b");
@@ -126,6 +157,9 @@ public final class BusinessRules {
                 if (e.getValue().matcher(decoded).find()) {
                     out.add(e.getKey());
                 }
+            }
+            if (EDITORIAL_PATH.matcher(decoded).find()) {
+                out.remove(PageKind.SERVICE_DETAIL);
             }
         }
         if (titles != null) {
@@ -213,6 +247,22 @@ public final class BusinessRules {
     }
 
     /**
+     * The subject the rules gave the page's business facts ({@link #subject}), read from its tiers 1 and 2 without adding
+     * anything; null if there is none (several organisations, no text read).
+     */
+    public static Mention pageSubject(final Extraction base) {
+        if (base == null) {
+            return null;
+        }
+        final Mention operator = base.mention(RuleExtractor.OPERATOR_REF);
+        if (operator != null) {
+            return operator;
+        }
+        final List<Mention> subjects = base.subjects(1);
+        return subjects.size() == 1 ? subjects.get(0) : subjects.isEmpty() ? base.mention(SITE_REF) : null;
+    }
+
+    /**
      * Runs the rules that apply to the page's kinds. {@code subject} is the
      * organisation the facts belong to ({@link #subject}); null runs nothing.
      */
@@ -229,7 +279,7 @@ public final class BusinessRules {
         }
         final Run run = new Run(text, url, host, language, out, ctx, kinds, subject, titles);
         final boolean servicePage = kinds.contains(PageKind.SERVICES) || kinds.contains(PageKind.PRICES);
-        if (servicePage || kinds.contains(PageKind.HOME)) {
+        if (servicePage || kinds.contains(PageKind.HOME) || kinds.contains(PageKind.SERVICE_DETAIL)) {
             services(run, servicePage ? SERVICE_PAGE_CONFIDENCE : HOME_PAGE_CONFIDENCE);
         }
         relations(run);
@@ -290,12 +340,26 @@ public final class BusinessRules {
         // category named without an offer cue (an offer verb, an offer heading or list, a price after it) is a topic of
         // the organisation, no service: no offers, no price, no derived industry
         final boolean offerPage = run.kinds.contains(PageKind.SERVICES) || run.kinds.contains(PageKind.PRICES);
+        // 0.12.0 (rule/8): the page's structure shows an offer too, with less confidence: a category its title or brand line
+        // names ("Malermeister Dehmel | Malerarbeiten in Oschersleben", the title of a service's own page) or a bulleted item
+        final java.util.Set<String> titled = new java.util.HashSet<>();
+        for (final String t : run.titles) {
+            if (t != null) {
+                for (final TermMatcher.Hit<Categories.Entry> h : BusinessFacts.categories(run.ctx, t, 0, t.length())) {
+                    titled.add(h.entry.id);
+                }
+            }
+        }
         final Map<String, Boolean> offered = new LinkedHashMap<>();
+        final Map<String, Boolean> explicit = new LinkedHashMap<>();
         for (final TermMatcher.Hit<Categories.Entry> h : hits) {
-            if (!Boolean.TRUE.equals(offered.get(h.entry.id))) {
+            if (!Boolean.TRUE.equals(explicit.get(h.entry.id))) {
                 // 0.11.5: a role word ("Hersteller", "Händler") names what the organisation is, never a service it offers
-                offered.put(h.entry.id, !roleCategory(h.entry)
-                        && (offerPage || ServiceEvidence.pricedEvidence(run.text, run.text.substring(h.start, h.end)) != null));
+                final boolean role = roleCategory(h.entry);
+                final boolean stated = !role && (offerPage || ServiceEvidence.pricedEvidence(run.text, run.text.substring(h.start, h.end)) != null);
+                explicit.put(h.entry.id, stated);
+                offered.put(h.entry.id, stated || !role && (Boolean.TRUE.equals(offered.get(h.entry.id)) || titled.contains(h.entry.id)
+                        || bulleted(run.text, h.start)));
             }
         }
         final java.util.Set<String> topics = new java.util.HashSet<>();
@@ -318,14 +382,25 @@ public final class BusinessRules {
                 s = new Service(m, h.entry);
                 services.put(h.entry.id, s);
                 list.add(s);
-                claim(run, m, Vocabulary.NAME, h.entry.de, h.start, h.end, confidence);
-                claim(run, m, Vocabulary.CATEGORY, h.entry.id, h.start, h.end, confidence);
-                relation(run, run.subject, Vocabulary.OFFERS, m, h.start, h.end, confidence);
+                final double c = explicit.get(h.entry.id) ? confidence : STRUCTURAL_CONFIDENCE;
+                claim(run, m, Vocabulary.NAME, h.entry.de, h.start, h.end, c);
+                claim(run, m, Vocabulary.CATEGORY, h.entry.id, h.start, h.end, c);
+                relation(run, run.subject, Vocabulary.OFFERS, m, h.start, h.end, c);
             }
             s.at.add(h.start);
             positions.add(new int[] {h.start, h.end, list.indexOf(s)});
         }
         prices(run, positions, list);
+    }
+
+    private static final Pattern BULLET_LINE = Pattern.compile("^[ \\t]*(?:[-*\u2022\u00b7\u2013]|\\d+[.)])[ \\t]+");
+
+    /** True if the position stands in a bulleted line ("- Fassadengestaltung.", "• Tagespflege"), never a sentence of prose. */
+    static boolean bulleted(final String text, final int at) {
+        final int line = text.lastIndexOf('\n', Math.max(0, at - 1)) + 1;
+        final int end = text.indexOf('\n', at);
+        final String l = text.substring(line, end < 0 ? text.length() : end);
+        return l.length() <= 120 && BULLET_LINE.matcher(l).find() && !ServiceEvidence.negated(l);
     }
 
     // --------------------------------------------------------------- prices
@@ -334,7 +409,8 @@ public final class BusinessRules {
 
     private void prices(final Run run, final List<int[]> services, final List<Service> list) {
         final boolean pricePage = run.kinds.contains(PageKind.PRICES);
-        if (!pricePage && !run.kinds.contains(PageKind.SERVICES) && !run.kinds.contains(PageKind.HOME)) {
+        if (!pricePage && !run.kinds.contains(PageKind.SERVICES) && !run.kinds.contains(PageKind.HOME)
+                && !run.kinds.contains(PageKind.SERVICE_DETAIL)) {
             return;
         }
         final String asOf = Values.asOf(run.text);

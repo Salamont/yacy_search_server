@@ -581,6 +581,15 @@ public final class LlmExtractor {
      * every one of a reference page (its diagnostics), the queue the few of the refusal diagnostics.
      */
     public static Result validate(final String answer, final Chunk chunk, final List<Known> known, final Set<String> kinds, final int samples) {
+        return validate(answer, chunk, known, kinds, samples, null);
+    }
+
+    /**
+     * As {@link #validate(String, Chunk, List, Set, int)} for a page whose title shows the site's offers (0.12.0,
+     * {@link BusinessRules#offerTitle}): a service its title names is offered structurally.
+     */
+    public static Result validate(final String answer, final Chunk chunk, final List<Known> known, final Set<String> kinds, final int samples,
+            final String serviceTitle) {
         if (answer == null) {
             return new Result(null, "empty");
         }
@@ -674,7 +683,7 @@ public final class LlmExtractor {
                 }
             }
             // a known entity has its type from another tier; a new service or job needs the context that states its type
-            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context);
+            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context, serviceTitle);
             if (untyped != null) {
                 r.invalid(untyped);
                 r.sample(untyped, "entity", null, type, null, null, null, quote);
@@ -862,12 +871,12 @@ public final class LlmExtractor {
      * Other types are not checked here.
      */
     private static String unstatedType(final String type, final String id, final String name, final String quote, final String text,
-            final String raw, final Map<String, List<String>> context) {
+            final String raw, final Map<String, List<String>> context, final String serviceTitle) {
         if (Vocabulary.SERVICE.equals(type)) {
             if (TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
                 return "entity_service_team_or_role";
             }
-            return serviceProof(id, name, quote, text, raw, context) == null ? "entity_service_not_offered" : null;
+            return serviceProof(id, name, quote, text, raw, context) == null && !titled(serviceTitle, name) ? "entity_service_not_offered" : null;
         }
         if (Vocabulary.JOB.equals(type)) {
             if (POSTING.matcher(name).find() || POSTING.matcher(quote).find() || underHeading(raw, quote, POSTING)) {
@@ -881,6 +890,12 @@ public final class LlmExtractor {
             return "entity_job_not_advertised";
         }
         return null;
+    }
+
+    /** 0.12.0: the title of a page that shows the site's offers names the service: a structural offer (no team or role). */
+    static boolean titled(final String serviceTitle, final String name) {
+        return serviceTitle != null && name != null && !name.isBlank() && nameInQuote(serviceTitle, name)
+                && !TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find();
     }
 
     private static String serviceProof(final String id, final String name, final String quote, final String text,
@@ -1096,6 +1111,7 @@ public final class LlmExtractor {
         final Map<String, List<String>> context = context(accepted.optJSONArray("claims") == null ? new JSONArray() : accepted.optJSONArray("claims"),
                 accepted.optJSONArray("values") == null ? new JSONArray() : accepted.optJSONArray("values"), true);
         final Set<String> named = new HashSet<>();
+        final Set<String> structural = new HashSet<>();
         for (int i = 0; entities != null && i < entities.length(); i++) {
             final JSONObject e = entities.optJSONObject(i);
             final String type = e.optString("type");
@@ -1118,13 +1134,20 @@ public final class LlmExtractor {
                         }
                     }
                 }
-                if (proof == null || TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
-                    continue; // old accepted/cache entries pass the same evidence rule; their dependents have no ref
+                if (proof == null && ctx != null && titled(ctx.serviceTitle, name) && (ctx.serviceText == null || nameInQuote(ctx.serviceText, name))) {
+                    // 0.12.0: the page's title shows the offer of a service its text names; the title is its evidence
+                    structural.add(ref);
+                    location = "title:0+" + ctx.serviceTitle.length();
+                    quote = normal(ctx.serviceTitle);
+                } else {
+                    if (proof == null || TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
+                        continue; // old accepted/cache entries pass the same evidence rule; their dependents have no ref
+                    }
+                    if (ctx != null && ctx.serviceText != null) {
+                        location = "text:" + rawOffset(ctx.serviceText, proof) + "+" + normal(proof).length();
+                    }
+                    quote = normal(proof);
                 }
-                if (ctx != null && ctx.serviceText != null) {
-                    location = "text:" + rawOffset(ctx.serviceText, proof) + "+" + normal(proof).length();
-                }
-                quote = normal(proof);
             }
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection
@@ -1144,7 +1167,8 @@ public final class LlmExtractor {
                 }
             }
             if (named.add(ref)) {
-                out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote));
+                out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
+                        structural.contains(ref) ? BusinessRules.STRUCTURAL_CONFIDENCE : null));
             }
         }
         final JSONArray claims = accepted.optJSONArray("claims");
@@ -1155,9 +1179,10 @@ public final class LlmExtractor {
             if (s == null || o == null || s.equals(o)) {
                 continue;
             }
+            final boolean structuralOffer = Vocabulary.OFFERS.equals(c.optString("predicate")) && structural.contains(o);
             if (Vocabulary.OFFERS.equals(c.optString("predicate"))) {
                 final String raw = ctx == null ? null : ctx.serviceText;
-                if (raw != null && !quoteInText(raw, c.optString("quote")) || ServiceEvidence.evidence(
+                if (raw != null && !quoteInText(raw, c.optString("quote")) || !structuralOffer && ServiceEvidence.evidence(
                         raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null) {
                     continue;
                 }
@@ -1171,7 +1196,28 @@ public final class LlmExtractor {
                 }
             }
             out.add(new Claim(s, c.optString("predicate"), o, null, TIER, Claim.KIND_LLM, c.optBoolean("hedged"), locator(c),
-                    c.optString("quote")));
+                    c.optString("quote"), structuralOffer ? BusinessRules.STRUCTURAL_CONFIDENCE : null));
+            if (structuralOffer) {
+                structural.remove(o);
+            }
+        }
+        // 0.12.0: a service the page's title shows and no accepted claim offers is offered by the site's declared operator, as
+        // the rules' service of the page is; the title is its excerpt
+        final Mention operator = ctx == null ? null : ctx.serviceOperator;
+        if (operator != null && !structural.isEmpty() && out.mention(operator.ref) == null) {
+            out.add(operator);
+        }
+        for (final String ref : structural) {
+            final Mention service = out.mention(ref);
+            if (operator == null || service == null || ctx == null || ctx.serviceTitle == null) {
+                continue;
+            }
+            if (service.tier == TIER && service.serviceKey == null && service.name != null) {
+                service.serviceKey = JsonLdExtractor.serviceKey(ctx, Mention.providerKey(operator), service.name);
+                service.providerServiceKey = true;
+            }
+            out.add(new Claim(operator.ref, Vocabulary.OFFERS, ref, null, TIER, Claim.KIND_LLM, false, "title:0+" + ctx.serviceTitle.length(),
+                    Normalizers.clip(ctx.serviceTitle, MAX_QUOTE), BusinessRules.STRUCTURAL_CONFIDENCE));
         }
         final JSONArray values = accepted.optJSONArray("values");
         for (int i = 0; values != null && i < values.length(); i++) {

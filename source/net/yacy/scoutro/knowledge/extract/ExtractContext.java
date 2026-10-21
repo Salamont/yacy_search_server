@@ -55,6 +55,10 @@ public final class ExtractContext {
     public final Set<String> otherTitles;
     /** Page text for the service evidence check during publication, including cached answers; never stored here. */
     public final String serviceText;
+    /** 0.12.0: the title of a page that shows the site's offers ({@link BusinessRules#offerTitle}); null otherwise. */
+    public final String serviceTitle;
+    /** 0.12.0: the page's subject by the rules ({@link BusinessRules#pageSubject}), the provider of what its title shows. */
+    public final Mention serviceOperator;
 
     /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
@@ -80,9 +84,16 @@ public final class ExtractContext {
         this.postingTitles = Set.of();
         this.otherTitles = Set.of();
         this.serviceText = null;
+        this.serviceTitle = null;
+        this.serviceOperator = null;
     }
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText) {
+        this(c, postingTitles, otherTitles, serviceText, c.serviceTitle, c.serviceOperator);
+    }
+
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
+            final String serviceTitle, final Mention serviceOperator) {
         this.categories = c.categories;
         this.nace = c.nace;
         this.vocabularies = c.vocabularies;
@@ -92,6 +103,8 @@ public final class ExtractContext {
         this.postingTitles = Set.copyOf(postingTitles);
         this.otherTitles = Set.copyOf(otherTitles);
         this.serviceText = serviceText;
+        this.serviceTitle = serviceTitle;
+        this.serviceOperator = serviceOperator;
     }
 
     /** This context with the job titles of the page: {postings, others} of {@link BusinessRules#jobTitleKeys}. */
@@ -101,6 +114,11 @@ public final class ExtractContext {
 
     public ExtractContext withServiceText(final String text) {
         return new ExtractContext(this, this.postingTitles, this.otherTitles, text);
+    }
+
+    /** This context with the title of a page that shows the site's offers ({@link BusinessRules#offerTitle}), or null. */
+    public ExtractContext withServiceTitle(final String title, final Mention operator) {
+        return new ExtractContext(this, this.postingTitles, this.otherTitles, this.serviceText, title, operator);
     }
 
     /** True if a job of this name is a position the page advertises by the rules (its title, or the end of one). */

@@ -1138,7 +1138,9 @@
     if (b.categories?.length) box.append(section('services', list(b.categories, i => literalItem('category', i))));
     if (b.services?.length) box.append(section('services', list(b.services, sv => {
       const head = node('div', null, 'skg-statement-head'); head.append(link(sv.name || t('unnamed_service'), { view: 'object', id: sv.id }));
-      const li = factItem(head, sv);
+      // 0.12.0: an offer only the page's structure shows (title, list, the service's own page) is named as such
+      if (sv.offer_evidence === 'structural') head.append(' · ', node('span', t('offer_structural'), 'sseo-note skg-offer-structural'));
+      const li = factItem(head, sv); if (sv.offer_evidence) li.dataset.offerEvidence = sv.offer_evidence;
       if (sv.categories?.length) li.insertBefore(node('p', sv.categories.map(c => codeLabel(c) || c.value).join(' · '), 'skg-value'), li.children[1]);
       if (sv.description) li.insertBefore(node('p', sv.description, 'skg-value'), li.children[1]);
       return li;

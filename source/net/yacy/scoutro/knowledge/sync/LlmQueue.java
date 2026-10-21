@@ -520,6 +520,16 @@ final class LlmQueue {
         }
     }
 
+    /** Makes documents skipped for this reason to do again; their mark stays until the queue decides again (0.12.0). */
+    static int reconsider(final Connection tx, final String reason) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = NULL WHERE llm_status = ?"
+                + " AND llm_reason = ?")) {
+            ps.setInt(1, STATUS_SKIPPED);
+            ps.setString(2, reason);
+            return ps.executeUpdate();
+        }
+    }
+
     /** Makes documents with the given status to do again (admin retry, changed selection). */
     static int reopen(final Connection tx, final int status) throws SQLException {
         try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_hash = NULL, llm_reason = NULL"

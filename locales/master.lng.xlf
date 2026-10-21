@@ -19078,6 +19078,9 @@
     <trans-unit id="a8c48b57" xml:space="preserve" approved="no" translate="yes">
        <source>no proof of an offer</source>
     </trans-unit>
+    <trans-unit id="a77eb427" xml:space="preserve" approved="no" translate="yes">
+       <source>structural evidence: the page's title, a list or the service's own page</source>
+    </trans-unit>
     <trans-unit id="c19b7a2f" xml:space="preserve" approved="no" translate="yes">
        <source>Website technologies</source>
     </trans-unit>

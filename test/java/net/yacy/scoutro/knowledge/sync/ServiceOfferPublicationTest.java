@@ -40,6 +40,28 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         assertEquals("1:", llmStatus(id));
     }
 
+    /**
+     * 0.12.0: the page of one service names it in its title; the model's service of that page is offered structurally, with
+     * the confidence of a structural offer, also without an offer sentence. The same text on a news page stays no offer.
+     */
+    @Test
+    public void theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally() throws Exception {
+        final String text = "SAP DRC. SAP Document and Reporting Compliance automatisiert die Meldungen an die Finanzbehörden.";
+        final JSONObject answer = ServiceOfferEvidenceTest.answer(new JSONArray().put(ServiceOfferEvidenceTest.entity("e1", "SAP DRC", "SAP DRC")),
+                new JSONArray().put(ServiceOfferEvidenceTest.claim("k1", "e1", text.substring(0, 8))), new JSONArray());
+        this.model.answer = u -> answer.toString();
+        add("AAAAAAoff101", "https://www.beispiel-dienste.example/sap-beratung/sap-drc/", "c1", LD, text, "SAP DRC | Beispiel Dienste");
+        add("AAAAAAoff102", "https://www.beispiel-dienste.example/news/sap-drc/", "c1", LD, text, "SAP DRC | Beispiel Dienste");
+        settleSync();
+        settleLlm();
+        final List<String> page = statements("AAAAAAoff101");
+        assertTrue(page.toString(), page.contains("name:SAP DRC"));
+        assertTrue(page.toString(), page.contains("offers:SAP DRC"));
+        assertEquals(net.yacy.scoutro.knowledge.extract.BusinessRules.STRUCTURAL_CONFIDENCE, Double.parseDouble(strings("SELECT max(e.confidence) FROM kg_evidence e"
+                + " JOIN kg_doc d ON d.doc_rowid=e.doc_rowid WHERE e.tier=3 AND d.doc_id='AAAAAAoff101'").get(0)), 1e-9);
+        assertEquals("a news page is no page of a service", List.of(), statements("AAAAAAoff102"));
+    }
+
     @Test
     public void rejectedMenuEntitiesLeaveNoRelationsValuesOrPublishedNames() throws Exception {
         final String privacy = "Wir speichern keine personenbezogenen Daten unserer Webseitenbesucher.";

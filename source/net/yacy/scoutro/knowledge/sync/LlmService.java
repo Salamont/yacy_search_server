@@ -654,6 +654,18 @@ public final class LlmService {
                     + "; documents already done are not read again", this.clock.getAsLong());
         }
         KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, extractor);
+        // 0.12.0: a new candidate rule (rule/8 reads the pages of single services) decides once more about the pages it skipped;
+        // a page that is still no candidate is skipped again without a request
+        final String rules = KgStore.getMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES);
+        if ((rules != null || lastExtractor != null || upgraded) && !RuleExtractor.VERSION.equals(rules)) {
+            final int n = LlmQueue.reconsider(tx, LlmQueue.SKIP_NOT_CANDIDATE);
+            if (n > 0) {
+                LlmQueue.resetCursors(tx);
+                KgStore.event(tx, 1, "llm_candidates_changed", n + " pages skipped as no candidate are decided again by rule/"
+                        + RuleExtractor.VERSION, this.clock.getAsLong());
+            }
+        }
+        KgStore.putMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES, RuleExtractor.VERSION);
     }
 
     /** Uses an activated prompt from the next document on (KgRuntime.promptActivate has stored it). */
@@ -1496,7 +1508,7 @@ public final class LlmService {
         final long held = continuation ? this.store.read(c -> tier3Statements(c, item.docId)) : 0L;
         final Extraction ex = new Extraction((int) Math.max(0L, this.cfg.extractMaxStatementsPerDoc - held));
         // a job the rules see as no position of the page (a menu entry, 0.10.5) is none of the model's either
-        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = LlmReading.context(this.cfg, d, stored);
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = LlmReading.context(this.cfg, d, stored, base);
         for (int i = 0; i < accepted.size(); i++) {
             LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }
