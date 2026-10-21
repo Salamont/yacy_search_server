@@ -1,6 +1,7 @@
 package net.yacy.scoutro.knowledge.sync;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -60,6 +61,26 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         assertEquals(net.yacy.scoutro.knowledge.extract.BusinessRules.STRUCTURAL_CONFIDENCE, Double.parseDouble(strings("SELECT max(e.confidence) FROM kg_evidence e"
                 + " JOIN kg_doc d ON d.doc_rowid=e.doc_rowid WHERE e.tier=3 AND d.doc_id='AAAAAAoff101'").get(0)), 1e-9);
         assertEquals("a news page is no page of a service", List.of(), statements("AAAAAAoff102"));
+    }
+
+    /** The title of a service's own page proves an offer of the site's operator only, never of another organisation. */
+    @Test
+    public void theTitleProvesNoOfferOfAnotherOrganisation() throws Exception {
+        final String text = "SAP DRC. Gemeinsam mit der Muster Software GmbH. SAP Document and Reporting Compliance automatisiert die Meldungen.";
+        final JSONObject partner = new JSONObject().put("id", "e2").put("type", "organization").put("name", "Muster Software GmbH")
+                .put("quote", "Muster Software GmbH");
+        final JSONObject answer = ServiceOfferEvidenceTest.answer(new JSONArray().put(ServiceOfferEvidenceTest.entity("e1", "SAP DRC", "SAP DRC"))
+                .put(partner), new JSONArray().put(ServiceOfferEvidenceTest.claim("e2", "e1", text.substring(0, 8))), new JSONArray());
+        this.model.answer = u -> answer.toString();
+        add("AAAAAAoff103", "https://www.beispiel-dienste.example/sap-beratung/sap-drc/", "c1", LD, text, "SAP DRC | Beispiel Dienste");
+        settleSync();
+        settleLlm();
+        final List<String> offers = strings("SELECT coalesce(ps.obj_val, '?') FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid=e.doc_rowid"
+                + " JOIN kg_statement s ON s.stmt_rowid=e.stmt_rowid JOIN kg_vocab v ON v.term_id=s.pred AND v.name='offers'"
+                + " LEFT JOIN kg_statement ps ON ps.subj=s.subj AND ps.pred=(SELECT term_id FROM kg_vocab WHERE name='name' AND kind=2)"
+                + " WHERE e.tier=3 AND d.doc_id='AAAAAAoff103' ORDER BY 1");
+        assertFalse("the partner offers nothing by the title: " + offers, offers.contains("Muster Software GmbH"));
+        assertTrue("the operator offers the title's service: " + statements("AAAAAAoff103"), statements("AAAAAAoff103").contains("offers:SAP DRC"));
     }
 
     @Test

@@ -74,7 +74,9 @@ public class OfferEvidenceRule8Test {
         for (final String sentence : List.of("Wir nutzen SAP und unterstützen unsere Kunden bei der Digitalisierung.",
                 "Wir setzen SAP S/4HANA intern ein.", "Wir arbeiten mit TYPO3 und beraten Sie zu Ihrer Website.",
                 "Wir haben SAP S/4HANA eingeführt.", "Wir unterstützen keine SAP-Systeme.",
-                "Unterstützen Sie uns: Wir suchen Verstärkung mit SAP-Kenntnissen.")) {
+                "Unterstützen Sie uns: Wir suchen Verstärkung mit SAP-Kenntnissen.",
+                "Wir haben SAP S/4HANA für alle unsere Standorte eingeführt.", "Wir haben SAP S/4HANA für unsere Buchhaltung eingeführt.",
+                "Sie unterstützen unser Team bei der Einführung von SAP S/4HANA.")) {
             final Extraction ex = rules("software", "https://www.muster-industrie.de/", List.of("Muster Industrie GmbH"),
                     "Willkommen bei der Muster Industrie GmbH. " + sentence);
             final Map<String, Double> o = offers(ex);
@@ -118,12 +120,42 @@ public class OfferEvidenceRule8Test {
     }
 
     @Test
+    public void datesVacanciesAndASingleDashAreNoListOfOffers() {
+        for (final String text : List.of("Unsere Meilensteine\n12. März 2025 Go-live von SAP S/4HANA\n1. April 2025 Schulung der Teams",
+                "Offene Stellen\n• SAP Inhouse Consultant (m/w/d)\n• Buchhalter (m/w/d)",
+                "Bei uns\n- Wir nutzen SAP S/4HANA\n- Wir arbeiten mit Salesforce",
+                "Willkommen.\n- SAP S/4HANA ist bei uns seit Jahren im Einsatz.\nMehr erfahren Sie im Gespräch.")) {
+            final Map<String, Double> o = offers(rules("software", "https://www.muster-industrie.de/", List.of("Willkommen"), "Muster Industrie GmbH. " + text));
+            assertFalse(text + " " + o, o.containsKey("sap"));
+            assertFalse(text + " " + o, o.containsKey("crm"));
+        }
+    }
+
+    @Test
     public void newsAndCareersPagesAreNoServicePagesWhateverTheirWords() {
+        for (final String url : List.of("https://www.muster-stellwerk.de/careers/sap-consulting-m-w-d/",
+                "https://www.muster-stellwerk.de/offene-stellen/sap-beratung/", "https://www.muster-stellwerk.de/ausbildung/it-beratung/")) {
+            assertFalse(url, BusinessRules.kinds(url, null).contains(BusinessRules.PageKind.SERVICE_DETAIL));
+        }
+        assertFalse("a vacancy by its title", BusinessRules.kinds("https://www.muster-stellwerk.de/sap-beratung/",
+                List.of("Karriere: SAP-Berater (m/w/d)")).contains(BusinessRules.PageKind.SERVICE_DETAIL));
         for (final String url : List.of("https://www.muster-stellwerk.de/blog/sap-beratung-trends/",
                 "https://www.muster-stellwerk.de/news/it-beratung-2027/", "https://www.muster-stellwerk.de/karriere/sap-beratung/")) {
             assertFalse(url, BusinessRules.kinds(url, null).contains(BusinessRules.PageKind.SERVICE_DETAIL));
             final Extraction ex = rules("software", url, List.of("SAP-Beratung im Wandel"), "SAP-Beratung im Wandel. Ein Beitrag über SAP S/4HANA.");
             assertTrue(url + " " + offers(ex), offers(ex).isEmpty());
+        }
+    }
+
+    /** The model's offer of a named provider needs that provider as the subject of the consulting verb, not as its client. */
+    @Test
+    public void aConsultingSentenceProvesTheOfferOfItsSubjectOnly() {
+        final String client = "Wir haben die Muster AG bei der Einführung von SAP S/4HANA unterstützt.";
+        assertEquals(null, ServiceEvidence.evidence(client, client, "SAP S/4HANA", "Muster AG"));
+        for (final String own : List.of("Die Muster AG unterstützt Sie bei der Einführung von SAP S/4HANA.",
+                "Bei der Migration auf SAP S/4HANA begleitet die Muster AG Sie von der Analyse bis zum Go-live.",
+                "Die Muster AG hat für die Kunde GmbH die Einführung von SAP S/4HANA umgesetzt.")) {
+            assertTrue(own, ServiceEvidence.evidence(own, own, "SAP S/4HANA", "Muster AG") != null);
         }
     }
 

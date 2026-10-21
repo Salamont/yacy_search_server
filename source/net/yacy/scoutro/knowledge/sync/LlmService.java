@@ -1190,7 +1190,8 @@ public final class LlmService {
             if (n == null) {
                 n = LlmQueue.hostLoad(tx, t.hostId);
             }
-            if (n >= this.cfg.llmMaxDocsPerHost) {
+            // a services page asked once more (0.12.0) had its place under the cap as a done page: it keeps it
+            if (n >= this.cfg.llmMaxDocsPerHost && !LlmQueue.SERVICE_RECHECK.equals(t.reason)) {
                 // queued documents of the host are kept; the cap counts them
                 if (!queued(tx, t.docId)) {
                     LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);

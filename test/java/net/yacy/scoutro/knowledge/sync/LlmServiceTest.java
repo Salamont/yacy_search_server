@@ -783,6 +783,40 @@ public class LlmServiceTest {
         assertEquals("once per graph", calls + 1, this.model.calls.get());
     }
 
+    /**
+     * 0.12.0 (C3): a services page asked once more keeps its place under the per-host cap, also when other pages of the host
+     * become to do at the same start and come first in row order.
+     */
+    @Test
+    public void aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap() throws Exception {
+        configure("3");
+        restart();
+        add("EEEEEEhost01", "https://www.muster-pflege.de/blog/rezepte", "c1", null, "Ein Rezept für Apfelkuchen.", "Rezepte");
+        add("FFFFFFhost01", "https://www.muster-pflege.de/blog/ausflug", "c1", null, "Unser Ausflug an den See.", "Ausflug");
+        settleSync();
+        settleLlm();
+        add("AAAAAAhost01", "https://www.muster-pflege.de/leistungen/", "c1", LD, "Leistungen. Wir pflegen mit Herz und Verstand.", "Leistungen");
+        add("BBBBBBhost01", "https://www.muster-pflege.de/impressum", "c1", LD, "Impressum. Muster Pflege gGmbH, Berlin.");
+        settleSync();
+        settleLlm();
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        assertEquals("1:", llmStatus("BBBBBBhost01"));
+        assertEquals("3:not_candidate", llmStatus("EEEEEEhost01"));
+        final int calls = this.model.calls.get();
+        // a graph of 0.11.8, now with a cap of 2: the skipped pages are to do again and come first in row order
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("DELETE FROM kg_meta WHERE key = '" + KgSchema.META_LLM_SERVICE_RECHECK + "'");
+            }
+            return null;
+        });
+        configure("2");
+        restart();
+        settleLlm();
+        assertEquals("the services page was asked once more", "1:", llmStatus("AAAAAAhost01"));
+        assertEquals(calls + 1, this.model.calls.get());
+    }
+
     @Test
     public void changedInputReplacesTheLlmResult() throws Exception {
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);

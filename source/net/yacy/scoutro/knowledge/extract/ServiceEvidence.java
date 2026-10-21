@@ -32,9 +32,13 @@ final class ServiceEvidence {
     /** A finished delivery ("haben für X die Einführung umgesetzt"): an offer only for a client, never own use. */
     private static final Pattern CONSULT_PAST = Pattern.compile("(?iu)\\b(?:umgesetzt|implementiert|eingeführt|realisiert|begleitet"
             + "|implemented|delivered)\\b");
-    private static final Pattern FOR_CLIENT = Pattern.compile("(?iu)\\b(?:für|fuer|for)\\b");
+    /** A client after "für": not the provider itself ("für alle unsere Standorte", "für uns", "for our team"). */
+    private static final Pattern FOR_CLIENT = Pattern.compile("(?iu)\\b(?:für|fuer|for)\\s+(?!(?:(?:alle|all|jeden?|jede[mnrs]?|each)\\s+)?"
+            + "(?:uns|unsere?[nmrs]?|unser|eigene[nmrs]?|interne[nmrs]?|our|us|ourselves|internal)\\b)\\p{L}");
     /** A request to the reader or a vacancy ("Unterstützen Sie uns", "Wir suchen Verstärkung"): never an offer sentence. */
-    private static final Pattern RECRUITING = Pattern.compile("(?iu)\\b(?:(?:unterstützen|unterstuetzen|begleiten|verstärken|verstaerken)\\s+sie\\s+uns|wir\\s+suchen|suchen\\s+wir|verstärkung|verstaerkung"
+    private static final Pattern RECRUITING = Pattern.compile("(?iu)\\b(?:(?:unterstützen|unterstuetzen|begleiten|verstärken|verstaerken)\\s+sie\\s+uns"
+            + "|(?:du|sie|ihr)\\s+(?:unterstützt|unterstützen|unterstuetzt|unterstuetzen|verstärkst|verstärken|verstaerkst|verstaerken|begleitest"
+            + "|berätst|beraetst)\\b[^.!?;:|]{0,40}?\\b(?:uns|unser\\w*)|wir\\s+suchen|suchen\\s+wir|verstärkung|verstaerkung"
             + "|bewerben|bewerbung|stellenangebot\\w*|join\\s+us|we\\s+are\\s+hiring)\\b");
     private static final Pattern OWN_USE = Pattern.compile("(?iu)\\b(?:nutzen|nutzt|benutzen|verwenden|verwendet|setzen\\b[^.!?;:|]{1,60}?\\bein"
             + "|arbeiten\\s+mit|einsetzen|eingesetzt|use[sd]?|using)\\b");
@@ -46,6 +50,11 @@ final class ServiceEvidence {
     /** True if the passage denies ("nicht", "keine", "no", "not", "never"). */
     static boolean negated(final String passage) {
         return passage != null && NEGATED.matcher(passage).find();
+    }
+
+    /** True if the passage states own use or recruits ("Wir nutzen SAP", "Wir suchen Verstärkung"): no offer (0.12.0). */
+    static boolean useOrRecruiting(final String passage) {
+        return passage != null && (OWN_USE.matcher(passage).find() || RECRUITING.matcher(passage).find());
     }
 
     /** A bounded offer passage naming the service, or null. Every occurrence is considered, including after navigation. */
@@ -117,7 +126,7 @@ final class ServiceEvidence {
                 int cue = -1;
                 int cueEnd = n.end();
                 if (consult != null) {
-                    if (provider == null ? OWN_SUBJECT.matcher(cues).find() : LlmExtractor.nameInQuote(block, provider)) {
+                    if (provider == null ? OWN_SUBJECT.matcher(cues).find() : consultActor(block, provider, consult[0], consult[1], n.start(), n.end())) {
                         cue = consult[0];
                         cueEnd = consult[1];
                     }
@@ -268,6 +277,20 @@ final class ServiceEvidence {
     }
 
     /** Bind the provider to the offering verb, rather than accepting another actor mentioned in the same sentence. */
+    /**
+     * The provider is the subject of a consulting verb (0.12.0): it stands before the verb or after it in an inversion, as for
+     * an offer verb ({@link #actorOf}), or it opens the sentence before the verb ("Die Muster AG hat für die Kunde GmbH die
+     * SAP-Einführung umgesetzt"); named as the client ("Wir haben die Muster AG bei … unterstützt") it is none.
+     */
+    private static boolean consultActor(final String block, final String provider, final int verbStart, final int verbEnd,
+            final int nameStart, final int nameEnd) {
+        if (actorOf(block, provider, verbStart, verbEnd, nameStart, nameEnd)) {
+            return true;
+        }
+        final Matcher actor = named(provider).matcher(block);
+        return actor.find() && actor.end() <= verbStart && block.substring(0, actor.start()).trim().matches("(?iu)(?:die|der|das|the)?");
+    }
+
     private static boolean actorOf(final String block, final String provider, final int actionStart, final int actionEnd,
             final int nameStart, final int nameEnd) {
         final Matcher actor = named(provider).matcher(block);

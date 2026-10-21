@@ -1179,7 +1179,11 @@ public final class LlmExtractor {
             if (s == null || o == null || s.equals(o)) {
                 continue;
             }
-            final boolean structuralOffer = Vocabulary.OFFERS.equals(c.optString("predicate")) && structural.contains(o);
+            // the title of the page proves an offer of the site's operator only, never one of another organisation it names
+            final Mention operatorOfPage = ctx == null ? null : ctx.serviceOperator;
+            final boolean structuralOffer = Vocabulary.OFFERS.equals(c.optString("predicate")) && structural.contains(o) && operatorOfPage != null
+                    && (s.equals(operatorOfPage.ref) || Mention.providerKey(operatorOfPage) != null
+                            && Mention.providerKey(operatorOfPage).equals(Mention.providerKey(out.mention(s))));
             if (Vocabulary.OFFERS.equals(c.optString("predicate"))) {
                 final String raw = ctx == null ? null : ctx.serviceText;
                 if (raw != null && !quoteInText(raw, c.optString("quote")) || !structuralOffer && ServiceEvidence.evidence(

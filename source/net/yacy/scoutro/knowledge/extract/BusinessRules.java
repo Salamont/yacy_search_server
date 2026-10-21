@@ -178,6 +178,10 @@ public final class BusinessRules {
                 }
             }
         }
+        // a vacancy ("/careers/sap-consulting-m-w-d/", a title "Karriere") is no page of a service, whatever its words
+        if (out.contains(PageKind.CAREERS)) {
+            out.remove(PageKind.SERVICE_DETAIL);
+        }
         return out;
     }
 
@@ -393,14 +397,29 @@ public final class BusinessRules {
         prices(run, positions, list);
     }
 
-    private static final Pattern BULLET_LINE = Pattern.compile("^[ \\t]*(?:[-*\u2022\u00b7\u2013]|\\d+[.)])[ \\t]+");
+    /** A bullet or a list number; a date ("12. März 2025", "1.10.") is no list number. */
+    private static final Pattern BULLET_LINE = Pattern.compile("(?iu)^[ \\t]*(?:[-*\u2022\u00b7\u2013]|\\d{1,2}[.)](?![ \\t]*(?:\\d|jan|feb|m(?:ä|ae)r"
+            + "|apr|mai|may|jun|jul|aug|sep|o[ck]t|nov|de[cz])))[ \\t]+");
+    /** A vacancy's gender mark ("(m/w/d)"): a job title, never an offered service. */
+    private static final Pattern GENDER_MARK = Pattern.compile("(?iu)\\(\\s*[mwfdx]\\s*/\\s*[mwfdx]\\s*(?:/\\s*[mwfdx]\\s*)?\\)");
 
-    /** True if the position stands in a bulleted line ("- Fassadengestaltung.", "• Tagespflege"), never a sentence of prose. */
+    /**
+     * True if the position stands in an item of a bulleted list ("- Fassadengestaltung.", "• Tagespflege"): a bulleted line
+     * next to another bulleted line, never a sentence of prose, a date, a vacancy, a denial, own use or a request to apply.
+     */
     static boolean bulleted(final String text, final int at) {
         final int line = text.lastIndexOf('\n', Math.max(0, at - 1)) + 1;
         final int end = text.indexOf('\n', at);
         final String l = text.substring(line, end < 0 ? text.length() : end);
-        return l.length() <= 120 && BULLET_LINE.matcher(l).find() && !ServiceEvidence.negated(l);
+        if (l.length() > 120 || !BULLET_LINE.matcher(l).find() || ServiceEvidence.negated(l) || GENDER_MARK.matcher(l).find()
+                || ServiceEvidence.useOrRecruiting(l)) {
+            return false;
+        }
+        final int previousEnd = line - 1, previousStart = previousEnd > 0 ? text.lastIndexOf('\n', previousEnd - 1) + 1 : -1;
+        final boolean previous = previousStart >= 0 && BULLET_LINE.matcher(text.substring(previousStart, previousEnd)).find();
+        final int nextEnd = end < 0 ? -1 : text.indexOf('\n', end + 1);
+        final boolean next = end >= 0 && BULLET_LINE.matcher(text.substring(end + 1, nextEnd < 0 ? text.length() : nextEnd)).find();
+        return previous || next;
     }
 
     // --------------------------------------------------------------- prices

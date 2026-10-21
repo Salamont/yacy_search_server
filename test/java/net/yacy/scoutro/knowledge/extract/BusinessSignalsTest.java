@@ -88,7 +88,9 @@ public class BusinessSignalsTest {
                 "Externe Unterstützung für unsere Migration auf SAP S/4HANA gesucht.","We are looking for a partner for our migration to SAP S/4HANA."))
             assertEquals(text,"planned_migration",companyContext(text,"text"));
         for(String text:List.of("Wir unterstützen Sie bei der Migration auf SAP S/4HANA und suchen Partner.","Wir suchen SAP Berater (m/w/d) für Migrationsprojekte.",
-                "Für die S/4HANA-Migration unserer Kunden suchen wir Unterstützung.","Externe Unterstützung für die Migration auf SAP S/4HANA gesucht."))
+                "Für die S/4HANA-Migration unserer Kunden suchen wir Unterstützung.","Externe Unterstützung für die Migration auf SAP S/4HANA gesucht.",
+                "Besuchen Sie unseren Partner zur Migration auf SAP S/4HANA.",
+                "Wir suchen zur Unterstützung unseres Teams SAP-Berater (m/w/d) für Migrationsprojekte auf SAP S/4HANA."))
             for(String v:company(text,"text"))assertFalse(text,"planned_migration".equals(new JSONObject(v).getString("context")));
     }
     /** A company's own competence statement is no requirement; a posting's requirement stays one. */

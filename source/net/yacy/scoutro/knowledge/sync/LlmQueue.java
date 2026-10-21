@@ -126,15 +126,18 @@ final class LlmQueue {
         /** {@link #LLM_INPUT} of the document. */
         final byte[] llmInput;
         final List<String> collections;
+        /** The reason a document to do still carries ({@link #SERVICE_RECHECK}), else null. */
+        final String reason;
 
         Todo(final long rowid, final String docId, final String hostId, final String url, final byte[] llmInput,
-                final List<String> collections) {
+                final List<String> collections, final String reason) {
             this.rowid = rowid;
             this.docId = docId;
             this.hostId = hostId;
             this.url = url;
             this.llmInput = llmInput;
             this.collections = collections;
+            this.reason = reason;
         }
     }
 
@@ -244,7 +247,7 @@ final class LlmQueue {
 
     private static final String LANE_TODO = "SELECT d.doc_rowid, d.doc_id, d.host_id, d.url, coalesce(d.content_hash, d.input_hash),"
             + " (SELECT group_concat(k.name, ',') FROM kg_doc_collection x JOIN kg_collection k ON k.coll_id = x.coll_id"
-            + " WHERE x.doc_rowid = d.doc_rowid)"
+            + " WHERE x.doc_rowid = d.doc_rowid), d.llm_reason"
             + " FROM kg_doc_collection dc INDEXED BY kg_doc_collection_coll JOIN kg_doc d ON d.doc_rowid = dc.doc_rowid"
             + " WHERE dc.coll_id = ? AND dc.doc_rowid > ? AND dc.doc_rowid <= ?"
             + " AND d.llm_status IS NULL AND d.state = 1 AND d.input_hash IS NOT NULL"
@@ -270,7 +273,7 @@ final class LlmQueue {
                 while (rs.next()) {
                     final String colls = rs.getString(6);
                     out.add(new Todo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBytes(5),
-                            colls == null || colls.isEmpty() ? List.of() : Arrays.asList(colls.split(","))));
+                            colls == null || colls.isEmpty() ? List.of() : Arrays.asList(colls.split(",")), rs.getString(7)));
                 }
             }
         }
@@ -545,18 +548,26 @@ final class LlmQueue {
             throws SQLException {
         final List<String> out = new ArrayList<>();
         last[0] = -1L;
-        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.url, EXISTS (SELECT 1 FROM kg_evidence e"
-                + " INDEXED BY kg_evidence_doc JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid WHERE e.doc_rowid = d.doc_rowid"
-                + " AND e.tier = 3 AND s.pred = ?) FROM kg_doc d INDEXED BY kg_doc_llm_status WHERE d.llm_status = " + STATUS_DONE
-                + " AND d.doc_rowid > ? AND d.state = 1 AND coalesce(d.llm_reason, '') <> '" + MORE_TEXT + "' ORDER BY d.doc_rowid LIMIT ?")) {
-            ps.setLong(1, offers);
-            ps.setLong(2, after);
-            ps.setInt(3, limit);
+        // the address first, the evidence only of a services page: most done pages are no services page
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.url FROM kg_doc d INDEXED BY kg_doc_llm_status"
+                + " WHERE d.llm_status = " + STATUS_DONE + " AND d.doc_rowid > ? AND d.state = 1 AND coalesce(d.llm_reason, '') <> '" + MORE_TEXT
+                + "' ORDER BY d.doc_rowid LIMIT ?");
+                PreparedStatement offered = c.prepareStatement("SELECT 1 FROM kg_evidence e INDEXED BY kg_evidence_doc JOIN kg_statement s"
+                        + " ON s.stmt_rowid = e.stmt_rowid WHERE e.doc_rowid = ? AND e.tier = 3 AND s.pred = ? LIMIT 1")) {
+            ps.setLong(1, after);
+            ps.setInt(2, limit);
+            offered.setLong(2, offers);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     last[0] = rs.getLong(1);
-                    if (rs.getInt(4) == 0 && servicesPage(rs.getString(3))) {
-                        out.add(rs.getString(2));
+                    if (!servicesPage(rs.getString(3))) {
+                        continue;
+                    }
+                    offered.setLong(1, rs.getLong(1));
+                    try (ResultSet o = offered.executeQuery()) {
+                        if (!o.next()) {
+                            out.add(rs.getString(2));
+                        }
                     }
                 }
             }
