@@ -3601,12 +3601,15 @@ Every proof belongs to the provider: its own site or a sentence with the provide
   now a consulting or delivery verb ("unterstützen", "beraten", "begleiten", "einführen", "implementieren", "umsetzen",
   "stehen wir Ihnen … zur Verfügung", "bekommen … von uns") whose subject is *wir*, *unsere Berater/Experten/Spezialisten/
   Teams/Mitarbeiter* or the provider's name. A delivery for a client ("Wir haben für die Muster AG die SAP-S/4HANA-Einführung
-  umgesetzt") proves an own service, never the client's system.
+  umgesetzt") proves an own service, never the client's system; "für alle unsere Standorte eingeführt" is own use. Where a
+  provider is named (the LLM tier's claims), it must be the subject of the verb: as the client ("Wir haben die Muster AG bei …
+  unterstützt") it offers nothing. A reader asked to support the team ("Sie unterstützen unser Team …") is recruiting.
 - **Structural** (`BusinessRules.STRUCTURAL_CONFIDENCE` 0.4, marked in the company view and as `offer_evidence:
   "structural"` of the business view): the title or brand line of the home page, a services page or the page of one service
   (`PageKind.SERVICE_DETAIL`: a path segment `*-beratung`, `beratung`, `consulting`, `dienstleistung(en)`, `loesungen`,
-  `lösungen`, never under a news, article, guide, event or careers path), and an item of a bulleted list. A bare menu or path
-  needs a second sign of the same site (title, service page or list); a category the title does not name stays a topic.
+  `lösungen`, never under a news, article, guide, event or careers path and never with a careers title), and an item of a
+  bulleted list (next to another bulleted line; a date, a vacancy "(m/w/d)", own use or recruiting is no item). A bare menu or
+  path needs a second sign of the same site (title, service page or list); a category the title does not name stays a topic.
 - **A topic stays a topic:** tools and own use ("wir nutzen / setzen … ein / arbeiten mit", "we use"), denials, news and
   articles, a reader's or a vacancy's request ("Unterstützen Sie uns", "Wir suchen Verstärkung"), the provider's own past
   introduction of a system ("Wir haben SAP S/4HANA eingeführt") and a client's system on a reference page.
@@ -3629,7 +3632,9 @@ the answer names no provider. The pages of single services are LLM candidates (`
   (`llm_reason` `service_recheck`, event `llm_service_recheck`, once per graph by `kg_meta.llm_service_recheck`): done, not
   continued, active, a services page or the page of one service by its address and no tier-3 offer evidenced by the page.
   The worker asks the model for such a page past its cache (whose entry kept only what the former proof accepted) and
-  replaces the entry; the continuation of a long page uses its cache as before. The pages go through the ordinary queue,
+  replaces the entry; the continuation of a long page uses its cache as before. Such a page keeps its place under the per-host
+  cap (`scoutro.kg.llm.maxDocsPerHost`): it had it as a done page, and other pages of the host made to do at the same start
+  cannot take it. The pages go through the ordinary queue,
   schedule and budget of the LLM tier. Every other page keeps its reading: no mass re-read.
 - **Not repaired by this:** pages whose text is missing (`text_missing`, for example near-empty pages of a few
   services pages) stay without services until their content is there; the cause is crawl, rendering or parsing, a separate
@@ -3657,11 +3662,11 @@ the answer names no provider. The pages of single services are LLM candidates (`
 
 ### 36.5 Tests
 
-`OfferEvidenceRule8Test` (consulting verbs with their subject, own use, denials and own past introduction, title and brand
-line, bulleted items with a denied one, the page of one service, news and careers pages, a bare menu with and without a
-brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
-`LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages` and
-`servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
+`OfferEvidenceRule8Test` (consulting verbs with their subject, own use, denials and own past introduction, a reader asked to
+support the team, the provider as client, title and brand line, bulleted items with a denied one, dates, vacancies and a single
+dash, the page of one service, news and careers pages, a bare menu with and without a brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
+`theTitleProvesNoOfferOfAnotherOrganisation`, `LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages`,
+`servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache` and `aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
 `MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`,
 `BusinessViewTest.competitorsOfferTheSameCategoryAndTopicsMakeNone` (pointer, page per category, pagination, not found, the
 query plan through the partial index), `KnowledgeApiTest.readRoutesValidateTheirParameters`, `AgentCatalogTest`, and the UI
