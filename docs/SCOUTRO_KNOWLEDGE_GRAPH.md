@@ -3581,3 +3581,89 @@ The organisations "Bildergalerie", "Showroom" and "Banken", the service "Herstel
 ### 35.5 Tests
 
 `KgProductionCasesTest` (the seven hosts: navigation lists, kinds of partners, the role word, the product brand with the shop's url, the dealer's brand list, the partner brands that stay, and the guard `genericName`), `EntityRolesTest` (an 0.11.4 page's "Banken" and "Bildergalerie" published as the old rules stored them: labelled `generic`, hidden from the business view with `hidden_generic` = 2, kept in the object view and list; a dealer and a product page: `operator`, `brand`, `manufacturer`, brands under their own heading), `BusinessExtractionTest` and `ExtractionSemanticsTest` unchanged, `DrolshagensPilotTest` with "Hersteller" as a topic from the start (no offered service before or after the move).
+
+## 36. Offers back, customers and competitors apart (0.12.0)
+
+### 36.1 Finding
+
+The stricter offer proof of 0.11.4 to 0.11.7 kept a service only with an offer sentence, a heading such as "Leistungen:" or
+a price. Production (21 October 2026): 6,669 organisations with services, against 10,624 before; 62,025 of the 63,572
+former services had come from the rules (tier 2). Many own sites name what they do only in their title or brand line
+("Malermeister Dehmel | Malerarbeiten in Oschersleben"), in a list, on the page of one service
+("/sap-beratung/sap-cash-management/") or with a consulting verb ("Wir unterstützen Sie bei der Einführung von SAP
+S/4HANA"); those became topics. The LLM tier's proof had the same gap, and its cache kept only what the proof accepted.
+
+### 36.2 What rule/8 accepts (`ServiceEvidence`, `BusinessRules`; `RuleExtractor.VERSION` 8)
+
+Every proof belongs to the provider: its own site or a sentence with the provider as subject.
+
+- **Explicit** (as before, confidence of the page kind): an offer sentence, a heading such as "Leistungen:", a price, and
+  now a consulting or delivery verb ("unterstützen", "beraten", "begleiten", "einführen", "implementieren", "umsetzen",
+  "stehen wir Ihnen … zur Verfügung", "bekommen … von uns") whose subject is *wir*, *unsere Berater/Experten/Spezialisten/
+  Teams/Mitarbeiter* or the provider's name. A delivery for a client ("Wir haben für die Muster AG die SAP-S/4HANA-Einführung
+  umgesetzt") proves an own service, never the client's system.
+- **Structural** (`BusinessRules.STRUCTURAL_CONFIDENCE` 0.4, marked in the company view and as `offer_evidence:
+  "structural"` of the business view): the title or brand line of the home page, a services page or the page of one service
+  (`PageKind.SERVICE_DETAIL`: a path segment `*-beratung`, `beratung`, `consulting`, `dienstleistung(en)`, `loesungen`,
+  `lösungen`, never under a news, article, guide, event or careers path), and an item of a bulleted list. A bare menu or path
+  needs a second sign of the same site (title, service page or list); a category the title does not name stays a topic.
+- **A topic stays a topic:** tools and own use ("wir nutzen / setzen … ein / arbeiten mit", "we use"), denials, news and
+  articles, a reader's or a vacancy's request ("Unterstützen Sie uns", "Wir suchen Verstärkung"), the provider's own past
+  introduction of a system ("Wir haben SAP S/4HANA eingeführt") and a client's system on a reference page.
+
+The LLM tier checks its services with the same proof (C2): a service named by the title of its own page is accepted with
+the title as its quote (`title:0+n`, confidence 0.4), and the site's operator (`BusinessRules.pageSubject`) offers it when
+the answer names no provider. The pages of single services are LLM candidates (`RuleExtractor.candidate`). Prompt, schema and
+`LlmExtractor.VERSION` stay; cached answers are checked again when they are published.
+
+### 36.3 What an existing graph does after the update
+
+- **Tiers 1 and 2 (no model):** the new extractor identity re-extracts every tracked page once at low priority, as for
+  0.11.4 ("What the new version does to an existing graph" under *The imprint's operator*; `Reconciler.REASON_EXTRACTORS`,
+  `kg_meta.reextract_pending`); topics the new rule proves become
+  services again, industries and the matching get them back. The re-extraction is the bulk of the update's work.
+- **Pages skipped as `not_candidate`:** decided once more by the new candidate rule at the first start
+  (`kg_meta.llm_candidate_rules`, event `llm_candidates_changed`); a page that is still no candidate is skipped again without
+  a request.
+- **Services pages the LLM tier read without an accepted service (C3):** made to do once more at the first start
+  (`llm_reason` `service_recheck`, event `llm_service_recheck`, once per graph by `kg_meta.llm_service_recheck`): done, not
+  continued, active, a services page or the page of one service by its address and no tier-3 offer evidenced by the page.
+  The worker asks the model for such a page past its cache (whose entry kept only what the former proof accepted) and
+  replaces the entry; the continuation of a long page uses its cache as before. The pages go through the ordinary queue,
+  schedule and budget of the LLM tier. Every other page keeps its reading: no mass re-read.
+- **Not repaired by this:** pages whose text is missing (`text_missing`, for example near-empty pages of a few
+  services pages) stay without services until their content is there; the cause is crawl, rendering or parsing, a separate
+  item.
+
+### 36.4 Customers and competitors apart
+
+- **Possible competitors (B1)** are read on demand per category the organisation offers itself
+  (`GET …/kg/entities/{id}/competitors?category&cursor&limit`, grant `kg.read`): the visible, current offers of other
+  organisations of a service of that category, one line per offer with the other organisation, its own service and at most
+  three visible source pages. The business view names only the categories (`competitors.categories`, `path`); it computes no
+  competitor. A page reads the category statements through the partial index `kg_statement_category ON kg_statement
+  (obj_val, subj) WHERE pred = <category>` with a keyset cursor on the service's row, at most 2,000 services per page; a
+  global ranking by shared categories was not boundable (20,000 providers: 1.6 s) and is not offered. Competitors are
+  derived at reading: no stored derivation, no fact, no customer relation, no matching input, not part of the export, the
+  download or the change feed. A topic makes nobody a competitor. The index is created idempotently at the start
+  (`KgSchema.ensureCategoryIndex`); the schema version stays 9 and an older version ignores the index.
+- **Customers per service and reason (B2):** a company can be a competitor (SAP consulting), a possible customer
+  (explicitly sought support) and a partner at the same time. Only the customer suggestion whose single evidence is the
+  company's own capacity for exactly that service (the consultant posting of a consultancy, 0.11.8) is left out. Support
+  sought for an own migration ("Für unsere S/4HANA-Migration suchen wir externe Unterstützung") reads as a planned
+  migration; an offer of such support, a recruited consultant and a client's migration do not. Every reason names its kind
+  of evidence (`evidence_kind`: `need`, `use`, `job_requirement`). `MatchingRules.VERSION` stays: the rules act at reading,
+  every correct suggestion of today stays visible.
+
+### 36.5 Tests
+
+`OfferEvidenceRule8Test` (consulting verbs with their subject, own use, denials and own past introduction, title and brand
+line, bulleted items with a denied one, the page of one service, news and careers pages, a bare menu with and without a
+brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
+`LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages` and
+`servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
+`MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`,
+`BusinessViewTest.competitorsOfferTheSameCategoryAndTopicsMakeNone` (pointer, page per category, pagination, not found, the
+query plan through the partial index), `KnowledgeApiTest.readRoutesValidateTheirParameters`, `AgentCatalogTest`, and the UI
+test `test/scoutro-ui/knowledge-competitors-ui-test.mjs`. The quality gates T0 to T6 of the release run on production data
+read-only before the merge (docs/SCOUTRO_RELEASE_0.12.0.md).

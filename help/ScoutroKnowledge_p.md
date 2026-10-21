@@ -166,6 +166,13 @@ all collections and the page says so.
   class) and the Scoutro categories. If two different codes are equally
   strong, the safe common higher level is shown. Labels are the official
   English NACE titles.
+- **Services** (0.12.0): a service counts as offered with an offer sentence,
+  a heading such as "Services:", a price or a consulting sentence of the
+  company ("We support you with the introduction of …"), or by the page's
+  structure: the site's title or brand line, a bulleted item or the page of
+  one service. A service shown only by the structure is marked **structural
+  evidence**. Tools the company uses, denials, news and a client's project
+  stay topics.
 - **Services and prices:** every price exactly as the page published it:
   amount or range, currency, unit, kind (from, up to, range), conditions, VAT,
   care level, own share and the date. Nothing is estimated, converted,
@@ -230,6 +237,11 @@ all collections and the page says so.
   seeks (or a shared audience for partners). They are always labelled as a
   suggestion or possible customer, never as a customer relation, and only
   shown when both collections are authorized (the view filter may be narrower).
+  Every reason names its kind of evidence (0.12.0): **need** (a planned
+  project, support sought for an own migration), **use** (an own system) or
+  **job requirement** (a skill a posting asks for). A company can be a possible
+  competitor and still a possible customer for another need; only a posting
+  for the company's own offer (its consultants) is no customer need.
 
 The selected collection filters the origin organization and its ordinary facts,
 sources and graph relations. Existing **customer and partner suggestions** may

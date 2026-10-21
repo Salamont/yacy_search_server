@@ -18652,6 +18652,15 @@
     <trans-unit id="1d6b03ca" xml:space="preserve" approved="no" translate="yes">
        <source>Evidence strength</source>
     </trans-unit>
+    <trans-unit id="a3388014" xml:space="preserve" approved="no" translate="yes">
+       <source>Kind of evidence</source>
+    </trans-unit>
+    <trans-unit id="1c587" xml:space="preserve" approved="no" translate="yes">
+       <source>use</source>
+    </trans-unit>
+    <trans-unit id="7e0a7060" xml:space="preserve" approved="no" translate="yes">
+       <source>job requirement</source>
+    </trans-unit>
     <trans-unit id="113f1" xml:space="preserve" approved="no" translate="yes">
        <source>Fit</source>
     </trans-unit>

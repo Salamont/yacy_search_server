@@ -13867,6 +13867,19 @@
                   "weak"
                 ]
               },
+              "evidence_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "need",
+                  "use",
+                  "job_requirement",
+                  null
+                ],
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+              },
               "fit": {
                 "type": "string",
                 "enum": [
@@ -14175,6 +14188,19 @@
             "qualified",
             "weak"
           ]
+        },
+        "evidence_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "need",
+            "use",
+            "job_requirement",
+            null
+          ],
+          "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
         },
         "fit": {
           "type": "string",
@@ -14640,6 +14666,19 @@
                   "qualified",
                   "weak"
                 ]
+              },
+              "evidence_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "need",
+                  "use",
+                  "job_requirement",
+                  null
+                ],
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
               },
               "fit": {
                 "type": "string",
@@ -16168,6 +16207,19 @@
                         "weak"
                       ]
                     },
+                    "evidence_kind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "need",
+                        "use",
+                        "job_requirement",
+                        null
+                      ],
+                      "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+                    },
                     "fit": {
                       "type": "string",
                       "enum": [
@@ -17272,6 +17324,19 @@
                   "qualified",
                   "weak"
                 ]
+              },
+              "evidence_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "need",
+                  "use",
+                  "job_requirement",
+                  null
+                ],
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
               },
               "fit": {
                 "type": "string",

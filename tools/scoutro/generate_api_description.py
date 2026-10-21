@@ -726,6 +726,7 @@ KG_CONTRIBUTION["properties"].update({
     "rule_version": {"type": "string"}, "provider": KG_TARGET_REF, "candidate": KG_TARGET_REF,
     "service": {"type": "string"}, "service_name": {"type": "string", "description": "Source-stated concrete service name or offered-capability text, never a generated offer."}, "product": {"type": ["string", "null"]}, "need": {"type": ["string", "null"]}, "context": {"type": "string"},
     "evidence_strength": {"type": "string", "enum": ["stated", "qualified", "weak"]},
+    "evidence_kind": {"type": ["string", "null"], "enum": ["need", "use", "job_requirement", None], "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."},
     "fit": {"type": "string", "enum": ["explicit_rule", "explicit_rule_and_region"]},
     "temporal_status": {"type": "string", "enum": ["historical_not_reconfirmed", "planned_not_reconfirmed", "observed_need_not_reconfirmed", "legacy_not_reconfirmed"]},
     "observed_at": KG_DT, "asserted_at": {"type": ["string", "null"]}, "location": {"type": ["string", "null"]},

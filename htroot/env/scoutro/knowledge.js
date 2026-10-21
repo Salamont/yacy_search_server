@@ -1046,7 +1046,10 @@
         part.append(node('p', t('match_rule_' + c.rule) + (product ? ': ' + product : '') + ' · ' + t('matched_service') + ': ' + (c.service_name || (serviceKey ? t('service_' + serviceKey) : c.service)), 'skg-reason'));
         const context = c.context ? t('ctx_' + c.context) : '';
         const when = c.observed_at ? t(c.context === 'internal_use' ? 'last_proved' : 'last_observed').replace('%1', date(c.observed_at)) : t('historical_date_unknown');
-        part.append(node('p', [context, when, c.location, c.project, c.phase ? t('project_phase') + ': ' + t('phase_' + c.phase) : null].filter(Boolean).join(' · ')));
+        // 0.12.0: the kind of evidence of every reason (need, use, job requirement)
+        const kind = c.evidence_kind ? t('evidence_kind') + ': ' + t('ekind_' + c.evidence_kind) : null;
+        if (c.evidence_kind) part.dataset.evidenceKind = c.evidence_kind;
+        part.append(node('p', [kind, context, when, c.location, c.project, c.phase ? t('project_phase') + ': ' + t('phase_' + c.phase) : null].filter(Boolean).join(' · ')));
         part.append(node('p', [t('evidence_strength') + ': ' + t('strength_' + c.evidence_strength),
           t('matching_fit') + ': ' + t('fit_' + c.fit), t('matching_time') + ': ' + t('time_' + c.temporal_status),
           c.rule + '/' + c.rule_version].join(' · '), 'sseo-note'));

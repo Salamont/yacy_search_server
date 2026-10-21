@@ -283,6 +283,26 @@ not silently merged or claimed restored. Export C's full authorized history if
 needed before choosing the rollback point; any migration/merge back is a separate
 explicit procedure. Do not edit schema_version or drop tables to fake a downgrade.
 
+## 0.12.0: kind of evidence, sought support, competitors apart
+
+- Every contribution names its kind of evidence, `evidence_kind`
+  (`MatchingProjection.evidenceKind`): `need` (`planned_migration`, `planned_need`,
+  `explicit_need`, `organizational_transition`), `use` (`internal_use`) or
+  `job_requirement` (`required_competence`, `desirable_competence`); null for other
+  contexts. Read at projection, nothing stored.
+- `BusinessSignals` reads support sought for an own migration ("Für unsere
+  S/4HANA-Migration suchen wir externe Unterstützung", "Wir suchen einen Partner für die
+  Migration auf SAP S/4HANA") as `planned_migration` of the company; a sentence offering
+  such support, a recruited consultant or a client's migration ("… unserer Kunden") is
+  none. It takes effect with the re-extraction of rule/8.
+- Customer and competitor are not exclusive. The customer suggestion is left out only
+  when its single evidence is the company's own capacity for that service (0.11.8:
+  consultant and trainer titles, an employer offering the product itself); use, need and
+  the postings of an actual customer stay. `MatchingRules.VERSION` is unchanged.
+- Possible competitors are no matching kind and no derivation: they are read per category
+  on demand (`…/kg/entities/{id}/competitors`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4).
+- The plan's table is `MatchingTest.customerRowsOfTheT6Table`.
+
 ## Validation and limits
 
 Targeted SQLite tests cover the rule groups' positives/negatives, exact products,

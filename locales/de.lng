@@ -6107,6 +6107,9 @@ The selected collection filters the origin and its facts. Customer and partner s
 >Other collection<==>Andere Collection<
 >Matching offered service<==>Passende angebotene Leistung<
 >Evidence strength<==>Belegstärke<
+>Kind of evidence<==>Belegart<
+>use<==>Nutzung<
+>job requirement<==>Stellenanforderung<
 >Fit<==>Passung<
 >Time qualification<==>Zeitliche Einschränkung<
 >Project phase<==>Projektphase<
