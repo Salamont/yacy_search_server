@@ -236,7 +236,10 @@ public class CollectionFitTest {
         assertEquals("one question for the domain: " + this.model.users, 1, this.model.asked());
         final String asked = this.model.users.stream().filter(u -> u.contains(CollectionFit.MARKER)).findFirst().get();
         assertTrue(asked, asked.contains("Assigned: " + BAU + " (Professionelle Bau-"));
-        assertTrue("the other profiles by their label: " + asked, asked.contains(STACK + ": Software und IT"));
+        assertTrue("another profile by its label as far as it fits: " + asked, asked.contains("\nOthers: checkthecoach-web: "));
+        // the answer's shape as valid JSON with the real id (version 2; version 1 showed {id:...} and got the key "id" back)
+        assertTrue(asked, asked.contains("Use exactly: \"collection_fit\":{\"verdicts\":{\"" + BAU + "\":\"<verdict>\"},\"best\":\"<id or none>\""));
+        assertFalse("no placeholder key id", asked.contains("{id:"));
         assertTrue("the question is outside the DATA block", asked.indexOf(CollectionFit.MARKER) < asked.indexOf("page text:"));
         for (final String s : this.model.systems) assertEquals(LlmExtractor.SYSTEM_PROMPT, s);
         // the verdict: valid, a mismatch, handed over with the page's content hash and the criteria version
@@ -246,7 +249,7 @@ public class CollectionFitTest {
         assertEquals("AAAAAAhome01", v[1]);
         assertNotNull(v[2]);
         assertEquals("TEST/fit", v[3]);
-        assertEquals(CollectionFit.profiles().criteria, v[4]);
+        assertEquals("the profiles' criteria and the question's version", CollectionFit.profiles().criteria + "/q2", v[4]);
         assertEquals(CollectionFit.MISMATCH, this.sink.last().verdicts.get(BAU));
         assertEquals(CollectionFit.VALID, this.sink.last().status);
         // never a statement: nothing of the verdict in the graph, the extraction published as always
@@ -364,9 +367,46 @@ public class CollectionFitTest {
         assertEquals(CollectionFit.BUDGET, v.status);
         assertEquals(ids, new ArrayList<>(v.verdicts.keySet()));
         assertFalse(v.decided());
-        assertEquals("long", this.sink.verdicts.get(0)[4]);
+        assertEquals("long/q" + CollectionFit.QUESTION_VERSION, this.sink.verdicts.get(0)[4]);
         assertEquals("the page is done", 1L, count("SELECT count(*) FROM kg_doc WHERE doc_id = 'BBBBBBhome01' AND llm_status = "
                 + LlmQueue.STATUS_DONE));
+    }
+
+    @Test
+    public void theAnswerShapeOfTheQuestionIsValidAndTheOldMistakeIsNamed() throws Exception {
+        // the format line of the question, filled in as asked, is a valid field for every number of assigned collections;
+        // the answer 0.11.6 got back in production (a key "id") stays invalid, now with its reason (unknown_key)
+        final CollectionFit.Profiles p = CollectionFit.read(new File("tools/scoutro/discovery/profiles.json"));
+        final List<String> all = new ArrayList<>(p.byCollection.keySet());
+        final String text = "Wir sind Feinkost und Confiserie aus eigener Manufaktur.";
+        for (int n = 1; n <= 3; n++) {
+            final CollectionFit.Question q = CollectionFit.question(p, all.subList(0, n), all.subList(n, all.size()), Map.of());
+            assertTrue(q.asked());
+            assertTrue(q.text.length() + " characters", q.text.length() <= CollectionFit.MAX_CHARS);
+            final String shape = q.text.substring(q.text.indexOf("{\"verdicts\""), q.text.indexOf("}, each ") + 1);
+            final JSONObject filled = new JSONObject(shape.replace("<verdict>", "mismatch").replace("<id or none>", "none")
+                    .replace("<verbatim page text, max 200 chars>", "Feinkost und Confiserie"));
+            final CollectionFit.Verdict v = CollectionFit.check(filled, q, text);
+            assertEquals(CollectionFit.VALID, v.status);
+            assertEquals(n, v.verdicts.size());
+            for (final String c : all.subList(0, n)) assertEquals(CollectionFit.MISMATCH, v.verdicts.get(c));
+            final CollectionFit.Verdict old = CollectionFit.check(new JSONObject("{\"verdicts\":{\"id\":\"mismatch\"},\"best\":\"none\","
+                    + "\"quote\":\"Feinkost und Confiserie\"}"), q, text);
+            assertEquals(CollectionFit.INVALID, old.status);
+            assertEquals(CollectionFit.UNKNOWN_KEY, old.reason);
+        }
+        final CollectionFit.Question one = CollectionFit.question(p, all.subList(0, 1), List.of(), Map.of());
+        assertEquals(CollectionFit.NOT_OBJECT, CollectionFit.check("mismatch", one, text).reason);
+        assertEquals(CollectionFit.VERDICTS_NOT_OBJECT, CollectionFit.check(new JSONObject("{\"verdicts\":\"mismatch\"}"), one, text).reason);
+        assertNull(CollectionFit.check(null, one, text).reason);
+        // the reason is counted in the status, never the answer itself
+        this.model.fit = user -> "\"collection_fit\":{\"verdicts\":{\"id\":\"mismatch\"},\"best\":\"none\",\"quote\":\"Feinkost und Confiserie\"}";
+        add("AAAAAAhome01", "https://drolshagens-muster.de/", List.of(BAU), HOME);
+        settle();
+        final JSONObject f = fitStatus();
+        assertEquals(1, f.getJSONObject("status").getLong(CollectionFit.INVALID));
+        assertEquals(1, f.getJSONObject("invalidReasons").getLong(CollectionFit.UNKNOWN_KEY));
+        assertEquals(CollectionFit.QUESTION_VERSION, f.getString("questionVersion"));
     }
 
     @Test

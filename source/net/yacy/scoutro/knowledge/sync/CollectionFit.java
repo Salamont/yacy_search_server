@@ -66,12 +66,22 @@ public final class CollectionFit {
      */
     public static final String VALID = "valid", MISSING = "fit_missing", INVALID = "fit_invalid", UNQUOTED = "fit_unquoted",
             BUDGET = "fit_budget";
+    /** Why a field is {@link #INVALID} (counted, never the answer itself): not an object, its verdicts not one, a key not asked. */
+    public static final String NOT_OBJECT = "not_object", VERDICTS_NOT_OBJECT = "verdicts_not_object", UNKNOWN_KEY = "unknown_key";
 
     /** The marker of the question (the exception to rule 9 of the system prompt, K2). */
     public static final String MARKER = "Exception to rule 9";
-    private static final String INSTRUCTION = MARKER + ", this request only: add \"" + FIELD + "\" (does the site's main offering fit?)\n";
-    private static final String FORMAT = "{\"verdicts\":{id:\"match|mismatch|uncertain\"},\"best\":id|\"none\",\"quote\":verbatim page text,"
-            + " max 200 chars}; unclear: uncertain\n";
+    /**
+     * The version of the question, part of the criteria a reading is recorded under ({@link #criteria}): a reading asked
+     * with another question is outdated. 2 (0.11.7): the answer's shape as valid JSON with the real ids; version 1 (0.11.6)
+     * showed it as invalid JSON ({@code {id:"match|mismatch|uncertain"}}) and got the key {@code id} back, never valid.
+     */
+    public static final String QUESTION_VERSION = "2";
+    private static final String INSTRUCTION = MARKER + ", this request only: also add \"" + FIELD + "\" (does the site's main offering fit?)\n";
+    /** The placeholder of each verdict in the format line; the allowed values are named once after it. */
+    static final String SLOT = "<verdict>";
+    /** A topic shorter than this is no help: the assigned collections are named by their ids only. */
+    static final int TOPIC_MIN = 15;
 
     private CollectionFit() {}
 
@@ -151,9 +161,11 @@ public final class CollectionFit {
     }
 
     /**
-     * The question for the assigned collections (at most {@link #MAX_ASSIGNED}, each with its profile's topic) and the other
-     * profiles (their collection id and label, in the given order, as many as fit): at most {@link #MAX_CHARS} characters;
-     * null if none has a profile; not {@link Question#asked asked} if the assigned ones alone do not fit (K3).
+     * The question for the assigned collections (at most {@link #MAX_ASSIGNED}): the answer's shape as valid JSON with
+     * their real ids and the allowed values named once, each with its profile's topic as far as it fits (by id only if
+     * less than {@link #TOPIC_MIN} characters fit), then the other profiles (their collection id and label, in the given
+     * order, as many as fit): at most {@link #MAX_CHARS} characters; null if none has a profile; not
+     * {@link Question#asked asked} if even the ids do not fit (K3). Tested against the production model (10 of 10 valid).
      *
      * @param labels a short label per collection (the vocabulary's), else the profile's topic is clipped
      */
@@ -165,28 +177,47 @@ public final class CollectionFit {
             if (profiles.byCollection.containsKey(c) && !mine.contains(c) && mine.size() < MAX_ASSIGNED) mine.add(c);
         }
         if (mine.isEmpty()) return null;
-        final int topic = mine.size() == 1 ? TOPIC_ONE : TOPIC_MORE;
-        final StringBuilder sb = new StringBuilder(INSTRUCTION).append("Assigned: ");
-        for (int i = 0; i < mine.size(); i++) {
-            sb.append(i == 0 ? "" : "; ").append(mine.get(i)).append(" (").append(clip(profiles.byCollection.get(mine.get(i)).topic, topic)).append(')');
+        final StringBuilder verdicts = new StringBuilder();
+        for (final String c : mine) verdicts.append(verdicts.length() == 0 ? "" : ",").append('"').append(c).append("\":\"").append(SLOT).append('"');
+        final String format = "Use exactly: \"" + FIELD + "\":{\"verdicts\":{" + verdicts + "},\"best\":\"<id or none>\",\"quote\":\"<verbatim page text, max "
+                + QUOTE + " chars>\"}, each " + SLOT + " one of " + MATCH + ", " + MISMATCH + ", " + UNCERTAIN + " (unclear: " + UNCERTAIN + ")\n";
+        String line = null;
+        for (int topic = mine.size() == 1 ? TOPIC_ONE : TOPIC_MORE; topic >= TOPIC_MIN && line == null; topic--) {
+            final String candidate = assignedLine(profiles, mine, topic);
+            if (INSTRUCTION.length() + candidate.length() + format.length() <= MAX_CHARS) line = candidate;
         }
-        sb.append('\n');
-        final String fixed = sb.toString();
+        if (line == null) line = assignedLine(profiles, mine, 0);
+        final String criteria = criteria(profiles);
         final java.util.LinkedHashSet<String> named = new java.util.LinkedHashSet<>(mine);
-        if (fixed.length() + FORMAT.length() > MAX_CHARS) return new Question(mine, named, null, profiles.criteria);
+        if (INSTRUCTION.length() + line.length() + format.length() > MAX_CHARS) return new Question(mine, named, null, criteria);
+        final StringBuilder sb = new StringBuilder(INSTRUCTION).append(line);
         final StringBuilder rest = new StringBuilder();
         for (final String c : others) {
             if (named.contains(c) || !profiles.byCollection.containsKey(c)) continue;
             final String label = labels != null && labels.get(c) != null ? labels.get(c) : profiles.byCollection.get(c).topic;
-            final String entry = clip(c + ": " + label, OTHER);
-            final String candidate = (rest.length() == 0 ? "Others: " : rest + ", ") + entry;
-            if (fixed.length() + candidate.length() + 1 + FORMAT.length() > MAX_CHARS) break;
+            final String candidate = (rest.length() == 0 ? "Others: " : rest + ", ") + clip(c + ": " + label, OTHER);
+            if (sb.length() + candidate.length() + 1 + format.length() > MAX_CHARS) break;
             rest.setLength(0);
             rest.append(candidate);
             named.add(c);
         }
-        final String text = fixed + (rest.length() == 0 ? "" : rest + "\n") + FORMAT;
-        return new Question(mine, named, text, profiles.criteria);
+        if (rest.length() > 0) sb.append(rest).append('\n');
+        sb.append(format);
+        return new Question(mine, named, sb.toString(), criteria);
+    }
+
+    private static String assignedLine(final Profiles profiles, final List<String> assigned, final int topic) {
+        final StringBuilder sb = new StringBuilder("Assigned: ");
+        for (int i = 0; i < assigned.size(); i++) {
+            sb.append(i == 0 ? "" : "; ").append(assigned.get(i));
+            if (topic > 0) sb.append(" (").append(clip(profiles.byCollection.get(assigned.get(i)).topic, topic)).append(')');
+        }
+        return sb.append('\n').toString();
+    }
+
+    /** The criteria a reading is recorded and compared under: the profiles' criteria version and the question's. */
+    public static String criteria(final Profiles profiles) {
+        return profiles == null ? null : profiles.criteria + "/q" + QUESTION_VERSION;
     }
 
     private static String clip(final String s, final int max) {
@@ -202,16 +233,24 @@ public final class CollectionFit {
         public final String best;
         public final String quote;
         public final String status;
+        /** Why a field is {@link #INVALID}: {@link #NOT_OBJECT}, {@link #VERDICTS_NOT_OBJECT} or {@link #UNKNOWN_KEY}; else null. */
+        public final String reason;
 
         Verdict(final Map<String, String> verdicts, final String best, final String quote, final String status) {
+            this(verdicts, best, quote, status, null);
+        }
+
+        Verdict(final Map<String, String> verdicts, final String best, final String quote, final String status, final String reason) {
             this.verdicts = Collections.unmodifiableMap(verdicts);
             this.best = best;
             this.quote = quote;
             this.status = status;
+            this.reason = reason;
         }
 
         public JSONObject json() {
-            return KgJson.obj("verdicts", new JSONObject(this.verdicts), "best", this.best, "quote", this.quote, "status", this.status);
+            return KgJson.obj("verdicts", new JSONObject(this.verdicts), "best", this.best, "quote", this.quote, "status", this.status,
+                    "reason", this.reason);
         }
 
         /** True if at least one collection got match or mismatch. */
@@ -222,9 +261,13 @@ public final class CollectionFit {
     }
 
     private static Verdict uncertain(final Question q, final String status) {
+        return uncertain(q, status, null);
+    }
+
+    private static Verdict uncertain(final Question q, final String status, final String reason) {
         final Map<String, String> all = new LinkedHashMap<>();
         for (final String c : q.assigned) all.put(c, UNCERTAIN);
-        return new Verdict(all, NONE, null, status);
+        return new Verdict(all, NONE, null, status, reason);
     }
 
     /** The verdict of a question that was not asked for its length: every assigned collection uncertain (K3). */
@@ -241,12 +284,12 @@ public final class CollectionFit {
      */
     public static Verdict check(final Object field, final Question q, final String chunkText) {
         if (field == null) return uncertain(q, MISSING);
-        if (!(field instanceof JSONObject)) return uncertain(q, INVALID);
+        if (!(field instanceof JSONObject)) return uncertain(q, INVALID, NOT_OBJECT);
         final JSONObject f = (JSONObject) field;
         final Object v = f.opt("verdicts");
-        if (!(v instanceof JSONObject)) return uncertain(q, INVALID);
+        if (!(v instanceof JSONObject)) return uncertain(q, INVALID, VERDICTS_NOT_OBJECT);
         final JSONObject given = (JSONObject) v;
-        for (final String k : given.keySet()) if (!q.assigned.contains(k)) return uncertain(q, INVALID);
+        for (final String k : given.keySet()) if (!q.assigned.contains(k)) return uncertain(q, INVALID, UNKNOWN_KEY);
         final Map<String, String> verdicts = new LinkedHashMap<>();
         for (final String c : q.assigned) {
             final Object x = given.opt(c);
@@ -272,7 +315,7 @@ public final class CollectionFit {
             verdicts.put(c, x != null && VERDICTS.contains(x) ? x : UNCERTAIN);
         }
         return new Verdict(verdicts, stored.optString("best", NONE), stored.isNull("quote") ? null : stored.optString("quote", null),
-                stored.optString("status", VALID));
+                stored.optString("status", VALID), stored.optString("reason", null));
     }
 
     // -------------------------------------------------------------------------------------------- the hook
