@@ -34,6 +34,12 @@ public final class BusinessSignals {
     private static final Pattern PLAN=p("planen|plant|geplant|beabsichtigen|beabsichtigt|werden.{0,60}migrieren|planning|planned|intend");
     private static final Pattern MIGRATION=p("Migration|migrieren|Umstellung|migrate|migration");
     private static final Pattern COMPLETED=p("abgeschlossen|vollzogen|completed|finished");
+    /**
+     * 0.12.0 (B2): support sought for an own migration ("Für unsere S/4HANA-Migration suchen wir externe Unterstützung"), a
+     * need like a planned one; a consultant or other job title is recruiting, never such a need.
+     */
+    private static final Pattern SOUGHT=p("such(?:en|t).{0,40}(?:Unterstützung|Partner|Dienstleister)|(?:Unterstützung|Partner|Dienstleister).{0,60}gesucht"
+            +"|(?:seeking|looking for).{0,40}(?:support|partner|service provider)");
     private static final Pattern SHUTDOWN=p("abgeschaltet|außer Betrieb|ausser Betrieb|stillgelegt|decommissioned|switched off");
     private static final Pattern NEGATION=p("\\bnicht\\b|\\bkeine?[nrs]?\\b|\\bnot\\b|\\bwithout\\b");
     private static final Pattern OFFER=p("wir bieten|wir erbringen|wir unterstützen|unsere Leistungen|we offer|we provide|we support");
@@ -164,7 +170,7 @@ public final class BusinessSignals {
             else if(customer)context="customer_projects";
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
             else if(MIGRATION.matcher(quote).find()&&COMPLETED.matcher(quote).find()&&(own||named))context="completed_migration";
-            else if(MIGRATION.matcher(quote).find()&&PLAN.matcher(quote).find()&&(own||named))context="planned_migration";
+            else if(MIGRATION.matcher(quote).find()&&(PLAN.matcher(quote).find()||SOUGHT.matcher(quote).find()&&!OFFER.matcher(quote).find())&&(own||named))context="planned_migration";
             else if(USE.matcher(quote).find()&&(own||named))context="internal_use";
             else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(field)||"qualifications".equals(field))
                 // A requirement belongs to a posting; a company's own competence statement (Kernkompetenz) is no need.

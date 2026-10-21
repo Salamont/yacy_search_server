@@ -350,6 +350,33 @@ public class MatchingTest {
             assertEquals(title,1,page("a","b").getInt("total"));withdraw(job);assertEquals(title,0,page("a","b").getInt("total"));
         }
     }
+    /**
+     * 0.12.0 gate T6, the customer rows of the plan's table (the competitor row: BusinessViewTest
+     * competitorsOfferTheSameCategoryAndTopicsMakeNone). Of an SAP consultancy, an industrial firm hiring a bookkeeper with SAP
+     * skills and a firm using SAP S/4HANA are possible customers; a consultancy hiring an SAP Senior Consultant for its own
+     * offer is none, yet its explicitly sought support for its own migration makes it one all the same, while it may be a
+     * competitor; SAP on a reference page is no need (a topic of the website: aWebsiteTopicIsNoOfferForTheMatching). Every reason
+     * names its kind of evidence.
+     */
+    @Test public void customerRowsOfTheT6Table()throws Exception {
+        offer("SAP S/4HANA Beratung");
+        jobTitle="Finanzbuchhalter (m/w/d) mit SAP-Kenntnissen";String bookkeeper=signal("Kenntnisse in SAP S/4HANA erforderlich.","job");jobTitle="Engineer";run();
+        JSONObject r=reasons("a","b").getJSONObject(0);
+        assertEquals("required_competence",r.getString("context"));assertEquals("job_requirement",r.getString("evidence_kind"));withdraw(bookkeeper);
+        String use=signal("Wir setzen SAP S/4HANA ein.","organization");run();
+        assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));assertEquals("use",reasons("a","b").getJSONObject(0).getString("evidence_kind"));
+        withdraw(use);run();assertEquals(0,page("a","b").getInt("total"));
+        // the candidate is a consultancy offering SAP itself, hiring for that offer
+        observation(candidate,"organization","business_role_evidence",KgJson.obj("role","it_consultancy","context","own_offered_services"),"Wir bieten SAP-Beratung an.","b");
+        signal("Wir bieten SAP S/4HANA Beratung und Implementierung an.","organization");
+        jobTitle="SAP Senior Consultant (m/w/d)";signal("Kenntnisse in SAP S/4HANA erforderlich.","job");jobTitle="Engineer";run();
+        assertEquals("own capacity is no need",0,page("a","b").getInt("total"));
+        pageUrl="https://candidate.example/referenzen/";signal("Wir setzen SAP S/4HANA ein.","organization");pageUrl=null;run();
+        assertEquals("a client's system on a reference page",0,page("a","b").getInt("total"));
+        signal("Für unsere S/4HANA-Migration suchen wir externe Unterstützung.","organization");run();
+        JSONArray all=reasons("a","b");assertEquals(all.toString(),1,all.length());
+        assertEquals("planned_migration",all.getJSONObject(0).getString("context"));assertEquals("need",all.getJSONObject(0).getString("evidence_kind"));
+    }
     @Test public void projectCompletionOnlyRetiresTheIdentifiedProject()throws Exception {
         offer("Architektur");need("Wir planen den Neubau unseres Werkes in Berlin, Projekt Alpha.");need("Wir planen den Neubau unseres Werkes in Hamburg, Projekt Beta.");run();
         need("Der Neubau unseres Werkes in Berlin, Projekt Alpha, ist abgeschlossen.");
