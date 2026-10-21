@@ -601,7 +601,7 @@ final class ScoutroActions {
     static java.util.List<net.yacy.scoutro.collections.AutoCorrect.Signal> homeSignals(final net.yacy.scoutro.knowledge.KgRuntime kg,
             final String domain, final JSONObject assessments) {
         final net.yacy.scoutro.knowledge.sync.CollectionFit.Profiles profiles = net.yacy.scoutro.knowledge.sync.CollectionFit.profiles();
-        return PlausibilityScan.homeSignals(domain, assessments, kg::contentHash, profiles == null ? null : profiles.criteria);
+        return PlausibilityScan.homeSignals(domain, assessments, kg::contentHash, net.yacy.scoutro.knowledge.sync.CollectionFit.criteria(profiles));
     }
 
     /** The correction automation (WP-H, docs/SCOUTRO_COLLECTION_AUTOCORRECT.md); administrator only, off by default. */

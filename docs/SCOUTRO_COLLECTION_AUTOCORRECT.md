@@ -208,12 +208,20 @@ main offering fits its collections. One request per domain and content, a few to
 - **Unchanged:** the system prompt, the schema, the extractor version and the prompt hash; every other request and its
   cache key byte for byte. The question is in the user message only, before the page's DATA block (operator text, no
   page data). Its cache key has the question added, so an answer with a verdict is never taken for one without.
-- **The question** (at most 500 characters, about 150 tokens by the request budget's estimate, which counts it): the
-  assigned collections (at most 3, those without a current reading first) with their profile's topic (100 characters,
-  60 each for two or three), the other profiles by id and label (40 characters each; those whose vocabulary the rules
-  read on the page first, then alphabetical, dropped from the end when the length runs out), and a fixed instruction
-  that names itself the exception to rule 9 of the system prompt ("entities, claims and values, nothing else"). When
-  the assigned collections alone do not fit, the question is not asked; the reading is `uncertain` (`fit_budget`).
+- **The question** (version 2 since 0.11.7; at most 500 characters, about 150 tokens by the request budget's estimate,
+  which counts it): a fixed instruction that names itself the exception to rule 9 of the system prompt ("entities,
+  claims and values, nothing else"); the assigned collections (at most 3, those without a current reading first) with
+  their profile's topic (up to 100 characters, 60 each for two or three, shortened down to 15 as the length needs, else
+  by id only); the other profiles by id and label (40 characters each; those whose vocabulary the rules read on the
+  page first, then alphabetical, dropped from the end when the length runs out); and the answer's shape as valid JSON
+  with the real assigned ids, the allowed values named once:
+  `Use exactly: "collection_fit":{"verdicts":{"<id>":"<verdict>",...},"best":"<id or none>","quote":"<verbatim page
+  text, max 200 chars>"}, each <verdict> one of match, mismatch, uncertain (unclear: uncertain)`. When even the
+  assigned ids do not fit, the question is not asked; the reading is `uncertain` (`fit_budget`). Version 1 (0.11.6)
+  showed the shape as invalid JSON with a placeholder key `id`; the production model copied it and every answer was
+  `fit_invalid` (`unknown_key`). The question's version is part of the criteria a reading is recorded under
+  (`<criteria_version>/q2`): a reading of version 1 is outdated, gives no signal and is asked again when its home page
+  is read again.
 - **The answer:** one more top-level field, `collection_fit`:
   `{"verdicts": {"<assigned id>": "match|mismatch|uncertain", ...}, "best": "<a named id>|none", "quote": "<verbatim page
   text, at most 200 characters>"}`. It is split off before the extraction's check, which is unchanged (without the
@@ -237,7 +245,9 @@ main offering fits its collections. One request per domain and content, a few to
   and only by the unchanged rule: an LLM verdict never suffices, not with OSM either; a `mismatch` alone makes at most a
   case for review.
 - **Counters** (`GET /scoutro/api/v1/kg/status`, `llm.processed.collectionFit`, in memory since the start): `asked`
-  (fresh requests with the question), `status` (`valid`, `fit_missing`, `fit_invalid`, `fit_unquoted`), `verdicts`
+  (fresh requests with the question), `questionVersion`, `status` (`valid`, `fit_missing`, `fit_invalid`,
+  `fit_unquoted`), `invalidReasons` (why fields were `fit_invalid`: `not_object`, `verdicts_not_object`, `unknown_key`
+  for an id not asked), `verdicts`
   (`match`, `mismatch`, `uncertain`), `budgetSkipped`, `delivered`, `sinkErrors`, the extraction's refusals with and
   without the question (`refusedWithQuestion`, `answersWithoutQuestion`, `refusedWithoutQuestion`) and the measured
   tokens of both kinds of request (`tokensWithQuestion`, `tokensWithoutQuestion`: answers with the provider's usage,

@@ -238,6 +238,8 @@ public final class LlmService {
         final AtomicLong fitAsked = new AtomicLong();
         final Map<String, AtomicLong> fitStatus = new ConcurrentHashMap<>();
         final Map<String, AtomicLong> fitVerdicts = new ConcurrentHashMap<>();
+        /** Why answers' fields were {@code fit_invalid} ({@link CollectionFit.Verdict#reason}). */
+        final Map<String, AtomicLong> fitInvalidReasons = new ConcurrentHashMap<>();
         final AtomicLong fitBudgetSkipped = new AtomicLong();
         final AtomicLong fitDelivered = new AtomicLong();
         final AtomicLong fitSinkErrors = new AtomicLong();
@@ -250,6 +252,7 @@ public final class LlmService {
             this.fitAsked.incrementAndGet();
             this.fitStatus.computeIfAbsent(v.status, k -> new AtomicLong()).incrementAndGet();
             for (final String verdict : v.verdicts.values()) this.fitVerdicts.computeIfAbsent(verdict, k -> new AtomicLong()).incrementAndGet();
+            if (v.reason != null) this.fitInvalidReasons.computeIfAbsent(v.reason, k -> new AtomicLong()).incrementAndGet();
             if (refused) this.fitRefused.incrementAndGet();
         }
 
@@ -278,6 +281,11 @@ public final class LlmService {
                 final AtomicLong n = this.fitVerdicts.get(k);
                 KgJson.put(verdicts, k, n == null ? 0L : n.get());
             }
+            final JSONObject reasons = new JSONObject();
+            for (final String k : List.of(CollectionFit.NOT_OBJECT, CollectionFit.VERDICTS_NOT_OBJECT, CollectionFit.UNKNOWN_KEY)) {
+                final AtomicLong n = this.fitInvalidReasons.get(k);
+                KgJson.put(reasons, k, n == null ? 0L : n.get());
+            }
             final long[] f, o;
             synchronized (this.fitTokens) {
                 f = this.fitTokens.clone();
@@ -285,7 +293,8 @@ public final class LlmService {
             synchronized (this.otherTokens) {
                 o = this.otherTokens.clone();
             }
-            return KgJson.obj("asked", this.fitAsked.get(), "status", status, "verdicts", verdicts, "budgetSkipped", this.fitBudgetSkipped.get(),
+            return KgJson.obj("asked", this.fitAsked.get(), "questionVersion", CollectionFit.QUESTION_VERSION, "status", status, "invalidReasons",
+                    reasons, "verdicts", verdicts, "budgetSkipped", this.fitBudgetSkipped.get(),
                     "delivered", this.fitDelivered.get(), "sinkErrors", this.fitSinkErrors.get(),
                     "refusedWithQuestion", this.fitRefused.get(), "answersWithoutQuestion", this.otherAnswers.get(),
                     "refusedWithoutQuestion", this.otherRefused.get(),
@@ -1542,7 +1551,7 @@ public final class LlmService {
         for (final String c : mine) {
             boolean needed;
             try {
-                needed = sink.needed(domain, c, content, profiles.criteria);
+                needed = sink.needed(domain, c, content, CollectionFit.criteria(profiles));
             } catch (final RuntimeException e) {
                 needed = true;
             }

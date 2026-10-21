@@ -924,8 +924,10 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3) and adds up to `droppedInvalid`.
     All `processed` counters are in memory since the start and reset by a
     restart; no model answer is stored. `processed.collectionFit`: the
-    collection fit asked in home pages' requests (`asked`, `status` per
-    `valid`/`fit_missing`/`fit_invalid`/`fit_unquoted`, `verdicts`,
+    collection fit asked in home pages' requests (`asked`,
+    `questionVersion`, `status` per
+    `valid`/`fit_missing`/`fit_invalid`/`fit_unquoted`, `invalidReasons`
+    (`not_object`, `verdicts_not_object`, `unknown_key`), `verdicts`,
     `budgetSkipped`, `delivered`, `sinkErrors`, refusals with and without
     the question, average measured tokens of both kinds of request; no page
     text; docs/SCOUTRO_COLLECTION_AUTOCORRECT.md). `structuredOutput`: what the

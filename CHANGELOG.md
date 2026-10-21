@@ -2,6 +2,19 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.11.7 / 1.942-scoutro.41 — the collection fit question of a home page, corrected (one update from 0.11.6)
+
+A minimal correction on the published 0.11.6 (`f431c981c3c06c7acabd9314487813c7bc39b8cc`): no schema change, no re-read,
+no model call by the update; `scoutro.kg.llm.collectionFit` keeps its value (off by default).
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.11.7.md).
+
+- Home page reading of the knowledge graph's LLM tier: the question (version 2) shows the answer's shape as valid JSON
+  with the real assigned ids; the question of 0.11.6 showed invalid JSON with a placeholder key `id`, and every answer of
+  the production model was `fit_invalid`. Still at most 500 characters. A reading recorded with the former question is
+  outdated (criteria `<criteria_version>/q2`) and asked again when its home page is read again. New counters
+  `llm.processed.collectionFit.questionVersion` and `invalidReasons` (`not_object`, `verdicts_not_object`,
+  `unknown_key`). docs/SCOUTRO_COLLECTION_AUTOCORRECT.md.
+
 ## 0.11.6 / 1.942-scoutro.40 — plausibility of a domain's collection (one update from 0.11.5)
 
 One update on the published 0.11.5 (`e45d21dabe203adae92abe7bdeda28ddaaa5b33f`): no schema change (knowledge graph 9,

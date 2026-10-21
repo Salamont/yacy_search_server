@@ -2489,8 +2489,9 @@ A read-only analysis of the validator (the only measured shares are those of 0.9
 
 With `scoutro.kg.llm.collectionFit=true` and `llm.structuredOutput` `none` or `json_object`, the first request of a home
 page's reading also asks whether the website's main offering fits its specialist collections (the profiles of
-Discovery's `profiles.json`): a question of at most 500 characters in the user message, before the DATA block; the model
-adds the field `collection_fit`. The system prompt, the schema, `LlmExtractor.VERSION` and the prompt hash are
+Discovery's `profiles.json`): a question of at most 500 characters in the user message, before the DATA block, that shows
+the answer's shape as valid JSON with the assigned collections' ids (question version 2 since 0.11.7, part of a
+reading's criteria); the model adds the field `collection_fit`. The system prompt, the schema, `LlmExtractor.VERSION` and the prompt hash are
 unchanged, so no page is read again for it; every other request and cache key is byte for byte as before, and the
 request budget counts the question. The field is split off before the validator, checked apart (a verdict per assigned
 collection, a verbatim quote found in the page text, else every verdict `uncertain`), kept with the cached answer and
