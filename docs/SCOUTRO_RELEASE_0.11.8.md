@@ -28,16 +28,17 @@ Prepared versions: **0.11.8 / 1.942-scoutro.42**. Numeric YaCy peer version **1.
 
 ## Load test (local, this release)
 
-`SuggestionsLoadProbe` (test sources): one entity, its contributions computed by the real `MatchingService`, read as the object view reads it, three rounds of 25 and 100 groups, origin filtered to one collection.
+`SuggestionsLoadProbe` (test sources): one entity, its contributions computed by the real `MatchingService`, origin filtered to one collection. The data is read with the **production read budget of 5,000 ms** and a real lease clock, three rounds of four calls: the suggestion page with 25 and with 100 groups, the full business view (it embeds the first 100 groups) and the first group's contribution page. Local machine with 4 cores; target 3 s.
 
-| Case | Before (0.11.7 path) | 0.11.8 |
-|---|---|---|
-| 2,000 contributions sharing 10 signals | 2.7 s | 0.1–0.2 s |
-| 40,000 contributions sharing 10 signals (like STELLWERK) | not measured (2.7 s at 2,000) | 1.4–2.0 s |
-| 10,000 contributions, a different signal and actor each | about 5 s | 1.0–1.3 s |
-| 40,000 contributions, a different signal and actor each | not measured (about 5 s at 10,000) | 3.8–5.4 s |
+| Case | Before (0.11.7 path) | 0.11.8, 12 reads | Above 3 s | `read_timeout` |
+|---|---|---|---|---|
+| 10,000 contributions, a different signal and actor each | about 5 s (60 s budget) | 0.7–2.1 s | 0 | 0 |
+| 20,000 contributions, a different signal and actor each | – | 1.6–3.6 s | 1 | 0 |
+| 30,000 contributions, a different signal and actor each | – | 2.6–3.9 s | 6 | 0 |
+| 40,000 contributions, a different signal and actor each | – | 3.4–5.1 s | 12 | **2** |
+| 40,000 contributions sharing 10 signals (like STELLWERK) | 2.7 s at 2,000 (60 s budget) | 1.4–2.4 s | 0 | 0 |
 
-The last case is the extreme: every reason has its own quote, actor and page. What remains is the validation itself (re-reading each stored quote with the shared parser, reading 40,000 observations). The production objects are measured after the update (see below).
+**The target of 3 s is not met from about 20,000 contributions with a different signal each; at 40,000 a read can still end with `read_timeout` (503).** What remains is the validation itself (re-reading each stored quote with the shared parser, reading 40,000 observations). Whether production objects are in that range depends on the Olares hardware and on their composition (observations per contribution). Both are measured before any update in an isolated test instance on Olares (package repository, `docs/OPENCODE-LOADTEST-0.11.8.md`). A stored sort value (stage 2, a schema change) follows only if those measurements require it.
 
 ## Upgrade contract
 

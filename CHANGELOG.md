@@ -11,8 +11,9 @@ model call by the update, no setting changed; `MatchingRules.VERSION` stays 1.
 - Suggestion read path: every contribution is still validated, but only the shown page is built with its evidence; the
   observations, posting pages, system shutdowns and live rows a read needs are loaded in a few queries, a memo answers
   repeated rule checks and statements are reused within the read. The answer is unchanged (tested against the former
-  path). Object views of entities with tens of thousands of contributions no longer exceed the 5 s read limit (local:
-  40,000 contributions sharing signals 1.4–2.0 s, each with its own signal 3.8–5.4 s). docs/SCOUTRO_MATCHING.md.
+  path). Local, with the production read budget of 5,000 ms: 40,000 contributions sharing signals 1.4–2.4 s; with a
+  different signal each 1.6–3.6 s at 20,000 and 3.4–5.1 s at 40,000, where 2 of 12 reads still ended with
+  `read_timeout`; the target of 3 s is not met from about 20,000 such contributions. docs/SCOUTRO_RELEASE_0.11.8.md.
 - Business view: the website's topics (categories it names without an offer cue) in a section of their own with their
   sources and the mark "no proof of an offer"; additive API field `website_topics`; never a matching input. Help and
   German translation.

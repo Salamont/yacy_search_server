@@ -219,9 +219,10 @@ evidence only for the shown page: the observations an entity's contributions ref
 the posting pages of their sources and the shutdowns of their actors' systems are read in
 a few queries per read, a memo answers repeated checks, and statements are reused within
 the read. The answer is the same as before (groups, order, `total`, every field; tested
-against the former path). Local load test: 40,000 contributions with few shared signals
-1.4–2.0 s, 40,000 with a different signal and actor each 3.8–5.4 s (before: far beyond the
-5 s read limit). Additional evidence collections must
+against the former path). Local load test with the production read budget (5,000 ms):
+40,000 contributions with few shared signals 1.4–2.4 s; with a different signal and actor
+each 1.6–3.6 s at 20,000, 2.6–3.9 s at 30,000 and 3.4–5.1 s at 40,000, where 2 of 12 reads
+still ended with `read_timeout` (docs/SCOUTRO_RELEASE_0.11.8.md). Additional evidence collections must
 be permitted. Inaccessible stronger reasons cannot displace visible weaker ones.
 Neither hidden memberships nor hidden reason counts are emitted. Ordinary facts,
 sources, weak links and structural relationships keep A's original view boundary.
