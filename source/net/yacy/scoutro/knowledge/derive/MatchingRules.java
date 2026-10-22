@@ -205,13 +205,13 @@ public final class MatchingRules {
             // The stored context must still be what the shared parser reads in the stored quote (veto only, never an upgrade).
             if(!contextConfirmed(signal,context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;
-            // 0.12.0 (T6): a consultancy or a provider of the product itself shows own use only explicitly ("intern", "für unsere
-            // Buchhaltung"); its pages otherwise describe what it does for its clients. An explicitly sought migration still counts.
-            if(!jobBased&&"internal_use".equals(context)&&!BusinessSignals.explicitOwn(signal.text)
-                    &&(itConsultancy(c,signal.actor)||offersItself(c,signal.actor,offer)))return null;
+            // 0.12.0 (T6, round 2): a client speaking on the actor's page ("Wir nutzen dab Nexus …" on dab's page) or the actor named
+            // as the provider of what another uses is the client's use, not the actor's (veto at reading, as the context check).
+            if(!jobBased&&BusinessSignals.customerVoice(signal.text,actorNames(signal)))return null;
             if(jobBased) {
-                // Own postings for a product the employer offers itself are delivery capacity, not a customer need.
-                if(itConsultancy(c,signal.actor)||ownCapacity(signal)||offersItself(c,signal.actor,offer))return null;
+                // A delivery role of an employer that offers the product itself (its consultant, a role building its business
+                // with clients) is capacity, not a customer need; a title alone excludes nothing (owner decision, 22 Oct 2026).
+                if((itConsultancy(c,signal.actor)||offersItself(c,signal.actor,offer))&&(ownCapacity(signal)||deliveryRole(signal)))return null;
                 result.uncertainties.add("company_role_unknown");result.score-=15;
             }
             result.strength="internal_use".equals(context)?"stated":"weak";
@@ -286,7 +286,12 @@ public final class MatchingRules {
                 +" AND json_extract(value,'$.product')=?) OR (subject_type='service' AND predicate IN('name','category','description')))"
                 +" ORDER BY observation_rowid LIMIT 2501")) {
             p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
-                for(Offer own:offers(Observation.fields(r)))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+                Observation o=Observation.fields(r);
+                for(Offer own:offers(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+                // 0.12.0 (T6, round 2): a service named or categorized as the product itself ("SAP", software/sap) is a service of it,
+                // also without a word of support (the employer's own consultant posting is then its delivery capacity)
+                if(List.of("it-support","cad-bim").contains(offer.rule)&&o.usable()&&"service".equals(o.type)&&List.of("name","category").contains(o.predicate)
+                        &&KgVocabularies.get().signals.products(o.value.optString("literal",o.text)).contains(offer.key))return true;
             }}
         }return false;
     }
@@ -298,6 +303,11 @@ public final class MatchingRules {
         // Words may also stand between product and role: "SAP Senior Berater", "Freiberuflicher SAP Consultant" (0.11.8).
         return has(title,"SAP.Berater|IT.Berater|SAP.Consultant|Revit.Trainer|Archicad.Trainer|BIM.Berater|CAD.Berater|Coach"
                 +"|\\b(?:SAP|IT|BIM|CAD)\\b[^,;|]{0,40}?\\b(?:Berater|Consultant)|\\b(?:Revit|Archicad)\\b[^,;|]{0,40}?\\bTrainer");
+    }
+    /** A posting's quote that builds the employer's business with clients ("… im Kundenprojekt", "… am Markt etabliert"). */
+    private static boolean deliveryRole(Observation signal) {
+        return has(signal.text,"\\b(?:beim|bei unseren|bei Ihren|für unsere|unsere[nr]?) Kunden\\b|Kundenprojekt|Projekte(?:n)? (?:bei|für) Kunden"
+                +"|am Markt (?:etabl|aufbau)|Neukunden|client projects?|at (?:our )?clients|for our clients");
     }
     private static String regionName(Observation evidence) {
         String kind=evidence.value.optString("kind");

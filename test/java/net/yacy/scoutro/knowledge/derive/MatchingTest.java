@@ -259,7 +259,8 @@ public class MatchingTest {
         observation(provider,"organization","service_area",KgJson.obj("literal","Hamburg"),"Unser Versorgungsgebiet ist Hamburg.","a");run();assertEquals(0,count());
     }
     @Test public void itOwnJobsAreExcludedButIndependentOrganizationalSignalSurvives()throws Exception {
-        offer("SAP Beratung");signal("Wir nutzen SAP intern.","job");signal("Wir nutzen SAP intern.","organization");
+        offer("SAP Beratung");jobTitle="SAP Consultant (m/w/d)";signal("SAP Kenntnisse erforderlich.","job");jobTitle="Engineer";
+        signal("Wir nutzen SAP intern.","organization");
         observation(candidate,"organization","business_role_evidence",KgJson.obj("role","it_consultancy","context","own_offered_services"),"Wir bieten SAP-Beratung an.","b");
         run();assertEquals(1,count());assertEquals(1,page("a","b").getInt("total"));
     }
@@ -320,14 +321,19 @@ public class MatchingTest {
         JSONObject contribution=page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0);
         assertEquals("planned_not_reconfirmed",contribution.getString("temporal_status"));assertEquals("weak",contribution.getString("evidence_strength"));
     }
+    /**
+     * The trainer posting of an employer offering the product itself (a system integrator) is its delivery capacity; the title
+     * alone excludes nothing (0.12.0, owner decision of 22 October 2026), and the employer's explicit own use stays a need.
+     */
     @Test public void ownCapacityAndSystemIntegratorJobsAreExcludedButCareConsultingIsNot()throws Exception {
-        offer("Revit Schulung");jobTitle="Revit Trainer";signal("Revit Kenntnisse erforderlich.","job");jobTitle="Engineer";
-        run();assertEquals(0,page("a","b").getInt("total"));
-        signal("Wir nutzen Revit intern.","job");run();assertEquals(1,page("a","b").getInt("total"));
+        offer("Revit Schulung");jobTitle="Revit Trainer";String trainer=signal("Revit Kenntnisse erforderlich.","job");jobTitle="Engineer";
+        run();assertEquals("a title alone excludes nothing",1,page("a","b").getInt("total"));
         observation(candidate,"organization","business_role_evidence",KgJson.obj("role","care_consultancy","context","own_offered_services"),"Wir bieten Pflegeberatung an.","b");
         assertEquals(1,page("a","b").getInt("total"));
         observation(candidate,"organization","business_role_evidence",KgJson.obj("role","system_integrator","context","own_offered_services"),"Wir bieten Systemintegration an.","b");
-        assertEquals(0,page("a","b").getInt("total"));
+        assertEquals("the trainer of a system integrator is capacity",0,page("a","b").getInt("total"));
+        withdraw(trainer);signal("Wir nutzen Revit intern.","job");run();
+        assertEquals("its own use is a need",1,page("a","b").getInt("total"));
     }
     @Test public void everyReasonNamesItsKindOfEvidence()throws Exception {
         // 0.12.0 (B2): a stated use, a job's requirement, a stated need
@@ -344,12 +350,16 @@ public class MatchingTest {
         offer("SAP Beratung");run();assertEquals(1,page("a","b").getInt("total"));
     }
     @Test public void consultantTitlesWithWordsBetweenAreOwnCapacity()throws Exception {
-        // 0.11.8: an SAP consultancy hiring an "SAP Senior Berater" delivers SAP consulting itself; it is no customer.
-        offer("SAP Beratung");
+        // 0.11.8: an SAP consultancy hiring an "SAP Senior Berater" delivers SAP consulting itself; it is no customer. 0.12.0: only
+        // when it offers the product itself, here by a service named after it; a title alone excludes nothing.
+        offer("SAP Beratung");offer("Revit Schulung");
+        List<String> jobs=new java.util.ArrayList<>();
         for(String title:List.of("SAP Senior Berater (m/w/d)","Freiberuflicher SAP Consultant","Senior SAP FI/CO-Berater","Revit BIM Trainerin")) {
-            jobTitle=title;signal(title.startsWith("Revit")?"Revit Kenntnisse erforderlich.":"SAP Kenntnisse erforderlich.","job");
+            jobTitle=title;jobs.add(signal(title.startsWith("Revit")?"Revit Kenntnisse erforderlich.":"SAP Kenntnisse erforderlich.","job"));
         }
-        jobTitle="Engineer";run();assertEquals(0,page("a","b").getInt("total"));
+        jobTitle="Engineer";run();assertEquals("titles alone",1,page("a","b").getInt("total"));
+        for(String product:List.of("SAP","Revit"))observation(candidate,"service","name",KgJson.obj("literal",product),product,"b");
+        assertEquals("the consultant postings of a provider of the product",0,page("a","b").getInt("total"));
     }
     @Test public void inhouseKeyUserAndSkilledJobsOfCustomersStayCustomerNeeds()throws Exception {
         // 0.11.8: an industrial firm hiring for its own SAP stays a possible customer.
@@ -387,16 +397,20 @@ public class MatchingTest {
         assertEquals("planned_migration",all.getJSONObject(0).getString("context"));assertEquals("need",all.getJSONObject(0).getString("evidence_kind"));
     }
     /**
-     * 0.12.0 (T6, production sample: 34 of 50 customer suggestions were providers of the product itself): a candidate that
-     * offers the same product shows own use only explicitly; its other "use" sentences describe its work for clients.
+     * 0.12.0 (T6, round 2, owner decision of 22 October 2026): a provider of the product itself can be a customer of other
+     * providers (regio iT bought SAP consulting while offering SAP solutions); no blanket exclusion. A client speaking on the
+     * candidate's page about the candidate's own product ("Wir nutzen Candidate Nexus …") is no use of the candidate.
      */
-    @Test public void aProviderOfTheProductItselfIsACustomerOnlyByExplicitOwnUse()throws Exception {
+    @Test public void aProviderOfTheProductItselfCanBeACustomerButNotByItsClientsVoices()throws Exception {
         offer("SAP Beratung");
         signal("Wir bieten SAP Beratung und Implementierung an.","organization");
-        String strategy=signal("Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.","organization");
-        run();assertEquals("its strategy is no own use",0,page("a","b").getInt("total"));
-        withdraw(strategy);
-        signal("Wir nutzen SAP intern für unsere Finanzbuchhaltung.","organization");run();
+        String quote="Wir nutzen Candidate Nexus, um über eine zertifizierte Schnittstelle strukturiert auf unsere SAP-Daten zuzugreifen.";
+        assertTrue("the reader no longer reads it as the candidate's use",BusinessSignals.read("system_signal",quote,"text","organization","Candidate").isEmpty());
+        // as an earlier reader stored it
+        String voice=observation(candidate,"organization","system_signal",KgJson.obj("product","sap","context","internal_use","section","text"),quote,"b");
+        run();assertEquals("a client's voice on the candidate's page",0,page("a","b").getInt("total"));
+        withdraw(voice);
+        signal("Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.","organization");run();
         assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));
     }
     @Test public void projectCompletionOnlyRetiresTheIdentifiedProject()throws Exception {
@@ -481,7 +495,11 @@ public class MatchingTest {
         JSONObject reason=page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0);
         assertEquals(3,reason.getJSONArray("evidence").length());assertEquals("qualified",reason.getString("evidence_strength"));
         observation(candidate,"organization","business_role_evidence",KgJson.obj("role","it_consultancy","context","own_offered_services"),"Wir bieten SAP-Beratung an.","b");
-        assertEquals(0,page("a","b").getInt("total"));
+        // 0.12.0 (owner decision of 22 October 2026): only a delivery role of a provider of the product is its capacity; its stated
+        // own use on a posting's page stays a need
+        assertEquals(1,page("a","b").getInt("total"));
+        jobTitle="SAP Berater (m/w/d)";String consultant=signal("Wir nutzen SAP intern.","organization");postingOn(consultant,candidate);jobTitle="Engineer";
+        withdraw(passage);run();assertEquals("the consultant posting of a consultancy",0,page("a","b").getInt("total"));
         signal("Wir nutzen SAP intern.","organization");run();assertEquals(1,page("a","b").getInt("total")); // independent source
     }
     @Test public void mixedPostingEmployersDeferUnassignedCompanyPassages()throws Exception {
@@ -626,7 +644,8 @@ public class MatchingTest {
     }
     /** A consultancy's own posting for the product it offers is delivery capacity; its separately evidenced own use stays. */
     @Test public void consultancyPostingForItsOwnOfferIsNoCustomerNeed()throws Exception {
-        offer("SAP Beratung");signal("Kenntnisse in SAP Rechnungswesen erforderlich.","job");run();assertEquals(1,count());
+        offer("SAP Beratung");jobTitle="SAP FI/CO Berater (m/w/d)";signal("Kenntnisse in SAP Rechnungswesen erforderlich.","job");jobTitle="Engineer";
+        run();assertEquals("a title alone excludes nothing",1,count());
         signal("Wir bieten SAP Beratung und Implementierung an.","organization"); // the employer offers SAP itself
         assertEquals("withdrawn on read",0,page("a","b").getInt("total"));
         run();assertEquals(0,count());

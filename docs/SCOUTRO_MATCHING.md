@@ -296,9 +296,13 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
   such support, a recruited consultant or a client's migration ("… unserer Kunden") is
   none. It takes effect with the re-extraction of rule/8.
 - Customer and competitor are not exclusive. The customer suggestion is left out only
-  when its single evidence is the company's own capacity for that service (0.11.8:
-  consultant and trainer titles, an employer offering the product itself); use, need and
-  the postings of an actual customer stay. `MatchingRules.VERSION` is unchanged.
+  when its single evidence is the company's own capacity for that service: a delivery role
+  (a consultant or trainer title, a posting that builds the business with clients: "bei
+  unseren Kunden", "Kundenprojekt", "am Markt etablieren") of an employer offering the
+  product itself (a service named or categorized as the product, an offered capability,
+  an IT consultancy or system integrator). A title alone excludes nothing (owner decision
+  of 22 October 2026); use, need and the postings of an actual customer stay.
+  `MatchingRules.VERSION` is unchanged.
 - Gate T6, round 1 (production sample of 22 October 2026: of 50 customer suggestions, 34 were providers of the product
   itself, 5 hired for their own offer, 4 rested on menu, article or partner mentions, 7 were customers):
   - `BusinessSignals` reads no own use from a provider speaking to its reader ("Nutzen Sie die Vorteile unseres SAP
@@ -307,11 +311,25 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
     direkt mit SAP zusammen", partners), a list of examples ("aus IT-Systemen wie SAP"), a sentence about others
     ("Industrieunternehmen betreiben …", "the headquarters runs …"), quoted words of another person, experience "used"
     (a competence), the article of "setzen auf ein …" or "unternehmenseigene"/"erarbeiten".
-  - A consultancy or a provider of the product itself shows own use only explicitly (`BusinessSignals.explicitOwn`:
-    "intern", "für unsere Buchhaltung"); an explicitly sought migration still counts.
   - Both act at reading (the stored quote is read again, a veto only); `MatchingRules.VERSION` stays 1.
-  - Tests: `BusinessSignalsTest.aProvidersSentencesAboutItsOfferPartnersAndOthersAreNoOwnUse` (the sample's sentences),
-    `MatchingTest.aProviderOfTheProductItselfIsACustomerOnlyByExplicitOwnUse`.
+  - Tests: `BusinessSignalsTest.aProvidersSentencesAboutItsOfferPartnersAndOthersAreNoOwnUse` (the sample's sentences).
+- Gate T6, round 2 (owner decision of 22 October 2026: a pair is judged from the provider's view, "could the candidate buy
+  this provider's concrete services?"; roles coexist per service; regio iT, a provider of SAP solutions, bought SAP
+  consulting from STELLWERK):
+  - The blanket rule of round 1 ("a provider of the product itself shows own use only explicitly") is gone: a provider of
+    the product can be a customer of other providers.
+  - Instead the signal reader tells the client's voice and others' use from own use: a client's quoted words, a sentence
+    below a heading of customers' voices ("Kunden, die unsere Lösungen nutzen", "Testimonials": the client's systems,
+    `customer_projects`, at extraction), the actor named as the provider of what another uses ("nutzt die AMS von
+    prismat", "Wir nutzen dab Nexus" on dab's page: `BusinessSignals.customerVoice`, also a veto at reading), others using
+    the provider's product ("… nutzen unsere Reports"), a sentence about other companies ("wie Unternehmen … nutzen",
+    "Unternehmen, die SAP verwenden"), examples of technologies, the breadth of a competence ("mit allen gängigen
+    SAP-Systemen"), "use case", "easy to use", "for use" and the English address of the reader. A service joined to a
+    product ("SAP-Hosting", "SAP Support") is an offer. An article (`/blog/`, `/magazin/`, `/fachartikel/`) reports a project
+    like a reference page.
+  - Tests: `BusinessSignalsTest.clientsVoicesOthersUseAndServiceWordsAreNoOwnUse`, `voicesBelowACustomersHeadingAreTheClientsUse`,
+    `MatchingTest.aProviderOfTheProductItselfCanBeACustomerButNotByItsClientsVoices`, `consultantTitlesWithWordsBetweenAreOwnCapacity`,
+    `ownCapacityAndSystemIntegratorJobsAreExcludedButCareConsultingIsNot`.
 - Possible competitors are no matching kind and no derivation: they are read per category
   on demand (`…/kg/entities/{id}/competitors`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4).
 - The plan's table is `MatchingTest.customerRowsOfTheT6Table`.

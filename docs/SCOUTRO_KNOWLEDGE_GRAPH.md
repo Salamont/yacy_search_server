@@ -3666,10 +3666,11 @@ the answer names no provider. The pages of single services are LLM candidates (`
   migration; an offer of such support, a recruited consultant and a client's migration do not. Every reason names its kind
   of evidence (`evidence_kind`: `need`, `use`, `job_requirement`). `MatchingRules.VERSION` stays: the rules act at reading,
   every correct suggestion of today stays visible.
-- **Gate T6, round 1:** in a production sample of 50 customer suggestions, 34 candidates offered the product themselves;
-  their "use" came from sentences about their offer, clients or partners. The signal reader no longer reads own use from
-  them, and a consultancy or a provider of the product itself is a customer only by explicit own use ("intern", "für unsere
-  Buchhaltung") or an explicitly sought migration (docs/SCOUTRO_MATCHING.md).
+- **Gate T6, rounds 1 and 2:** in a production sample of 50 customer suggestions, most "use" of candidates offering the
+  product came from sentences about their offer, clients or partners, from their clients' voices or about others. The
+  signal reader no longer reads own use from them. A provider of the product itself can still be a customer of other
+  providers (owner decision of 22 October 2026: a pair is judged from the provider's view); only the delivery role of an
+  employer offering the product is its capacity, a title alone excludes nothing (docs/SCOUTRO_MATCHING.md).
 
 ### 36.5 Tests
 

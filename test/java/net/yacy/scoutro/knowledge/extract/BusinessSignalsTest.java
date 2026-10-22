@@ -124,6 +124,48 @@ public class BusinessSignalsTest {
         assertTrue(BusinessSignals.explicitOwn("Wir nutzen SAP S/4HANA intern für unsere Finanzbuchhaltung."));
         assertFalse(BusinessSignals.explicitOwn("Wir betreiben eine SAP First-Strategie."));
     }
+    /**
+     * 0.12.0 (T6, round 2, quotes of production): a client's quoted words, a "use case", a list of example technologies, others
+     * using the provider's product, a sentence about other companies, the breadth of a competence, "easy to use", "for use" and
+     * the reader addressed in English are no own use; a service of a product named as one word ("SAP-Hosting") is an offer;
+     * the actor named as the provider of what another uses ("von prismat", "Wir nutzen dab Nexus") is a client's use.
+     */
+    @Test public void clientsVoicesOthersUseAndServiceWordsAreNoOwnUse() throws Exception {
+        for(String text:List.of("„Als junges und modernes Unternehmen setzen wir mit SAP B1 auf eine moderne und zukunftssichere Software.",
+                "Gemeinsam sprechen wir 30 Minuten über einen möglichen Use Case und finden heraus, ob dieser ein Fit für das SAP Funding ist.",
+                "Wir arbeiten mit führenden RPA-Technologien wie UiPath, Blue Prism und SAP Automation.",
+                "SAP LeanIX-Workspaces weltweit nutzen unsere Reports aus dem SAP Extension Hub.",
+                "Es genügt ein SAP NetWeaver ab Version 7.4, um das volle Potenzial unseres Tools zu nutzen.",
+                "In unserem Webcast zeigen wir, wie Unternehmen SAP-Transformation gezielt nutzen.",
+                "Unsere Fokus-Kunden sind Unternehmen, die SAP Lösungen verwenden.",
+                "Dabei arbeiten wir mit allen gängigen SAP-Systemen und Tools.",
+                "The solution is easy to use and provides SAP-certified access to our data.",
+                "We develop SAP applications for use on On-Prem systems.",
+                "We implement SAP Signavio as the process layer of your architecture.")) {
+            for(String v:company(text,"text"))assertFalse(text+" "+v,"internal_use".equals(new JSONObject(v).getString("context")));
+        }
+        assertEquals("offered_capability",companyContext("Seit 2007 betreiben wir hochverfügbare Cloudlösungen, seit 2010 SAP-Hosting.","text"));
+        for(String[] c:List.of(new String[]{"Die Wurst- und Schinkenmanufaktur Muster nutzt die Application Management Services von prismat als SAP-Support.","prismat"},
+                new String[]{"Wir nutzen dab Nexus, um über eine zertifizierte Schnittstelle auf unsere SAP-Daten zuzugreifen.","dab"})) {
+            for(String v:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,c[0],"text",Vocabulary.ORGANIZATION,c[1]))
+                assertFalse(c[0]+" "+v,"internal_use".equals(new JSONObject(v).getString("context")));
+            assertTrue(c[0],BusinessSignals.customerVoice(c[0],List.of(c[1])));
+        }
+        // own use stays own use, also of a provider of the product itself
+        for(String text:List.of("Wir nutzen SAP S/4HANA intern.","Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.",
+                "Seit mehr als 25 Jahren nutzen wir Standardfunktionen des zentralen IT-Systems SAP ERP im Verwaltungsbereich."))
+            assertEquals(text,"internal_use",companyContext(text,"text"));
+        assertTrue("an article reports a project",BusinessSignals.referencePage("https://www.d-labs.com/blog/coaching_von_innovationsteams.html"));
+    }
+    /** 0.12.0 (T6, round 2): what is said below a heading of customers' voices is said by clients about their own use. */
+    @Test public void voicesBelowACustomersHeadingAreTheClientsUse() throws Exception {
+        Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);actor.name="dab";Extraction e=new Extraction(30);e.add(actor);
+        BusinessSignals.extract("## Kunden, die unsere Lösungen nutzen.\n\nRudolf Muster.\n\nLeiter Revision, Beispiel AG.\n\n"
+                +"Mit der Lösung greifen wir strukturiert auf unsere SAP-Daten zu, die wir intern nutzen.\n\n## Über uns\n\nWir nutzen SAP intern.",
+                actor,e,2,Claim.KIND_RULE,"text","text");
+        List<String> contexts=new ArrayList<>();for(Claim c:e.claims())contexts.add(new JSONObject(c.value).getString("context"));
+        assertEquals(List.of("customer_projects","internal_use"),contexts);
+    }
     /** A company's own competence statement is no requirement; a posting's requirement stays one. */
     @Test public void companyCompetenceIsStatedNotRequired() throws Exception {
         assertEquals("stated_competence",companyContext("Kernkompetenz SAP Rechnungswesen","text"));

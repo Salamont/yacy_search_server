@@ -22,7 +22,9 @@ re-read of some pages by the LLM tier within its schedule and budget. `LlmExtrac
   `kg.read`), one line per offer with its service and sources, through a partial index; no fact, no matching input, not
   part of the export or the change feed.
 - Matching: every reason names its kind of evidence (need, use, job requirement); support sought for an own migration is
-  a need; customer and competitor are not exclusive.
+  a need; customer and competitor are not exclusive. A provider of a product can be a customer of other providers; its
+  clients' voices, others' use and its offer to the reader are no own use; only the delivery role of an employer that
+  offers the product itself is its capacity, a title alone excludes nothing.
 
 ## 0.11.8 / 1.942-scoutro.42 — object views without a timeout, the topics of a website, consultant titles as own capacity (one update from 0.11.7)
 
