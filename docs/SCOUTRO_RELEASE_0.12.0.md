@@ -1,4 +1,4 @@
-# Scoutro 0.12.0: services back, customers and competitors apart (one update from 0.11.8)
+# Scoutro 0.12.0: services back, customers and competitors apart (one update from 0.11.7, including 0.11.8)
 
 Prepared versions: **0.12.0 / 1.942-scoutro.43**. Numeric YaCy peer version **1.942** stays unchanged. A release with a
 one-time re-read of every tracked page by the rules (no model) and a targeted, bounded re-read of some pages by the LLM tier.
@@ -8,14 +8,14 @@ separate decision of the operator.
 | What | Value |
 |---|---|
 | Release | the offer proof rule/8 (consulting sentences, structural evidence), the LLM tier's title proof and candidates, the targeted LLM re-read of services pages without a service, possible competitors on demand, the kind of evidence of every reason, support sought for an own migration as a need |
-| Source commit on `main` | **open** (after the merge of 0.11.8) |
+| Source commit on `main` | **open** (on 0.11.8, merge `6ad15e85f91b87e8d23789ee7f50a5dc954bd591` of #93) |
 | Image | `ghcr.io/salamont/scoutro:1.942-scoutro.43`, alias `0.12.0`, linux/amd64 |
 | Registry digest | **open** until publication |
 | Knowledge graph schema | **9, unchanged**. New: the partial index `kg_statement_category`, created at the start if missing (`CREATE INDEX IF NOT EXISTS`); an older version ignores it |
 | Extractors | `rule/8` (was 7): a new extractor identity, so every tracked page is re-extracted by tiers 1 and 2. `LlmExtractor.VERSION` 4, the prompt hash, `jsonld/6`, the vocabulary hash and `MatchingRules.VERSION` 1 unchanged |
 | Discovery job store | schema **1, unchanged** |
 | Correction state | schema **1, unchanged** |
-| Upgrade from | 0.11.8 / `1.942-scoutro.42` (digest **open**) |
+| Upgrade from | 0.11.7 / `1.942-scoutro.41` (`sha256:2ef9068cf20ba1b9d72036e619037affd5261cb754cc75dc9618990f3cad0585`), installed in production; 0.11.8 / `1.942-scoutro.42` is published but not installed (owner decision of 22 October 2026: one update to 0.12.0). The update includes everything of [0.11.8](SCOUTRO_RELEASE_0.11.8.md) |
 
 ## Why
 
@@ -96,11 +96,12 @@ Model budget of all test runs up to 0.12.0: at most 300 requests, at most 40 per
   another SAP consultancy and is no customer suggestion for its own offer; no 503.
 - Observation only, no acceptance criterion: organisations with services (before 10,624, on 21 October 2026 6,669).
 
-## Rollback to 0.11.8
+## Rollback to 0.11.7
 
-Start the 0.11.8 image by digest on the same DATA. The schema is unchanged; 0.11.8 ignores the partial index and the new
-`kg_meta` entries (tested locally: 0.11.8 opens, writes and checks a graph with the index). **The extractor identity changes
-back to rule/7, so 0.11.8 re-extracts every page again** and the services shown only by the new proof become topics again.
+Start the 0.11.7 image by digest (above) on the same DATA. The schema is unchanged; 0.11.7 ignores the partial index and
+the new `kg_meta` entries (tested locally with the classes of 0.11.7 and 0.11.8: they open, write and check a graph with
+the index). The views lose the read path and the website topics of 0.11.8. **The extractor identity changes back to
+rule/7, so 0.11.7 re-extracts every page again** and the services shown only by the new proof become topics again.
 The LLM evidence of pages asked again stays (tier 3 is not corrected by a re-extraction). A return to the exact state before
 the update is the restore of the backup taken before it.
 
