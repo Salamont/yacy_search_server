@@ -60,12 +60,12 @@ Run on Olares without deployment (package repository, `docs/OPENCODE-GATES-0.12.
 | Gate | Target | Result |
 |---|---|---|
 | T0 reference set | ≥ 50 companies per collection (bauteamcheck, stackfinder, edelsenior, checkthecoach) with real offers and counterexamples; 30 cases checked by the owner | phase 1 (22 October 2026): 200 domains, 586 offers (568 with a category), counterexamples mostly navigation; owner check open |
-| T1 recall | ≥ 80 % per collection | rule/7 baseline: 51.9 % (bauteamcheck), 28.9 % (checkthecoach), 57.6 % (edelsenior), 68.2 % (stackfinder); rule/8: open (phase 2) |
-| T2 precision | ≥ 85 % per collection; counterexamples stay topics | rule/7 baseline: 98.8–100 %, no counterexample offered; rule/8: open (phase 2) |
-| T3 protection cases | the tool "CI/CD", "TYPO3 CMS", other fields, navigation "Kontakt/Karriere": no return | tests pass (`OfferEvidenceRule8Test`); sample open |
-| T4 LLM | STELLWERK's SAP DRC, Fast Close, Cash Management accepted (≤ 40 requests) | open |
-| T5 effort | the new LLM candidates and the services pages asked again (count), the re-read's duration | open |
-| T6 customer/competitor | the plan's table as a test; 50 of today's pairs judged | tests pass; of 50 of today's customer suggestions 7 were customers, 34 providers of the product itself, 5 own capacity, 4 not assignable: round 1 of the rules (reading of providers' sentences, explicit own use of providers); the pairs read with 0.12.0: open (phase 2) |
+| T1 recall | ≥ 80 % per collection | rule/7: 51.9 % (bauteamcheck), 28.9 % (checkthecoach), 57.6 % (edelsenior), 68.2 % (stackfinder); rule/8 phase 2: 76.9 / 75.9 / 85.3 / 79.1 %; round 2 (rows of headings, one operator named twice, links in lists; replayed on the exported pages of phase 2): 85.0 / 83.1 / 89.8 / 84.5 %, to be confirmed on Olares (phase 3) |
+| T2 precision | ≥ 85 % per collection; counterexamples stay topics | rule/7: 98.8–100 %; rule/8 phase 2: 98.5–100 %, no counterexample offered; round 2: 98.6–100 % of the judged services, 13 new services to judge |
+| T3 protection cases | the tool "CI/CD", "TYPO3 CMS", other fields, navigation "Kontakt/Karriere": no return | tests pass (`OfferEvidenceRule8Test`); phase 2: no counterexample offered |
+| T4 LLM | STELLWERK's SAP DRC, Fast Close, Cash Management accepted (≤ 40 requests) | phase 2 (37 requests): SAP DRC and Fast Close accepted; Cash Management not: its pages hold 95–104 characters in Solr (the text loss of crawl or parsing, a separate item) |
+| T5 effort | the new LLM candidates and the services pages asked again (count), the re-read's duration | phase 2: 192,862 tracked pages, ≈ 47 min of extraction (14.6 ms per page); 991 new candidates and 7,404 services pages asked again, ≈ 16,900 model requests in estimate |
+| T6 customer/competitor | the plan's table as a test; pairs of today's suggestions judged from the provider's view | phase 2: of 34 pairs judged "provider of the product itself" 7 still shown (0.11.7: 32); of 7 judged customers 1 shown (0.11.7: 5). The owner set the rule (22 October 2026): a pair is judged from the provider's view (could the candidate buy its concrete services?), roles coexist per service, references may prove a business relationship. The reference is checked against that rule (phase 3b, with a sample per collection) before verdicts or rules change |
 
 Model budget of all test runs up to 0.12.0: at most 300 requests, at most 40 per run.
 

@@ -243,7 +243,8 @@ public final class BusinessRules {
             return subjects.get(0);
         }
         if (!subjects.isEmpty()) {
-            return null; // several organisations or facilities on the page: whose facts are these? nothing is guessed
+            // several organisations or facilities on the page: whose facts are these? nothing is guessed, unless they are one
+            return sameOperator(subjects);
         }
         final Mention site = out.add(new Mention(SITE_REF, Vocabulary.ORGANIZATION, 2));
         site.domainOperator = true;
@@ -263,7 +264,30 @@ public final class BusinessRules {
             return operator;
         }
         final List<Mention> subjects = base.subjects(1);
-        return subjects.size() == 1 ? subjects.get(0) : subjects.isEmpty() ? base.mention(SITE_REF) : null;
+        return subjects.size() == 1 ? subjects.get(0) : subjects.isEmpty() ? base.mention(SITE_REF) : sameOperator(subjects);
+    }
+
+    /**
+     * 0.12.0 (gate round 2): the structured data of a page names one operator twice (an Organization and its LocalBusiness,
+     * "Wibu-Systems" and "WIBU-SYSTEMS AG", one block without a name): the named subject with the longest name. Null if two
+     * names differ beyond one being the other with words added (two organisations: nothing is guessed).
+     */
+    static Mention sameOperator(final List<Mention> subjects) {
+        Mention best = null;
+        String bestName = null;
+        for (final Mention m : subjects) {
+            final String n = m.name == null ? "" : m.name.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+            if (n.isEmpty()) {
+                continue;
+            }
+            if (bestName == null || n.startsWith(bestName + " ")) {
+                best = m;
+                bestName = n;
+            } else if (!n.equals(bestName) && !bestName.startsWith(n + " ")) {
+                return null;
+            }
+        }
+        return best;
     }
 
     /**
@@ -363,7 +387,7 @@ public final class BusinessRules {
                 final boolean stated = !role && (offerPage || ServiceEvidence.pricedEvidence(run.text, run.text.substring(h.start, h.end)) != null);
                 explicit.put(h.entry.id, stated);
                 offered.put(h.entry.id, stated || !role && (Boolean.TRUE.equals(offered.get(h.entry.id)) || titled.contains(h.entry.id)
-                        || bulleted(run.text, h.start)));
+                        || bulleted(run.text, h.start) || headed(run.text, h.start)));
             }
         }
         final java.util.Set<String> topics = new java.util.HashSet<>();
@@ -412,7 +436,7 @@ public final class BusinessRules {
         final int end = text.indexOf('\n', at);
         final String l = text.substring(line, end < 0 ? text.length() : end);
         if (l.length() > 120 || !BULLET_LINE.matcher(l).find() || ServiceEvidence.negated(l) || GENDER_MARK.matcher(l).find()
-                || ServiceEvidence.useOrRecruiting(l)) {
+                || ServiceEvidence.useOrRecruiting(l) || EXTERNAL_LINK.matcher(l).find()) {
             return false;
         }
         final int previousEnd = line - 1, previousStart = previousEnd > 0 ? text.lastIndexOf('\n', previousEnd - 1) + 1 : -1;
@@ -420,6 +444,39 @@ public final class BusinessRules {
         final int nextEnd = end < 0 ? -1 : text.indexOf('\n', end + 1);
         final boolean next = end >= 0 && BULLET_LINE.matcher(text.substring(end + 1, nextEnd < 0 ? text.length() : nextEnd)).find();
         return previous || next;
+    }
+
+    /** A link to another site ("Floristik Muster, Herford. (öffnet in neuem Tab)"): a client or partner in a list, no offer. */
+    private static final Pattern EXTERNAL_LINK = Pattern.compile("(?iu)\\((?:öffnet|oeffnet)\\s+in\\s+(?:einem\\s+)?neue[mn]\\s+(?:tab|fenster)\\)"
+            + "|\\(opens\\s+in\\s+a\\s+new\\s+(?:tab|window)\\)|\\(externer\\s+link\\)");
+    /** A heading line of the stored text (Markdown levels 2 to 6) and its words. */
+    private static final Pattern HEADING_LINE = Pattern.compile("^[ \\t]*(#{2,6})[ \\t]+(.*)$");
+    /** An event, a date or a news item as a heading ("Summit für Cloud & DevOps", "Security Show 2026"): no offer. */
+    private static final Pattern NOT_AN_OFFER_HEADING = Pattern.compile("(?iu)\\b(?:19|20)[0-9]{2}\\b|\\b[0-9]{1,2}\\.[0-9]{1,2}\\.|\\b(?:summit|messe"
+            + "|show|event|events|webinar|kongress|konferenz|conference|tagung|meetup|termine?|news|aktuelles|neuigkeiten|blog)\\b");
+    /** How far apart two headings of one row of tiles stand at most (a short description of each in between). */
+    private static final int HEADING_ROW = 400;
+
+    /**
+     * 0.12.0 (gate round 2): true if the position stands in a short heading next to another heading of the same level (a row
+     * of tiles: "### Dachsanierungen. ### Abdichtung. ### Dämmungen."), like an item of a bulleted list; never a question, a
+     * long title (a project or an article), an event or a date, a vacancy, a denial or own use.
+     */
+    static boolean headed(final String text, final int at) {
+        final int line = text.lastIndexOf('\n', Math.max(0, at - 1)) + 1;
+        final int end = text.indexOf('\n', at) < 0 ? text.length() : text.indexOf('\n', at);
+        final Matcher m = HEADING_LINE.matcher(text.substring(line, end));
+        if (!m.matches()) {
+            return false;
+        }
+        final String words = m.group(2).replaceAll("[*_]", " ").replaceAll("\\s+", " ").trim();
+        if (words.length() > 60 || words.split(" ").length > 7 || words.endsWith("?") || ServiceEvidence.negated(words)
+                || GENDER_MARK.matcher(words).find() || ServiceEvidence.useOrRecruiting(words) || NOT_AN_OFFER_HEADING.matcher(words).find()) {
+            return false;
+        }
+        final Pattern sibling = Pattern.compile("(?m)^[ \\t]*" + m.group(1) + "[ \\t]+\\S");
+        return sibling.matcher(text.substring(Math.max(0, line - HEADING_ROW), line)).find()
+                || sibling.matcher(text.substring(end, Math.min(text.length(), end + HEADING_ROW))).find();
     }
 
     // --------------------------------------------------------------- prices

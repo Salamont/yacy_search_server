@@ -11,8 +11,10 @@ re-read of some pages by the LLM tier within its schedule and budget. `LlmExtrac
 [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.12.0.md).
 
 - Offer proof `rule/8`: consulting and delivery sentences with the provider as subject are explicit offers; the site's
-  title or brand line, an item of a bulleted list and the page of one service are structural evidence (confidence 0.4,
-  marked in the company view). Tools, own use, denials, news, vacancies and a client's system stay topics.
+  title or brand line, an item of a bulleted list, a short heading in a row of headings and the page of one service are
+  structural evidence (confidence 0.4, marked in the company view). Tools, own use, denials, news, vacancies, events, a
+  client's system and list items linking to other sites stay topics. A page whose structured data name its operator twice
+  is read instead of skipped.
 - LLM tier: a service named by the title of its own page is accepted with the title as its quote; pages of single
   services are candidates; pages skipped as no candidate are decided once more; services pages read without an accepted
   service are asked once more without the cache, once per graph.

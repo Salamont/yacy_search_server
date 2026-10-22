@@ -106,6 +106,62 @@ public class OfferEvidenceRule8Test {
         assertFalse(o.toString(), o.containsKey("dachdeckerei"));
     }
 
+    /** Gate round 2: a row of short headings of one level ("### Abdichtung. ### Dämmungen.") is a list of offers. */
+    @Test
+    public void aRowOfShortHeadingsShowsOffersStructurally() {
+        final Map<String, Double> o = offers(rules("construction", "https://www.muster-dach.de/", List.of("Willkommen"),
+                "Muster Dach GmbH. Ihr Meisterbetrieb.\n### Abdichtung.\nDicht für Jahrzehnte.\n### Dämmungen.\nWarm im Winter.\nMehr über uns."));
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("abdichtung"), 1e-9);
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("waermedaemmung_wdvs"), 1e-9);
+    }
+
+    /** A single heading, a question, an event or a date and a long title (a project, an article) are no row of offers. */
+    @Test
+    public void aSingleHeadingAQuestionAnEventAndALongTitleAreNoRowOfOffers() {
+        for (final String text : List.of("Willkommen.\n### Abdichtung.\nWir freuen uns auf Ihren Besuch und Ihre Fragen zu unserem Betrieb.",
+                "Willkommen.\n### Brauchen Sie eine Abdichtung?\n### Rufen Sie uns an.",
+                "Willkommen.\n### Fachmesse Abdichtung 2026.\n### Unser Team vor Ort.",
+                "Willkommen.\n### Abdichtung und Modernisierung eines Flachdachhauses im Bungalowstil der 70er Jahre in Mannheim.\n### Haus Z.")) {
+            final Extraction ex = rules("construction", "https://www.muster-dach.de/", List.of("Willkommen"), "Muster Dach GmbH. " + text);
+            assertFalse(text + " " + offers(ex), offers(ex).containsKey("abdichtung"));
+            assertTrue(text + " " + topics(ex), topics(ex).contains("abdichtung"));
+        }
+    }
+
+    /** Gate round 2: a list of clients or partners linking to their own sites names them, not the operator's offers. */
+    @Test
+    public void listItemsLinkingToOtherSitesAreNoOffers() {
+        final Map<String, Double> o = offers(rules("construction", "https://www.muster-elektro.de/", List.of("Willkommen"),
+                "Muster Elektro GmbH.\nDiese Betriebe vertrauen uns.\n- **Floristik & Gartenbau Beispiel, Herford. (öffnet in neuem Tab).\n"
+                        + "- **Eiscafé Beispiel, Herford. (öffnet in neuem Tab).\nLeistungen.\n- 01. Photovoltaik.\n- 02. Smart Home."));
+        assertFalse(o.toString(), o.containsKey("garten_landschaftsbau"));
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("photovoltaik"), 1e-9);
+    }
+
+    /** Gate round 2: the structured data name one operator twice; the rules read the page instead of skipping it. */
+    @Test
+    public void oneOperatorNamedTwiceInTheStructuredDataIsOneSubject() {
+        final List<Mention> same = new ArrayList<>(), two = new ArrayList<>();
+        for (final String[] names : List.of(new String[] {"Wibu-Systems", "WIBU-SYSTEMS AG"}, new String[] {"Oliver Muster Coaching & Mentoring", "Oliver Muster"})) {
+            same.clear();
+            for (final String n : names) {
+                final Mention m = new Mention("jsonld:" + n, Vocabulary.ORGANIZATION, 1);
+                m.name = n;
+                same.add(m);
+            }
+            assertTrue(names[0], BusinessRules.sameOperator(same) != null);
+        }
+        for (final String n : List.of("Muster Pflege GmbH", "Beispiel Klinik gGmbH")) {
+            final Mention m = new Mention("jsonld:" + n, Vocabulary.ORGANIZATION, 1);
+            m.name = n;
+            two.add(m);
+        }
+        assertEquals("two organisations: nothing is guessed", null, BusinessRules.sameOperator(two));
+        final Mention unnamed = new Mention("jsonld:org", Vocabulary.ORGANIZATION, 1), named = new Mention("jsonld:fac", Vocabulary.FACILITY, 1);
+        named.name = "[p3]-Werkstatt";
+        assertEquals(named, BusinessRules.sameOperator(List.of(unnamed, named)));
+    }
+
     @Test
     public void theOwnPageOfAServiceNamesItsOfferInItsTitle() {
         final String url = "https://www.muster-stellwerk.de/sap-beratung/sap-cash-management/";

@@ -3608,8 +3608,15 @@ Every proof belongs to the provider: its own site or a sentence with the provide
   "structural"` of the business view): the title or brand line of the home page, a services page or the page of one service
   (`PageKind.SERVICE_DETAIL`: a path segment `*-beratung`, `beratung`, `consulting`, `dienstleistung(en)`, `loesungen`,
   `lösungen`, never under a news, article, guide, event or careers path and never with a careers title), and an item of a
-  bulleted list (next to another bulleted line; a date, a vacancy "(m/w/d)", own use or recruiting is no item). A bare menu or
-  path needs a second sign of the same site (title, service page or list); a category the title does not name stays a topic.
+  bulleted list (next to another bulleted line; a date, a vacancy "(m/w/d)", own use, recruiting or a link to another site
+  "(öffnet in neuem Tab)" is no item), and a short heading in a row of headings of the same level ("### Abdichtung. ###
+  Dämmungen.", at most 60 characters and 7 words, the next heading at most 400 characters away; a question, an event or a
+  date, a vacancy, a denial or own use is no such heading). A bare menu or path needs a second sign of the same site (title,
+  service page, list or row of headings); a category the title does not name stays a topic.
+- **One operator named twice:** when a page's structured data name the operator twice (an Organization and its
+  LocalBusiness, "Wibu-Systems" and "WIBU-SYSTEMS AG", one block without a name), the rules read the page for the subject
+  with the longest name (`BusinessRules.sameOperator`); two different organisations still leave the page's business facts
+  unread.
 - **A topic stays a topic:** tools and own use ("wir nutzen / setzen … ein / arbeiten mit", "we use"), denials, news and
   articles, a reader's or a vacancy's request ("Unterstützen Sie uns", "Wir suchen Verstärkung"), the provider's own past
   introduction of a system ("Wir haben SAP S/4HANA eingeführt") and a client's system on a reference page.
@@ -3668,7 +3675,8 @@ the answer names no provider. The pages of single services are LLM candidates (`
 
 `OfferEvidenceRule8Test` (consulting verbs with their subject, own use, denials and own past introduction, a reader asked to
 support the team, the provider as client, title and brand line, bulleted items with a denied one, dates, vacancies and a single
-dash, the page of one service, news and careers pages, a bare menu with and without a brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
+dash, list items linking to other sites, a row of short headings and the headings that are none, one operator named twice in
+the structured data, the page of one service, news and careers pages, a bare menu with and without a brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
 `theTitleProvesNoOfferOfAnotherOrganisation`, `LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages`,
 `servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache` and `aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
 `MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`,
