@@ -352,6 +352,9 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
     another company is not affected: that company's name is not the site's. A consultant title without the product
     ("Senior Business Consultant Transformation") is delivery capacity too, but, as every title, only together with an
     employer offering the product. Test: `MatchingTest.theEmployerNamedAsItsSiteOffersWhatTheSitesOperatorOffers`.
+  - **The delivery role is the posting's:** a sentence of the same posting that builds the employer's business with clients
+    ("… sorgst dafür, dass er sich erfolgreich am Markt etabliert") makes its other requirements ("Erfahrung in der Leitung
+    von SAP-Projekten") delivery capacity too (production: Rewion). Test: `MatchingTest.theDeliveryRoleOfAPostingCoversAllItsSentences`.
 - Possible competitors are no matching kind and no derivation: they are read per category
   on demand (`…/kg/entities/{id}/competitors`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4).
 - The plan's table is `MatchingTest.customerRowsOfTheT6Table`.

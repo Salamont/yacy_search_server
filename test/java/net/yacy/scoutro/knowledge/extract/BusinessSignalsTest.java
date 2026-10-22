@@ -235,6 +235,29 @@ public class BusinessSignalsTest {
                 "Wir richten die Teamentwicklung ganz nach Ihrem Bedarf aus."))
             assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
     }
+    /** 0.12.0 (T6, round 2): the "planned" building needs of the production sample of bauteamcheck were providers' offers. */
+    @Test public void aProvidersOfferInTheWordsOfABuildingNeedIsNoNeed() {
+        for(String text:List.of("Als Dachdecker- und Zimmereibetrieb aus Olsberg-Elpe planen und realisieren wir ganzheitliche Dachkonzepte – von der energetischen Sanierung bis zum Neubau.",
+                "### Wenn Sie einen Neubau, Umbau planen, Gebäudesanierung, einen Beratungstermin mit uns vereinbaren möchten …",
+                "Wir planen und bauen deine gesamte Elektrik neu, Altbau wie Neubau.",
+                "Neubau, Sanierung oder Erweiterung: Wir planen die Elektrik, verlegen, schließen an, messen und übergeben mit Protokoll.",
+                "Neubau, Umbau oder Erweiterung — wir planen die IT mit ein, bevor die Wände stehen.",
+                "Wir planen, modernisieren und realisieren Bäder für Neubau, Sanierung und altersgerechtes Wohnen.",
+                "Wir organisieren alle Gewerke, die wir für den Umbau benötigen.",
+                "Meine Frau und ich planten einen kompletten Umbau unseres Hausflures.",
+                "Einen Teil davon durften wir im Zuge der Standorterweiterung planen und umsetzen.",
+                "Wir planen (fast) alles: von großen seilverspannten Tragwerken über Tunnelmaßnahmen bis hin zu kleinen Rahmenbauwerken, vom Neubau bis zur historischen Brücke.",
+                "Unser Team plant jedes Projekt individuell und setzt den Umbau fachgerecht um."))
+            assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
+        // the company's own plan stays, also in the third person of its press release and with a number range
+        for(String text:List.of("Die TRILUX Gruppe bekennt sich zum Standort Arnsberg und wir planen mit dem Neubau der Firmenzentrale eine wichtige Investition.",
+                "Wir planen den Neubau unseres Werkes in Berlin von 2026 bis zum Herbst 2028.",
+                // a hospital's care transition is worded for its patients: read by the matching rule
+                "Wir kontaktieren für Sie unsere Pflegefachkräfte der Pflegeüberleitung, falls Sie zu Hause einen ambulanten Pflegedienst benötigen."))
+            assertFalse(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
+        assertFalse(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,"Die Muster AG plant den Neubau ihres Logistikzentrums in Kassel.","text",
+                Vocabulary.ORGANIZATION,"Muster AG").isEmpty());
+    }
     @Test public void explicitOwnStaffProgramsAndProjectDetailsAreGrounded()throws Exception {
         JSONObject program=new JSONObject(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,
                 "Unsere Führungskräfte durchlaufen ein Führungsprogramm.","company",Vocabulary.ORGANIZATION,null).get(0));

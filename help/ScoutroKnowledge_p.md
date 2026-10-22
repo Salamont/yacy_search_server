@@ -238,10 +238,15 @@ all collections and the page says so.
   suggestion or possible customer, never as a customer relation, and only
   shown when both collections are authorized (the view filter may be narrower).
   Every reason names its kind of evidence (0.12.0): **need** (a planned
-  project, support sought for an own migration), **use** (an own system) or
-  **job requirement** (a skill a posting asks for). A company can be a possible
-  competitor and still a possible customer for another need; only a posting
-  for the company's own offer (its consultants) is no customer need.
+  project, support sought for an own migration), **use** (an own system),
+  **job requirement** (a skill a posting asks for) or **documented purchase**
+  (another provider's reference names the company as the client of a project:
+  a project profile, a reference heading or title, a customer's voice; the
+  context reads "purchased service" or "purchased program"). A company can be a
+  possible competitor and still a possible customer for another need; only a
+  posting for the company's own offer (its consultants) is no customer need.
+  The provider that documents the purchase gets no suggestion for its own
+  client.
 
 The selected collection filters the origin organization and its ordinary facts,
 sources and graph relations. Existing **customer and partner suggestions** may

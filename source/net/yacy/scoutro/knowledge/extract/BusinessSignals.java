@@ -106,6 +106,24 @@ public final class BusinessSignals {
         for(String n:actorNames)if(providerNamed(quote,n))return true;
         return false;
     }
+    /**
+     * A provider's offer worded with the words of a building need (0.12.0, gate T6, round 2; production sample of bauteamcheck,
+     * 22 October 2026: every sampled "planned" new build, rebuild or renovation was one): the reader's project ("Wenn Sie einen
+     * Neubau planen", "Wir planen gemeinsam mit Ihnen den Umbau", "deine gesamte Elektrik"), a delivery ("planen und
+     * realisieren wir", "Wir planen, modernisieren und realisieren Bäder", "Wir organisieren alle Gewerke"), a range of services
+     * ("Ob Neubau, Sanierung oder Erweiterung", "Neubau – Sanierung – Reparatur", "von der energetischen Sanierung bis zum
+     * Neubau", "Altbau wie Neubau") or a private client's words ("Meine Frau und ich planten …"). The company's own plan stays
+     * ("Wir planen den Neubau unserer Firmenzentrale in Arnsberg").
+     */
+    private static final Pattern NEED_OFFER=Pattern.compile("(?u)\\b(?:Sie|Ihr(?:e[nmrs]?)?|Ihnen|Euch|Eu(?:er|re[nmrs]?))\\b|(?iu:"
+            +"\\b(?:du|dich|dir|dein(?:e[nmrs]?)?|ich|you|your)\\b|\\bmeine?\\s+(?:Frau|Mann|Familie|Partner(?:in)?)\\b"
+            +"|\\bplan(?:en|t)(?:\\s*,\\s*\\p{L}+)*\\s*(?:,|und)\\s+(?:realisier|bau|install|fertig|gestalt|modernisier|organisier|umsetz|ausführ|erricht|verleg|montier)"
+            +"|\\b(?:organisieren|koordinieren|übernehmen)\\s+(?:wir\\s+)?(?:alle|sämtliche)\\b|\\bjedes\\s+(?:Projekt|Vorhaben)\\b|\\bde[mn]\\s+Kunden\\b"
+            +"|\\b(?:ob|egal,?\\s+ob|sei\\s+es|ganz\\s+gleich,?\\s+ob)\\b[^.:]{0,60}\\b(?:Neu|Um|An|Alt)?bau\\w*[^.:]{0,40}\\b(?:oder|bis|wie)\\b"
+            +"|\\b(?:ob|egal,?\\s+ob|sei\\s+es)\\b[^.:]{0,60}\\b\\p{L}*[Ss]anierung\\w*[^.:]{0,40}\\b(?:oder|bis)\\b"
+            +"|^\\W*(?:Neubau|Umbau|Anbau|Altbau|Sanierung)\\w*\\s*(?:,|–|—|-|oder)[^.]{0,60}(?::|–|—|\\s-\\s|\\bbei\\b)"
+            +"|\\b(?:Alt|Neu)bau\\s+wie\\s+(?:Alt|Neu)bau\\b|\\bvo(?:n|m)\\b[^.\\d]{2,80}?\\bbis\\s+(?:hin\\s+)?zu[mr]?\\b)");
+
     /** True if the passage describes the reader's need, as a provider writes about its clients: see {@link #READER_NEED}. */
     public static boolean readerNeed(String passage){return passage!=null&&READER_NEED.matcher(passage).find();}
     /** True if the passage states own use explicitly (internally, for the company's own departments): see {@link #EXPLICIT_OWN}. */
@@ -325,6 +343,9 @@ public final class BusinessSignals {
                         :"care-transition".equals(need)&&OWN_CARE.matcher(quote).find()?"organizational_transition"
                         : PLAN.matcher(quote).find()?"planned_need":NEED.matcher(quote).find()||ownProgram?"explicit_need":null;
                 if(context==null||OFFER.matcher(quote).find())continue;
+                // 0.12.0 (T6, round 2, production sample of bauteamcheck): a provider's offer in the words of a building need is none
+                // (the care transition of a hospital is worded for its patients: its own process, read by the matching rule)
+                if(!"care-transition".equals(need)&&NEED_OFFER.matcher(quote).find())continue;
                 Map<String,Object> fields=new TreeMap<>(Map.of("need",need,"context",context,"section",section,"scope","unspecified"));
                 needDetails(fields,quote,need);
                 assertionDate(fields,quote);out.add(Values.canonical(fields));

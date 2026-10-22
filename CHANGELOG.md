@@ -25,11 +25,14 @@ re-read of some pages by the LLM tier within its schedule and budget. `LlmExtrac
   a need; customer and competitor are not exclusive. A provider of a product can be a customer of other providers; its
   clients' voices, others' use and its offer to the reader are no own use; only the delivery role of an employer that
   offers the product itself is its capacity, a title alone excludes nothing; an employer named as the site of its posting
-  offers what the site's operator offers, also where the graph keeps the two apart.
+  offers what the site's operator offers, also where the graph keeps the two apart; the delivery role is the posting's, not
+  one sentence's. A provider's offer worded with the words of a building need ("Wir planen gemeinsam mit Ihnen den Umbau")
+  is no need.
 - Documented business relations: the rules read the clients a page documents for its operator (a project profile's client
   field, the heading of a reference naming the client, a customer's voice with its company, before or after the quoted
-  words) as `customer_of` with source, project and state; several clients of one heading are each a client, an unclear role
-  makes no relation, and a bare "unsere Kunden"/"Referenzen" in a sentence or a menu names nobody. The project's
+  words, a project's client field "Auftraggeber:"/"Kunde:", the title of a reference's page) as `customer_of` with source,
+  project and state; several clients of one heading are each a client, an unclear role or a place makes no relation, and
+  a bare "unsere Kunden"/"Referenzen" in a sentence or a menu names nobody. The project's
   products are a documented purchase (`purchased_service`, a team or leadership program `purchased_need`): a matching reason
   of the new evidence kind `reference` ("documented purchase") for every other provider of the service, none for the
   documenting provider itself.

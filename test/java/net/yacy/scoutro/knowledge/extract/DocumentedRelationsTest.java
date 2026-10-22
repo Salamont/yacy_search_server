@@ -23,9 +23,13 @@ import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 public class DocumentedRelationsTest {
 
     private static Extraction rules(final String vocabulary, final String url, final String text) {
+        return rules(vocabulary, url, text, "Referenzen");
+    }
+
+    private static Extraction rules(final String vocabulary, final String url, final String text, final String title) {
         final Extraction ex = new Extraction(300);
         final ExtractContext ctx = new ExtractContext(KgVocabularies.get(), Set.of(vocabulary), false, List.of("test-web"));
-        new RuleExtractor(200, 65536).extract(text, url, java.net.URI.create(url).getHost(), "de", ex, ctx, List.of("Referenzen"), List.of());
+        new RuleExtractor(200, 65536).extract(text, url, java.net.URI.create(url).getHost(), "de", ex, ctx, List.of(title), List.of());
         return ex;
     }
 
@@ -55,6 +59,46 @@ public class DocumentedRelationsTest {
                 c.get("Energieversorgungs- und Verkehrsgesellschaft mbH Aachen (E.V.A.)"));
         // a list of clients without a second field of a profile is no profile (the list markers read it)
         assertTrue(clients(rules("software", "https://www.muster-stellwerk.de/", "Kunden: Muster AG, Beispiel GmbH\nKontakt")).isEmpty());
+    }
+
+    /** Phase 3c (production pages naming clients, 22 October 2026): the client field inline, on a line of its own and in a list. */
+    @Test
+    public void theClientFieldOfAProjectInlineOnItsOwnLineAndInAList() throws Exception {
+        assertEquals(Set.of("Ev.-Luth. Domgemeinde Freiberg"), clients(rules("software", "https://www.muster-restaurierung.de/project/dom-kreuzgang/",
+                "# Dom Freiberg, Kreuzgang.\n\n**Auftraggeber:. **Ev.-Luth. Domgemeinde Freiberg. **Leistung:. **Herstellung von Gittertoren.")).keySet());
+        assertEquals(Set.of("Dresdner Verkehrsbetriebe AG", "SBB AG", "ARGE Brienzersee"), clients(rules("software",
+                "https://www.muster-gleisbau.de/de/referenzen", "## Betriebshof Trachenberge.\n\nOrt.\n\nDresden.\n\nAuftraggeber.\n\n"
+                        + "Dresdner Verkehrsbetriebe AG.\n\nMehr erfahren.\n\n## Wipkingertunnel.\n\nAuftraggeber.\n\nSBB AG, Infrastruktur – Ausbau und"
+                        + " Erneuerungsprojekte.\n\nMehr erfahren.\n\n## Brienzersee.\n\nAuftraggeber.\n\nARGE Brienzersee (Bauherr: Die Zentralbahn, Meiringen, CH)."
+                        + "\n\nMehr erfahren.")).keySet());
+        assertEquals(Set.of("Strabag AG", "Diakonieverein Güstrow"), clients(rules("software", "https://www.muster-reinigung.de/referenzen/",
+                "## Baufeinreinigung.\n- Schloßpark-Center Schwerin. Auftraggeber: Strabag AG.\n- Betreutes Wohnen. Auftraggeber: Diakonieverein"
+                        + " Güstrow.\n- Einfamilienhaus. Auftraggeber: Privat.")).keySet());
+        // a sample invoice on a home page names no client
+        assertTrue(clients(rules("software", "https://www.muster-dms.de/", "E-Rechnung.\n\nRN: 2026-890.\n\nBetrag: 1.499 €.\n\nKunde: Meier GmbH."
+                + "\n\nDatum: 12.05.2026.")).isEmpty());
+        // a label in a sentence of a home page ("… oder öffentliche. Auftraggeber.") is none
+        assertTrue(clients(rules("software", "https://www.muster-sanitaer.de/", "Wir. sind. für. Sie. da,. ob. Privatkunden,. Unternehmen. oder."
+                + " öffentliche. Auftraggeber.\n\nKostenlose Erstberatung. Leistungen entdecken.")).isEmpty());
+    }
+
+    /** Phase 3c: a list of names in a heading, a place after "in … bei", and the title of the page of one reference. */
+    @Test
+    public void namesOfHeadingsPlacesAndTitlesOfReferences() throws Exception {
+        assertEquals(Set.of("BASF Schwarzheide GmbH"), clients(rules("software", "https://www.muster-gleisbau.de/de/referenzen",
+                "## Rahmenvertrag für Gleisbauarbeiten, BASF Schwarzheide GmbH.\n\nOrt. Schwarzheide.")).keySet());
+        assertTrue(clients(rules("software", "https://www.muster-sanitaer.de/referenzen/", "### Badsanierung in Gschlachtenbretzingen bei"
+                + " Michelbach an der Bilz.\n\nReferenz ansehen.")).isEmpty());
+        final Map<String, Set<String>> claas = clients(rules("software", "https://www.muster-data.de/success-stories/claas/",
+                "Kunden, die uns vertrauen. CLAAS KGaA mbH. Die Finanzplanung mit SAP Analytics Cloud bei CLAAS ist live.",
+                "Success Story: SAP SAC Finanzplanung bei CLAAS | Muster Data"));
+        assertTrue(claas.toString(), claas.containsKey("CLAAS") && claas.get("CLAAS").contains("customer_of"));
+        final Map<String, Set<String>> altana = clients(rules("software", "https://www.muster-data.de/success-stories/altana/",
+                "ALTANA berichtet ESG-Kennzahlen mit SAP BW/4HANA.", "Success Story ALTANA: ESG-Reporting mit SAP BW/4HANA | Muster Data"));
+        assertTrue(altana.toString(), altana.containsKey("ALTANA") && altana.get("ALTANA").contains("customer_of"));
+        // a title naming nobody on the page makes no client
+        assertTrue(clients(rules("software", "https://www.muster-data.de/success-stories/x/", "Ein Projekt.", "Referenz Muster AG: Reporting"))
+                .isEmpty());
     }
 
     @Test

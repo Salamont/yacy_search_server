@@ -766,8 +766,30 @@ public final class BusinessRules {
 
     // ------------------------------------------------ documented business relations (0.12.0, gate T6, round 2)
 
-    /** The client field of a project profile ("Kunden: …", "Auftraggeber: …", "Client: …"), up to the next field. */
-    private static final Pattern PROFILE_CUSTOMER = Pattern.compile("(?imu)^[ \\t]*(?:Kunden?|Auftraggeber(?:in)?|Clients?|Customers?)[ \\t]*:[ \\t]*");
+    /**
+     * The client field of a project profile: a label at a line's start, after a bold mark or after a sentence ("Auftraggeber:
+     * Strabag AG", "**Auftraggeber:. **Ev.-Luth. Domgemeinde Freiberg. **Leistung:. …", "Schloßpark-Center Schwerin.
+     * Auftraggeber: Strabag AG."), or the label on a line of its own above the value ("Auftraggeber." / "Dresdner
+     * Verkehrsbetriebe AG.", for the singular labels of a project only).
+     */
+    private static final Pattern PROFILE_CUSTOMER = Pattern.compile("(?imu)(?:^|(?<=\\.\\s)|(?<=\\*\\*))[ \\t*_]*(?:"
+            + "(Kunden|Clients|Customers|Kunde|Auftraggeber(?:in)?|Bauherr(?:in)?|Client|Customer)[ \\t]*:[ \\t.*_]*"
+            + "|(Auftraggeber(?:in)?|Bauherr(?:in)?)[ \\t]*\\.?[ \\t]*\\n[ \\t]*\\n?[ \\t*_]*)");
+    /** The commissioning party of a project named on the page: then a building owner is not necessarily the client. */
+    private static final Pattern COMMISSIONING = Pattern.compile("(?iu)\\bAuftraggeber");
+    /** A label of several clients: a list of clients, a profile only with a second field. */
+    private static final Pattern PLURAL_LABEL = Pattern.compile("(?iu)Kunden|Clients|Customers");
+    private static final Pattern MARKDOWN_HEADING = Pattern.compile("(?m)^[ \\t]*#{1,4}[ \\t]+([^\\n]{2,140})$");
+    /** The title of the page of one reference ("Referenz B. Braun: HR-Dashboards …", "Success Story: SAP SAC Finanzplanung bei CLAAS"). */
+    private static final Pattern REFERENCE_TITLE = Pattern.compile("(?iu)^(?:Referenz(?:projekt)?|Success[ -]?Story|Case[ -]?Study|Erfolgsgeschichte"
+            + "|Kundenprojekt)(\\s*:\\s*|\\s+)(.{2,160})$");
+    /** A reference "with" its client inside a title ("Servity Success Story mit Wuppertaler Stadtwerke"). */
+    private static final Pattern REFERENCE_WITH = Pattern.compile("(?iu)\\b(?:Success[ -]?Story|Case[ -]?Study|Referenz(?:projekt)?)\\s+(?:mit|with|bei|at)"
+            + "\\s+(.{2,80})$");
+    /** The client at the end of a project's name ("SAP SAC Finanzplanung bei CLAAS"). */
+    private static final Pattern PROJECT_CLIENT = Pattern.compile("(?iu)^(.{3,120}?)\\s+(?:bei|at|mit|with)\\s+(?:(?:der|dem|den|die|das|the)\\s+)?(.{2,80})$");
+    /** A place after "in …": "Badsanierung in Gschlachtenbretzingen bei Michelbach" names a place, no client. */
+    private static final Pattern PLACE_BEFORE = Pattern.compile("(?u)\\bin\\s+\\p{Lu}[\\p{L}-]+(?:\\s+\\p{Lu}[\\p{L}-]+)?\\s*$");
     /** Another field of a project profile: without one, "Kunden:" is no profile (a list of clients is read as such). */
     private static final Pattern PROFILE_FIELD = Pattern.compile("(?imu)^[ \\t]*(Auftrag|Projekt|Rolle|Laufzeit|Zeitraum|Leistung(?:en)?|Umfang"
             + "|Project|Scope|Role|Duration)[ \\t]*:[ \\t]*([^\\n]*)");
@@ -792,7 +814,8 @@ public final class BusinessRules {
     private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&|;|(?<!-)\\s+und\\s+|(?<!-)\\s+and\\s+)\\s*");
     /** The reader or a phrase, never a client ("für Ihr Unternehmen", "bei uns", "für mehr Effizienz"). */
     private static final Pattern NOT_A_CLIENT = Pattern.compile("(?iu)^(?:Ihr|Ihre|Ihren|Ihrem|Sie|uns|unsere?[nmrs]?|our|your|you|mehr|alle|jede[nmrs]?"
-            + "|viele|Kunden|Unternehmen|Firmen|Projekte?)\\b");
+            + "|viele|Kunden|Unternehmen|Firmen|Projekte?|ein|eine[nmrs]?|diverse|verschiedene|privat\\w*|Familie|Herr|Frau|Eheleute"
+            + "|öffentliche[rn]?|anonym\\w*)\\b");
     private static final int MAX_DOCUMENTED = 12;
     private static final Pattern LEGAL_FORM_ANY_CASE = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:" + LEGAL + ")(?![\\p{L}\\p{N}])");
 
@@ -808,25 +831,71 @@ public final class BusinessRules {
     private void references(final Run run) {
         final Set<String> seen = new LinkedHashSet<>();
         int found = 0;
-        // project profiles
+        // project profiles: the client field, its project (a field of the profile, the heading above or the line's start) and
+        // its context (the profile up to the next client field)
+        final boolean commissioned = COMMISSIONING.matcher(run.text).find();
         final Matcher pc = PROFILE_CUSTOMER.matcher(run.text);
         while (pc.find() && found < MAX_DOCUMENTED) {
-            final int from = pc.end(), limit = Math.min(run.text.length(), from + 400);
-            final Matcher field = PROFILE_FIELD.matcher(run.text).region(from, Math.min(run.text.length(), from + 800));
-            if (!field.find()) {
+            final String label = pc.group(1) != null ? pc.group(1) : pc.group(2);
+            if (commissioned && label.toLowerCase(Locale.ROOT).startsWith("bauherr")) {
+                continue; // where the page names the commissioning party, a building owner is not necessarily the client
+            }
+            // the label on a line of its own ("Auftraggeber." / its value) only at a line's start of a reference page: "… oder
+            // öffentliche. Auftraggeber." in a sentence is none
+            if (pc.group(2) != null && (pc.start() > 0 && run.text.charAt(pc.start() - 1) != '\n'
+                    || !run.kinds.contains(PageKind.REFERENCES) && !BusinessSignals.referencePage(run.url))) {
                 continue;
             }
-            final int to = Math.min(limit, field.start());
+            final int from = pc.end();
+            final Matcher field = PROFILE_FIELD.matcher(run.text).region(from, Math.min(run.text.length(), from + 800));
+            final boolean profile = field.find();
+            final boolean plural = PLURAL_LABEL.matcher(label).matches();
+            if (plural && !profile) {
+                continue; // "Kunden: Muster AG, Beispiel GmbH": a list of clients, read by the list markers
+            }
+            if (!profile && label.matches("(?i)Kunde|Client|Customer") && !run.kinds.contains(PageKind.REFERENCES)
+                    && !BusinessSignals.referencePage(run.url)) {
+                continue; // "Kunde: Meier GmbH" of a sample invoice on a home page; "Auftraggeber" names the client of a project anywhere
+            }
+            int to = from;
+            if (profile && field.start() - from <= 400) {
+                to = field.start(); // the clients of a profile, also over lines, up to its next field
+            } else {
+                while (to < run.text.length() && to - from < 160 && run.text.charAt(to) != '\n' && !run.text.startsWith("**", to)) {
+                    to++;
+                }
+            }
+            // "ARGE Brienzersee (Bauherr: …)": a remark in brackets; "SBB AG, Infrastruktur – Ausbau …": the company before its unit
+            String value = run.text.substring(from, to).replace('\n', ' ').replaceAll("\\([^()]*:[^()]*\\)", " ").split("\\s+[–—]\\s+")[0]
+                    .replaceAll("\\s+", " ").replaceAll("[\\s.,;:*]+$", "").trim();
+            final int comma = value.indexOf(", ");
+            if (!plural && comma > 0 && LEGAL_FORM.matcher(value.substring(0, comma)).find()) {
+                value = value.substring(0, comma);
+            }
+            final Matcher nextClient = PROFILE_CUSTOMER.matcher(run.text).region(to, run.text.length());
+            final int stop = Math.min(nextClient.find() ? nextClient.start() : run.text.length(), to + 800);
+            final int lineStart = run.text.lastIndexOf('\n', pc.start()) + 1;
+            int heading = -1;
             String project = null;
-            final Matcher fields = PROFILE_FIELD.matcher(run.text).region(from, Math.min(run.text.length(), from + 800));
+            final Matcher fields = PROFILE_FIELD.matcher(run.text).region(from, stop);
             while (fields.find()) {
                 if (fields.group(1).matches("(?i)Auftrag|Projekt|Leistung(?:en)?|Umfang|Project|Scope")) {
-                    project = fields.group(2).trim();
+                    project = fields.group(2).replaceAll("[*_]+", " ").trim();
                     break;
                 }
             }
-            final String context = run.text.substring(pc.start(), Math.min(run.text.length(), from + 800));
-            found += documented(run, run.text.substring(from, to).replace('\n', ' '), from, project == null ? context : project, context, seen);
+            final Matcher hd = MARKDOWN_HEADING.matcher(run.text).region(Math.max(0, pc.start() - 600), pc.start());
+            while (hd.find()) {
+                heading = hd.start();
+                if (project == null || project.isBlank()) {
+                    project = hd.group(1).replaceAll("[.#*\\s]+$", "").trim();
+                }
+            }
+            if ((project == null || project.isBlank()) && pc.start() > lineStart) {
+                project = run.text.substring(lineStart, pc.start()).replaceAll("[*_]+", " ").replaceAll("[\\s.,;:]+$", "").trim();
+            }
+            final String context = run.text.substring(heading >= 0 ? heading : lineStart, stop);
+            found += documented(run, value, from, project == null ? "" : project, context, seen);
         }
         // headings of a reference page
         if (run.kinds.contains(PageKind.REFERENCES)) {
@@ -834,11 +903,56 @@ public final class BusinessRules {
             while (h.find() && found < MAX_DOCUMENTED) {
                 final int next = run.text.indexOf("\n#", h.end());
                 final String context = run.text.substring(h.start(), Math.min(next < 0 ? run.text.length() : next, h.end() + 400));
-                // "für"/"for" also names a purpose ("… for Rocket Manufacturing"): there only a name with a legal form is a client
-                if (h.group(2).matches("(?i)bei|at") || LEGAL_FORM.matcher(h.group(3)).find()) {
-                    found += documented(run, h.group(3), h.start(3), h.group(1), context, seen);
+                // "für"/"for" also names a purpose ("… for Rocket Manufacturing"): there only a name with a legal form is a client;
+                // "in Gschlachtenbretzingen bei Michelbach" names a place
+                final boolean purpose = !h.group(2).matches("(?i)bei|at");
+                if (!purpose && PLACE_BEFORE.matcher(h.group(1)).find()) {
+                    continue;
+                }
+                for (final String name : h.group(3).split(",\\s+")) {
+                    if (!purpose || LEGAL_FORM.matcher(name).find()) {
+                        found += documented(run, name, h.start(3) + h.group(3).indexOf(name), h.group(1), context, seen);
+                    }
                 }
             }
+        }
+        // the title of the page of one reference: "Referenz B. Braun: HR-Dashboards mit SAP Analytics Cloud", "Success Story:
+        // SAP SAC Finanzplanung bei CLAAS", "Servity Success Story mit Wuppertaler Stadtwerke"; the client must be named on the page
+        for (final String full : run.titles) {
+            if (found >= MAX_DOCUMENTED) {
+                break;
+            }
+            final String title = full.split("\\s+[|–—]\\s+")[0].trim();
+            String client = null, project = title;
+            final Matcher t = REFERENCE_TITLE.matcher(title);
+            final Matcher with = REFERENCE_WITH.matcher(title);
+            if (t.matches()) {
+                final String rest = t.group(2).trim();
+                final Matcher pcl = PROJECT_CLIENT.matcher(rest);
+                if (t.group(1).contains(":")) {
+                    if (pcl.matches()) {
+                        client = pcl.group(2);
+                        project = pcl.group(1);
+                    } else if (rest.split("\\s+").length <= 5) {
+                        client = rest;
+                    }
+                } else if (rest.indexOf(':') > 0) {
+                    client = rest.substring(0, rest.indexOf(':')).trim();
+                    project = rest.substring(rest.indexOf(':') + 1).trim();
+                }
+            } else if (with.find()) {
+                client = with.group(1);
+            }
+            if (client == null) {
+                continue;
+            }
+            client = client.replaceAll("[\\s.,;:!]+$", "").trim();
+            final int at = run.text.toLowerCase(Locale.ROOT).indexOf(client.toLowerCase(Locale.ROOT));
+            if (at < 0) {
+                continue;
+            }
+            found += documented(run, run.text.substring(at, at + client.length()), at, project, title + " " + run.text.substring(at,
+                    Math.min(run.text.length(), at + 600)), seen);
         }
         // customers' voices: a role line with the company, then the words ("Leiter Revision, Verbund AG." / "Wir nutzen …"), or the
         // quoted words, then the signature ("„Mit white duck haben wir …“" / "Ronny Büchner. Managing Director. ESYON GmbH.")
@@ -975,6 +1089,7 @@ public final class BusinessRules {
      */
     static boolean clientName(final String name) {
         if (name.length() < 2 || name.length() > 120 || name.split("\\s+").length > 10 || BusinessFacts.personLike(name)
+                || name.contains(" – ") || name.contains(" — ") || name.contains(" | ")
                 || NOT_A_NAME.matcher(name).find() || NOT_A_CLIENT.matcher(name).find()) {
             return false;
         }

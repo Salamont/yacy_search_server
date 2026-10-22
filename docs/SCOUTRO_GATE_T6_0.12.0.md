@@ -37,28 +37,37 @@ by the rules the owner set on 22 October 2026. Release: [SCOUTRO_RELEASE_0.12.0.
 
 ## Results (stored contributions read again; a pair is shown if one of its contributions is)
 
-| Collection | Pairs | Signal holds (A) | Shown 0.11.7: right / wrong | Shown round 2: right / wrong |
-|---|---:|---:|---|---|
-| stackfinder | 63 | 6 | 6 / 50 | 6 / 8 |
-| checkthecoach | 17 (one piece of evidence) | 0 | 0 / 17 | 0 / 0 |
-| bauteamcheck, edelsenior | no customer suggestion in production | – | – | – |
+| Collection | Pairs | Signal holds (A) | Shown 0.11.7: right / wrong | Round 2, local, without the site's employer | Round 2 on Olares (phase 3c, `5c311fa`) | With the posting's delivery role (local) |
+|---|---:|---:|---|---|---|---|
+| stackfinder | 63 | 6 | 6 / 50 | 6 / 8 | 6 / 4 | 6 / 1 |
+| checkthecoach | 17 (one piece of evidence) | 0 | 0 / 17 | 0 / 0 | 0 / 0 | 0 / 0 |
+| bauteamcheck, edelsenior | no customer suggestion in production | – | – | – | – | – |
 
-Of the 8 still shown wrongly, 7 are the postings of QUANTO Solutions and Rewion: their employer entity is not the entity of
-their site's offer. Round 2 makes the employer named as its site offer what the site's operator offers
-(`MatchingRules.siteOffersItself`), which phase 3c measures on production (the probe of the stored contributions cannot
-show it). One (placeworkers: "entfernen wir überflüssige Anpassungen und nutzen, was SAP bereits bietet", its method for
-clients) remains.
+- On Olares the employer named as its site hid the four pairs of QUANTO Solutions. Rewion kept the requirement of its
+  qualifications ("Mindestens 5 Jahre Erfahrung in der Umsetzung oder Leitung von SAP Projekten") while its description,
+  which builds the business with clients, was hidden; the delivery role is now the posting's (tested locally; no further
+  production run).
+- One remains: placeworkers, "entfernen wir überflüssige Anpassungen und nutzen, was SAP bereits bietet" (its method for
+  clients, read as own use).
 
 **Real positive fits per collection (point 6):** the sample holds six (regio iT twice, toowoxx, INIT, neumeier twice; all
 stackfinder). The documented relations add more after the re-extraction: on the 658 exported pages of the gates, STELLWERK
 names six clients with a purchased S/4HANA project (Emitec, E.V.A., regio iT, Schloss Wachenheim, MEGA eG, STAWAG), dab five
 clients by their testimonials (Hydac, Leoni, Oetiker, Verbund, Huntsman; SAP) and white duck five (ESYON, Novicon, Palfinger,
 Rolls-Royce Power Systems with Azure; Schattdecor). Each is a reason of the kind `reference` for the other providers of the
-product. In checkthecoach, bauteamcheck and edelsenior neither the sample nor the exported pages hold a customer: the
+product. Of 400 production pages naming clients (phase 3c, 100 per collection) the rules read 33 clients, each as the page
+states it: bauteamcheck 25 (SBB, DB InfraGO, ÖBB Infrastruktur, BLS Netz as clients of a railway builder; Strabag, Züblin,
+Max-Planck-Institut Rostock of a cleaning company; a parish of a restorer), stackfinder 8 (B. Braun, ALTANA, CLAAS with SAP
+products, ProPotsdam with S/4HANA, Wuppertaler Stadtwerke, …). In checkthecoach, bauteamcheck and edelsenior neither the sample nor the exported pages hold a customer: the
 providers' pages name private clients (coaching), no client at all, or a provider's own offer read as a need (a roofer:
 "planen und realisieren wir … von der energetischen Sanierung bis zum Neubau", not matchable without own responsibility).
-Phase 3c counts the recorded needs of those collections and how many pass each condition of their rules
-(`NeedFunnel`), and exports a sample of pages naming clients per collection.
+Phase 3c counted the recorded needs (`NeedFunnel`): 486 new builds, 198 rebuilds, 7 energy renovations, 4 site expansions
+and 20 care transitions, none with the own responsibility, the hospital's own process or the location their rules ask for.
+Of the sampled building needs all but a few own plans of companies were providers' offers ("Wir planen gemeinsam mit Ihnen
+den Umbau …", "planen und realisieren wir …"); they are no needs any more (`BusinessSignals.NEED_OFFER`, with the re-read).
+The care transitions are mostly care services' offers; two hospitals describe their discharge management, which the rule
+does not recognise without the words "unser Krankenhaus" and a location in the sentence. bauteamcheck and edelsenior hold
+few pages of possible customers; that is a matter of the crawl's scope, not of this release.
 
 ## All pairs
 

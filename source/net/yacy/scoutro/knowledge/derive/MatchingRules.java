@@ -228,7 +228,7 @@ public final class MatchingRules {
                 // A delivery role of an employer that offers the product itself (its consultant, a role building its business
                 // with clients) is capacity, not a customer need; a title alone excludes nothing (owner decision, 22 Oct 2026).
                 if((itConsultancy(c,signal.actor)||offersItself(c,signal.actor,offer)||siteOffersItself(c,signal,offer))
-                        &&(ownCapacity(signal)||deliveryRole(signal)))return null;
+                        &&(ownCapacity(signal)||postingDeliveryRole(c,signal)))return null;
                 result.uncertainties.add("company_role_unknown");result.score-=15;
             }
             result.strength="internal_use".equals(context)||purchased?"stated":"weak";
@@ -358,10 +358,23 @@ public final class MatchingRules {
                 +"|\\b(?:SAP|IT|BIM|CAD)\\b[^,;|]{0,40}?\\b(?:Berater|Consultant)|\\b(?:Revit|Archicad)\\b[^,;|]{0,40}?\\bTrainer"
                 +"|\\b(?:Consultant|Berater(?:in)?)\\b");
     }
-    /** A posting's quote that builds the employer's business with clients ("… im Kundenprojekt", "… am Markt etabliert"). */
-    private static boolean deliveryRole(Observation signal) {
-        return has(signal.text,"\\b(?:beim|bei unseren|bei Ihren|für unsere|unsere[nr]?) Kunden\\b|Kundenprojekt|Projekte(?:n)? (?:bei|für) Kunden"
-                +"|am Markt (?:etabl|aufbau)|Neukunden|client projects?|at (?:our )?clients|for our clients");
+    /** A posting's words that build the employer's business with clients ("… im Kundenprojekt", "… am Markt etabliert"). */
+    private static final String DELIVERY_ROLE="\\b(?:beim|bei unseren|bei Ihren|für unsere|unsere[nr]?) Kunden\\b|Kundenprojekt|Projekte(?:n)? (?:bei|für) Kunden"
+            +"|am Markt (?:etabl|aufbau)|Neukunden|client projects?|at (?:our )?clients|for our clients";
+    /**
+     * The delivery role of a posting: in the signal's own quote or (0.12.0, T6 round 2, production: Rewion) in another sentence
+     * of the same posting ("… sorgst dafür, dass er sich erfolgreich am Markt etabliert" in its description makes "Erfahrung in
+     * SAP-Projekten" of its qualifications the same posting's). A job ad read on an organisation's page has only its quote.
+     */
+    private static boolean postingDeliveryRole(Connection c,Observation signal)throws SQLException {
+        if(has(signal.text,DELIVERY_ROLE))return true;
+        if(!"job".equals(signal.type)||signal.subject==null)return false;
+        return memo("postingRole\0"+signal.subject,()->{
+            try(PreparedStatement p=c.prepareStatement("SELECT quote FROM kg_observation WHERE subject_id=? AND assertion_status='recorded'"
+                    +" ORDER BY observation_rowid LIMIT 200")) {
+                p.setString(1,signal.subject);try(ResultSet r=p.executeQuery()){while(r.next())if(has(r.getString(1),DELIVERY_ROLE))return true;}
+            }return false;
+        });
     }
     private static String regionName(Observation evidence) {
         String kind=evidence.value.optString("kind");

@@ -3675,11 +3675,20 @@ the answer names no provider. The pages of single services are LLM candidates (`
 - **Documented business relations (gate T6, round 2, owner decision of 22 October 2026):** the rules read the clients a
   page documents for its operator (`BusinessRules.references`), each as `client customer_of operator` (confidence 0.65) with
   the excerpt as its source:
-  - the client field of a project profile ("Kunden: …", "Auftraggeber: …", "Client: …") next to another field of the
-    profile ("Auftrag:", "Projekt:", "Rolle:", "Laufzeit:", "Leistungen:", "Scope:" …); a list of clients without such a
-    field is no profile;
+  - the client field of a project: "Auftraggeber:", "Bauherr:" (not where the page names an "Auftraggeber"), "Kunde:",
+    "Client:" at a line's start, after a bold mark or after a sentence ("**Auftraggeber:. **Ev.-Luth. Domgemeinde Freiberg.
+    **Leistung:. …", "Schloßpark-Center Schwerin. Auftraggeber: Strabag AG."), or "Auftraggeber." on a line of its own
+    above its value on a reference page; the project is the profile's field ("Auftrag:", "Projekt:", "Leistung:" …), the
+    heading above or the line's start. "Kunde:" without a second field of a profile counts only on a reference page (a
+    sample invoice "Kunde: Meier GmbH" on a home page is none); "Kunden:" (several) only with one. A remark in brackets
+    ("ARGE Brienzersee (Bauherr: …)") and a unit after a dash or comma ("SBB AG, Infrastruktur – …") are no part of the
+    name;
   - a heading of a reference page naming the client of its project ("### S/4HANA Release-Wechsel bei E.V.A. & regio iT");
     with "für"/"for" only a name with a legal form, since the word also names a purpose ("… for Rocket Manufacturing");
+    "in Gschlachtenbretzingen bei Michelbach" names a place; of "für Gleisbauarbeiten, BASF Schwarzheide GmbH" only the
+    company;
+  - the title of the page of one reference ("Referenz B. Braun: HR-Dashboards mit SAP Analytics Cloud", "Success Story:
+    SAP SAC Finanzplanung bei CLAAS", "Servity Success Story mit Wuppertaler Stadtwerke") when the page names the client;
   - a customer's voice below a heading of customers' voices or references ("Kundenstimmen", "Das sagen unsere Kunden",
     "## Referenzen"): the role line with its company ("Leiter Revision, Verbund AG.") and the paragraph after it, or the
     quoted words and the signature below them ("„Mit white duck haben wir …“" / "Ronny Büchner. Managing Director. ESYON
@@ -3697,7 +3706,17 @@ the answer names no provider. The pages of single services are LLM candidates (`
   list; on lines it is mostly a menu ("Referenzen / Biografie"), where only a legal name or an institution is a client or a
   reference. With a colon or a word introducing the list ("Unsere Kunden: …", "Kunden wie …", "Unsere Kunden sind …") it is
   one, as before. On the 658 exported pages of the quality gates (22 October 2026) this removes 33 relations, all wrong
-  ("Methoden", "Say", "Bäder", "Tiefbau", "PRÄSENTIERT"), and no right one. The relations act with the re-extraction of rule/8; relations read
+  ("Methoden", "Say", "Bäder", "Tiefbau", "PRÄSENTIERT"), and no right one.
+- **Measured on production pages (phase 3c, 22 October 2026):** of 400 pages naming clients (100 per collection), the rules
+  read 33 clients, each as the page states it (bauteamcheck 25: rail operators, construction companies and public bodies
+  as clients of a railway builder, a cleaning company and a restorer; stackfinder 8, 4 with a purchased SAP product);
+  checkthecoach and edelsenior name private persons or seminar participants, no client with a clear role.
+- **No building need from an offer:** a provider's offer worded with the words of a building need is no need
+  (`BusinessSignals.NEED_OFFER`): the reader's project ("Wenn Sie einen Neubau planen", "Wir planen gemeinsam mit Ihnen den
+  Umbau"), a delivery ("planen und realisieren wir", "Wir organisieren alle Gewerke"), a range of services ("Ob Neubau,
+  Sanierung oder Erweiterung", "vom Neubau bis zur …") or a private client's words ("Meine Frau und ich planten …"). The
+  production sample of bauteamcheck (phase 3c: 486 new builds, 198 rebuilds recorded) held only such offers apart from a
+  few own plans of companies; a hospital's care transition, worded for its patients, is read as before. The relations act with the re-extraction of rule/8; relations read
   before (also wrong ones from former rules) are not corrected by this. In matching such a purchase is a reason of the kind
   `reference` for every other provider of the service; the provider's own reference names an existing client and makes no
   suggestion (docs/SCOUTRO_MATCHING.md).

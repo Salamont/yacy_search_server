@@ -384,6 +384,18 @@ public class MatchingTest {
         signal("Mindestens 7 Jahre Erfahrung in SAP-Implementierungsprojekten erforderlich.","job");jobTitle="Engineer";pageUrl=null;run();
         assertEquals("a posting on another site",1,page("a","b").getInt("total"));
     }
+    /**
+     * 0.12.0 gate T6, round 2 (production: Rewion): the delivery role is the posting's, not one sentence's. The description builds
+     * the employer's business with clients; the requirement of its qualifications belongs to the same posting.
+     */
+    @Test public void theDeliveryRoleOfAPostingCoversAllItsSentences()throws Exception {
+        offer("SAP Beratung");observation(candidate,"service","name",KgJson.obj("literal","SAP"),"SAP","b");
+        jobTitle="Bereichsleiter SAP Logistik (m/w/d)";
+        signal("Mindestens 5 Jahre Erfahrung in der Leitung von SAP Projekten erforderlich.","job");run();
+        assertEquals("a requirement alone",1,page("a","b").getInt("total"));
+        signal("Mit deiner Erfahrung in SAP sorgst du dafür, dass sich der Bereich erfolgreich am Markt etabliert.","job");jobTitle="Engineer";run();
+        assertEquals("the posting builds the employer's business with clients",0,page("a","b").getInt("total"));
+    }
     @Test public void inhouseKeyUserAndSkilledJobsOfCustomersStayCustomerNeeds()throws Exception {
         // 0.11.8: an industrial firm hiring for its own SAP stays a possible customer.
         offer("SAP Beratung");
