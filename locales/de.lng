@@ -6547,6 +6547,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >more neighbours available<==>weitere Nachbarn vorhanden<
 >nationwide<==>bundesweit<
 >need<==>Bedarf<
+>topic of the website<==>Thema der Website<
 >net<==>netto<
 >no published price<==>kein veröffentlichter Preis<
 >occupational field<==>Berufsfeld<
@@ -6874,6 +6875,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Software and systems<==>Software und Systeme<
 >Software and system mentions with their context. A required or desirable skill from a job advertisement is a requirement, not a proof of own use or of a purchase; client work describes the client's systems.<==>Software- und Systemnennungen mit ihrem Kontext. Eine geforderte oder erwünschte Kenntnis aus einer Stellenanzeige ist eine Anforderung, kein Nachweis eigener Nutzung oder eines Kaufs; Kundenarbeit beschreibt die Systeme des Kunden.<
 >from a job advertisement<==>aus einer Stellenanzeige<
+>Topics of the website<==>Themen der Website<
+>Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.<==>Themen, die die Website nennt, ohne sie anzubieten: ohne Preis, ohne Angebotsformulierung, nicht auf einer Leistungsseite. Ein Thema ist kein Angebotsbeleg und fließt nie in Kunden- oder Partnervorschläge ein. Ein Thema, das eine angezeigte Leistung bereits trägt, steht hier nicht noch einmal.<
+>no proof of an offer<==>kein Angebotsbeleg<
 >Website technologies<==>Website-Technologien<
 >Technologies the site's pages integrate, read from their technical markup (generator, scripts, stylesheets, plugin comments). A website observation: no proof of the company's internal software, of an offer or of a customer project. A technology a later crawl no longer finds is not observed again, which is not the same as removed.<==>Technologien, die die Seiten der Website einbinden, gelesen aus ihrem technischen Markup (Generator, Skripte, Stylesheets, Plugin-Kommentare). Eine Website-Beobachtung: kein Nachweis der internen Software des Unternehmens, eines Angebots oder eines Kundenprojekts. Findet ein späterer Crawl eine Technologie nicht mehr, ist sie nicht erneut beobachtet, nicht zwingend entfernt.<
 >content management system<==>Content-Management-System<

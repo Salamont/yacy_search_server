@@ -19069,6 +19069,15 @@
     <trans-unit id="66828b6d" xml:space="preserve" approved="no" translate="yes">
        <source>from a job advertisement</source>
     </trans-unit>
+    <trans-unit id="548bbd7f" xml:space="preserve" approved="no" translate="yes">
+       <source>Topics of the website</source>
+    </trans-unit>
+    <trans-unit id="cf7d35cf" xml:space="preserve" approved="no" translate="yes">
+       <source>Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.</source>
+    </trans-unit>
+    <trans-unit id="a8c48b57" xml:space="preserve" approved="no" translate="yes">
+       <source>no proof of an offer</source>
+    </trans-unit>
     <trans-unit id="c19b7a2f" xml:space="preserve" approved="no" translate="yes">
        <source>Website technologies</source>
     </trans-unit>
@@ -19818,6 +19827,9 @@
     </trans-unit>
     <trans-unit id="338896" xml:space="preserve" approved="no" translate="yes">
        <source>need</source>
+    </trans-unit>
+    <trans-unit id="15b48234" xml:space="preserve" approved="no" translate="yes">
+       <source>topic of the website</source>
     </trans-unit>
     <trans-unit id="caf536a3" xml:space="preserve" approved="no" translate="yes">
        <source>links to (weak signal)</source>

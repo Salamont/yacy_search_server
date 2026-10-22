@@ -26,10 +26,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -43,6 +46,10 @@ import java.util.Set;
  * lease, so the store can close them all before it ends the transaction (an
  * open statement would let a pending interrupt hit the COMMIT), and it refuses
  * transaction control, which belongs to the lease.
+ * <p>
+ * A statement prepared with SQL alone is kept for the lease once its user closes it, and the next preparation of the same
+ * SQL takes it again (0.11.8): a projection that asks the same small question for thousands of rows spent most of its
+ * time preparing it again each time. A statement is only reused while no one holds it; all are closed with the lease.
  * <p>
  * It bounds lease misuse by Scoutro's own code; it is not a sandbox.
  */
@@ -62,6 +69,11 @@ final class LeasedConnection {
     private final Connection real;
     private final Check check;
     private final Set<Statement> open = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** Prepared statements their users closed, by SQL; still open, ready for the next preparation of the same SQL. */
+    private final Map<String, ArrayDeque<PreparedStatement>> idle = new HashMap<>();
+    /** At most this many idle statements are kept; beyond, a closed one is really closed (SQL built with its values). */
+    static final int MAX_IDLE = 256;
+    private int idleCount;
     final Connection proxy;
 
     LeasedConnection(final Connection real, final Check check) {
@@ -75,6 +87,8 @@ final class LeasedConnection {
     void closeStatements() {
         final List<Statement> all = new ArrayList<>(this.open);
         this.open.clear();
+        this.idle.clear();
+        this.idleCount = 0;
         for (final Statement s : all) {
             try {
                 s.close();
@@ -104,6 +118,19 @@ final class LeasedConnection {
         }
         if ("isWrapperFor".equals(name)) {
             return ((Class<?>) args[0]).isInstance(self);
+        }
+        if ("prepareStatement".equals(name) && args != null && args.length == 1 && args[0] instanceof String) {
+            this.check.check();
+            final String sql = (String) args[0];
+            final ArrayDeque<PreparedStatement> ready = this.idle.get(sql);
+            PreparedStatement s = ready == null ? null : ready.pollFirst();
+            if (s != null) {
+                this.idleCount--;
+            } else {
+                s = this.real.prepareStatement(sql);
+                this.open.add(s);
+            }
+            return pooled(s, sql);
         }
         if ("createStatement".equals(name) || "prepareStatement".equals(name)) {
             this.check.check();
@@ -143,6 +170,68 @@ final class LeasedConnection {
             }
             final Object result = invoke(real, m, args);
             return result instanceof ResultSet ? resultSet((ResultSet) result, p) : result;
+        });
+    }
+
+    /**
+     * A prepared statement of the pool, held by its user until close: then its result set is closed, its parameters are
+     * cleared and it waits for the next preparation of the same SQL. Statements of a pool are closed with the lease.
+     */
+    private Object pooled(final PreparedStatement real, final String sql) {
+        final boolean[] closed = {false};
+        final ResultSet[] current = {null};
+        return Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[] {PreparedStatement.class}, (p, m, args) -> {
+            final String name = m.getName();
+            if (m.getDeclaringClass() == Object.class) {
+                return objectMethod(p, m, args);
+            }
+            if ("close".equals(name)) {
+                if (closed[0]) return null;
+                closed[0] = true;
+                try {
+                    if (current[0] != null) current[0].close();
+                    if (this.idleCount >= MAX_IDLE) {
+                        this.open.remove(real);
+                        real.close();
+                        return null;
+                    }
+                    real.clearParameters();
+                    this.idle.computeIfAbsent(sql, k -> new ArrayDeque<>()).addLast(real);
+                    this.idleCount++;
+                } catch (final SQLException e) {
+                    this.open.remove(real);
+                    real.close();
+                }
+                return null;
+            }
+            if ("isClosed".equals(name)) {
+                return closed[0];
+            }
+            if (closed[0]) {
+                throw new SQLException("statement is closed");
+            }
+            if ("getConnection".equals(name)) {
+                return this.proxy;
+            }
+            if ("unwrap".equals(name) || "isWrapperFor".equals(name)) {
+                final boolean own = ((Class<?>) args[0]).isInstance(p);
+                if ("isWrapperFor".equals(name)) {
+                    return own;
+                }
+                if (own) {
+                    return p;
+                }
+                throw new SQLException("a knowledge graph read lease does not expose its statements");
+            }
+            if (STATEMENT_EXECUTE.contains(name)) {
+                this.check.check();
+            }
+            final Object result = invoke(real, m, args);
+            if (result instanceof ResultSet) {
+                current[0] = (ResultSet) result;
+                return resultSet((ResultSet) result, p);
+            }
+            return result;
         });
     }
 

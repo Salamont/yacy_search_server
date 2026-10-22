@@ -36,9 +36,9 @@ missing response times, restart and schema persistence failures. See
 | What | Value | Where |
 |---|---|---|
 | YaCy version | `1.942` | `build.properties` → `releaseVersion` (unchanged from upstream) |
-| Scoutro release | `41` | `scoutro.properties` → `scoutro.release` |
-| Full Scoutro version | `1.942-scoutro.41` | git tag `v1.942-scoutro.41`, image tag `1.942-scoutro.41` |
-| Image alias | `0.11.7` | image tag `0.11.7` (same immutable digest as the full version) |
+| Scoutro release | `42` | `scoutro.properties` → `scoutro.release` |
+| Full Scoutro version | `1.942-scoutro.42` | git tag `v1.942-scoutro.42`, image tag `1.942-scoutro.42` |
+| Image alias | `0.11.8` | image tag `0.11.8` (same immutable digest as the full version) |
 
 Why not change `releaseVersion`: YaCy parses its version as a number
 (`yacyVersion`, `Seed.getVersion()` use `Double.parseDouble`, and
@@ -74,7 +74,7 @@ the root `.dockerignore`: the root file excludes `test/`, but `build.xml`
 needs `test/jetty` for the Solr 9 bridge (`build-solr9-bridge`).
 
 ```sh
-VERSION=1.942-scoutro.41
+VERSION=1.942-scoutro.42
 docker build -f docker/Dockerfile.scoutro \
   --build-arg SCOUTRO_VERSION=$VERSION \
   --build-arg SCOUTRO_REVISION=$(git rev-parse HEAD) \
@@ -96,9 +96,9 @@ session CA with BuildKit rather than modifying or retagging the upstream base:
 ```sh
 docker build --secret id=proxy_ca,src="$CODEX_PROXY_CERT" \
   -f docker/Dockerfile.scoutro \
-  --build-arg SCOUTRO_VERSION=1.942-scoutro.41 \
+  --build-arg SCOUTRO_VERSION=1.942-scoutro.42 \
   --build-arg SCOUTRO_REVISION="$(git rev-parse HEAD)" \
-  -t scoutro:0.11.7-rc-local .
+  -t scoutro:0.11.8-rc-local .
 ```
 
 The optional secret and temporary Java trust store exist only during the build;
@@ -109,12 +109,12 @@ file referring to a path outside the build context cannot provide the revision.
 
 ## Release candidate and DATA upgrades
 
-[Scoutro 0.11.7 release/upgrade notes](SCOUTRO_RELEASE_0.11.7.md) are the current
-operator contract (they build on [0.11.6](SCOUTRO_RELEASE_0.11.6.md), [0.11.5](SCOUTRO_RELEASE_0.11.5.md), [0.11.4](SCOUTRO_RELEASE_0.11.4.md), [0.10.9](SCOUTRO_RELEASE_0.10.9.md), [0.10.7](SCOUTRO_RELEASE_0.10.7.md), [0.10.6](SCOUTRO_RELEASE_0.10.6.md), [0.10.5](SCOUTRO_RELEASE_0.10.5.md), [0.10.4](SCOUTRO_RELEASE_0.10.4.md), [0.10.3](SCOUTRO_RELEASE_0.10.3.md), [0.10.2](SCOUTRO_RELEASE_0.10.2.md) and [0.10.1](SCOUTRO_RELEASE_0.10.1.md); access, cookie and sign-in limits: [0.10.0](SCOUTRO_RELEASE_0.10.0.md)); the schema migrations below come from
+[Scoutro 0.11.8 release/upgrade notes](SCOUTRO_RELEASE_0.11.8.md) are the current
+operator contract (they build on [0.11.7](SCOUTRO_RELEASE_0.11.7.md), [0.11.6](SCOUTRO_RELEASE_0.11.6.md), [0.11.5](SCOUTRO_RELEASE_0.11.5.md), [0.11.4](SCOUTRO_RELEASE_0.11.4.md), [0.10.9](SCOUTRO_RELEASE_0.10.9.md), [0.10.7](SCOUTRO_RELEASE_0.10.7.md), [0.10.6](SCOUTRO_RELEASE_0.10.6.md), [0.10.5](SCOUTRO_RELEASE_0.10.5.md), [0.10.4](SCOUTRO_RELEASE_0.10.4.md), [0.10.3](SCOUTRO_RELEASE_0.10.3.md), [0.10.2](SCOUTRO_RELEASE_0.10.2.md) and [0.10.1](SCOUTRO_RELEASE_0.10.1.md); access, cookie and sign-in limits: [0.10.0](SCOUTRO_RELEASE_0.10.0.md)); the schema migrations below come from
 [0.9.0](SCOUTRO_RELEASE_0.9.0.md) and still apply to installations older than 0.9.0.
 [Changelog](../CHANGELOG.md) describes the user-facing changes.
 The pre-existing main publication workflow will publish **both** immutable
-image tags `1.942-scoutro.41` and `0.11.7` after a separately authorized merge;
+image tags `1.942-scoutro.42` and `0.11.8` after a separately authorized merge;
 its existing-tag refusal must remain enabled. A branch push/Draft PR does not
 publish the image. Do not manually dispatch the workflow in addition to the
 merge-triggered run, or race two publications of the same version.

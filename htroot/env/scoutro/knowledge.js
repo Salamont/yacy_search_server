@@ -1096,7 +1096,7 @@
     li.append(dl);
     return li;
   }
-  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'website_technologies', 'audiences', 'matches', 'sources', 'facts'];
+  const SECTIONS = ['overview', 'industry', 'services', 'website_topics', 'prices', 'amounts', 'contacts', 'relations', 'jobs', 'systems', 'website_technologies', 'audiences', 'matches', 'sources', 'facts'];
   // a software or system mention with its context and source (0.10.2): a requirement is no proof of use, client work is the client's
   function systemItem(x) {
     const head = node('div', null, 'skg-statement-head');
@@ -1113,6 +1113,12 @@
     if (x.host) head.append(' · ', node('span', x.host, 'sseo-note'));
     if (x.version) head.append(' · ', node('span', t('tech_version').replace('%1', x.version).replace('%2', t('vsrc_' + x.version_source)), 'sseo-note'));
     const li = factItem(head, x); li.dataset.technology = x.technology; li.dataset.category = x.category; return li;
+  }
+  /** A topic of the website (0.11.8): a category the site names without an offer cue; no proof of an offer, no matching input. */
+  function topicItem(x) {
+    const head = node('div', null, 'skg-statement-head');
+    head.append(node('span', valueText('topic', x), 'skg-value'), ' · ', node('span', t('topic_no_offer'), 'sseo-note skg-topic-no-offer'));
+    const li = factItem(head, x); li.dataset.topic = x.value; return li;
   }
   function businessInto(b) {
     const box = $('business'); box.replaceChildren();
@@ -1137,6 +1143,7 @@
       if (sv.description) li.insertBefore(node('p', sv.description, 'skg-value'), li.children[1]);
       return li;
     })));
+    if (b.website_topics?.length) box.append(section('website_topics', node('p', t('website_topics_note'), 'sseo-note'), list(b.website_topics, topicItem)));
     if (b.prices?.length) box.append(section('prices', priceTable(b.prices)));
     if (b.amounts?.length) box.append(section('amounts', node('p', t('amt_note'), 'sseo-note'), amountTable(b.amounts)));
     if (b.contacts && Object.keys(b.contacts).length) {

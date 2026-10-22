@@ -2,6 +2,26 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.11.8 / 1.942-scoutro.42 — object views without a timeout, the topics of a website, consultant titles as own capacity (one update from 0.11.7)
+
+A small release on the published 0.11.7 (`546c701022e6b562095d61830b04fac8a87fec68`): no schema change, no re-read, no
+model call by the update, no setting changed; `MatchingRules.VERSION` stays 1.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.11.8.md).
+
+- Suggestion read path: every contribution is still validated, but only the shown page is built with its evidence; the
+  observations, posting pages, system shutdowns and live rows a read needs are loaded in a few queries, a memo answers
+  repeated rule checks and statements are reused within the read. The answer is unchanged (tested against the former
+  path). Local, with the production read budget of 5,000 ms: 40,000 contributions sharing signals 1.4–2.4 s; with a
+  different signal each 1.6–3.6 s at 20,000 and 3.4–5.1 s at 40,000, where 2 of 12 reads still ended with
+  `read_timeout`; the target of 3 s is not met from about 20,000 such contributions. Approved on these local measurements,
+  not measured on Olares. docs/SCOUTRO_RELEASE_0.11.8.md.
+- Business view: the website's topics (categories it names without an offer cue) in a section of their own with their
+  sources and the mark "no proof of an offer"; additive API field `website_topics`; never a matching input. Help and
+  German translation.
+- Matching: a posting whose title names a consulting or training role for the product counts as the employer's delivery
+  capacity also with words between product and role ("SAP Senior Berater", "Freiberuflicher SAP Consultant"); in-house
+  and key-user titles stay customer needs. Applies when contributions are read.
+
 ## 0.11.7 / 1.942-scoutro.41 — the collection fit question of a home page, corrected (one update from 0.11.6)
 
 A minimal correction on the published 0.11.6 (`f431c981c3c06c7acabd9314487813c7bc39b8cc`): no schema change, no re-read,

@@ -325,6 +325,24 @@ public final class BusinessView {
         if (services.length() > 0) {
             KgJson.put(out, "services", services);
         }
+        // 0.11.8: the topics of the website, categories the organisation names without an offer cue (WP-F), in a list of their
+        // own with their sources: no proof of an offer and never a matching input; a category a shown service carries is not repeated
+        final Set<String> offered = new LinkedHashSet<>();
+        for (int i = 0; i < services.length(); i++) {
+            final JSONArray categories = services.optJSONObject(i).optJSONArray("categories");
+            for (int k = 0; categories != null && k < categories.length(); k++) {
+                offered.add(categories.optJSONObject(k).optString("value"));
+            }
+        }
+        final List<Fact> topics = new ArrayList<>();
+        for (final Fact f : byPredicate.getOrDefault(Vocabulary.TOPIC, List.of())) {
+            if (!offered.contains(f.stat.objVal)) {
+                topics.add(f);
+            }
+        }
+        if (!topics.isEmpty()) {
+            KgJson.put(out, "website_topics", literals(topics, cats, nace, docs));
+        }
         if (prices.length() > 0) {
             KgJson.put(out, "prices", prices);
         }

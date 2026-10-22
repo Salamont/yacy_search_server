@@ -681,6 +681,7 @@
     <mkdir dir="build/scoutro-kg-suggestions-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-suggestions-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
       <include name="net/yacy/scoutro/knowledge/read/BusinessViewTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/read/SuggestionsLazyTest.java"/>
       <include name="net/yacy/scoutro/knowledge/read/KgReaderTest.java"/>
       <include name="net/yacy/scoutro/knowledge/read/KgExportTest.java"/>
       <include name="net/yacy/scoutro/knowledge/derive/DerivedServiceTest.java"/>
@@ -694,6 +695,7 @@
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
       <classpath><pathelement location="build/scoutro-kg-suggestions-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
       <arg value="net.yacy.scoutro.knowledge.read.BusinessViewTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.SuggestionsLazyTest"/>
       <arg value="net.yacy.scoutro.knowledge.read.KgReaderTest"/>
       <arg value="net.yacy.scoutro.knowledge.read.KgExportTest"/>
       <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
@@ -912,6 +914,7 @@
         <include name="docs/SCOUTRO_RELEASE_0.11.5.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.11.6.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.11.7.md"/>
+        <include name="docs/SCOUTRO_RELEASE_0.11.8.md"/>
         <include name="readme.txt"/>
         <include name="gpl.txt"/>
         <include name="ChangeLog"/>
