@@ -59,13 +59,13 @@ Run on Olares without deployment (package repository, `docs/OPENCODE-GATES-0.12.
 
 | Gate | Target | Result |
 |---|---|---|
-| T0 reference set | ≥ 50 companies per collection (bauteamcheck, stackfinder, edelsenior, checkthecoach) with real offers and counterexamples; 30 cases checked by the owner | open |
-| T1 recall | ≥ 80 % per collection | open (rule/7 baseline: open) |
-| T2 precision | ≥ 85 % per collection; counterexamples stay topics | open |
+| T0 reference set | ≥ 50 companies per collection (bauteamcheck, stackfinder, edelsenior, checkthecoach) with real offers and counterexamples; 30 cases checked by the owner | phase 1 (22 October 2026): 200 domains, 586 offers (568 with a category), counterexamples mostly navigation; owner check open |
+| T1 recall | ≥ 80 % per collection | rule/7 baseline: 51.9 % (bauteamcheck), 28.9 % (checkthecoach), 57.6 % (edelsenior), 68.2 % (stackfinder); rule/8: open (phase 2) |
+| T2 precision | ≥ 85 % per collection; counterexamples stay topics | rule/7 baseline: 98.8–100 %, no counterexample offered; rule/8: open (phase 2) |
 | T3 protection cases | the tool "CI/CD", "TYPO3 CMS", other fields, navigation "Kontakt/Karriere": no return | tests pass (`OfferEvidenceRule8Test`); sample open |
 | T4 LLM | STELLWERK's SAP DRC, Fast Close, Cash Management accepted (≤ 40 requests) | open |
 | T5 effort | the new LLM candidates and the services pages asked again (count), the re-read's duration | open |
-| T6 customer/competitor | the plan's table as a test; 50 of today's pairs judged | test passes (`MatchingTest.customerRowsOfTheT6Table`); pairs open |
+| T6 customer/competitor | the plan's table as a test; 50 of today's pairs judged | tests pass; of 50 of today's customer suggestions 7 were customers, 34 providers of the product itself, 5 own capacity, 4 not assignable: round 1 of the rules (reading of providers' sentences, explicit own use of providers); the pairs read with 0.12.0: open (phase 2) |
 
 Model budget of all test runs up to 0.12.0: at most 300 requests, at most 40 per run.
 
@@ -82,8 +82,10 @@ Model budget of all test runs up to 0.12.0: at most 300 requests, at most 40 per
 
 ## Upgrade contract
 
-1. **Before the update:** a full DATA backup and its isolated restore test; the 21-point smoke test; the upgrade test with
-   the published images.
+1. **Before the update:** no backup on the device and no restore test (owner decision of 22 October 2026: the update is
+   installed directly). The return path is therefore the rollback below (a re-extraction by 0.11.7), not the exact state
+   before the update. The 21-point smoke test and the upgrade test run with the published image beforehand, off the
+   device.
 2. **One start, no migration, no copy.** Configuration unchanged and not written.
 3. The re-extraction and the LLM requests run in the background; the views answer meanwhile.
 
@@ -98,12 +100,13 @@ Model budget of all test runs up to 0.12.0: at most 300 requests, at most 40 per
 
 ## Rollback to 0.11.7
 
-Start the 0.11.7 image by digest (above) on the same DATA. The schema is unchanged; 0.11.7 ignores the partial index and
+No backup is taken before the update (owner decision), so there is no restore to the exact state before it. Start the
+0.11.7 image by digest (above) on the same DATA. The schema is unchanged; 0.11.7 ignores the partial index and
 the new `kg_meta` entries (tested locally with the classes of 0.11.7 and 0.11.8: they open, write and check a graph with
 the index). The views lose the read path and the website topics of 0.11.8. **The extractor identity changes back to
 rule/7, so 0.11.7 re-extracts every page again** and the services shown only by the new proof become topics again.
-The LLM evidence of pages asked again stays (tier 3 is not corrected by a re-extraction). A return to the exact state before
-the update is the restore of the backup taken before it.
+The LLM evidence of pages asked again stays (tier 3 is not corrected by a re-extraction); it is the only lasting difference
+to the state before the update.
 
 ## Tests of this release
 
