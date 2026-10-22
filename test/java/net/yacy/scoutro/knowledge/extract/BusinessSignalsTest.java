@@ -79,6 +79,93 @@ public class BusinessSignalsTest {
         assertEquals("internal_use",companyContext("We use SAP in-house.","text"));
         assertEquals("internal_use",companyContext("Wir betreiben SAP in-house.","text"));
     }
+    /**
+     * 0.12.0 (B2): support sought for an own migration is a need like a planned migration; an offer of such support, a
+     * consultant or other recruited title, a client's migration and an unnamed sentence are none.
+     */
+    @Test public void supportSoughtForAnOwnMigrationIsAPlannedMigration() throws Exception {
+        for(String text:List.of("Für unsere S/4HANA-Migration suchen wir externe Unterstützung.","Wir suchen einen Partner für die Migration auf SAP S/4HANA.",
+                "Externe Unterstützung für unsere Migration auf SAP S/4HANA gesucht.","We are looking for a partner for our migration to SAP S/4HANA."))
+            assertEquals(text,"planned_migration",companyContext(text,"text"));
+        for(String text:List.of("Wir unterstützen Sie bei der Migration auf SAP S/4HANA und suchen Partner.","Wir suchen SAP Berater (m/w/d) für Migrationsprojekte.",
+                "Für die S/4HANA-Migration unserer Kunden suchen wir Unterstützung.","Externe Unterstützung für die Migration auf SAP S/4HANA gesucht.",
+                "Besuchen Sie unseren Partner zur Migration auf SAP S/4HANA.",
+                "Wir suchen zur Unterstützung unseres Teams SAP-Berater (m/w/d) für Migrationsprojekte auf SAP S/4HANA."))
+            for(String v:company(text,"text"))assertFalse(text,"planned_migration".equals(new JSONObject(v).getString("context")));
+    }
+    /**
+     * 0.12.0 (T6, production sample of 22 October 2026): sentences of providers about their offer, their clients, their
+     * partners or others are no own use of the system they name.
+     */
+    @Test public void aProvidersSentencesAboutItsOfferPartnersAndOthersAreNoOwnUse() throws Exception {
+        for(String text:List.of(
+                "- Wir verwenden Process-Mining-Tools zur Visualisierung und Analyse der aktuellen Ist-Prozessabläufe aus IT-Systemen wie SAP oder Salesforce auf der Grundlage von Ereignisprotokollen.",
+                "Industrieunternehmen betreiben häufig gewachsene IT-Landschaften mit SAP-Systemen, eigenen Rechenzentren und individuellen Anforderungen an Verfügbarkeit.",
+                "Bei der Auswahl und Realisierung der bestmöglichen Lösungen für Ihr Unternehmen arbeiten wir direkt mit SAP zusammen.",
+                "Making use of a strong framework, having abundant SAP knowledge in house, and delivering a plug and play solution for seamless data streaming integration of SAP.",
+                "DELLNER BUBENZER nutzt für seine Prozesse ein PLM-System, welches Daten an das unternehmenseigene SAP ECC ERP sendet.",
+                "Seit 2007 realisieren wir professionelle Cloud- und Hostinglösungen – und seit 2010 betreiben wir SAP Business One Umgebungen für Unternehmen jeder Größe.",
+                "## Nutzen Sie die Vorteile unseres SAP Supports.",
+                "Wir planen, realisieren, warten und betreiben SAP HCM Systeme und sorgen dafür, dass Sie sich auf die inhaltliche HR-Arbeit fokussieren können.",
+                "Dann nutzen Sie die Chance und fordern Sie jetzt Ihren Online Termin mit unseren SAP EWM Experten an.",
+                "Wir bieten Ihnen den Vergleich zu SAP EWM und TM, erarbeiten mit Ihnen die Roadmap zur Einführung und beraten Sie zum Zusammenspiel mit weiteren Logistiklösungen.",
+                "“A challenge as we grow is to use our resources as efficiently as possible and build a sustainable SAP cloud business model,” says Heisig.",
+                "Wir zeigen, welche Rolle die SAP BDC spielt und wie Sie diese auch sinnvoll für AI nutzen.",
+                "Wir setzen auf eine individuelle Analyse Ihrer Bedürfnisse und integrieren Lösungen, die perfekt mit Ihren bestehenden SAP-Systemen harmonieren.",
+                "Wir freuen uns, von nun an seinen reichen Schatz an technischen Erfahrungen mit SAP Technologien und Lösungen nutzen zu können.",
+                "Daneben hat das KIT zahlreiche strategische Industriepartner wie ABB, BASF, BOSCH, Daimler, SAP oder Zeiss, die teilweise eigene Programme betreiben.",
+                "Wir setzen auf ein für SAP S/4HANA vorkonfiguriertes und modulares Lösungsspektrum.",
+                "The KPS Cloud ERP for SAP suits subsidiaries in a two-tier ERP landscape, where the headquarters runs a central SAP ERP platform while subsidiaries operate on a more agile one.",
+                "Die OctaVIA AG unterstützt Versorger mit SAP-Systemen, die helfen, Ressourcen optimal zu nutzen."))
+            for(String v:company(text,"text"))assertFalse(text+" "+v,"internal_use".equals(new JSONObject(v).getString("context")));
+        // own use stays own use, also next to an offer of the same product
+        for(String text:List.of("Wir setzen SAP S/4HANA ein.","Wir nutzen SAP S/4HANA intern für unsere Finanzbuchhaltung.","Wir setzen seit 2019 SAP ein, um unsere Logistik zu steuern."))
+            assertEquals(text,"internal_use",companyContext(text,"text"));
+        assertTrue(BusinessSignals.explicitOwn("Wir nutzen SAP S/4HANA intern für unsere Finanzbuchhaltung."));
+        assertFalse(BusinessSignals.explicitOwn("Wir betreiben eine SAP First-Strategie."));
+    }
+    /**
+     * 0.12.0 (T6, round 2, quotes of production): a client's quoted words, a "use case", a list of example technologies, others
+     * using the provider's product, a sentence about other companies, the breadth of a competence, "easy to use", "for use" and
+     * the reader addressed in English are no own use; a service of a product named as one word ("SAP-Hosting") is an offer;
+     * the actor named as the provider of what another uses ("von prismat", "Wir nutzen dab Nexus") is a client's use.
+     */
+    @Test public void clientsVoicesOthersUseAndServiceWordsAreNoOwnUse() throws Exception {
+        for(String text:List.of("„Als junges und modernes Unternehmen setzen wir mit SAP B1 auf eine moderne und zukunftssichere Software.",
+                "Gemeinsam sprechen wir 30 Minuten über einen möglichen Use Case und finden heraus, ob dieser ein Fit für das SAP Funding ist.",
+                "Wir arbeiten mit führenden RPA-Technologien wie UiPath, Blue Prism und SAP Automation.",
+                "SAP LeanIX-Workspaces weltweit nutzen unsere Reports aus dem SAP Extension Hub.",
+                "Es genügt ein SAP NetWeaver ab Version 7.4, um das volle Potenzial unseres Tools zu nutzen.",
+                "In unserem Webcast zeigen wir, wie Unternehmen SAP-Transformation gezielt nutzen.",
+                "Unsere Fokus-Kunden sind Unternehmen, die SAP Lösungen verwenden.",
+                "Dabei arbeiten wir mit allen gängigen SAP-Systemen und Tools.",
+                "The solution is easy to use and provides SAP-certified access to our data.",
+                "We develop SAP applications for use on On-Prem systems.",
+                "We implement SAP Signavio as the process layer of your architecture.")) {
+            for(String v:company(text,"text"))assertFalse(text+" "+v,"internal_use".equals(new JSONObject(v).getString("context")));
+        }
+        assertEquals("offered_capability",companyContext("Seit 2007 betreiben wir hochverfügbare Cloudlösungen, seit 2010 SAP-Hosting.","text"));
+        for(String[] c:List.of(new String[]{"Die Wurst- und Schinkenmanufaktur Muster nutzt die Application Management Services von prismat als SAP-Support.","prismat"},
+                new String[]{"Wir nutzen dab Nexus, um über eine zertifizierte Schnittstelle auf unsere SAP-Daten zuzugreifen.","dab"})) {
+            for(String v:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,c[0],"text",Vocabulary.ORGANIZATION,c[1]))
+                assertFalse(c[0]+" "+v,"internal_use".equals(new JSONObject(v).getString("context")));
+            assertTrue(c[0],BusinessSignals.customerVoice(c[0],List.of(c[1])));
+        }
+        // own use stays own use, also of a provider of the product itself
+        for(String text:List.of("Wir nutzen SAP S/4HANA intern.","Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.",
+                "Seit mehr als 25 Jahren nutzen wir Standardfunktionen des zentralen IT-Systems SAP ERP im Verwaltungsbereich."))
+            assertEquals(text,"internal_use",companyContext(text,"text"));
+        assertTrue("an article reports a project",BusinessSignals.referencePage("https://www.d-labs.com/blog/coaching_von_innovationsteams.html"));
+    }
+    /** 0.12.0 (T6, round 2): what is said below a heading of customers' voices is said by clients about their own use. */
+    @Test public void voicesBelowACustomersHeadingAreTheClientsUse() throws Exception {
+        Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);actor.name="dab";Extraction e=new Extraction(30);e.add(actor);
+        BusinessSignals.extract("## Kunden, die unsere Lösungen nutzen.\n\nRudolf Muster.\n\nLeiter Revision, Beispiel AG.\n\n"
+                +"Mit der Lösung greifen wir strukturiert auf unsere SAP-Daten zu, die wir intern nutzen.\n\n## Über uns\n\nWir nutzen SAP intern.",
+                actor,e,2,Claim.KIND_RULE,"text","text");
+        List<String> contexts=new ArrayList<>();for(Claim c:e.claims())contexts.add(new JSONObject(c.value).getString("context"));
+        assertEquals(List.of("customer_projects","internal_use"),contexts);
+    }
     /** A company's own competence statement is no requirement; a posting's requirement stays one. */
     @Test public void companyCompetenceIsStatedNotRequired() throws Exception {
         assertEquals("stated_competence",companyContext("Kernkompetenz SAP Rechnungswesen","text"));
@@ -142,8 +229,34 @@ public class BusinessSignalsTest {
                 "Wir planen den Standortausbau.","Unser Unternehmen benötigt Teamentwicklung.","Wir benötigen Führungsentwicklung.",
                 "Unser Krankenhaus organisiert unser Entlassmanagement."))
             assertFalse(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
-        for(String text:List.of("Wir bieten Teamentwicklung an.","Unser Kunde plant einen Neubau.","Frau Beispiel benötigt ambulante Pflege."))
+        for(String text:List.of("Wir bieten Teamentwicklung an.","Unser Kunde plant einen Neubau.","Frau Beispiel benötigt ambulante Pflege.",
+                // 0.12.0 (T6, round 2): the reader's need, as a provider describes it
+                "Jedes Team steht vor eigenen Herausforderungen – deshalb setzt unsere Teamentwicklung genau dort an, wo Sie uns brauchen.",
+                "Wir richten die Teamentwicklung ganz nach Ihrem Bedarf aus."))
             assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
+    }
+    /** 0.12.0 (T6, round 2): the "planned" building needs of the production sample of bauteamcheck were providers' offers. */
+    @Test public void aProvidersOfferInTheWordsOfABuildingNeedIsNoNeed() {
+        for(String text:List.of("Als Dachdecker- und Zimmereibetrieb aus Olsberg-Elpe planen und realisieren wir ganzheitliche Dachkonzepte – von der energetischen Sanierung bis zum Neubau.",
+                "### Wenn Sie einen Neubau, Umbau planen, Gebäudesanierung, einen Beratungstermin mit uns vereinbaren möchten …",
+                "Wir planen und bauen deine gesamte Elektrik neu, Altbau wie Neubau.",
+                "Neubau, Sanierung oder Erweiterung: Wir planen die Elektrik, verlegen, schließen an, messen und übergeben mit Protokoll.",
+                "Neubau, Umbau oder Erweiterung — wir planen die IT mit ein, bevor die Wände stehen.",
+                "Wir planen, modernisieren und realisieren Bäder für Neubau, Sanierung und altersgerechtes Wohnen.",
+                "Wir organisieren alle Gewerke, die wir für den Umbau benötigen.",
+                "Meine Frau und ich planten einen kompletten Umbau unseres Hausflures.",
+                "Einen Teil davon durften wir im Zuge der Standorterweiterung planen und umsetzen.",
+                "Wir planen (fast) alles: von großen seilverspannten Tragwerken über Tunnelmaßnahmen bis hin zu kleinen Rahmenbauwerken, vom Neubau bis zur historischen Brücke.",
+                "Unser Team plant jedes Projekt individuell und setzt den Umbau fachgerecht um."))
+            assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
+        // the company's own plan stays, also in the third person of its press release and with a number range
+        for(String text:List.of("Die TRILUX Gruppe bekennt sich zum Standort Arnsberg und wir planen mit dem Neubau der Firmenzentrale eine wichtige Investition.",
+                "Wir planen den Neubau unseres Werkes in Berlin von 2026 bis zum Herbst 2028.",
+                // a hospital's care transition is worded for its patients: read by the matching rule
+                "Wir kontaktieren für Sie unsere Pflegefachkräfte der Pflegeüberleitung, falls Sie zu Hause einen ambulanten Pflegedienst benötigen."))
+            assertFalse(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
+        assertFalse(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,"Die Muster AG plant den Neubau ihres Logistikzentrums in Kassel.","text",
+                Vocabulary.ORGANIZATION,"Muster AG").isEmpty());
     }
     @Test public void explicitOwnStaffProgramsAndProjectDetailsAreGrounded()throws Exception {
         JSONObject program=new JSONObject(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,

@@ -2,6 +2,44 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.12.0 / 1.942-scoutro.43 — services back, customers and competitors apart (one update from 0.11.7, including 0.11.8)
+
+On 0.11.8 (published, not installed in production): no schema change (knowledge graph schema 9; a partial index created
+at the start), a one-time re-extraction of every tracked page by the rules (`rule/8`, no model) and a bounded, targeted
+re-read of some pages by the LLM tier within its schedule and budget. `LlmExtractor.VERSION`, the prompt hash and
+`MatchingRules.VERSION` are unchanged. Production updates directly from 0.11.7; the changes of 0.11.8 are included.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.12.0.md).
+
+- Offer proof `rule/8`: consulting and delivery sentences with the provider as subject are explicit offers; the site's
+  title or brand line, an item of a bulleted list, a short heading in a row of headings and the page of one service are
+  structural evidence (confidence 0.4, marked in the company view). Tools, own use, denials, news, vacancies, events, a
+  client's system and list items linking to other sites stay topics. A page whose structured data name its operator twice
+  is read instead of skipped. After the owner's review of the reference (gate T0): an item under an application area or a
+  market, a network of partners, a past participle before "into/in" and an English word form of another word ("Laminating")
+  offer nothing; a news, article, event or careers page is no services page by its title; the software vocabulary no longer
+  has the bare "quality assurance" (the vocabulary's version changes; the same re-extraction covers it).
+- LLM tier: a service named by the title of its own page is accepted with the title as its quote; pages of single
+  services are candidates; pages skipped as no candidate are decided once more; services pages read without an accepted
+  service are asked once more without the cache, once per graph.
+- Possible competitors: read on demand per category the company offers itself (`…/kg/entities/{id}/competitors`, grant
+  `kg.read`), one line per offer with its service and sources, through a partial index; no fact, no matching input, not
+  part of the export or the change feed.
+- Matching: every reason names its kind of evidence (need, use, job requirement); support sought for an own migration is
+  a need; customer and competitor are not exclusive. A provider of a product can be a customer of other providers; its
+  clients' voices, others' use and its offer to the reader are no own use; only the delivery role of an employer that
+  offers the product itself is its capacity, a title alone excludes nothing; an employer named as the site of its posting
+  offers what the site's operator offers, also where the graph keeps the two apart; the delivery role is the posting's, not
+  one sentence's. A provider's offer worded with the words of a building need ("Wir planen gemeinsam mit Ihnen den Umbau")
+  is no need.
+- Documented business relations: the rules read the clients a page documents for its operator (a project profile's client
+  field, the heading of a reference naming the client, a customer's voice with its company, before or after the quoted
+  words, a project's client field "Auftraggeber:"/"Kunde:", the title of a reference's page) as `customer_of` with source,
+  project and state; several clients of one heading are each a client, an unclear role or a place makes no relation, and
+  a bare "unsere Kunden"/"Referenzen" in a sentence or a menu names nobody. The project's
+  products are a documented purchase (`purchased_service`, a team or leadership program `purchased_need`): a matching reason
+  of the new evidence kind `reference` ("documented purchase") for every other provider of the service, none for the
+  documenting provider itself.
+
 ## 0.11.8 / 1.942-scoutro.42 — object views without a timeout, the topics of a website, consultant titles as own capacity (one update from 0.11.7)
 
 A small release on the published 0.11.7 (`546c701022e6b562095d61830b04fac8a87fec68`): no schema change, no re-read, no

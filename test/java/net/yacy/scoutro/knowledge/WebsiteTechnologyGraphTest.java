@@ -240,8 +240,10 @@ public class WebsiteTechnologyGraphTest {
         assertNotNull(h);
         assertTrue("not confirmed as current: " + h, h.isNull("live_statement") || !h.has("live_statement"));
         assertFalse("never stated as uninstalled", h.toString().contains("uninstall"));
-        // an identical recrawl adds nothing
-        final long statements = count(r, "SELECT count(*) FROM kg_statement"), observations = count(r, "SELECT count(*) FROM kg_observation"),
+        // an identical recrawl adds nothing; the page's services (rule/8: "Wir beraten zu SAP, …") are archived with every load
+        // like any other fact, the technologies only when they change
+        final String technologyObservations = "SELECT count(*) FROM kg_observation WHERE predicate='website_technology'";
+        final long statements = count(r, "SELECT count(*) FROM kg_statement"), observations = count(r, technologyObservations),
                 evidence = count(r, "SELECT count(*) FROM kg_evidence");
         for (int i = 0; i < 2; i++) {
             this.clock.addAndGet(86_400_000L);
@@ -249,7 +251,7 @@ public class WebsiteTechnologyGraphTest {
             settle(r);
         }
         assertEquals(statements, count(r, "SELECT count(*) FROM kg_statement"));
-        assertEquals(observations, count(r, "SELECT count(*) FROM kg_observation"));
+        assertEquals(observations, count(r, technologyObservations));
         assertEquals(evidence, count(r, "SELECT count(*) FROM kg_evidence"));
         // a collection move changes nothing about the markup
         page("AAAAAAhost01", "https://www.musterberatung.de/", "c2", 11L, ROCKET, WP);

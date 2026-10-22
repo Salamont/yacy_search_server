@@ -3581,3 +3581,173 @@ The organisations "Bildergalerie", "Showroom" and "Banken", the service "Herstel
 ### 35.5 Tests
 
 `KgProductionCasesTest` (the seven hosts: navigation lists, kinds of partners, the role word, the product brand with the shop's url, the dealer's brand list, the partner brands that stay, and the guard `genericName`), `EntityRolesTest` (an 0.11.4 page's "Banken" and "Bildergalerie" published as the old rules stored them: labelled `generic`, hidden from the business view with `hidden_generic` = 2, kept in the object view and list; a dealer and a product page: `operator`, `brand`, `manufacturer`, brands under their own heading), `BusinessExtractionTest` and `ExtractionSemanticsTest` unchanged, `DrolshagensPilotTest` with "Hersteller" as a topic from the start (no offered service before or after the move).
+
+## 36. Offers back, customers and competitors apart (0.12.0)
+
+### 36.1 Finding
+
+The stricter offer proof of 0.11.4 to 0.11.7 kept a service only with an offer sentence, a heading such as "Leistungen:" or
+a price. Production (21 October 2026): 6,669 organisations with services, against 10,624 before; 62,025 of the 63,572
+former services had come from the rules (tier 2). Many own sites name what they do only in their title or brand line
+("Malermeister Dehmel | Malerarbeiten in Oschersleben"), in a list, on the page of one service
+("/sap-beratung/sap-cash-management/") or with a consulting verb ("Wir unterstützen Sie bei der Einführung von SAP
+S/4HANA"); those became topics. The LLM tier's proof had the same gap, and its cache kept only what the proof accepted.
+
+### 36.2 What rule/8 accepts (`ServiceEvidence`, `BusinessRules`; `RuleExtractor.VERSION` 8)
+
+Every proof belongs to the provider: its own site or a sentence with the provider as subject.
+
+- **Explicit** (as before, confidence of the page kind): an offer sentence, a heading such as "Leistungen:", a price, and
+  now a consulting or delivery verb ("unterstützen", "beraten", "begleiten", "einführen", "implementieren", "umsetzen",
+  "stehen wir Ihnen … zur Verfügung", "bekommen … von uns") whose subject is *wir*, *unsere Berater/Experten/Spezialisten/
+  Teams/Mitarbeiter* or the provider's name. A delivery for a client ("Wir haben für die Muster AG die SAP-S/4HANA-Einführung
+  umgesetzt") proves an own service, never the client's system; "für alle unsere Standorte eingeführt" is own use. Where a
+  provider is named (the LLM tier's claims), it must be the subject of the verb: as the client ("Wir haben die Muster AG bei …
+  unterstützt") it offers nothing. A reader asked to support the team ("Sie unterstützen unser Team …") is recruiting.
+- **Structural** (`BusinessRules.STRUCTURAL_CONFIDENCE` 0.4, marked in the company view and as `offer_evidence:
+  "structural"` of the business view): the title or brand line of the home page, a services page or the page of one service
+  (`PageKind.SERVICE_DETAIL`: a path segment `*-beratung`, `beratung`, `consulting`, `dienstleistung(en)`, `loesungen`,
+  `lösungen`, never under a news, article, guide, event or careers path and never with a careers title), and an item of a
+  bulleted list (next to another bulleted line; a date, a vacancy "(m/w/d)", own use, recruiting or a link to another site
+  "(öffnet in neuem Tab)" is no item), and a short heading in a row of headings of the same level ("### Abdichtung. ###
+  Dämmungen.", at most 60 characters and 7 words, the next heading at most 400 characters away; a question, an event or a
+  date, a vacancy, a denial or own use is no such heading). A bare menu or path needs a second sign of the same site (title,
+  service page, list or row of headings); a category the title does not name stays a topic.
+- **One operator named twice:** when a page's structured data name the operator twice (an Organization and its
+  LocalBusiness, "Wibu-Systems" and "WIBU-SYSTEMS AG", one block without a name), the rules read the page for the subject
+  with the longest name (`BusinessRules.sameOperator`); two different organisations still leave the page's business facts
+  unread.
+- **A topic stays a topic:** tools and own use ("wir nutzen / setzen … ein / arbeiten mit", "we use"), denials, news and
+  articles, a reader's or a vacancy's request ("Unterstützen Sie uns", "Wir suchen Verstärkung"), the provider's own past
+  introduction of a system ("Wir haben SAP S/4HANA eingeführt") and a client's system on a reference page.
+- **What names no offer (gate T0, owner review of 22 October 2026):** an item of a list under an application area or a
+  market ("- Anwendungen - Fuel Cell - Battery - … - Flooring", `BusinessRules.marketItem`; under "Referenzen", "Projekte" or
+  "Leistungen" the items stay offers); a network of partners ("mit Partnern in unserem Netzwerk",
+  `BusinessRules.businessNetwork`; a sentence about IT, a LAN, servers or cabling keeps the network); a past participle
+  before "into/in" ("embedded into Microsoft Business Central", `BusinessRules.participle`); an English word form of another
+  word as a compound ("Laminating" is no "Laminat", `TermMatcher`); and the title of a news, article, event or careers page
+  ("… Civil Security Technologies and Services"): only its path makes such a page a services page. The software vocabulary
+  no longer has the bare "quality assurance" (an app for quality management is no software testing); it names software
+  testing by "software quality assurance", "Softwarequalitätssicherung", "QA testing", "Softwaretest" and, as before,
+  "Qualitätssicherung".
+
+The LLM tier checks its services with the same proof (C2): a service named by the title of its own page is accepted with
+the title as its quote (`title:0+n`, confidence 0.4), and the site's operator (`BusinessRules.pageSubject`) offers it when
+the answer names no provider. The pages of single services are LLM candidates (`RuleExtractor.candidate`). Prompt, schema and
+`LlmExtractor.VERSION` stay; cached answers are checked again when they are published.
+
+### 36.3 What an existing graph does after the update
+
+- **Tiers 1 and 2 (no model):** the new extractor identity re-extracts every tracked page once at low priority, as for
+  0.11.4 ("What the new version does to an existing graph" under *The imprint's operator*; `Reconciler.REASON_EXTRACTORS`,
+  `kg_meta.reextract_pending`); topics the new rule proves become
+  services again, industries and the matching get them back. The re-extraction is the bulk of the update's work. The
+  vocabulary changes in the same release (above); its version is part of the extractor identity too, so it needs no pass of
+  its own. Cached LLM answers stay valid; the fingerprint of the plausibility scan changes, a scan still runs only on demand.
+- **Pages skipped as `not_candidate`:** decided once more by the new candidate rule at the first start
+  (`kg_meta.llm_candidate_rules`, event `llm_candidates_changed`); a page that is still no candidate is skipped again without
+  a request.
+- **Services pages the LLM tier read without an accepted service (C3):** made to do once more at the first start
+  (`llm_reason` `service_recheck`, event `llm_service_recheck`, once per graph by `kg_meta.llm_service_recheck`): done, not
+  continued, active, a services page or the page of one service by its address and no tier-3 offer evidenced by the page.
+  The worker asks the model for such a page past its cache (whose entry kept only what the former proof accepted) and
+  replaces the entry; the continuation of a long page uses its cache as before. Such a page keeps its place under the per-host
+  cap (`scoutro.kg.llm.maxDocsPerHost`): it had it as a done page, and other pages of the host made to do at the same start
+  cannot take it. The pages go through the ordinary queue,
+  schedule and budget of the LLM tier. Every other page keeps its reading: no mass re-read.
+- **Not repaired by this:** pages whose text is missing (`text_missing`, for example near-empty pages of a few
+  services pages) stay without services until their content is there; the cause is crawl, rendering or parsing, a separate
+  item.
+
+### 36.4 Customers and competitors apart
+
+- **Possible competitors (B1)** are read on demand per category the organisation offers itself
+  (`GET …/kg/entities/{id}/competitors?category&cursor&limit`, grant `kg.read`): the visible, current offers of other
+  organisations of a service of that category, one line per offer with the other organisation, its own service and at most
+  three visible source pages. The business view names only the categories (`competitors.categories`, `path`); it computes no
+  competitor. A page reads the category statements through the partial index `kg_statement_category ON kg_statement
+  (obj_val, subj) WHERE pred = <category>` with a keyset cursor on the service's row, at most 2,000 services per page; a
+  global ranking by shared categories was not boundable (20,000 providers: 1.6 s) and is not offered. Competitors are
+  derived at reading: no stored derivation, no fact, no customer relation, no matching input, not part of the export, the
+  download or the change feed. A topic makes nobody a competitor. The index is created idempotently at the start
+  (`KgSchema.ensureCategoryIndex`); the schema version stays 9 and an older version ignores the index.
+- **Customers per service and reason (B2):** a company can be a competitor (SAP consulting), a possible customer
+  (explicitly sought support) and a partner at the same time. Only the customer suggestion whose single evidence is the
+  company's own capacity for exactly that service (the consultant posting of a consultancy, 0.11.8) is left out. Support
+  sought for an own migration ("Für unsere S/4HANA-Migration suchen wir externe Unterstützung") reads as a planned
+  migration; an offer of such support, a recruited consultant and a client's migration do not. Every reason names its kind
+  of evidence (`evidence_kind`: `need`, `use`, `job_requirement`). `MatchingRules.VERSION` stays: the rules act at reading,
+  every correct suggestion of today stays visible.
+- **Gate T6, rounds 1 and 2:** in a production sample of 50 customer suggestions, most "use" of candidates offering the
+  product came from sentences about their offer, clients or partners, from their clients' voices or about others. The
+  signal reader no longer reads own use from them. A provider of the product itself can still be a customer of other
+  providers (owner decision of 22 October 2026: a pair is judged from the provider's view); only the delivery role of an
+  employer offering the product is its capacity, a title alone excludes nothing (docs/SCOUTRO_MATCHING.md). The judged
+  reference with the corrected verdicts: docs/SCOUTRO_GATE_T6_0.12.0.md.
+- **Documented business relations (gate T6, round 2, owner decision of 22 October 2026):** the rules read the clients a
+  page documents for its operator (`BusinessRules.references`), each as `client customer_of operator` (confidence 0.65) with
+  the excerpt as its source:
+  - the client field of a project: "Auftraggeber:", "Bauherr:" (not where the page names an "Auftraggeber"), "Kunde:",
+    "Client:" at a line's start, after a bold mark or after a sentence ("**Auftraggeber:. **Ev.-Luth. Domgemeinde Freiberg.
+    **Leistung:. …", "Schloßpark-Center Schwerin. Auftraggeber: Strabag AG."), or "Auftraggeber." on a line of its own
+    above its value on a reference page; the project is the profile's field ("Auftrag:", "Projekt:", "Leistung:" …), the
+    heading above or the line's start. "Kunde:" without a second field of a profile counts only on a reference page (a
+    sample invoice "Kunde: Meier GmbH" on a home page is none); "Kunden:" (several) only with one. A remark in brackets
+    ("ARGE Brienzersee (Bauherr: …)") and a unit after a dash or comma ("SBB AG, Infrastruktur – …") are no part of the
+    name;
+  - a heading of a reference page naming the client of its project ("### S/4HANA Release-Wechsel bei E.V.A. & regio iT");
+    with "für"/"for" only a name with a legal form, since the word also names a purpose ("… for Rocket Manufacturing");
+    "in Gschlachtenbretzingen bei Michelbach" names a place; of "für Gleisbauarbeiten, BASF Schwarzheide GmbH" only the
+    company;
+  - the title of the page of one reference ("Referenz B. Braun: HR-Dashboards mit SAP Analytics Cloud", "Success Story:
+    SAP SAC Finanzplanung bei CLAAS", "Servity Success Story mit Wuppertaler Stadtwerke") when the page names the client;
+  - a customer's voice below a heading of customers' voices or references ("Kundenstimmen", "Das sagen unsere Kunden",
+    "## Referenzen"): the role line with its company ("Leiter Revision, Verbund AG.") and the paragraph after it, or the
+    quoted words and the signature below them ("„Mit white duck haben wir …“" / "Ronny Büchner. Managing Director. ESYON
+    GmbH."; the company is the signature's last part, with a legal form or after a role); the voice's own words are read for
+    that company (its use and its need), never for the page's operator, and the operator's own signature is none.
+
+  Several clients of one profile, heading or voice ("E.V.A. & regio iT") are each a client. A name that is no organisation's (a
+  person, a menu word, the reader "Ihr Unternehmen", a phrase such as "mehr Effizienz") is none, and where the role is
+  unclear no relation is made; at most 12 clients per page. The project's products become a `system_signal` of the client
+  with the context `purchased_service` (section `references`, the project's name and its state `completed`, `running` or
+  `unknown`), also those a voice names; a team or leadership development program becomes a `business_need_signal` with
+  `purchased_need`; a past building or care project is no need of the client now.
+- **No invented relation:** a bare marker of clients or references in a sentence ("Unsere Kunden und Millionen von Anwendern
+  vertrauen … Technologien und Methoden", "What Our Customers Say", "für unsere Kunden und Hilfesuchenden") is a phrase, no
+  list; on lines it is mostly a menu ("Referenzen / Biografie"), where only a legal name or an institution is a client or a
+  reference. With a colon or a word introducing the list ("Unsere Kunden: …", "Kunden wie …", "Unsere Kunden sind …") it is
+  one, as before. On the 658 exported pages of the quality gates (22 October 2026) this removes 33 relations, all wrong
+  ("Methoden", "Say", "Bäder", "Tiefbau", "PRÄSENTIERT"), and no right one.
+- **Measured on production pages (phase 3c, 22 October 2026):** of 400 pages naming clients (100 per collection), the rules
+  read 33 clients, each as the page states it (bauteamcheck 25: rail operators, construction companies and public bodies
+  as clients of a railway builder, a cleaning company and a restorer; stackfinder 8, 4 with a purchased SAP product);
+  checkthecoach and edelsenior name private persons or seminar participants, no client with a clear role.
+- **No building need from an offer:** a provider's offer worded with the words of a building need is no need
+  (`BusinessSignals.NEED_OFFER`): the reader's project ("Wenn Sie einen Neubau planen", "Wir planen gemeinsam mit Ihnen den
+  Umbau"), a delivery ("planen und realisieren wir", "Wir organisieren alle Gewerke"), a range of services ("Ob Neubau,
+  Sanierung oder Erweiterung", "vom Neubau bis zur …") or a private client's words ("Meine Frau und ich planten …"). The
+  production sample of bauteamcheck (phase 3c: 486 new builds, 198 rebuilds recorded) held only such offers apart from a
+  few own plans of companies; a hospital's care transition, worded for its patients, is read as before. The relations act with the re-extraction of rule/8; relations read
+  before (also wrong ones from former rules) are not corrected by this. In matching such a purchase is a reason of the kind
+  `reference` for every other provider of the service; the provider's own reference names an existing client and makes no
+  suggestion (docs/SCOUTRO_MATCHING.md).
+
+### 36.5 Tests
+
+`OfferEvidenceRule8Test` (consulting verbs with their subject, own use, denials and own past introduction, a reader asked to
+support the team, the provider as client, title and brand line, bulleted items with a denied one, dates, vacancies and a single
+dash, list items linking to other sites, a row of short headings and the headings that are none, one operator named twice in
+the structured data, the page of one service, news and careers pages and a news item titled with "Services", a bare menu with and without a brand
+line, application areas, partner networks, participles and English word forms), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
+`theTitleProvesNoOfferOfAnotherOrganisation`, `LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages`,
+`servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache` and `aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
+`MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`, `DocumentedRelationsTest` (a project
+profile, the headings of a reference page with a purpose heading that names no client, a customer's voice, a team development
+program, quoted words with their signature and the provider's own signature),
+`BusinessExtractionTest.aBareMarkerOfClientsInASentenceNamesNobody`, `MatchingTest.aPurchaseDocumentedByAnotherProvidersReferenceIsAReason`, `theOwnReferenceOfAProviderNamesAClientNoSuggestion`
+and `aPurchasedProgramIsANeedButAPastBuildingIsNot`,
+`BusinessViewTest.competitorsOfferTheSameCategoryAndTopicsMakeNone` (pointer, page per category, pagination, not found, the
+query plan through the partial index), `KnowledgeApiTest.readRoutesValidateTheirParameters`, `AgentCatalogTest`, and the UI
+test `test/scoutro-ui/knowledge-competitors-ui-test.mjs`. The quality gates T0 to T6 of the release run on production data
+read-only before the merge (docs/SCOUTRO_RELEASE_0.12.0.md).

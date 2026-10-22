@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import net.yacy.scoutro.knowledge.extract.BusinessRules;
 import net.yacy.scoutro.knowledge.store.KgStore;
 
 /**
@@ -73,6 +74,11 @@ final class LlmQueue {
      * just short is read whole and gets no reason (it is counted, {@link LlmService#thinText}).
      */
     static final String TEXT_MISSING = "text_missing";
+    /**
+     * To do once more (0.12.0): a services page the tier read without an accepted service; the worker asks the model
+     * again instead of its cache, whose answer kept only what the former proof accepted.
+     */
+    static final String SERVICE_RECHECK = "service_recheck";
     /** Queue priority of a continuation: after every first reading, until it waited {@link #AGING_MILLIS}. */
     static final int CONTINUATION_PRIORITY = 8;
     /**
@@ -120,15 +126,18 @@ final class LlmQueue {
         /** {@link #LLM_INPUT} of the document. */
         final byte[] llmInput;
         final List<String> collections;
+        /** The reason a document to do still carries ({@link #SERVICE_RECHECK}), else null. */
+        final String reason;
 
         Todo(final long rowid, final String docId, final String hostId, final String url, final byte[] llmInput,
-                final List<String> collections) {
+                final List<String> collections, final String reason) {
             this.rowid = rowid;
             this.docId = docId;
             this.hostId = hostId;
             this.url = url;
             this.llmInput = llmInput;
             this.collections = collections;
+            this.reason = reason;
         }
     }
 
@@ -238,7 +247,7 @@ final class LlmQueue {
 
     private static final String LANE_TODO = "SELECT d.doc_rowid, d.doc_id, d.host_id, d.url, coalesce(d.content_hash, d.input_hash),"
             + " (SELECT group_concat(k.name, ',') FROM kg_doc_collection x JOIN kg_collection k ON k.coll_id = x.coll_id"
-            + " WHERE x.doc_rowid = d.doc_rowid)"
+            + " WHERE x.doc_rowid = d.doc_rowid), d.llm_reason"
             + " FROM kg_doc_collection dc INDEXED BY kg_doc_collection_coll JOIN kg_doc d ON d.doc_rowid = dc.doc_rowid"
             + " WHERE dc.coll_id = ? AND dc.doc_rowid > ? AND dc.doc_rowid <= ?"
             + " AND d.llm_status IS NULL AND d.state = 1 AND d.input_hash IS NOT NULL"
@@ -264,7 +273,7 @@ final class LlmQueue {
                 while (rs.next()) {
                     final String colls = rs.getString(6);
                     out.add(new Todo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBytes(5),
-                            colls == null || colls.isEmpty() ? List.of() : Arrays.asList(colls.split(","))));
+                            colls == null || colls.isEmpty() ? List.of() : Arrays.asList(colls.split(",")), rs.getString(7)));
                 }
             }
         }
@@ -517,6 +526,90 @@ final class LlmQueue {
         try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = NULL WHERE llm_status = ?")) {
             ps.setInt(1, status);
             return ps.executeUpdate();
+        }
+    }
+
+    /** Makes documents skipped for this reason to do again; their mark stays until the queue decides again (0.12.0). */
+    static int reconsider(final Connection tx, final String reason) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = NULL WHERE llm_status = ?"
+                + " AND llm_reason = ?")) {
+            ps.setInt(1, STATUS_SKIPPED);
+            ps.setString(2, reason);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * The services pages the tier read without an accepted service (0.12.0): done, not continued, active, a services page
+     * or the page of one service by its address ({@link BusinessRules#kinds}) and no offer of the LLM tier evidenced by
+     * the page. Read in row order, {@code limit} rows of done pages at a time.
+     */
+    static List<String> serviceRecheck(final Connection c, final long offers, final long after, final int limit, final long[] last)
+            throws SQLException {
+        final List<String> out = new ArrayList<>();
+        last[0] = -1L;
+        // the address first, the evidence only of a services page: most done pages are no services page
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.url FROM kg_doc d INDEXED BY kg_doc_llm_status"
+                + " WHERE d.llm_status = " + STATUS_DONE + " AND d.doc_rowid > ? AND d.state = 1 AND coalesce(d.llm_reason, '') <> '" + MORE_TEXT
+                + "' ORDER BY d.doc_rowid LIMIT ?");
+                PreparedStatement offered = c.prepareStatement("SELECT 1 FROM kg_evidence e INDEXED BY kg_evidence_doc JOIN kg_statement s"
+                        + " ON s.stmt_rowid = e.stmt_rowid WHERE e.doc_rowid = ? AND e.tier = 3 AND s.pred = ? LIMIT 1")) {
+            ps.setLong(1, after);
+            ps.setInt(2, limit);
+            offered.setLong(2, offers);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    last[0] = rs.getLong(1);
+                    if (!servicesPage(rs.getString(3))) {
+                        continue;
+                    }
+                    offered.setLong(1, rs.getLong(1));
+                    try (ResultSet o = offered.executeQuery()) {
+                        if (!o.next()) {
+                            out.add(rs.getString(2));
+                        }
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    static boolean servicesPage(final String url) {
+        final java.util.Set<BusinessRules.PageKind> kinds = BusinessRules.kinds(url, null);
+        return kinds.contains(BusinessRules.PageKind.SERVICES) || kinds.contains(BusinessRules.PageKind.SERVICE_DETAIL);
+    }
+
+    /** Makes every page of {@link #serviceRecheck(Connection, long, long, int, long[])} to do once more; the number made. */
+    static int serviceRecheck(final Connection tx) throws SQLException {
+        final Long offers;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = ?")) {
+            ps.setString(1, net.yacy.scoutro.knowledge.extract.Vocabulary.OFFERS);
+            try (ResultSet rs = ps.executeQuery()) {
+                offers = rs.next() ? rs.getLong(1) : null;
+            }
+        }
+        if (offers == null) {
+            return 0;
+        }
+        int n = 0;
+        final long[] last = {0L};
+        for (long after = 0L; last[0] >= 0L; after = last[0]) {
+            for (final String docId : serviceRecheck(tx, offers, after, 2000, last)) {
+                if (recheck(tx, docId)) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    /** Makes a done document to do once more, asked without the cache ({@link #SERVICE_RECHECK}). */
+    static boolean recheck(final Connection tx, final String docId) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = '" + SERVICE_RECHECK + "'"
+                + " WHERE doc_id = ? AND llm_status = " + STATUS_DONE + " AND state = 1")) {
+            ps.setString(1, docId);
+            return ps.executeUpdate() > 0;
         }
     }
 

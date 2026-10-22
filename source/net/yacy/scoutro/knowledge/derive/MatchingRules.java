@@ -13,6 +13,17 @@ import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 /** Six explicit rule groups. No target industry, company-name classification or LLM matching. */
 public final class MatchingRules {
+    /** The contexts of a client documented by a provider's reference (BusinessRules.references): a purchased service or program. */
+    static final Set<String> PURCHASED=Set.of("purchased_service","purchased_need");
+    /** True if both pages belong to one site (the host without "www."). */
+    static boolean sameSite(String a,String b) {
+        String x=host(a),y=host(b);return x!=null&&x.equals(y);
+    }
+    private static String host(String url) {
+        if(url==null)return null;
+        try{String h=java.net.URI.create(url.trim().replace(" ","%20")).getHost();return h==null?null:h.toLowerCase(Locale.ROOT).replaceFirst("^www\\.","");}
+        catch(IllegalArgumentException e){return null;}
+    }
     /** The rules' patterns, compiled once (0.11.8: they were compiled again for every contribution read). */
     private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
     public static final String VERSION="1";
@@ -179,9 +190,13 @@ public final class MatchingRules {
     public static Assessment assess(Connection c,Offer offer,Observation signal,List<Observation> extras,KgConfig cfg,Viewer permitted)throws SQLException {
         if(!offer.evidence.usable()||!signal.usable()||offer.evidence.actor.equals(signal.actor)
                 ||!offer.evidence.accessible(permitted)||!signal.accessible(permitted))return null;
-        // A reference/case-study page describes client work: neither the operator's own system nor its own need.
-        if(BusinessSignals.referencePage(signal.url))return null;
         String context=signal.value.optString("context");
+        // 0.12.0 (T6, round 2): a client documented by a provider's reference bought that provider's service; its own reference
+        // names an existing client (no suggestion), every other provider of the service may get one
+        boolean purchased=PURCHASED.contains(context);
+        if(purchased&&sameSite(offer.evidence.url,signal.url))return null;
+        // A reference/case-study page describes client work: neither the operator's own system nor its own need.
+        if(!purchased&&BusinessSignals.referencePage(signal.url))return null;
         Assessment result=new Assessment();result.fit="explicit_rule";result.score=60;result.strength="qualified";
         // a hint read from a job advertisement for its employer (0.10.2) is job-based like a posting's own signal
         boolean jobAd=BusinessSignals.jobAd(signal.value.optString("section"));
@@ -199,26 +214,37 @@ public final class MatchingRules {
         if(List.of("it-support","cad-bim").contains(offer.rule)) {
             if(!Set.of("organization","facility","job").contains(signal.type))return null;
             if(!"system_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("product"))
-                    ||!List.of("internal_use","required_competence","desirable_competence","planned_migration").contains(context))return null;
+                    ||!List.of("internal_use","required_competence","desirable_competence","planned_migration","purchased_service").contains(context))return null;
             // A requirement belongs to a posting; a company's own competence statement is no need (often its offer).
             if(context.endsWith("_competence")&&!"job".equals(signal.type)&&!jobAd)return null;
-            // The stored context must still be what the shared parser reads in the stored quote (veto only, never an upgrade).
-            if(!contextConfirmed(signal,context))return null;
+            // The stored context must still be what the shared parser reads in the stored quote (veto only, never an upgrade);
+            // a documented purchase comes from the reader of references, not from the sentence reader
+            if(!purchased&&!contextConfirmed(signal,context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;
+            // 0.12.0 (T6, round 2): a client speaking on the actor's page ("Wir nutzen dab Nexus …" on dab's page) or the actor named
+            // as the provider of what another uses is the client's use, not the actor's (veto at reading, as the context check).
+            if(!jobBased&&BusinessSignals.customerVoice(signal.text,actorNames(signal)))return null;
             if(jobBased) {
-                // Own postings for a product the employer offers itself are delivery capacity, not a customer need.
-                if(itConsultancy(c,signal.actor)||ownCapacity(signal)||offersItself(c,signal.actor,offer))return null;
+                // A delivery role of an employer that offers the product itself (its consultant, a role building its business
+                // with clients) is capacity, not a customer need; a title alone excludes nothing (owner decision, 22 Oct 2026).
+                if((itConsultancy(c,signal.actor)||offersItself(c,signal.actor,offer)||siteOffersItself(c,signal,offer))
+                        &&(ownCapacity(signal)||postingDeliveryRole(c,signal)))return null;
                 result.uncertainties.add("company_role_unknown");result.score-=15;
             }
-            result.strength="internal_use".equals(context)?"stated":"weak";
+            result.strength="internal_use".equals(context)||purchased?"stated":"weak";
             if(jobBased&&"stated".equals(result.strength))result.strength="qualified";
-            result.score+= "internal_use".equals(context)?15:"planned_migration".equals(context)?5:"desirable_competence".equals(context)?-15:-10;
+            result.score+= "internal_use".equals(context)||purchased?15:"planned_migration".equals(context)?5:"desirable_competence".equals(context)?-15:-10;
             result.temporal="planned_migration".equals(context)?"planned_not_reconfirmed":"historical_not_reconfirmed";
-            result.reason=offer.service+" meets "+context+"; present use not reconfirmed";
+            result.reason=purchased?offer.service+" meets a documented purchase of "+offer.key+" (a reference of another provider); present need not reconfirmed"
+                    :offer.service+" meets "+context+"; present use not reconfirmed";
         } else {
             if(!"business_need_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("need"))||!Set.of("organization","facility").contains(signal.type)
-                    ||!List.of("planned_need","explicit_need","organizational_transition").contains(context))return null;
+                    ||!List.of("planned_need","explicit_need","organizational_transition","purchased_need").contains(context))return null;
+            // a documented purchase of a program (team or leadership development) only; a past building or care project is no need
+            if(purchased&&!List.of("leadership-development","team-development").contains(offer.rule))return null;
             if(jobBased&&List.of("leadership-development","team-development").contains(offer.rule))return null;
+            // 0.12.0 (T6, round 2): the reader's need on a provider's page ("wo Sie uns brauchen") is its offer (veto at reading).
+            if(BusinessSignals.readerNeed(signal.text))return null;
             if(needRetired(c,signal))return null;
             String phase=signal.value.optString("phase","unknown");
             if("construction".equals(offer.rule)||"energy-renovation".equals(offer.rule)) {
@@ -280,9 +306,45 @@ public final class MatchingRules {
                 +" AND json_extract(value,'$.product')=?) OR (subject_type='service' AND predicate IN('name','category','description')))"
                 +" ORDER BY observation_rowid LIMIT 2501")) {
             p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
-                for(Offer own:offers(Observation.fields(r)))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+                Observation o=Observation.fields(r);
+                for(Offer own:offers(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+                // 0.12.0 (T6, round 2): a service named or categorized as the product itself ("SAP", software/sap) is a service of it,
+                // also without a word of support (the employer's own consultant posting is then its delivery capacity)
+                if(List.of("it-support","cad-bim").contains(offer.rule)&&o.usable()&&"service".equals(o.type)&&List.of("name","category").contains(o.predicate)
+                        &&KgVocabularies.get().signals.products(o.value.optString("literal",o.text)).contains(offer.key))return true;
             }}
         }return false;
+    }
+    /**
+     * 0.12.0 (T6, round 2): an employer named as the site of its posting ("QUANTO Solutions" on quanto-solutions.de) is the
+     * site's operator, also where the graph keeps the two apart (the posting's employer and the site's unnamed operator); the
+     * operator's own offer of the product or its role as an IT consultancy then counts as the employer's. A recruiter or a
+     * portal advertising for another company is no such employer: its name is not the site's.
+     */
+    private static boolean siteOffersItself(Connection c,Observation signal,Offer offer)throws SQLException {
+        String host=host(signal.url);if(host==null)return false;
+        String domain=net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host);if(domain==null||domain.indexOf('.')<0)return false;
+        String site=bare(domain.substring(0,domain.lastIndexOf('.')));
+        boolean named=false;
+        JSONArray names=signal.identity.optJSONArray("organization");
+        if(names!=null)for(int i=0;i<names.length();i++){JSONObject n=names.optJSONObject(i);
+            if(n!=null&&List.of("name","legal_name").contains(n.optString("predicate"))&&site.length()>=3&&site.equals(bare(n.optString("value"))))named=true;}
+        if(!named)return false;
+        return memo("siteOffers\0"+domain+"\0"+signal.actor+"\0"+offer.rule+"\0"+offer.key,()->{
+            try(PreparedStatement p=c.prepareStatement("SELECT DISTINCT e.public_id FROM kg_entity_key k JOIN kg_vocab v ON v.term_id=k.scheme"
+                    +" JOIN kg_entity e ON e.ent_rowid=k.ent_rowid WHERE v.kind=3 AND v.name IN('site_operator','domain_operator') AND k.scope=?"
+                    +" AND e.status=1 LIMIT 3")) {
+                p.setString(1,"organization@"+domain);
+                List<String> operators=new ArrayList<>();
+                try(ResultSet r=p.executeQuery()){while(r.next())operators.add(r.getString(1));}
+                for(String operator:operators)if(!operator.equals(signal.actor)&&(itConsultancy(c,operator)||offersItself(c,operator,offer)))return true;
+            }return false;
+        });
+    }
+    /** A name without legal form, spaces and punctuation, for comparing it with a site's name ("QUANTO Solutions" ~ quanto-solutions). */
+    private static String bare(String name) {
+        return name==null?"":name.toLowerCase(Locale.ROOT).replaceAll("(?<![\\p{L}\\p{N}])(?:gmbh(?:\\s*&\\s*co\\.?\\s*kg)?|ag|se|kg|ug|e\\.?\\s?v\\.?|ltd\\.?|inc\\.?|llc)(?![\\p{L}\\p{N}])","")
+                .replaceAll("[^\\p{L}\\p{N}]","");
     }
     private static boolean ownCapacity(Observation signal) {
         JSONArray names=signal.identity.optJSONArray("subject");String title="";
@@ -290,8 +352,29 @@ public final class MatchingRules {
         // In-house and key-user roles serve the employer's own systems: a customer need, not delivery capacity (0.11.8).
         if(has(title,"In.?house|Key.?User"))return false;
         // Words may also stand between product and role: "SAP Senior Berater", "Freiberuflicher SAP Consultant" (0.11.8).
+        // 0.12.0 (T6, round 2): a consultant without the product in the title too ("Senior Business Consultant Transformation"):
+        // it counts only together with an employer offering the product itself, never alone
         return has(title,"SAP.Berater|IT.Berater|SAP.Consultant|Revit.Trainer|Archicad.Trainer|BIM.Berater|CAD.Berater|Coach"
-                +"|\\b(?:SAP|IT|BIM|CAD)\\b[^,;|]{0,40}?\\b(?:Berater|Consultant)|\\b(?:Revit|Archicad)\\b[^,;|]{0,40}?\\bTrainer");
+                +"|\\b(?:SAP|IT|BIM|CAD)\\b[^,;|]{0,40}?\\b(?:Berater|Consultant)|\\b(?:Revit|Archicad)\\b[^,;|]{0,40}?\\bTrainer"
+                +"|\\b(?:Consultant|Berater(?:in)?)\\b");
+    }
+    /** A posting's words that build the employer's business with clients ("… im Kundenprojekt", "… am Markt etabliert"). */
+    private static final String DELIVERY_ROLE="\\b(?:beim|bei unseren|bei Ihren|für unsere|unsere[nr]?) Kunden\\b|Kundenprojekt|Projekte(?:n)? (?:bei|für) Kunden"
+            +"|am Markt (?:etabl|aufbau)|Neukunden|client projects?|at (?:our )?clients|for our clients";
+    /**
+     * The delivery role of a posting: in the signal's own quote or (0.12.0, T6 round 2, production: Rewion) in another sentence
+     * of the same posting ("… sorgst dafür, dass er sich erfolgreich am Markt etabliert" in its description makes "Erfahrung in
+     * SAP-Projekten" of its qualifications the same posting's). A job ad read on an organisation's page has only its quote.
+     */
+    private static boolean postingDeliveryRole(Connection c,Observation signal)throws SQLException {
+        if(has(signal.text,DELIVERY_ROLE))return true;
+        if(!"job".equals(signal.type)||signal.subject==null)return false;
+        return memo("postingRole\0"+signal.subject,()->{
+            try(PreparedStatement p=c.prepareStatement("SELECT quote FROM kg_observation WHERE subject_id=? AND assertion_status='recorded'"
+                    +" ORDER BY observation_rowid LIMIT 200")) {
+                p.setString(1,signal.subject);try(ResultSet r=p.executeQuery()){while(r.next())if(has(r.getString(1),DELIVERY_ROLE))return true;}
+            }return false;
+        });
     }
     private static String regionName(Observation evidence) {
         String kind=evidence.value.optString("kind");

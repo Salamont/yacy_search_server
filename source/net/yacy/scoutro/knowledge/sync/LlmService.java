@@ -654,6 +654,31 @@ public final class LlmService {
                     + "; documents already done are not read again", this.clock.getAsLong());
         }
         KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, extractor);
+        // 0.12.0: a new candidate rule (rule/8 reads the pages of single services) decides once more about the pages it skipped;
+        // a page that is still no candidate is skipped again without a request
+        final String rules = KgStore.getMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES);
+        if ((rules != null || lastExtractor != null || upgraded) && !RuleExtractor.VERSION.equals(rules)) {
+            final int n = LlmQueue.reconsider(tx, LlmQueue.SKIP_NOT_CANDIDATE);
+            if (n > 0) {
+                LlmQueue.resetCursors(tx);
+                KgStore.event(tx, 1, "llm_candidates_changed", n + " pages skipped as no candidate are decided again by rule/"
+                        + RuleExtractor.VERSION, this.clock.getAsLong());
+            }
+        }
+        KgStore.putMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES, RuleExtractor.VERSION);
+        // 0.12.0 (C3): the services pages the tier read without an accepted service are asked once more, without the cache
+        // whose answer kept only what the former proof accepted; every other page keeps its reading. Once per graph.
+        if (KgStore.getMeta(tx, KgSchema.META_LLM_SERVICE_RECHECK) == null) {
+            if (rules != null || lastExtractor != null || upgraded) {
+                final int n = LlmQueue.serviceRecheck(tx);
+                if (n > 0) {
+                    LlmQueue.resetCursors(tx);
+                    KgStore.event(tx, 1, "llm_service_recheck", n + " services pages read without an accepted service are asked once"
+                            + " more under rule/" + RuleExtractor.VERSION, this.clock.getAsLong());
+                }
+            }
+            KgStore.putMeta(tx, KgSchema.META_LLM_SERVICE_RECHECK, RuleExtractor.VERSION);
+        }
     }
 
     /** Uses an activated prompt from the next document on (KgRuntime.promptActivate has stored it). */
@@ -1165,7 +1190,8 @@ public final class LlmService {
             if (n == null) {
                 n = LlmQueue.hostLoad(tx, t.hostId);
             }
-            if (n >= this.cfg.llmMaxDocsPerHost) {
+            // a services page asked once more (0.12.0) had its place under the cap as a done page: it keeps it
+            if (n >= this.cfg.llmMaxDocsPerHost && !LlmQueue.SERVICE_RECHECK.equals(t.reason)) {
                 // queued documents of the host are kept; the cap counts them
                 if (!queued(tx, t.docId)) {
                     LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);
@@ -1282,6 +1308,7 @@ public final class LlmService {
             complete(item); // removed, unavailable, already marked or out of the selection: nothing to do
             return;
         }
+        final boolean recheck = !continuation && LlmQueue.SERVICE_RECHECK.equals(row.llmReason);
         final SolrDoc d;
         try {
             d = this.solr.get(Collections.singletonList(item.docId), SolrDoc.PROCESS_FIELDS).get(item.docId);
@@ -1411,7 +1438,8 @@ public final class LlmService {
             final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, partKnown, kinds, extra);
             keys.add(key);
             final ExtractionCache.Entry resumed=progress.get(key);
-            final ExtractionCache.Entry cached = resumed!=null?resumed:this.store.read(c -> ExtractionCache.get(c, key));
+            // a page made to do once more for its services (0.12.0) is asked again: its cached answer is replaced
+            final ExtractionCache.Entry cached = resumed!=null?resumed:recheck?null:this.store.read(c -> ExtractionCache.get(c, key));
             if (cached != null) {
                 if(resumed==null)this.counters.cacheHits.incrementAndGet();
                 progress.put(key,cached.status,cached.value);
@@ -1496,7 +1524,7 @@ public final class LlmService {
         final long held = continuation ? this.store.read(c -> tier3Statements(c, item.docId)) : 0L;
         final Extraction ex = new Extraction((int) Math.max(0L, this.cfg.extractMaxStatementsPerDoc - held));
         // a job the rules see as no position of the page (a menu entry, 0.10.5) is none of the model's either
-        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = LlmReading.context(this.cfg, d, stored);
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = LlmReading.context(this.cfg, d, stored, base);
         for (int i = 0; i < accepted.size(); i++) {
             LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }

@@ -19,8 +19,43 @@ final class ServiceEvidence {
     private static final Pattern BULLET = Pattern.compile("^\\s*(?:[-*\u2022\u00b7]|\\d+[.)])\\s+");
     private static final Pattern NEGATED = Pattern.compile("(?iu)\\b(?:nicht|keine?[nmr]?|no|not|never)\\b");
     private static final Pattern OWN_HEADING = Pattern.compile("(?iu)^\\s*(?:unsere?|our)\\s+");
+    /**
+     * 0.12.0: consulting and delivery verbs ("unterstützen", "beraten", "begleiten", "einführen", "implementieren", "umsetzen",
+     * the separable "setzen … um" and "führen … ein", "stehen wir Ihnen … zur Verfügung", "bekommen … von uns"). They name an
+     * offer only with the provider as their subject ({@link #OWN_SUBJECT} or the provider itself) and only when no verb of
+     * own use stands nearer to the service ("Wir nutzen SAP und unterstützen ..." does not offer SAP).
+     */
+    private static final Pattern CONSULT = Pattern.compile("(?iu)\\b(?:unterstütz(?:en|t|e)|unterstuetz(?:en|t|e)|berat(?:en|e)|berät"
+            + "|begleit(?:en|e|et)|einführen|implementier(?:en|e|t)|umsetzen|(?:setzen|setze|setzt)\\b[^.!?;:|]{1,80}?\\bum"
+            + "|(?:führen|führe|führt)\\b[^.!?;:|]{1,80}?\\bein|stehen\\s+wir\\b[^.!?;:|]{0,60}?\\bzur\\s+verfügung"
+            + "|(?:bekommen|erhalten)\\b[^.!?;:|]{0,60}?\\bvon\\s+uns|support(?:s|ing)?|advise|implement(?:s|ing)?)\\b");
+    /** A finished delivery ("haben für X die Einführung umgesetzt"): an offer only for a client, never own use. */
+    private static final Pattern CONSULT_PAST = Pattern.compile("(?iu)\\b(?:umgesetzt|implementiert|eingeführt|realisiert|begleitet"
+            + "|implemented|delivered)\\b");
+    /** A client after "für": not the provider itself ("für alle unsere Standorte", "für uns", "for our team"). */
+    private static final Pattern FOR_CLIENT = Pattern.compile("(?iu)\\b(?:für|fuer|for)\\s+(?!(?:(?:alle|all|jeden?|jede[mnrs]?|each)\\s+)?"
+            + "(?:uns|unsere?[nmrs]?|unser|eigene[nmrs]?|interne[nmrs]?|our|us|ourselves|internal)\\b)\\p{L}");
+    /** A request to the reader or a vacancy ("Unterstützen Sie uns", "Wir suchen Verstärkung"): never an offer sentence. */
+    private static final Pattern RECRUITING = Pattern.compile("(?iu)\\b(?:(?:unterstützen|unterstuetzen|begleiten|verstärken|verstaerken)\\s+sie\\s+uns"
+            + "|(?:du|sie|ihr)\\s+(?:unterstützt|unterstützen|unterstuetzt|unterstuetzen|verstärkst|verstärken|verstaerkst|verstaerken|begleitest"
+            + "|berätst|beraetst)\\b[^.!?;:|]{0,40}?\\b(?:uns|unser\\w*)|wir\\s+suchen|suchen\\s+wir|verstärkung|verstaerkung"
+            + "|bewerben|bewerbung|stellenangebot\\w*|join\\s+us|we\\s+are\\s+hiring)\\b");
+    private static final Pattern OWN_USE = Pattern.compile("(?iu)\\b(?:nutzen|nutzt|benutzen|verwenden|verwendet|setzen\\b[^.!?;:|]{1,60}?\\bein"
+            + "|arbeiten\\s+mit|einsetzen|eingesetzt|use[sd]?|using)\\b");
+    private static final Pattern OWN_SUBJECT = Pattern.compile("(?iu)\\b(?:wir|we|von\\s+uns|unsere?[nmrs]?\\s+(?:berater\\w*|expert\\w*"
+            + "|spezialist\\w*|consultants?|teams?|mitarbeiter\\w*)|our\\s+(?:consultants?|experts?|specialists?|team))\\b");
 
     private ServiceEvidence() { }
+
+    /** True if the passage denies ("nicht", "keine", "no", "not", "never"). */
+    static boolean negated(final String passage) {
+        return passage != null && NEGATED.matcher(passage).find();
+    }
+
+    /** True if the passage states own use or recruits ("Wir nutzen SAP", "Wir suchen Verstärkung"): no offer (0.12.0). */
+    static boolean useOrRecruiting(final String passage) {
+        return passage != null && (OWN_USE.matcher(passage).find() || RECRUITING.matcher(passage).find());
+    }
 
     /** A bounded offer passage naming the service, or null. Every occurrence is considered, including after navigation. */
     static String evidence(final String raw, final String name) {
@@ -87,9 +122,15 @@ final class ServiceEvidence {
                     continue; // a denied heading/item cannot be rescued by its own verb or price
                 }
                 final int[] action = actionFor(cues, n.start(), n.end());
+                final int[] consult = action == null ? consultFor(cues, n.start(), n.end()) : null;
                 int cue = -1;
                 int cueEnd = n.end();
-                if (action != null) {
+                if (consult != null) {
+                    if (provider == null ? OWN_SUBJECT.matcher(cues).find() : consultActor(block, provider, consult[0], consult[1], n.start(), n.end())) {
+                        cue = consult[0];
+                        cueEnd = consult[1];
+                    }
+                } else if (action != null) {
                     if (provider == null || actorOf(block, provider, action[0], action[1], n.start(), n.end())) {
                         cue = action[0];
                         cueEnd = action[1];
@@ -116,7 +157,8 @@ final class ServiceEvidence {
                     // "Kontakt zur X. Unsere Leistungen: ..." / "Leistungen der X. Wir bieten ...": an explicit own offer.
                     final boolean ownList = heading.find(0) && heading.end() <= n.start() && OWN_HEADING.matcher(cues).find();
                     final boolean ownAction = action != null
-                            && cues.substring(0, action[0]).trim().matches("(?iu)(?:wir|we)");
+                            && cues.substring(0, action[0]).trim().matches("(?iu)(?:wir|we)")
+                            || consult != null && OWN_SUBJECT.matcher(cues).find();
                     if (ownList || ownAction) {
                         final String proof = raw.substring(previousStart, end).trim();
                         if (fits(proof, name, provider)) {
@@ -174,6 +216,46 @@ final class ServiceEvidence {
         return before;
     }
 
+    /**
+     * The consulting or delivery verb of a service (0.12.0, {@link #CONSULT}): the nearest verb before it, else after it
+     * (inversion), else a separable verb around it; null when a verb of own use stands nearer, or for a finished delivery
+     * without a client.
+     */
+    private static int[] consultFor(final String cues, final int nameStart, final int nameEnd) {
+        if (RECRUITING.matcher(cues).find()) {
+            return null;
+        }
+        int[] before = null, after = null, around = null;
+        final Matcher m = CONSULT.matcher(cues);
+        while (m.find()) {
+            if (m.end() <= nameStart) {
+                before = new int[] {m.start(), m.end()};
+            } else if (m.start() >= nameEnd) {
+                if (after == null) after = new int[] {m.start(), m.end()};
+            } else if (m.start() < nameStart && m.end() > nameEnd) {
+                around = new int[] {m.start(), m.end()};
+            }
+        }
+        if (before == null && after == null && around == null) {
+            final Matcher past = CONSULT_PAST.matcher(cues);
+            if (past.find() && FOR_CLIENT.matcher(cues).find()) {
+                after = new int[] {past.start(), past.end()};
+            }
+        }
+        final Matcher use = OWN_USE.matcher(cues);
+        int useBefore = -1, useAfter = Integer.MAX_VALUE;
+        while (use.find()) {
+            if (use.end() <= nameStart) useBefore = use.end();
+            else if (use.start() >= nameEnd && use.start() < useAfter) useAfter = use.start();
+        }
+        // the nearest verb before the service is one of own use: "Wir nutzen SAP und unterstützen ..."
+        if (useBefore >= 0 && (before == null || useBefore > before[1]) && (around == null || useBefore > around[0])) return null;
+        if (before != null) return before;
+        if (around != null) return around;
+        // a verb after the service (inversion: "Bei SAP unterstützen wir Sie"), with no verb of own use between them
+        return after != null && useAfter > after[0] ? after : null;
+    }
+
     /** A direct provider label; extra prose or another actor cannot supply an implicit subject for "our/we". */
     private static boolean namesProvider(final String block, final String provider) {
         if (!LlmExtractor.nameInQuote(block, provider)) {
@@ -195,6 +277,20 @@ final class ServiceEvidence {
     }
 
     /** Bind the provider to the offering verb, rather than accepting another actor mentioned in the same sentence. */
+    /**
+     * The provider is the subject of a consulting verb (0.12.0): it stands before the verb or after it in an inversion, as for
+     * an offer verb ({@link #actorOf}), or it opens the sentence before the verb ("Die Muster AG hat für die Kunde GmbH die
+     * SAP-Einführung umgesetzt"); named as the client ("Wir haben die Muster AG bei … unterstützt") it is none.
+     */
+    private static boolean consultActor(final String block, final String provider, final int verbStart, final int verbEnd,
+            final int nameStart, final int nameEnd) {
+        if (actorOf(block, provider, verbStart, verbEnd, nameStart, nameEnd)) {
+            return true;
+        }
+        final Matcher actor = named(provider).matcher(block);
+        return actor.find() && actor.end() <= verbStart && block.substring(0, actor.start()).trim().matches("(?iu)(?:die|der|das|the)?");
+    }
+
     private static boolean actorOf(final String block, final String provider, final int actionStart, final int actionEnd,
             final int nameStart, final int nameEnd) {
         final Matcher actor = named(provider).matcher(block);

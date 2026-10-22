@@ -287,6 +287,18 @@ public class KnowledgeApiTest {
             assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "yes"));
             assertEquals(200, read(api, "GET", "entities", "industry", "87.10", "category", "care/tagespflege", "audience", "b2b"));
             assertEquals(400, read(api, "GET", "entities", "industry", "8710"));
+            // 0.12.0 (B1): possible competitors, one category the entity offers at a time, a page per cursor
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/competitors"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/competitors", "category", "Software SAP"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/competitors", "category", "software/sap", "limit", "101"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/competitors", "category", "software/sap", "offset", "25"));
+            assertEquals(KgException.INVALID_CURSOR, error(api, "entities/kge_" + "a".repeat(20) + "/competitors", "category", "software/sap",
+                    "cursor", "x1").code());
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/competitors", "category", "software/sap", "cursor", "1".repeat(19)));
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/competitors", "category", "software/sap", "cursor", "42",
+                    "limit", "100"));
+            assertEquals(400, read(api, "GET", "entities/not-an-id/competitors", "category", "software/sap"));
+            assertEquals(405, read(api, "POST", "entities/kge_" + "a".repeat(20) + "/competitors", "category", "software/sap"));
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/nothing"));
             assertEquals(404, read(api, "GET", "statements/kgs_" + "b".repeat(20)));
             assertEquals(404, read(api, "GET", "statements/kgs_" + "b".repeat(20) + "/evidence", "limit", "50"));

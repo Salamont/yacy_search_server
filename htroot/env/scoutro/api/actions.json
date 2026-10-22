@@ -2395,6 +2395,84 @@
       }
     },
     {
+      "name": "kg.entity.competitors",
+      "description": "0.12.0: the other organisations offering a service of a category the entity offers itself, in the viewer's collections, one line per offer (a provider with two services of the category has two lines), each with its own service and its visible source pages. Derived at reading: a suggestion, never a fact, a customer relation or a matching input; a topic of a website makes nobody a competitor. Paged by cursor in a stable order; at most 2,000 services are looked at per page, so a page may be short and still have a next cursor. 404 when the entity does not offer the category in the viewer's collections. Not part of the export or the change feed. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "permission": "read",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/entities/{id}/competitors",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Entity ID."
+        },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$",
+          "in": "query",
+          "required": true,
+          "description": "A category the entity offers itself (business view: competitors.categories)."
+        },
+        "cursor": {
+          "type": "string",
+          "pattern": "^[0-9]{1,18}$",
+          "in": "query",
+          "required": false,
+          "description": "The next value of the previous page."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
+        }
+      },
+      "returns": "KgCompetitorPage",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/competitors?category=CODE&collection=NAME&limit=25",
+      "mcpTool": "scoutro_kg_entity_competitors",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}/competitors"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
       "name": "kg.entity.business",
       "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
       "mutating": false,
@@ -13789,6 +13867,20 @@
                   "weak"
                 ]
               },
+              "evidence_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "need",
+                  "use",
+                  "job_requirement",
+                  "reference",
+                  null
+                ],
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
+              },
               "fit": {
                 "type": "string",
                 "enum": [
@@ -14097,6 +14189,20 @@
             "qualified",
             "weak"
           ]
+        },
+        "evidence_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "need",
+            "use",
+            "job_requirement",
+            "reference",
+            null
+          ],
+          "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
         },
         "fit": {
           "type": "string",
@@ -14562,6 +14668,20 @@
                   "qualified",
                   "weak"
                 ]
+              },
+              "evidence_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "need",
+                  "use",
+                  "job_requirement",
+                  "reference",
+                  null
+                ],
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
               },
               "fit": {
                 "type": "string",
@@ -15088,6 +15208,25 @@
             "$ref": "#/components/schemas/KgLiteral"
           },
           "description": "0.11.8: the website's topics, categories it names without an offer cue (no offer wording, no price, not on a services page), each with its sources; no proof of an offer and never a matching input. A category a listed service carries is not repeated."
+        },
+        "competitors": {
+          "type": "object",
+          "description": "0.12.0: the categories the entity offers itself, for its possible competitors; the competitors themselves are read on demand per category (path, kg.entity.competitors), never in this view. A suggestion, no fact.",
+          "properties": {
+            "categories": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgLiteral"
+              }
+            },
+            "path": {
+              "type": "string"
+            },
+            "fact": {
+              "type": "boolean",
+              "const": false
+            }
+          }
         },
         "prices": {
           "type": "array",
@@ -16071,6 +16210,20 @@
                         "weak"
                       ]
                     },
+                    "evidence_kind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "need",
+                        "use",
+                        "job_requirement",
+                        "reference",
+                        null
+                      ],
+                      "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
+                    },
                     "fit": {
                       "type": "string",
                       "enum": [
@@ -16812,6 +16965,132 @@
         }
       }
     },
+    "KgCompetitorPage": {
+      "type": "object",
+      "required": [
+        "schema",
+        "category",
+        "items",
+        "limit",
+        "next"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "category": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "fact": {
+          "type": "boolean",
+          "const": false
+        },
+        "basis": {
+          "type": "string",
+          "const": "offers_of_the_same_category"
+        },
+        "next": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Cursor of the next page (pass it as cursor); null after the last."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "other": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "offer": {
+                "type": "string",
+                "description": "The other organisation's offers statement."
+              },
+              "service": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "source_docs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "doc_id": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "description": "At most 3 source pages of the offer the viewer sees."
+              },
+              "label": {
+                "type": "string",
+                "const": "suggestion"
+              }
+            }
+          }
+        }
+      }
+    },
     "KgContributionPage": {
       "type": "object",
       "required": [
@@ -17049,6 +17328,20 @@
                   "qualified",
                   "weak"
                 ]
+              },
+              "evidence_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "need",
+                  "use",
+                  "job_requirement",
+                  "reference",
+                  null
+                ],
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
               },
               "fit": {
                 "type": "string",

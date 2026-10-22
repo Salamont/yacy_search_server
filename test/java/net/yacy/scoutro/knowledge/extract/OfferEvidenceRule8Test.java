@@ -1,0 +1,273 @@
+/* Copyright 2026 Scoutro contributors. GPL-2.0-or-later. */
+package net.yacy.scoutro.knowledge.extract;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import org.junit.Test;
+
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
+
+/**
+ * 0.12.0 (rule/8): an offer of the rule tier is shown by an offer sentence, a heading or a price (explicit, as before), by a
+ * consulting or delivery sentence whose subject is the provider (explicit), or by the page's structure: its title or brand
+ * line, a bulleted item, the title of the service's own page (structural, {@link BusinessRules#STRUCTURAL_CONFIDENCE}). Tools
+ * and own use, denials, a bare menu, news pages and the provider's own past introduction of a system stay topics.
+ */
+public class OfferEvidenceRule8Test {
+
+    private static ExtractContext ctx(final String vocabulary) {
+        return new ExtractContext(KgVocabularies.get(), Set.of(vocabulary), false, List.of("test-web"));
+    }
+
+    private static Extraction rules(final String vocabulary, final String url, final List<String> titles, final String text) {
+        final Extraction ex = new Extraction(300);
+        new RuleExtractor(200, 65536).extract(text, url, java.net.URI.create(url).getHost(), "de", ex, ctx(vocabulary), titles, List.of());
+        return ex;
+    }
+
+    /** The offered categories with the confidence of their offers relation. */
+    private static Map<String, Double> offers(final Extraction ex) {
+        final Map<String, Double> out = new TreeMap<>();
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.OFFERS.equals(c.predicate) && c.object != null) {
+                final String ref = ex.mention(c.object).ref;
+                out.put(ref.substring(ref.lastIndexOf(':') + 1).replaceFirst("^.*/", ""), c.confidence);
+            }
+        }
+        return out;
+    }
+
+    private static List<String> topics(final Extraction ex) {
+        final List<String> out = new ArrayList<>();
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.TOPIC.equals(c.predicate)) out.add(c.value.replaceFirst("^.*/", ""));
+        }
+        return out;
+    }
+
+    // ------------------------------------------------------------------------------------------------ explicit, new verbs
+
+    @Test
+    public void aConsultingSentenceOfTheProviderIsAnOffer() {
+        for (final String sentence : List.of("Wir unterstützen Sie bei der Einführung von SAP S/4HANA.",
+                "Bei der Migration auf SAP S/4HANA begleiten wir Sie von der Analyse bis zum Go-live.",
+                "Unsere Berater setzen Ihre SAP S/4HANA-Migration termingerecht um.",
+                "Für SAP S/4HANA stehen wir Ihnen mit erfahrenen Beratern zur Verfügung.",
+                "Wir haben für die Muster AG die SAP S/4HANA-Einführung umgesetzt.")) {
+            final Map<String, Double> o = offers(rules("software", "https://www.muster-beratung.de/", List.of("Muster Beratung GmbH"),
+                    "Willkommen bei der Muster Beratung GmbH. " + sentence));
+            assertTrue(sentence + " " + o, o.containsKey("sap"));
+            assertEquals(sentence, BusinessRules.HOME_PAGE_CONFIDENCE, o.get("sap"), 1e-9);
+        }
+    }
+
+    @Test
+    public void ownUseToolsDenialsAndOwnPastIntroductionStayTopics() {
+        for (final String sentence : List.of("Wir nutzen SAP und unterstützen unsere Kunden bei der Digitalisierung.",
+                "Wir setzen SAP S/4HANA intern ein.", "Wir arbeiten mit TYPO3 und beraten Sie zu Ihrer Website.",
+                "Wir haben SAP S/4HANA eingeführt.", "Wir unterstützen keine SAP-Systeme.",
+                "Unterstützen Sie uns: Wir suchen Verstärkung mit SAP-Kenntnissen.",
+                "Wir haben SAP S/4HANA für alle unsere Standorte eingeführt.", "Wir haben SAP S/4HANA für unsere Buchhaltung eingeführt.",
+                "Sie unterstützen unser Team bei der Einführung von SAP S/4HANA.")) {
+            final Extraction ex = rules("software", "https://www.muster-industrie.de/", List.of("Muster Industrie GmbH"),
+                    "Willkommen bei der Muster Industrie GmbH. " + sentence);
+            final Map<String, Double> o = offers(ex);
+            assertFalse(sentence + " " + o, o.containsKey("sap"));
+            assertFalse(sentence + " " + o, o.containsKey("cms"));
+        }
+    }
+
+    // --------------------------------------------------------------------------------------------------- structural
+
+    @Test
+    public void theTitleOrBrandLineOfTheOwnSiteShowsAnOfferStructurally() {
+        final Extraction ex = rules("construction", "https://www.maler-dehmel.de/", List.of("Malermeister Dehmel | Malerarbeiten in Oschersleben"),
+                "Herzlich willkommen. Malerarbeiten, Tapezieren und mehr. Ihr Team vom Malermeister Dehmel.");
+        assertEquals(BusinessRules.STRUCTURAL_CONFIDENCE, offers(ex).get("malerarbeiten"), 1e-9);
+        assertTrue(BusinessRules.structural(offers(ex).get("malerarbeiten")));
+        assertFalse(topics(ex).contains("malerarbeiten"));
+    }
+
+    @Test
+    public void aBulletedItemShowsAnOfferStructurallyButADeniedOneDoesNot() {
+        final Extraction ex = rules("construction", "https://www.muster-bau.de/", List.of("Muster Bau GmbH"),
+                "Willkommen bei Muster Bau.\nUnser Handwerk\n- Fassadensanierung.\n- Zimmerei\n- keine Dachdeckerei\nKontakt");
+        final Map<String, Double> o = offers(ex);
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("fassade"), 1e-9);
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("zimmerei"), 1e-9);
+        assertFalse(o.toString(), o.containsKey("dachdeckerei"));
+    }
+
+    /** Gate round 2: a row of short headings of one level ("### Abdichtung. ### Dämmungen.") is a list of offers. */
+    @Test
+    public void aRowOfShortHeadingsShowsOffersStructurally() {
+        final Map<String, Double> o = offers(rules("construction", "https://www.muster-dach.de/", List.of("Willkommen"),
+                "Muster Dach GmbH. Ihr Meisterbetrieb.\n### Abdichtung.\nDicht für Jahrzehnte.\n### Dämmungen.\nWarm im Winter.\nMehr über uns."));
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("abdichtung"), 1e-9);
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("waermedaemmung_wdvs"), 1e-9);
+    }
+
+    /** A single heading, a question, an event or a date and a long title (a project, an article) are no row of offers. */
+    @Test
+    public void aSingleHeadingAQuestionAnEventAndALongTitleAreNoRowOfOffers() {
+        for (final String text : List.of("Willkommen.\n### Abdichtung.\nWir freuen uns auf Ihren Besuch und Ihre Fragen zu unserem Betrieb.",
+                "Willkommen.\n### Brauchen Sie eine Abdichtung?\n### Rufen Sie uns an.",
+                "Willkommen.\n### Fachmesse Abdichtung 2026.\n### Unser Team vor Ort.",
+                "Willkommen.\n### Abdichtung und Modernisierung eines Flachdachhauses im Bungalowstil der 70er Jahre in Mannheim.\n### Haus Z.")) {
+            final Extraction ex = rules("construction", "https://www.muster-dach.de/", List.of("Willkommen"), "Muster Dach GmbH. " + text);
+            assertFalse(text + " " + offers(ex), offers(ex).containsKey("abdichtung"));
+            assertTrue(text + " " + topics(ex), topics(ex).contains("abdichtung"));
+        }
+    }
+
+    /** Gate round 2: a list of clients or partners linking to their own sites names them, not the operator's offers. */
+    @Test
+    public void listItemsLinkingToOtherSitesAreNoOffers() {
+        final Map<String, Double> o = offers(rules("construction", "https://www.muster-elektro.de/", List.of("Willkommen"),
+                "Muster Elektro GmbH.\nDiese Betriebe vertrauen uns.\n- **Floristik & Gartenbau Beispiel, Herford. (öffnet in neuem Tab).\n"
+                        + "- **Eiscafé Beispiel, Herford. (öffnet in neuem Tab).\nLeistungen.\n- 01. Photovoltaik.\n- 02. Smart Home."));
+        assertFalse(o.toString(), o.containsKey("garten_landschaftsbau"));
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("photovoltaik"), 1e-9);
+    }
+
+    /**
+     * T0 review (owner, 22 October 2026): a menu group of application areas ("Anwendungen": "Flooring" of a maker of coating
+     * machines), a network of partners ("mit Partnern in unserem Netzwerk"), an English participle ("embedded into") and an
+     * English word form starting like a term ("Laminating") name no offer, also on a services page; a group of references
+     * ("Referenzen": "Türen") shows the firm's own work.
+     */
+    @Test
+    public void applicationAreasPartnerNetworksParticiplesAndEnglishWordFormsAreNoOffers() {
+        final Map<String, Double> lacom = offers(rules("construction", "https://www.muster-coating.de/service/", List.of("Service – Laminating | Converting"),
+                "Laminating | Converting.\n- Anwendungen\n- Fuel Cell\n- Decor\n- Flooring\n- Industry\n- Leistungen\n- Auftragssysteme\n"
+                        + "- Service\n- Kontakt\n\n# Service.\n\nService, der die Produktion absichert."));
+        assertFalse(lacom.toString(), lacom.containsKey("bodenbelaege"));
+        final Map<String, Double> joiner = offers(rules("construction", "https://www.muster-schreinerei.de/", List.of("Schreinerei Muster"),
+                "Schreinerei Muster.\n- Leistungen\n- Fenster\n- Referenzen\n- Türen\n- Haustüren\n- Kontakt"));
+        assertTrue(joiner.toString(), joiner.containsKey("tueren"));
+        final Map<String, Double> web = offers(rules("software", "https://www.muster-web.de/leistungen.php", List.of("Muster | Software und Web Engineering"),
+                "Leistungen.\n\nWir entwickeln Webanwendungen.\n\nIn Usability-Fragen arbeiten wir erfolgreich mit Partnern in unserem Netzwerk zusammen.\n\n"
+                        + "Natürlich beraten wir Sie zu allen Themen rund um die IT. In unserem Netzwerk finden wir für jede Frage einen Ansprechpartner."));
+        assertFalse(web.toString(), web.containsKey("infrastruktur"));
+        final Map<String, Double> it = offers(rules("software", "https://www.muster-it.de/leistungen/", List.of("Leistungen"),
+                "Leistungen.\n\nWir planen und betreuen Ihr Netzwerk, Ihre Server und Ihre Firewall."));
+        assertTrue(it.toString(), it.containsKey("infrastruktur"));
+        // partners named in a sentence about IT keep its network; a network of IT experts is people
+        assertTrue(offers(rules("software", "https://www.muster-it.de/leistungen/", List.of("Leistungen"), "Leistungen.\n\nGemeinsam mit unseren"
+                + " Partnern planen wir Ihr Netzwerk und Ihre Server.")).containsKey("infrastruktur"));
+        assertFalse(offers(rules("software", "https://www.muster-it.de/leistungen/", List.of("Leistungen"), "Leistungen.\n\nWir entwickeln Software."
+                + " Dafür nutzen wir ein Netzwerk von IT-Experten.")).containsKey("infrastruktur"));
+        final Map<String, Double> apps = offers(rules("software", "https://www.muster-erp.de/en/solutions/erp/apps/", List.of("Apps for Business Central"),
+                "Our apps are seamlessly embedded into Microsoft Business Central.\n\n### Quality Assurance.\n\nQuality management directly in your ERP."));
+        assertFalse(apps.toString(), apps.containsKey("embedded"));
+        assertFalse(apps.toString(), apps.containsKey("qa_testing"));
+        assertTrue(offers(rules("software", "https://www.muster-qa.de/leistungen/", List.of("Leistungen"), "Leistungen.\n\nWir bieten Software Quality Assurance"
+                + " und Testautomatisierung.")).containsKey("qa_testing"));
+    }
+
+    /** Gate round 2: the structured data name one operator twice; the rules read the page instead of skipping it. */
+    @Test
+    public void oneOperatorNamedTwiceInTheStructuredDataIsOneSubject() {
+        final List<Mention> same = new ArrayList<>(), two = new ArrayList<>();
+        for (final String[] names : List.of(new String[] {"Wibu-Systems", "WIBU-SYSTEMS AG"}, new String[] {"Oliver Muster Coaching & Mentoring", "Oliver Muster"})) {
+            same.clear();
+            for (final String n : names) {
+                final Mention m = new Mention("jsonld:" + n, Vocabulary.ORGANIZATION, 1);
+                m.name = n;
+                same.add(m);
+            }
+            assertTrue(names[0], BusinessRules.sameOperator(same) != null);
+        }
+        for (final String n : List.of("Muster Pflege GmbH", "Beispiel Klinik gGmbH")) {
+            final Mention m = new Mention("jsonld:" + n, Vocabulary.ORGANIZATION, 1);
+            m.name = n;
+            two.add(m);
+        }
+        assertEquals("two organisations: nothing is guessed", null, BusinessRules.sameOperator(two));
+        final Mention unnamed = new Mention("jsonld:org", Vocabulary.ORGANIZATION, 1), named = new Mention("jsonld:fac", Vocabulary.FACILITY, 1);
+        named.name = "[p3]-Werkstatt";
+        assertEquals(named, BusinessRules.sameOperator(List.of(unnamed, named)));
+    }
+
+    @Test
+    public void theOwnPageOfAServiceNamesItsOfferInItsTitle() {
+        final String url = "https://www.muster-stellwerk.de/sap-beratung/sap-cash-management/";
+        assertTrue(BusinessRules.kinds(url, null).contains(BusinessRules.PageKind.SERVICE_DETAIL));
+        assertTrue("the LLM tier reads it", RuleExtractor.candidate(url, List.of("SAP Cash Management"), null));
+        final Extraction ex = rules("software", url, List.of("SAP-Beratung: Cash Management | Muster Stellwerk"),
+                "SAP Cash Management. Liquidität im Blick mit SAP S/4HANA. Mehr zu IT-Beratung finden Sie hier.");
+        final Map<String, Double> o = offers(ex);
+        assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("sap"), 1e-9);
+        assertFalse("a category the title does not name stays a topic: " + o, o.containsKey("it_beratung"));
+        assertTrue(topics(ex).contains("it_beratung"));
+    }
+
+    @Test
+    public void datesVacanciesAndASingleDashAreNoListOfOffers() {
+        for (final String text : List.of("Unsere Meilensteine\n12. März 2025 Go-live von SAP S/4HANA\n1. April 2025 Schulung der Teams",
+                "Offene Stellen\n• SAP Inhouse Consultant (m/w/d)\n• Buchhalter (m/w/d)",
+                "Bei uns\n- Wir nutzen SAP S/4HANA\n- Wir arbeiten mit Salesforce",
+                "Willkommen.\n- SAP S/4HANA ist bei uns seit Jahren im Einsatz.\nMehr erfahren Sie im Gespräch.")) {
+            final Map<String, Double> o = offers(rules("software", "https://www.muster-industrie.de/", List.of("Willkommen"), "Muster Industrie GmbH. " + text));
+            assertFalse(text + " " + o, o.containsKey("sap"));
+            assertFalse(text + " " + o, o.containsKey("crm"));
+        }
+    }
+
+    @Test
+    public void newsAndCareersPagesAreNoServicePagesWhateverTheirWords() {
+        for (final String url : List.of("https://www.muster-stellwerk.de/careers/sap-consulting-m-w-d/",
+                "https://www.muster-stellwerk.de/offene-stellen/sap-beratung/", "https://www.muster-stellwerk.de/ausbildung/it-beratung/")) {
+            assertFalse(url, BusinessRules.kinds(url, null).contains(BusinessRules.PageKind.SERVICE_DETAIL));
+        }
+        assertFalse("a vacancy by its title", BusinessRules.kinds("https://www.muster-stellwerk.de/sap-beratung/",
+                List.of("Karriere: SAP-Berater (m/w/d)")).contains(BusinessRules.PageKind.SERVICE_DETAIL));
+        for (final String url : List.of("https://www.muster-stellwerk.de/blog/sap-beratung-trends/",
+                "https://www.muster-stellwerk.de/news/it-beratung-2027/", "https://www.muster-stellwerk.de/karriere/sap-beratung/")) {
+            assertFalse(url, BusinessRules.kinds(url, null).contains(BusinessRules.PageKind.SERVICE_DETAIL));
+            final Extraction ex = rules("software", url, List.of("SAP-Beratung im Wandel"), "SAP-Beratung im Wandel. Ein Beitrag über SAP S/4HANA.");
+            assertTrue(url + " " + offers(ex), offers(ex).isEmpty());
+        }
+        // 0.12.0 (T0 review): the title of a news item does not make it a services page; a services path still does
+        final String news = "https://www.muster-dreberis.de/en/news/cooperation-civil-security-technologies-and-services-2025";
+        final List<String> title = List.of("Cooperation – Civil Security Technologies and Services (online)");
+        assertFalse(BusinessRules.kinds(news, title).contains(BusinessRules.PageKind.SERVICES));
+        final Extraction ex = rules("software", news, title, "Cooperation – Civil Security Technologies and Services. Cybersecurity. "
+                + "Companies meet in an online event.");
+        assertTrue(offers(ex).toString(), offers(ex).isEmpty());
+        assertTrue(BusinessRules.kinds("https://www.muster-stellwerk.de/services/news/", null).contains(BusinessRules.PageKind.SERVICES));
+        assertTrue(BusinessRules.kinds("https://www.muster-stellwerk.de/it/", List.of("Unsere Leistungen")).contains(BusinessRules.PageKind.SERVICES));
+    }
+
+    /** The model's offer of a named provider needs that provider as the subject of the consulting verb, not as its client. */
+    @Test
+    public void aConsultingSentenceProvesTheOfferOfItsSubjectOnly() {
+        final String client = "Wir haben die Muster AG bei der Einführung von SAP S/4HANA unterstützt.";
+        assertEquals(null, ServiceEvidence.evidence(client, client, "SAP S/4HANA", "Muster AG"));
+        for (final String own : List.of("Die Muster AG unterstützt Sie bei der Einführung von SAP S/4HANA.",
+                "Bei der Migration auf SAP S/4HANA begleitet die Muster AG Sie von der Analyse bis zum Go-live.",
+                "Die Muster AG hat für die Kunde GmbH die Einführung von SAP S/4HANA umgesetzt.")) {
+            assertTrue(own, ServiceEvidence.evidence(own, own, "SAP S/4HANA", "Muster AG") != null);
+        }
+    }
+
+    @Test
+    public void aBareMenuWithoutASecondSignStaysATopic() {
+        final Extraction ex = rules("software", "https://www.muster-stellwerk.de/", List.of("Willkommen"),
+                "Willkommen bei Muster Stellwerk. SAP | IT-Beratung | Karriere | Kontakt");
+        assertTrue(offers(ex).toString(), offers(ex).isEmpty());
+        assertTrue(topics(ex).containsAll(List.of("sap", "it_beratung")));
+        // the same menu with a brand line naming the field: a structural offer of that field only
+        final Map<String, Double> titled = offers(rules("software", "https://www.muster-stellwerk.de/", List.of("Muster Stellwerk | SAP-Beratung"),
+                "Willkommen bei Muster Stellwerk. SAP | IT-Beratung | Karriere | Kontakt"));
+        assertEquals(titled.toString(), Set.of("sap"), titled.keySet());
+    }
+}

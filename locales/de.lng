@@ -6107,6 +6107,10 @@ The selected collection filters the origin and its facts. Customer and partner s
 >Other collection<==>Andere Collection<
 >Matching offered service<==>Passende angebotene Leistung<
 >Evidence strength<==>Belegstärke<
+>Kind of evidence<==>Belegart<
+>use<==>Nutzung<
+>job requirement<==>Stellenanforderung<
+>documented purchase<==>belegter Einkauf<
 >Fit<==>Passung<
 >Time qualification<==>Zeitliche Einschränkung<
 >Project phase<==>Projektphase<
@@ -6788,6 +6792,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >planned organizational need<==>geplanter organisatorischer Bedarf<
 >explicit organizational need<==>ausdrücklicher organisatorischer Bedarf<
 >organizational care transition; possible cooperation<==>organisatorischer Pflegeübergang; mögliche Kooperation<
+>purchased service (documented by a provider's reference)<==>eingekaufte Leistung (belegt durch die Referenz eines Anbieters)<
+>purchased program (documented by a provider's reference)<==>eingekauftes Programm (belegt durch die Referenz eines Anbieters)<
 >own offered services<==>eigene angebotene Leistungen<
 >historical source metadata<==>historische Quellenmetadaten<
 >Use stored job signals for matching<==>Gespeicherte Stellensignale für Matching nutzen<
@@ -6876,8 +6882,13 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Software and system mentions with their context. A required or desirable skill from a job advertisement is a requirement, not a proof of own use or of a purchase; client work describes the client's systems.<==>Software- und Systemnennungen mit ihrem Kontext. Eine geforderte oder erwünschte Kenntnis aus einer Stellenanzeige ist eine Anforderung, kein Nachweis eigener Nutzung oder eines Kaufs; Kundenarbeit beschreibt die Systeme des Kunden.<
 >from a job advertisement<==>aus einer Stellenanzeige<
 >Topics of the website<==>Themen der Website<
+>Possible competitors<==>Mögliche Wettbewerber<
+>Per category the company offers itself: the evidenced offers of other organisations of a service of the same category in the selected collections, one line per offer with its sources, read when the category is opened. A suggestion, no fact and no customer relation; a topic of a website makes nobody a competitor. A company can be a competitor and still a possible customer for another need. Not part of the export or the change feed.<==>Je Kategorie, die das Unternehmen selbst anbietet: belegte Angebote anderer Organisationen für eine Leistung derselben Kategorie in den gewählten Collections, eine Zeile je Angebot mit ihren Quellen, gelesen beim Öffnen der Kategorie. Ein Vorschlag, kein Fakt und keine Kundenbeziehung; ein Thema einer Website macht niemanden zum Wettbewerber. Ein Unternehmen kann Wettbewerber und für einen anderen Bedarf trotzdem möglicher Kunde sein. Nicht Teil des Exports oder des Änderungsfeeds.<
+>No other organisation offers a service of this category in the selected collections.<==>Keine andere Organisation bietet in den gewählten Collections eine Leistung dieser Kategorie an.<
+>No offer of another organisation among the services read so far; more can be read.<==>Unter den bisher gelesenen Leistungen kein Angebot einer anderen Organisation; weitere können gelesen werden.<
 >Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.<==>Themen, die die Website nennt, ohne sie anzubieten: ohne Preis, ohne Angebotsformulierung, nicht auf einer Leistungsseite. Ein Thema ist kein Angebotsbeleg und fließt nie in Kunden- oder Partnervorschläge ein. Ein Thema, das eine angezeigte Leistung bereits trägt, steht hier nicht noch einmal.<
 >no proof of an offer<==>kein Angebotsbeleg<
+>structural evidence: the page's title, a list or the service's own page<==>struktureller Beleg: Seitentitel, Liste oder eigene Leistungsseite<
 >Website technologies<==>Website-Technologien<
 >Technologies the site's pages integrate, read from their technical markup (generator, scripts, stylesheets, plugin comments). A website observation: no proof of the company's internal software, of an offer or of a customer project. A technology a later crawl no longer finds is not observed again, which is not the same as removed.<==>Technologien, die die Seiten der Website einbinden, gelesen aus ihrem technischen Markup (Generator, Skripte, Stylesheets, Plugin-Kommentare). Eine Website-Beobachtung: kein Nachweis der internen Software des Unternehmens, eines Angebots oder eines Kundenprojekts. Findet ein späterer Crawl eine Technologie nicht mehr, ist sie nicht erneut beobachtet, nicht zwingend entfernt.<
 >content management system<==>Content-Management-System<

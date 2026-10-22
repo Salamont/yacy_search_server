@@ -412,6 +412,27 @@ public class BusinessExtractionTest {
         assertEquals(List.of("null -> Beispiel AG"), relations(words, Vocabulary.PARTNER_OF));
     }
 
+    /**
+     * 0.12.0 (gate T6, owner decision of 22 October 2026: no invented relation): a bare marker of clients or references in a
+     * sentence is a phrase, no list ("Unsere Kunden und Millionen von Anwendern vertrauen … Technologien und Methoden", "What Our
+     * Customers Say", production pages); with a colon, a word introducing the list or on lines it is one.
+     */
+    @Test
+    public void aBareMarkerOfClientsInASentenceNamesNobody() {
+        final String url = "https://www.muster-software.example/";
+        for (final String text : List.of("Unsere Kunden und Millionen von Anwendern vertrauen unserer Expertise, unseren Produkten, Technologien und Methoden.",
+                "What Our Customers Say. Working with an agency was great.", "Für unsere Kunden und Hilfesuchenden sind wir da.",
+                "Referenzen Bäder, Haustechnik und Heizungsanlagen.")) {
+            final Extraction ex = rules(text, url, vocabulary("software", "stackfinder-web"), List.of());
+            assertEquals(text, List.of(), relations(ex, Vocabulary.CUSTOMER_OF));
+            assertEquals(text, List.of(), relations(ex, Vocabulary.REFERENCE_FOR));
+        }
+        assertEquals(List.of("Siemens -> null", "DHL -> null"), relations(rules("Unsere Kunden sind Siemens und DHL.", url,
+                vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.CUSTOMER_OF));
+        assertEquals(List.of("Alpha GmbH -> null", "Beta AG -> null"), relations(rules("Unsere Kunden\nAlpha GmbH\nBeta AG", url,
+                vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.CUSTOMER_OF));
+    }
+
     @Test
     public void aListEndsWithItsSentence() {
         // the operator's imprint after a list of partners is no partner (in 0.10.3 the page became a partner of itself)

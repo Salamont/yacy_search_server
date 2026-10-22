@@ -18652,6 +18652,18 @@
     <trans-unit id="1d6b03ca" xml:space="preserve" approved="no" translate="yes">
        <source>Evidence strength</source>
     </trans-unit>
+    <trans-unit id="a3388014" xml:space="preserve" approved="no" translate="yes">
+       <source>Kind of evidence</source>
+    </trans-unit>
+    <trans-unit id="1c587" xml:space="preserve" approved="no" translate="yes">
+       <source>use</source>
+    </trans-unit>
+    <trans-unit id="7e0a7060" xml:space="preserve" approved="no" translate="yes">
+       <source>job requirement</source>
+    </trans-unit>
+    <trans-unit id="4e449b67" xml:space="preserve" approved="no" translate="yes">
+       <source>documented purchase</source>
+    </trans-unit>
     <trans-unit id="113f1" xml:space="preserve" approved="no" translate="yes">
        <source>Fit</source>
     </trans-unit>
@@ -19036,6 +19048,12 @@
     <trans-unit id="f6c8c9d3" xml:space="preserve" approved="no" translate="yes">
        <source>organizational care transition; possible cooperation</source>
     </trans-unit>
+    <trans-unit id="5e397fdf" xml:space="preserve" approved="no" translate="yes">
+       <source>purchased service (documented by a provider's reference)</source>
+    </trans-unit>
+    <trans-unit id="36a00d30" xml:space="preserve" approved="no" translate="yes">
+       <source>purchased program (documented by a provider's reference)</source>
+    </trans-unit>
     <trans-unit id="bbcf083d" xml:space="preserve" approved="no" translate="yes">
        <source>own offered services</source>
     </trans-unit>
@@ -19072,11 +19090,26 @@
     <trans-unit id="548bbd7f" xml:space="preserve" approved="no" translate="yes">
        <source>Topics of the website</source>
     </trans-unit>
+    <trans-unit id="1c4a5098" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible competitors</source>
+    </trans-unit>
+    <trans-unit id="12de6746" xml:space="preserve" approved="no" translate="yes">
+       <source>Per category the company offers itself: the evidenced offers of other organisations of a service of the same category in the selected collections, one line per offer with its sources, read when the category is opened. A suggestion, no fact and no customer relation; a topic of a website makes nobody a competitor. A company can be a competitor and still a possible customer for another need. Not part of the export or the change feed.</source>
+    </trans-unit>
+    <trans-unit id="3d0b101" xml:space="preserve" approved="no" translate="yes">
+       <source>No other organisation offers a service of this category in the selected collections.</source>
+    </trans-unit>
+    <trans-unit id="e7b4f7e0" xml:space="preserve" approved="no" translate="yes">
+       <source>No offer of another organisation among the services read so far; more can be read.</source>
+    </trans-unit>
     <trans-unit id="cf7d35cf" xml:space="preserve" approved="no" translate="yes">
        <source>Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.</source>
     </trans-unit>
     <trans-unit id="a8c48b57" xml:space="preserve" approved="no" translate="yes">
        <source>no proof of an offer</source>
+    </trans-unit>
+    <trans-unit id="a77eb427" xml:space="preserve" approved="no" translate="yes">
+       <source>structural evidence: the page's title, a list or the service's own page</source>
     </trans-unit>
     <trans-unit id="c19b7a2f" xml:space="preserve" approved="no" translate="yes">
        <source>Website technologies</source>

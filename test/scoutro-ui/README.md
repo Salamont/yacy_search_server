@@ -310,3 +310,5 @@ intranet network and a collection-limited agent with the allowlist
 `agent-host.example`. It asserts that the look-alike host is never requested
 and none of its pages lands in the agent's collection, and that the start
 marker, the idempotent replay, the crawl status and the stop keep working.
+
+`knowledge-competitors-ui-test.mjs` checks the company view's *Possible competitors* (0.12.0) and the mark of a structurally evidenced service (EN/DE, 390 and 1280 px): the business view names only the company's own categories and reads no competitors, a category's first page is read when it is opened (page size 25 on a phone, 100 on the desktop), "More" reads the next page by its cursor and disappears after the last one, each line names the other company, its own service and its sources, a category without competitors says so, the note, the order of the contents and no horizontal scrolling.

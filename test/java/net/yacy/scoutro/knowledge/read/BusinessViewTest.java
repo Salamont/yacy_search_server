@@ -49,6 +49,7 @@ import net.yacy.scoutro.knowledge.publish.Aggregates;
 import net.yacy.scoutro.knowledge.publish.Publisher;
 import net.yacy.scoutro.knowledge.publish.Terms;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
+import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
 import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
@@ -597,6 +598,83 @@ public class BusinessViewTest {
         } catch (final KgReader.NotFound e) {
             // invisible as a whole
         }
+    }
+
+    /**
+     * 0.12.0 (B1): possible competitors offer a service of the same category in the viewer's collections, the most shared
+     * categories first; a topic makes nobody a competitor, another collection is not seen, the company itself is left out.
+     */
+    @Test
+    public void competitorsOfferTheSameCategoryAndTopicsMakeNone() throws Exception {
+        final ExtractContext sw = ctx("software", "stackfinder-web", false);
+        final String org = "{\"@type\":\"Organization\",\"name\":\"%s\",\"url\":\"https://www.%s/\"}";
+        publish(doc("ALPHA1host09", "https://www.alpha-beratung.de/leistungen", "stackfinder-web"), String.format(org, "Alpha Beratung GmbH",
+                "alpha-beratung.de"), "Leistungen. SAP S/4HANA und IT-Beratung für den Mittelstand.", sw, this.now - DAY);
+        publish(doc("BETA01host10", "https://www.beta-consult.de/leistungen", "stackfinder-web"), String.format(org, "Beta Consult GmbH",
+                "beta-consult.de"), "Leistungen. SAP-Beratung und IT-Beratung.", sw, this.now - DAY);
+        publish(doc("ETA001host13", "https://www.eta-it.de/leistungen", "stackfinder-web"), String.format(org, "Eta IT GmbH", "eta-it.de"),
+                "Leistungen. IT-Beratung.", sw, this.now - DAY);
+        publish(doc("GAMMA1host11", "https://www.gamma-it.de/", "stackfinder-web"), String.format(org, "Gamma Industrie GmbH", "gamma-it.de"),
+                "Willkommen. SAP | IT-Beratung | Kontakt", sw, this.now - DAY);
+        publish(doc("DELTA1host12", "https://www.delta-sap.de/leistungen", "bauteamcheck-web"), String.format(org, "Delta SAP GmbH",
+                "delta-sap.de"), "Leistungen. SAP-Beratung und IT-Beratung.", ctx("software", "bauteamcheck-web", false), this.now - DAY);
+        // the business view names the categories the company offers itself, no competitor (they are read on demand)
+        final JSONObject pointer = new BusinessView(this.reader).entity(entity("Alpha Beratung GmbH"), viewer("stackfinder-web"), false)
+                .getJSONObject("competitors");
+        assertFalse(pointer.getBoolean("fact"));
+        assertFalse(pointer.has("items"));
+        assertEquals(List.of("software/it_beratung", "software/sap"), strings(pointer.getJSONArray("categories"), "value"));
+        // per category, one line per offer of another visible company; no topic, no other collection, not itself
+        final Competitors competitors = new Competitors(this.reader);
+        final Viewer view = viewer("stackfinder-web");
+        final JSONObject sap = competitors.page(entity("Alpha Beratung GmbH"), "software/sap", null, 25, view, view);
+        assertEquals(List.of("Beta Consult GmbH"), otherNames(sap));
+        assertTrue(sap.isNull("next"));
+        assertEquals("https://www.beta-consult.de/leistungen", sap.getJSONArray("items").getJSONObject(0).getJSONArray("source_docs").getJSONObject(0)
+                .getString("url"));
+        final JSONObject it1 = competitors.page(entity("Alpha Beratung GmbH"), "software/it_beratung", null, 1, view, view);
+        assertEquals(1, it1.getJSONArray("items").length());
+        assertFalse("a page of one line has a cursor", it1.isNull("next"));
+        final JSONObject it2 = competitors.page(entity("Alpha Beratung GmbH"), "software/it_beratung", it1.getString("next"), 1, view, view);
+        final List<String> both = new ArrayList<>(otherNames(it1));
+        both.addAll(otherNames(it2));
+        java.util.Collections.sort(both);
+        assertEquals("the cursor continues without repeating", List.of("Beta Consult GmbH", "Eta IT GmbH"), both);
+        // a category the company does not offer, and another collection's view, find nothing
+        try {
+            competitors.page(entity("Alpha Beratung GmbH"), "software/cms", null, 25, view, view);
+            fail("a category the company does not offer");
+        } catch (final KgReader.NotFound expected) {
+            // the category is no own offer
+        }
+        // the partial index: created once, idempotent, and the lookup reads through it
+        this.store.write(WriteClass.SYSTEM, 0, tx -> {
+            KgSchema.ensureCategoryIndex(tx);
+            KgSchema.ensureCategoryIndex(tx);
+            return null;
+        });
+        final String plan = this.store.read(c -> {
+            final StringBuilder p = new StringBuilder();
+            final long category = KgStore.queryLong(c, "SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'category'");
+            try (java.sql.Statement st = c.createStatement(); java.sql.ResultSet r = st.executeQuery("EXPLAIN QUERY PLAN SELECT k.subj FROM kg_statement k"
+                    + " INDEXED BY " + KgSchema.CATEGORY_INDEX + " WHERE k.pred = " + category + " AND k.obj_val = 'software/sap'")) {
+                while (r.next()) p.append(r.getString(4)).append('\n');
+            } catch (final java.sql.SQLException e) {
+                p.append(e.getMessage());
+            }
+            return p.toString();
+        });
+        assertTrue(plan, plan.contains(KgSchema.CATEGORY_INDEX));
+        assertEquals(List.of("Beta Consult GmbH"), otherNames(competitors.page(entity("Alpha Beratung GmbH"), "software/sap", null, 25, view, view)));
+    }
+
+    private static List<String> otherNames(final JSONObject page) {
+        final List<String> out = new ArrayList<>();
+        final JSONArray items = page.optJSONArray("items");
+        for (int i = 0; items != null && i < items.length(); i++) {
+            out.add(items.optJSONObject(i).optJSONObject("other").optString("name"));
+        }
+        return out;
     }
 
     @Test

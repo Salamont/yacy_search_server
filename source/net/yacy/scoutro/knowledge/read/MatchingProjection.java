@@ -87,6 +87,7 @@ public final class MatchingProjection {
                 "observed_at",KgReader.iso(signal.observedAt),"asserted_at",signal.assertedAt,"computed_at",KgReader.iso(l.computedAt),
                 "evidence",evidence,"evidence_complete",true,"fact",false,"corroboration_key",l.corroboration);
         KgJson.put(result,"context",signal.value.optString("context"));
+        KgJson.put(result,"evidence_kind",evidenceKind(signal.value.optString("context")));
         KgJson.put(result,"source_corroboration_key",MatchingRules.sourceCorroboration(offer,signal));
         String serviceName=service.text;JSONArray stated=service.identity.optJSONArray("subject");
         if("service".equals(service.type)&&stated!=null)for(int i=0;i<stated.length();i++)if("name".equals(stated.optJSONObject(i).optString("predicate")))serviceName=stated.optJSONObject(i).optString("value");
@@ -226,6 +227,17 @@ public final class MatchingProjection {
     }
     private static String selectedCollection(Observation o,Viewer v) {
         return o.collections.entrySet().stream().filter(e->v.all()||v.collections().contains(e.getKey())).map(Map.Entry::getValue).findFirst().orElse(null);
+    }
+    /** 0.12.0 (B2): what a reason rests on: a stated need, a stated use, or a job's requirement; null for another context. */
+    public static String evidenceKind(String context) {
+        switch(context==null?"":context) {
+            case "required_competence": case "desirable_competence": return "job_requirement";
+            case "internal_use": return "use";
+            case "planned_migration": case "planned_need": case "explicit_need": case "organizational_transition": return "need";
+            // 0.12.0 (T6, round 2): a purchase documented by another provider's reference
+            case "purchased_service": case "purchased_need": return "reference";
+            default: return null;
+        }
     }
     /** A deleted live employer remains navigable through B's object-to-history fallback. */
     private static JSONObject actorRef(Connection c,Observation o,Viewer v,Memo memo)throws SQLException {

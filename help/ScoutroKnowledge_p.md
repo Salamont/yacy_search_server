@@ -166,6 +166,14 @@ all collections and the page says so.
   class) and the Scoutro categories. If two different codes are equally
   strong, the safe common higher level is shown. Labels are the official
   English NACE titles.
+- **Services** (0.12.0): a service counts as offered with an offer sentence,
+  a heading such as "Services:", a price or a consulting sentence of the
+  company ("We support you with the introduction of …"), or by the page's
+  structure: the site's title or brand line, a bulleted item or the page of
+  one service. A service shown only by the structure is marked **structural
+  evidence**. Tools the company uses, denials, news and a client's project
+  stay topics, and so do the application areas or markets of a menu
+  ("Anwendungen: … Flooring") and a network of partners.
 - **Services and prices:** every price exactly as the page published it:
   amount or range, currency, unit, kind (from, up to, range), conditions, VAT,
   care level, own share and the date. Nothing is estimated, converted,
@@ -184,6 +192,18 @@ all collections and the page says so.
   statements with `value` (category code), `label_de`, `label_en`, status,
   confidence and `source_docs`, like other coded facts; absent when there are
   none.
+- **Possible competitors** (0.12.0): the business view lists only the
+  categories the company offers itself (the categories of its shown, current
+  offers). Opening a category reads its possible competitors: the evidenced
+  offers of other organisations of a service of the same category in the
+  selected collections, one line per offer with the other company, its own
+  service and up to three source pages the viewer may see; "More" reads the
+  next page. A competitor is a suggestion, no fact, no customer relation and
+  no input of the customer and partner suggestions; a topic of a website
+  makes nobody a competitor, and a company can be a competitor and still a
+  possible customer for another need. Competitors are read on demand and are
+  **not part of the export or the change feed**. API:
+  `entities/{id}/competitors?category&cursor&limit` (below).
 - **Other amounts:** amounts the sources name that are no price of the
   business, each with its role: **statutory benefit** (an insurance or the law
   pays it, such as the Entlastungsbetrag), **donation**, **subsidy**, or
@@ -218,6 +238,16 @@ all collections and the page says so.
   seeks (or a shared audience for partners). They are always labelled as a
   suggestion or possible customer, never as a customer relation, and only
   shown when both collections are authorized (the view filter may be narrower).
+  Every reason names its kind of evidence (0.12.0): **need** (a planned
+  project, support sought for an own migration), **use** (an own system),
+  **job requirement** (a skill a posting asks for) or **documented purchase**
+  (another provider's reference names the company as the client of a project:
+  a project profile, a reference heading or title, a customer's voice; the
+  context reads "purchased service" or "purchased program"). A company can be a
+  possible competitor and still a possible customer for another need; only a
+  posting for the company's own offer (its consultants) is no customer need.
+  The provider that documents the purchase gets no suggestion for its own
+  client.
 
 The selected collection filters the origin organization and its ordinary facts,
 sources and graph relations. Existing **customer and partner suggestions** may

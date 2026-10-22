@@ -28,6 +28,7 @@ import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.read.BusinessGraph;
+import net.yacy.scoutro.knowledge.read.Competitors;
 import net.yacy.scoutro.knowledge.read.Suggestions;
 import net.yacy.scoutro.knowledge.read.BusinessView;
 import net.yacy.scoutro.knowledge.read.KgExport;
@@ -169,6 +170,19 @@ final class KnowledgeRead {
                         out=new Suggestions(reader).contributions(id(parts.get(1),KgReader.ENTITY_ID,"entity"),
                                 id(parts.get(3),java.util.regex.Pattern.compile("^kgd_[a-z2-7]{20}$"),"suggestion"),intParam(q,"offset",0,0,Integer.MAX_VALUE-100),
                                 intParam(q,"limit",25,1,100),viewer,permitted);
+                    } else if (parts.size() == 3 && "competitors".equals(parts.get(2))) {
+                        // 0.12.0 (B1): possible competitors in one category the entity offers itself, on demand
+                        allow(q, "category", "cursor", "limit", "collection");
+                        final String category = code(q, "category", CODE);
+                        if (category == null) {
+                            throw ApiException.invalid("category", "Field 'category' is required: a category the entity offers.");
+                        }
+                        final String cursor = cursor(q);
+                        if (cursor != null && !cursor.matches("[0-9]{1,18}")) {
+                            throw new ApiException(400, KgException.INVALID_CURSOR, "The cursor is not valid.", Json.obj("field", "cursor"));
+                        }
+                        out = new Competitors(reader).page(id(parts.get(1), KgReader.ENTITY_ID, "entity"), category, cursor,
+                                intParam(q, "limit", 25, 1, Competitors.MAX_LIMIT), viewer, permitted);
                     } else if (parts.size() == 3 && "suggestions".equals(parts.get(2))) {
                         allow(q, "offset", "limit", "collection");
                         out = new Suggestions(reader).page(id(parts.get(1), KgReader.ENTITY_ID, "entity"),
@@ -340,7 +354,8 @@ final class KnowledgeRead {
             case "entities":
                 return n==5 && "suggestions".equals(p.get(2)) && "contributions".equals(p.get(4))
                         || n == 1 || n == 2 || n == 3 && ("statements".equals(p.get(2)) || "business".equals(p.get(2))
-                        || "neighborhood".equals(p.get(2)) || "suggestions".equals(p.get(2))||"history".equals(p.get(2)));
+                        || "neighborhood".equals(p.get(2)) || "suggestions".equals(p.get(2))||"history".equals(p.get(2))
+                        || "competitors".equals(p.get(2)));
             case "observations":
                 return n==2||n==3&&"history".equals(p.get(2));
             case "statements":

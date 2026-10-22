@@ -39,6 +39,7 @@ import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
 import net.yacy.scoutro.knowledge.store.KgSchema;
+import net.yacy.scoutro.knowledge.extract.RuleExtractor;
 import net.yacy.scoutro.knowledge.store.KgStore;
 
 /**
@@ -709,6 +710,111 @@ public class LlmServiceTest {
         settleLlm();
         assertEquals("3:not_candidate", llmStatus("AAAAAAhost01"));
         assertEquals(0, this.model.calls.get());
+    }
+
+    /**
+     * 0.12.0: a new candidate rule decides once more about the pages skipped as no candidate. The page of one service, skipped
+     * under rule/7, is read; a page that is still no candidate is skipped again without a request; a later start decides
+     * nothing again.
+     */
+    @Test
+    public void aNewCandidateRuleDecidesOnceMoreAboutSkippedPages() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/pflege-beratung/demenz/", "c1", LD, TEXT, "Demenzberatung");
+        add("BBBBBBhost01", "https://www.muster-pflege.de/blog/rezepte", "c1", null, "Ein Rezept für Apfelkuchen.", "Rezepte");
+        settleSync();
+        settleLlm();
+        final int calls = this.model.calls.get();
+        // as rule/7 left them: both skipped as no candidate
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("UPDATE kg_doc SET llm_status = 3, llm_reason = 'not_candidate' WHERE doc_id IN ('AAAAAAhost01', 'BBBBBBhost01')");
+            }
+            return null;
+        });
+        putMeta(KgSchema.META_LLM_CANDIDATE_RULES, "7");
+        restart();
+        settleLlm();
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        assertEquals("3:not_candidate", llmStatus("BBBBBBhost01"));
+        assertTrue(strings("SELECT code FROM kg_event").contains("llm_candidates_changed"));
+        assertEquals(RuleExtractor.VERSION, strings("SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_LLM_CANDIDATE_RULES + "'").get(0));
+        final int after = this.model.calls.get();
+        assertTrue("the rest page is never asked: " + calls + " -> " + after, after <= calls + 1);
+        restart();
+        settleLlm();
+        assertEquals("nothing is decided again", after, this.model.calls.get());
+        assertEquals("3:not_candidate", llmStatus("BBBBBBhost01"));
+    }
+
+    /**
+     * 0.12.0 (C3): once per graph, the services pages the tier read without an accepted service are asked again, without
+     * the cache; a services page with an accepted service and any other page keep their reading.
+     */
+    @Test
+    public void servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/leistungen/", "c1", LD, "Leistungen. Wir pflegen mit Herz und Verstand.", "Leistungen");
+        add("BBBBBBhost01", "https://www.muster-pflege.de/impressum", "c1", LD, "Impressum. Muster Pflege gGmbH, Berlin.");
+        add("CCCCCChost02", "https://www.muster-dienst.de/leistungen/", "c1", null, TEXT, "Leistungen");
+        settleSync();
+        settleLlm();
+        assertEquals("a new graph has nothing to ask again", RuleExtractor.VERSION,
+                strings("SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_LLM_SERVICE_RECHECK + "'").get(0));
+        assertTrue("the services page with an accepted service", count("SELECT count(*) FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
+                + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE d.doc_id = 'CCCCCChost02'"
+                + " AND e.tier = 3 AND v.name = 'offers'") > 0L);
+        final int calls = this.model.calls.get();
+        // as a graph of 0.11.8 is: read under the former proof, without the record
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("DELETE FROM kg_meta WHERE key = '" + KgSchema.META_LLM_SERVICE_RECHECK + "'");
+            }
+            return null;
+        });
+        restart();
+        settleLlm();
+        assertEquals("only the services page without a service is asked, past its cache", calls + 1, this.model.calls.get());
+        assertTrue(this.model.users.get(this.model.users.size() - 1).contains("Wir pflegen mit Herz"));
+        for (final String id : List.of("AAAAAAhost01", "BBBBBBhost01", "CCCCCChost02")) {
+            assertEquals(id, "1:", llmStatus(id));
+        }
+        assertTrue(strings("SELECT code FROM kg_event").contains("llm_service_recheck"));
+        restart();
+        settleLlm();
+        assertEquals("once per graph", calls + 1, this.model.calls.get());
+    }
+
+    /**
+     * 0.12.0 (C3): a services page asked once more keeps its place under the per-host cap, also when other pages of the host
+     * become to do at the same start and come first in row order.
+     */
+    @Test
+    public void aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap() throws Exception {
+        configure("3");
+        restart();
+        add("EEEEEEhost01", "https://www.muster-pflege.de/blog/rezepte", "c1", null, "Ein Rezept für Apfelkuchen.", "Rezepte");
+        add("FFFFFFhost01", "https://www.muster-pflege.de/blog/ausflug", "c1", null, "Unser Ausflug an den See.", "Ausflug");
+        settleSync();
+        settleLlm();
+        add("AAAAAAhost01", "https://www.muster-pflege.de/leistungen/", "c1", LD, "Leistungen. Wir pflegen mit Herz und Verstand.", "Leistungen");
+        add("BBBBBBhost01", "https://www.muster-pflege.de/impressum", "c1", LD, "Impressum. Muster Pflege gGmbH, Berlin.");
+        settleSync();
+        settleLlm();
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        assertEquals("1:", llmStatus("BBBBBBhost01"));
+        assertEquals("3:not_candidate", llmStatus("EEEEEEhost01"));
+        final int calls = this.model.calls.get();
+        // a graph of 0.11.8, now with a cap of 2: the skipped pages are to do again and come first in row order
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("DELETE FROM kg_meta WHERE key = '" + KgSchema.META_LLM_SERVICE_RECHECK + "'");
+            }
+            return null;
+        });
+        configure("2");
+        restart();
+        settleLlm();
+        assertEquals("the services page was asked once more", "1:", llmStatus("AAAAAAhost01"));
+        assertEquals(calls + 1, this.model.calls.get());
     }
 
     @Test
