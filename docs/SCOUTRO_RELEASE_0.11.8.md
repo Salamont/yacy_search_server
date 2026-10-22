@@ -38,7 +38,7 @@ Prepared versions: **0.11.8 / 1.942-scoutro.42**. Numeric YaCy peer version **1.
 | 40,000 contributions, a different signal and actor each | – | 3.4–5.1 s | 12 | **2** |
 | 40,000 contributions sharing 10 signals (like STELLWERK) | 2.7 s at 2,000 (60 s budget) | 1.4–2.4 s | 0 | 0 |
 
-**The target of 3 s is not met from about 20,000 contributions with a different signal each; at 40,000 a read can still end with `read_timeout` (503).** What remains is the validation itself (re-reading each stored quote with the shared parser, reading 40,000 observations). Whether production objects are in that range depends on the Olares hardware and on their composition (observations per contribution). Both are measured before any update in an isolated test instance on Olares (package repository, `docs/OPENCODE-LOADTEST-0.11.8.md`). A stored sort value (stage 2, a schema change) follows only if those measurements require it.
+**The target of 3 s is not met from about 20,000 contributions with a different signal each; at 40,000 a read can still end with `read_timeout` (503).** What remains is the validation itself (re-reading each stored quote with the shared parser, reading 40,000 observations). Whether production objects are in that range depends on the Olares hardware and on their composition (observations per contribution); neither was measured on Olares. **The release is approved on these local measurements** (owner decision of 22 October 2026, no test instance on the production system): 0.11.8 is faster than 0.11.7 in every measured case, and the largest production objects (up to 37,560 contributions) can still exceed 3 s or answer 503 if their contributions have a different signal each. A stored sort value (stage 2, a schema change) is not part of this release; whether it is needed is decided with measurements of the production objects (read only) before 0.12.0. The prepared isolated test instance (package repository, `docs/OPENCODE-LOADTEST-0.11.8.md`) was not run.
 
 ## Upgrade contract
 
@@ -50,7 +50,7 @@ Prepared versions: **0.11.8 / 1.942-scoutro.42**. Numeric YaCy peer version **1.
 
 - Health `GET /scoutro/api/v1/health`: `scoutro` `1.942-scoutro.42`.
 - `GET /scoutro/api/v1/kg/status`: `store.schemaVersion` 9, no `upgrade` of this start, `store.manualPause` as before.
-- Object views and `GET …/kg/entities/{id}/suggestions?limit=25` of STELLWERK and of the three entities with the most contributions: answer time, no 503.
+- Object views and `GET …/kg/entities/{id}/suggestions?limit=25` of STELLWERK and of the three entities with the most contributions: answer time, no 503. Times above 3 s and every 503 are reported, not accepted silently; a 503 of these views is the known limit of this release (above), not a reason for a rollback by itself, since 0.11.7 answers 503 there too.
 - `GET …/kg/entities/{id}/business` of STELLWERK and LIVAID: `website_topics` present where the home pages name categories.
 - A consultancy with an "SAP Senior Berater" posting: its posting no longer gives a customer reason.
 
