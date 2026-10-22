@@ -27,10 +27,41 @@ public final class BusinessSignals {
     private static final Pattern CUSTOMERS=p("Kundenprojekt|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
-    private static final Pattern USE=p("nutzen|nutzt|verwenden|verwendet|betreiben|betreibt|setzen.{0,60}ein|arbeiten.{0,20}mit|\\buses?\\b|\\boperate\\b|\\brunning\\b");
+    /** 0.12.0: "setzen … ein" with the particle at the clause's end (not the article of "setzen auf ein …"), "arbeiten mit" as words. */
+    private static final Pattern USE=p("nutzen|nutzt|verwenden|verwendet|betreiben|betreibt|setzen\\b[^.!?;:]{0,60}?\\bein\\b(?=\\s*(?:[.,;:!?)]|$))"
+            +"|\\barbeiten\\b.{0,20}\\bmit\\b|\\buses?\\b|\\boperate\\b|\\brunning\\b");
     /** "in-house", but not the SAP treasury modules In-House Cash / In-House Bank(ing): a product name is no actor. */
     private static final String IN_HOUSE="in.house(?![\\s-]{0,2}(?:cash|bank))";
-    private static final Pattern OWN=p("\\bintern\\b|"+IN_HOUSE+"|\\bunser(?:e[nmrs]?)?\\b|\\bwir\\b|our internal|\\bwe\\b|eigene[nrms]?");
+    private static final Pattern OWN=p("\\bintern\\b|"+IN_HOUSE+"|\\bunser(?:e[nmrs]?)?\\b|\\bwir\\b|our internal|\\bwe\\b|\\beigene[nrms]?\\b");
+    /**
+     * 0.12.0 (T6): what a provider's page says to its reader is its offer, not its own use ("Nutzen Sie die Vorteile unseres SAP
+     * Supports", "… mit Ihren bestehenden SAP-Systemen", "wie Sie diese … nutzen"); the formal address only, case-sensitive.
+     */
+    private static final Pattern READER=Pattern.compile("(?u)\\b(?:[Nn]utzen|[Vv]erwenden|[Ss]etzen|[Pp]rofitieren) Sie\\b|\\b(?:wie|dass|damit|wenn|ob) Sie\\b"
+            +"|\\b(?:Ihr|Ihre|Ihren|Ihrem|Ihres|Ihrer|Ihnen)\\b");
+    /** A system run or supported for others ("betreiben wir SAP … für Unternehmen jeder Größe", "unterstützt Versorger mit SAP"). */
+    private static final Pattern OFFER_TO=p("\\b(?:unterstütz\\w*|begleit\\w*|berät|beraten|betreu\\w*|betreiben|betreibt|hosten|implementier\\w*|realisier\\w*)\\b"
+            +"[^.!?]{0,60}?\\b(?:Kunden|Unternehmen|Versorger|Stadtwerke|Kommunen|Verwaltungen|Mittelständler|Mittelstand|Organisationen|Firmen|Betriebe"
+            +"|customers|clients|companies|organi[sz]ations|businesses)\\b"
+            +"|\\b(?:deliver(?:s|ing)?|provid(?:e|es|ing)|offer(?:s|ing)?|build(?:s|ing)?|implement(?:s|ing)?)\\b[^.!?]{0,60}?\\b(?:solutions?|services?|integration|platforms?|consulting)\\b");
+    /**
+     * 0.12.0 (T6): a use verb that is no own use: a cooperation ("arbeiten wir direkt mit SAP zusammen", partners), a product in
+     * a list of examples ("aus IT-Systemen wie SAP"), a sentence about others ("Industrieunternehmen betreiben …", "the
+     * headquarters runs …") or the quoted words of another person ("… says Heisig").
+     */
+    private static final Pattern NOT_OWN_USE=p("\\bzusammen\\b|zusammenarbeit|partner(?:schaft|schaften|n|s|ship)?\\b"
+            +"|\\b(?:Systemen?|systems?|Quellen|sources|Plattformen|platforms|Anwendungen|applications|Tools|Lösungen|solutions)\\s+(?:wie|such as|like|z\\.\\s?B\\.)\\s"
+            +"|^\\W*(?:(?:viele|die meisten|zahlreiche|häufig|oft|many|most)\\s+)?(?:Industrieunternehmen|Unternehmen|Firmen|Mittelständler|Versorger|Stadtwerke"
+            +"|Kommunen|Verwaltungen|Konzerne|Betriebe|Kunden|Organisationen|companies|organi[sz]ations|enterprises|customers|clients)\\b"
+            +"|\\bthe headquarters\\b|\\bsubsidiaries\\b"
+            +"|[„“\"”][^„“\"”]{10,}[“”\"]\\s*,?\\s*(?:says|said|sagt|sagte|erklärt|erklärte|so)\\b");
+    /** Explicit own use, needed where a provider of the same product says it uses it (0.12.0): "intern", "für unsere Buchhaltung". */
+    private static final Pattern EXPLICIT_OWN=p("\\bintern\\b|\\binterne[nmrs]?\\b|"+IN_HOUSE+"|\\binhouse\\b|im eigenen Haus"
+            +"|\\b(?:für\\s+)?(?:unsere[nmrs]?|eigene[nmrs]?)\\s+(?:eigene[nmrs]?\\s+)?(?:Buchhaltung|Finanzbuchhaltung|Verwaltung|Logistik|Produktion|Personal\\w*"
+            +"|Mitarbeiter\\w*|Prozesse|Controlling|Rechnungswesen|Standorte|Werke|Lager)\\b|\\binternally\\b|\\bour own\\b");
+
+    /** True if the passage states own use explicitly (internally, for the company's own departments): see {@link #EXPLICIT_OWN}. */
+    public static boolean explicitOwn(String passage){return passage!=null&&EXPLICIT_OWN.matcher(passage).find();}
     private static final Pattern PLAN=p("planen|plant|geplant|beabsichtigen|beabsichtigt|werden.{0,60}migrieren|planning|planned|intend");
     private static final Pattern MIGRATION=p("Migration|migrieren|Umstellung|migrate|migration");
     private static final Pattern COMPLETED=p("abgeschlossen|vollzogen|completed|finished");
@@ -168,12 +199,16 @@ public final class BusinessSignals {
             if(NEGATION.matcher(quote).find())return out;
             // An unnamed "we" next to another named company: whose system it is stays unclear (postings resolve their employer).
             if(own&&!named&&!posting&&otherCompanyNamed(quote,actorName,vocab))own=false;
-            if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|Unterstützung|Schulung|Training|consulting|implementation").matcher(quote).find())context="offered_capability";
+            if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|Unterstützung|Schulung|Training|consulting|implementation").matcher(quote).find()
+                    // 0.12.0 (T6): the provider speaking to its reader, or running and supporting systems for others, offers them
+                    ||!posting&&(own||named)&&(READER.matcher(quote).find()||OFFER_TO.matcher(quote).find()))context="offered_capability";
             else if(customer)context="customer_projects";
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
             else if(MIGRATION.matcher(quote).find()&&COMPLETED.matcher(quote).find()&&(own||named))context="completed_migration";
             else if(MIGRATION.matcher(quote).find()&&(PLAN.matcher(quote).find()||SOUGHT.matcher(quote).find()&&!OFFER.matcher(quote).find()&&!STAFF.matcher(quote).find())&&(own||named))context="planned_migration";
-            else if(USE.matcher(quote).find()&&(own||named))context="internal_use";
+            // no own use: a cooperation, examples, others' systems, quoted words; experience "used" is a competence (0.12.0, T6)
+            else if(USE.matcher(quote).find()&&(own||named)&&!NOT_OWN_USE.matcher(quote).find()
+                    &&(!KNOWLEDGE.matcher(quote).find()||EXPLICIT_OWN.matcher(quote).find()))context="internal_use";
             else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(field)||"qualifications".equals(field))
                 // A requirement belongs to a posting; a company's own competence statement (Kernkompetenz) is no need.
                 context=!posting&&!"skills".equals(field)&&!"qualifications".equals(field)?"stated_competence"

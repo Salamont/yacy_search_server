@@ -377,6 +377,19 @@ public class MatchingTest {
         JSONArray all=reasons("a","b");assertEquals(all.toString(),1,all.length());
         assertEquals("planned_migration",all.getJSONObject(0).getString("context"));assertEquals("need",all.getJSONObject(0).getString("evidence_kind"));
     }
+    /**
+     * 0.12.0 (T6, production sample: 34 of 50 customer suggestions were providers of the product itself): a candidate that
+     * offers the same product shows own use only explicitly; its other "use" sentences describe its work for clients.
+     */
+    @Test public void aProviderOfTheProductItselfIsACustomerOnlyByExplicitOwnUse()throws Exception {
+        offer("SAP Beratung");
+        signal("Wir bieten SAP Beratung und Implementierung an.","organization");
+        String strategy=signal("Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.","organization");
+        run();assertEquals("its strategy is no own use",0,page("a","b").getInt("total"));
+        withdraw(strategy);
+        signal("Wir nutzen SAP intern für unsere Finanzbuchhaltung.","organization");run();
+        assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));
+    }
     @Test public void projectCompletionOnlyRetiresTheIdentifiedProject()throws Exception {
         offer("Architektur");need("Wir planen den Neubau unseres Werkes in Berlin, Projekt Alpha.");need("Wir planen den Neubau unseres Werkes in Hamburg, Projekt Beta.");run();
         need("Der Neubau unseres Werkes in Berlin, Projekt Alpha, ist abgeschlossen.");

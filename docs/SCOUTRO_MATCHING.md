@@ -299,6 +299,19 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
   when its single evidence is the company's own capacity for that service (0.11.8:
   consultant and trainer titles, an employer offering the product itself); use, need and
   the postings of an actual customer stay. `MatchingRules.VERSION` is unchanged.
+- Gate T6, round 1 (production sample of 22 October 2026: of 50 customer suggestions, 34 were providers of the product
+  itself, 5 hired for their own offer, 4 rested on menu, article or partner mentions, 7 were customers):
+  - `BusinessSignals` reads no own use from a provider speaking to its reader ("Nutzen Sie die Vorteile unseres SAP
+    Supports", "mit Ihren bestehenden SAP-Systemen") or running and supporting systems for others ("betreiben wir SAP …
+    für Unternehmen", "unterstützt Versorger mit SAP"): `offered_capability`. Neither from a cooperation ("arbeiten wir
+    direkt mit SAP zusammen", partners), a list of examples ("aus IT-Systemen wie SAP"), a sentence about others
+    ("Industrieunternehmen betreiben …", "the headquarters runs …"), quoted words of another person, experience "used"
+    (a competence), the article of "setzen auf ein …" or "unternehmenseigene"/"erarbeiten".
+  - A consultancy or a provider of the product itself shows own use only explicitly (`BusinessSignals.explicitOwn`:
+    "intern", "für unsere Buchhaltung"); an explicitly sought migration still counts.
+  - Both act at reading (the stored quote is read again, a veto only); `MatchingRules.VERSION` stays 1.
+  - Tests: `BusinessSignalsTest.aProvidersSentencesAboutItsOfferPartnersAndOthersAreNoOwnUse` (the sample's sentences),
+    `MatchingTest.aProviderOfTheProductItselfIsACustomerOnlyByExplicitOwnUse`.
 - Possible competitors are no matching kind and no derivation: they are read per category
   on demand (`…/kg/entities/{id}/competitors`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4).
 - The plan's table is `MatchingTest.customerRowsOfTheT6Table`.

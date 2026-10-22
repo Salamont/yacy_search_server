@@ -93,6 +93,37 @@ public class BusinessSignalsTest {
                 "Wir suchen zur Unterstützung unseres Teams SAP-Berater (m/w/d) für Migrationsprojekte auf SAP S/4HANA."))
             for(String v:company(text,"text"))assertFalse(text,"planned_migration".equals(new JSONObject(v).getString("context")));
     }
+    /**
+     * 0.12.0 (T6, production sample of 22 October 2026): sentences of providers about their offer, their clients, their
+     * partners or others are no own use of the system they name.
+     */
+    @Test public void aProvidersSentencesAboutItsOfferPartnersAndOthersAreNoOwnUse() throws Exception {
+        for(String text:List.of(
+                "- Wir verwenden Process-Mining-Tools zur Visualisierung und Analyse der aktuellen Ist-Prozessabläufe aus IT-Systemen wie SAP oder Salesforce auf der Grundlage von Ereignisprotokollen.",
+                "Industrieunternehmen betreiben häufig gewachsene IT-Landschaften mit SAP-Systemen, eigenen Rechenzentren und individuellen Anforderungen an Verfügbarkeit.",
+                "Bei der Auswahl und Realisierung der bestmöglichen Lösungen für Ihr Unternehmen arbeiten wir direkt mit SAP zusammen.",
+                "Making use of a strong framework, having abundant SAP knowledge in house, and delivering a plug and play solution for seamless data streaming integration of SAP.",
+                "DELLNER BUBENZER nutzt für seine Prozesse ein PLM-System, welches Daten an das unternehmenseigene SAP ECC ERP sendet.",
+                "Seit 2007 realisieren wir professionelle Cloud- und Hostinglösungen – und seit 2010 betreiben wir SAP Business One Umgebungen für Unternehmen jeder Größe.",
+                "## Nutzen Sie die Vorteile unseres SAP Supports.",
+                "Wir planen, realisieren, warten und betreiben SAP HCM Systeme und sorgen dafür, dass Sie sich auf die inhaltliche HR-Arbeit fokussieren können.",
+                "Dann nutzen Sie die Chance und fordern Sie jetzt Ihren Online Termin mit unseren SAP EWM Experten an.",
+                "Wir bieten Ihnen den Vergleich zu SAP EWM und TM, erarbeiten mit Ihnen die Roadmap zur Einführung und beraten Sie zum Zusammenspiel mit weiteren Logistiklösungen.",
+                "“A challenge as we grow is to use our resources as efficiently as possible and build a sustainable SAP cloud business model,” says Heisig.",
+                "Wir zeigen, welche Rolle die SAP BDC spielt und wie Sie diese auch sinnvoll für AI nutzen.",
+                "Wir setzen auf eine individuelle Analyse Ihrer Bedürfnisse und integrieren Lösungen, die perfekt mit Ihren bestehenden SAP-Systemen harmonieren.",
+                "Wir freuen uns, von nun an seinen reichen Schatz an technischen Erfahrungen mit SAP Technologien und Lösungen nutzen zu können.",
+                "Daneben hat das KIT zahlreiche strategische Industriepartner wie ABB, BASF, BOSCH, Daimler, SAP oder Zeiss, die teilweise eigene Programme betreiben.",
+                "Wir setzen auf ein für SAP S/4HANA vorkonfiguriertes und modulares Lösungsspektrum.",
+                "The KPS Cloud ERP for SAP suits subsidiaries in a two-tier ERP landscape, where the headquarters runs a central SAP ERP platform while subsidiaries operate on a more agile one.",
+                "Die OctaVIA AG unterstützt Versorger mit SAP-Systemen, die helfen, Ressourcen optimal zu nutzen."))
+            for(String v:company(text,"text"))assertFalse(text+" "+v,"internal_use".equals(new JSONObject(v).getString("context")));
+        // own use stays own use, also next to an offer of the same product
+        for(String text:List.of("Wir setzen SAP S/4HANA ein.","Wir nutzen SAP S/4HANA intern für unsere Finanzbuchhaltung.","Wir setzen seit 2019 SAP ein, um unsere Logistik zu steuern."))
+            assertEquals(text,"internal_use",companyContext(text,"text"));
+        assertTrue(BusinessSignals.explicitOwn("Wir nutzen SAP S/4HANA intern für unsere Finanzbuchhaltung."));
+        assertFalse(BusinessSignals.explicitOwn("Wir betreiben eine SAP First-Strategie."));
+    }
     /** A company's own competence statement is no requirement; a posting's requirement stays one. */
     @Test public void companyCompetenceIsStatedNotRequired() throws Exception {
         assertEquals("stated_competence",companyContext("Kernkompetenz SAP Rechnungswesen","text"));

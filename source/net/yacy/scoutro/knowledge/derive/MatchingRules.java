@@ -205,6 +205,10 @@ public final class MatchingRules {
             // The stored context must still be what the shared parser reads in the stored quote (veto only, never an upgrade).
             if(!contextConfirmed(signal,context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;
+            // 0.12.0 (T6): a consultancy or a provider of the product itself shows own use only explicitly ("intern", "für unsere
+            // Buchhaltung"); its pages otherwise describe what it does for its clients. An explicitly sought migration still counts.
+            if(!jobBased&&"internal_use".equals(context)&&!BusinessSignals.explicitOwn(signal.text)
+                    &&(itConsultancy(c,signal.actor)||offersItself(c,signal.actor,offer)))return null;
             if(jobBased) {
                 // Own postings for a product the employer offers itself are delivery capacity, not a customer need.
                 if(itConsultancy(c,signal.actor)||ownCapacity(signal)||offersItself(c,signal.actor,offer))return null;
