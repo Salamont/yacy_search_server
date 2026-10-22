@@ -39,6 +39,12 @@ public final class BusinessSignals {
      */
     private static final Pattern READER=Pattern.compile("(?u)\\b(?:[Nn]utzen|[Vv]erwenden|[Ss]etzen|[Pp]rofitieren) Sie\\b|\\b(?:wie|dass|damit|wenn|ob) Sie\\b"
             +"|\\b(?:Ihr|Ihre|Ihren|Ihrem|Ihres|Ihrer|Ihnen)\\b");
+    /**
+     * 0.12.0 (T6, round 2): the reader's need as a provider describes it ("… setzt die Teamentwicklung genau dort an, wo Sie uns
+     * brauchen", "Ihren Bedarf"): no need of the company itself. The formal address only, case-sensitive.
+     */
+    private static final Pattern READER_NEED=Pattern.compile("(?u)\\b(?:Sie|you)\\b[^.!?]{0,30}?\\b(?:brauchen|benötigen|need)\\b"
+            +"|\\b(?:Ihr|Ihre|Ihren|Ihrem|Ihres|your)\\b[^.!?]{0,20}?\\b(?:Bedarf|Bedürfnisse|needs)\\b");
     /** A system run or supported for others ("betreiben wir SAP … für Unternehmen jeder Größe", "unterstützt Versorger mit SAP"). */
     private static final Pattern OFFER_TO=p("\\b(?:unterstütz\\w*|begleit\\w*|berät|beraten|betreu\\w*|betreiben|betreibt|hosten|implementier\\w*|realisier\\w*)\\b"
             +"[^.!?]{0,60}?\\b(?:Kunden|Unternehmen|Versorger|Stadtwerke|Kommunen|Verwaltungen|Mittelständler|Mittelstand|Organisationen|Firmen|Betriebe"
@@ -60,6 +66,8 @@ public final class BusinessSignals {
             +"|\\b(?:für\\s+)?(?:unsere[nmrs]?|eigene[nmrs]?)\\s+(?:eigene[nmrs]?\\s+)?(?:Buchhaltung|Finanzbuchhaltung|Verwaltung|Logistik|Produktion|Personal\\w*"
             +"|Mitarbeiter\\w*|Prozesse|Controlling|Rechnungswesen|Standorte|Werke|Lager)\\b|\\binternally\\b|\\bour own\\b");
 
+    /** True if the passage describes the reader's need, as a provider writes about its clients: see {@link #READER_NEED}. */
+    public static boolean readerNeed(String passage){return passage!=null&&READER_NEED.matcher(passage).find();}
     /** True if the passage states own use explicitly (internally, for the company's own departments): see {@link #EXPLICIT_OWN}. */
     public static boolean explicitOwn(String passage){return passage!=null&&EXPLICIT_OWN.matcher(passage).find();}
     private static final Pattern PLAN=p("planen|plant|geplant|beabsichtigen|beabsichtigt|werden.{0,60}migrieren|planning|planned|intend");
@@ -232,7 +240,7 @@ public final class BusinessSignals {
                 fields.put("system_role",role);assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)) {
-            if(references||!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find())return out;
+            if(references||!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find()||READER_NEED.matcher(quote).find())return out;
             for(String need:vocab.needs(quote)) {
                 boolean cancelled=p("abgesagt|eingestellt|aufgegeben|cancelled|canceled").matcher(quote).find();
                 boolean completed=p("fertiggestellt|abgeschlossen|completed|finished").matcher(quote).find();

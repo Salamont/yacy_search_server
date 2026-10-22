@@ -223,6 +223,8 @@ public final class MatchingRules {
             if(!"business_need_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("need"))||!Set.of("organization","facility").contains(signal.type)
                     ||!List.of("planned_need","explicit_need","organizational_transition").contains(context))return null;
             if(jobBased&&List.of("leadership-development","team-development").contains(offer.rule))return null;
+            // 0.12.0 (T6, round 2): the reader's need on a provider's page ("wo Sie uns brauchen") is its offer (veto at reading).
+            if(BusinessSignals.readerNeed(signal.text))return null;
             if(needRetired(c,signal))return null;
             String phase=signal.value.optString("phase","unknown");
             if("construction".equals(offer.rule)||"energy-renovation".equals(offer.rule)) {

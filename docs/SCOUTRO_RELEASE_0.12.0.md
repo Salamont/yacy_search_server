@@ -2,8 +2,8 @@
 
 Prepared versions: **0.12.0 / 1.942-scoutro.43**. Numeric YaCy peer version **1.942** stays unchanged. A release with a
 one-time re-read of every tracked page by the rules (no model) and a targeted, bounded re-read of some pages by the LLM tier.
-It takes the full release path: a DATA backup with an isolated restore test before the update. Each step after the merge is a
-separate decision of the operator.
+No backup is taken on the device before the update (owner decision of 22 October 2026, see the upgrade contract). Each step
+after the merge is a separate decision of the operator.
 
 | What | Value |
 |---|---|

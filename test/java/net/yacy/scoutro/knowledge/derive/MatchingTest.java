@@ -235,6 +235,15 @@ public class MatchingTest {
         offer("Führungscoaching");offer("Teamentwicklung");need("Unser Unternehmen benötigt Führungsentwicklung.");need("Unser Unternehmen benötigt Teamentwicklung.");run();
         JSONObject result=page("a","b");assertEquals(1,result.getInt("total"));assertEquals(2,result.getJSONArray("items").getJSONObject(0).getInt("contributions_total"));
     }
+    /** 0.12.0 (T6, round 2): a coach's page about the reader's need is its offer, also as stored by an earlier parser. */
+    @Test public void theReadersNeedOnAProvidersPageIsNoNeedOfTheProvider()throws Exception {
+        offer("Teamentwicklung");
+        String quote="Jedes Team steht vor eigenen Herausforderungen – deshalb setzt die Teamentwicklung von Candidate genau dort an, wo Sie uns brauchen.";
+        assertTrue(BusinessSignals.read("business_need_signal",quote,"text","organization","Candidate").isEmpty());
+        observation(candidate,"organization","business_need_signal",KgJson.obj("need","team-development","context","explicit_need"),quote,"b");
+        run();assertEquals(0,page("a","b").getInt("total"));
+        need("Unser Unternehmen benötigt Teamentwicklung.");run();assertEquals(1,page("a","b").getInt("total"));
+    }
     @Test public void generalCoachTitleAndTeamAbilityAreNotNeedSignals()throws Exception {
         assertTrue(BusinessSignals.read("business_need_signal","Wir suchen einen Coach mit Teamfähigkeit.","text","organization","Candidate").isEmpty());
         offer("Life Coaching");need("Unser Unternehmen benötigt Führungsentwicklung.");run();assertEquals(0,count());

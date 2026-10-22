@@ -187,7 +187,10 @@ public class BusinessSignalsTest {
                 "Wir planen den Standortausbau.","Unser Unternehmen benötigt Teamentwicklung.","Wir benötigen Führungsentwicklung.",
                 "Unser Krankenhaus organisiert unser Entlassmanagement."))
             assertFalse(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
-        for(String text:List.of("Wir bieten Teamentwicklung an.","Unser Kunde plant einen Neubau.","Frau Beispiel benötigt ambulante Pflege."))
+        for(String text:List.of("Wir bieten Teamentwicklung an.","Unser Kunde plant einen Neubau.","Frau Beispiel benötigt ambulante Pflege.",
+                // 0.12.0 (T6, round 2): the reader's need, as a provider describes it
+                "Jedes Team steht vor eigenen Herausforderungen – deshalb setzt unsere Teamentwicklung genau dort an, wo Sie uns brauchen.",
+                "Wir richten die Teamentwicklung ganz nach Ihrem Bedarf aus."))
             assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
     }
     @Test public void explicitOwnStaffProgramsAndProjectDetailsAreGrounded()throws Exception {
