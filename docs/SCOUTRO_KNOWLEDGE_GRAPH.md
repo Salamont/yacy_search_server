@@ -3620,6 +3620,16 @@ Every proof belongs to the provider: its own site or a sentence with the provide
 - **A topic stays a topic:** tools and own use ("wir nutzen / setzen … ein / arbeiten mit", "we use"), denials, news and
   articles, a reader's or a vacancy's request ("Unterstützen Sie uns", "Wir suchen Verstärkung"), the provider's own past
   introduction of a system ("Wir haben SAP S/4HANA eingeführt") and a client's system on a reference page.
+- **What names no offer (gate T0, owner review of 22 October 2026):** an item of a list under an application area or a
+  market ("- Anwendungen - Fuel Cell - Battery - … - Flooring", `BusinessRules.marketItem`; under "Referenzen", "Projekte" or
+  "Leistungen" the items stay offers); a network of partners ("mit Partnern in unserem Netzwerk",
+  `BusinessRules.businessNetwork`; a sentence about IT, a LAN, servers or cabling keeps the network); a past participle
+  before "into/in" ("embedded into Microsoft Business Central", `BusinessRules.participle`); an English word form of another
+  word as a compound ("Laminating" is no "Laminat", `TermMatcher`); and the title of a news, article, event or careers page
+  ("… Civil Security Technologies and Services"): only its path makes such a page a services page. The software vocabulary
+  no longer has the bare "quality assurance" (an app for quality management is no software testing); it names software
+  testing by "software quality assurance", "Softwarequalitätssicherung", "QA testing", "Softwaretest" and, as before,
+  "Qualitätssicherung".
 
 The LLM tier checks its services with the same proof (C2): a service named by the title of its own page is accepted with
 the title as its quote (`title:0+n`, confidence 0.4), and the site's operator (`BusinessRules.pageSubject`) offers it when
@@ -3631,7 +3641,9 @@ the answer names no provider. The pages of single services are LLM candidates (`
 - **Tiers 1 and 2 (no model):** the new extractor identity re-extracts every tracked page once at low priority, as for
   0.11.4 ("What the new version does to an existing graph" under *The imprint's operator*; `Reconciler.REASON_EXTRACTORS`,
   `kg_meta.reextract_pending`); topics the new rule proves become
-  services again, industries and the matching get them back. The re-extraction is the bulk of the update's work.
+  services again, industries and the matching get them back. The re-extraction is the bulk of the update's work. The
+  vocabulary changes in the same release (above); its version is part of the extractor identity too, so it needs no pass of
+  its own. Cached LLM answers stay valid; the fingerprint of the plausibility scan changes, a scan still runs only on demand.
 - **Pages skipped as `not_candidate`:** decided once more by the new candidate rule at the first start
   (`kg_meta.llm_candidate_rules`, event `llm_candidates_changed`); a page that is still no candidate is skipped again without
   a request.
@@ -3726,7 +3738,8 @@ the answer names no provider. The pages of single services are LLM candidates (`
 `OfferEvidenceRule8Test` (consulting verbs with their subject, own use, denials and own past introduction, a reader asked to
 support the team, the provider as client, title and brand line, bulleted items with a denied one, dates, vacancies and a single
 dash, list items linking to other sites, a row of short headings and the headings that are none, one operator named twice in
-the structured data, the page of one service, news and careers pages, a bare menu with and without a brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
+the structured data, the page of one service, news and careers pages and a news item titled with "Services", a bare menu with and without a brand
+line, application areas, partner networks, participles and English word forms), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
 `theTitleProvesNoOfferOfAnotherOrganisation`, `LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages`,
 `servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache` and `aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
 `MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`, `DocumentedRelationsTest` (a project

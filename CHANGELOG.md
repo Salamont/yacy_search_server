@@ -14,7 +14,10 @@ re-read of some pages by the LLM tier within its schedule and budget. `LlmExtrac
   title or brand line, an item of a bulleted list, a short heading in a row of headings and the page of one service are
   structural evidence (confidence 0.4, marked in the company view). Tools, own use, denials, news, vacancies, events, a
   client's system and list items linking to other sites stay topics. A page whose structured data name its operator twice
-  is read instead of skipped.
+  is read instead of skipped. After the owner's review of the reference (gate T0): an item under an application area or a
+  market, a network of partners, a past participle before "into/in" and an English word form of another word ("Laminating")
+  offer nothing; a news, article, event or careers page is no services page by its title; the software vocabulary no longer
+  has the bare "quality assurance" (the vocabulary's version changes; the same re-extraction covers it).
 - LLM tier: a service named by the title of its own page is accepted with the title as its quote; pages of single
   services are candidates; pages skipped as no candidate are decided once more; services pages read without an accepted
   service are asked once more without the cache, once per graph.

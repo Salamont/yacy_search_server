@@ -145,6 +145,7 @@ public final class BusinessRules {
     public static Set<PageKind> kinds(final String url, final List<String> titles) {
         final Set<PageKind> out = java.util.EnumSet.noneOf(PageKind.class);
         String path = null;
+        boolean editorial = false;
         try {
             path = url == null ? null : new URI(url).getRawPath();
         } catch (final Exception e) {
@@ -162,8 +163,10 @@ public final class BusinessRules {
             }
             if (EDITORIAL_PATH.matcher(decoded).find()) {
                 out.remove(PageKind.SERVICE_DETAIL);
+                editorial = true;
             }
         }
+        final boolean servicesByPath = out.contains(PageKind.SERVICES);
         if (titles != null) {
             for (final String t : titles) {
                 if (t == null) {
@@ -183,6 +186,10 @@ public final class BusinessRules {
         // a vacancy ("/careers/sap-consulting-m-w-d/", a title "Karriere") is no page of a service, whatever its words
         if (out.contains(PageKind.CAREERS)) {
             out.remove(PageKind.SERVICE_DETAIL);
+        }
+        // 0.12.0 (T0 review): a news item titled "… Technologies and Services" is no services page; its path decides
+        if (editorial && !servicesByPath) {
+            out.remove(PageKind.SERVICES);
         }
         return out;
     }
@@ -384,6 +391,13 @@ public final class BusinessRules {
         final Map<String, Boolean> offered = new LinkedHashMap<>();
         final Map<String, Boolean> explicit = new LinkedHashMap<>();
         for (final TermMatcher.Hit<Categories.Entry> h : hits) {
+            // 0.12.0 (T0 review): an item of a menu's application areas or markets ("Anwendungen: … Flooring …") and a business
+            // network ("mit Partnern in unserem Netzwerk") name no offer, also on a services page
+            if (marketItem(run.text, h.start) || businessNetwork(run.text, h.start, h.end) || participle(run.text, h.start, h.end)) {
+                offered.putIfAbsent(h.entry.id, false);
+                explicit.putIfAbsent(h.entry.id, false);
+                continue;
+            }
             if (!Boolean.TRUE.equals(explicit.get(h.entry.id))) {
                 // 0.11.5: a role word ("Hersteller", "Händler") names what the organisation is, never a service it offers
                 final boolean role = roleCategory(h.entry);
@@ -422,6 +436,75 @@ public final class BusinessRules {
             positions.add(new int[] {h.start, h.end, list.indexOf(s)});
         }
         prices(run, positions, list);
+    }
+
+    /** An entry of a menu that heads a group of its items. */
+    private static final Pattern MENU_PARENT = Pattern.compile("(?iu)^(?:anwendungen|anwendungsbereiche|einsatzbereiche|einsatzgebiete|branchen"
+            + "|industries|applications|m(?:ä|ae)rkte|markets|sectors(?:\\s+and\\s+markets)?|referenzen|references|kunden|customers|projekte|projects"
+            + "|leistungen|unsere\\s+leistungen|services?|produkte|products|l(?:ö|oe)sungen|solutions|unternehmen|(?:ü|ue)ber\\s+uns|about(?:\\s+us)?"
+            + "|karriere|careers?|jobs|kontakt|contact|news|aktuelles|downloads?|impressum|datenschutz|home|startseite)$");
+    /** The groups of a menu that name markets or application areas, not offers. */
+    private static final Pattern MARKET_PARENT = Pattern.compile("(?iu)^(?:anwendungen|anwendungsbereiche|einsatzbereiche|einsatzgebiete|branchen"
+            + "|industries|applications|m(?:ä|ae)rkte|markets|sectors(?:\\s+and\\s+markets)?)$");
+
+    /**
+     * 0.12.0 (T0 review, owner of 22 October 2026): true if the position stands in an item of a menu group of application areas,
+     * industries or markets ("- Anwendungen / - Fuel Cell / - Flooring / - Leistungen / …"): the nearest entry above it in the
+     * same list that heads a group is such a group. A group of references ("- Referenzen / - Türen / - Haustüren") shows the
+     * firm's own work and stays.
+     */
+    static boolean marketItem(final String text, final int at) {
+        int line = text.lastIndexOf('\n', Math.max(0, at - 1)) + 1;
+        for (int n = 0; n < 40 && line >= 0; n++) {
+            final int end = text.indexOf('\n', line) < 0 ? text.length() : text.indexOf('\n', line);
+            final String l = text.substring(line, end);
+            final Matcher bullet = BULLET_LINE.matcher(l);
+            if (!bullet.find()) {
+                return false;
+            }
+            final String item = l.substring(bullet.end()).replaceAll("[*_.:\\s]+$", "").trim();
+            if (n > 0 && MENU_PARENT.matcher(item).matches()) {
+                return MARKET_PARENT.matcher(item).matches();
+            }
+            if (line == 0) {
+                return false;
+            }
+            line = text.lastIndexOf('\n', line - 2) + 1;
+        }
+        return false;
+    }
+
+    private static final Pattern PARTICIPLE_AFTER = Pattern.compile("(?iu)^\\s+(?:into|in|within|inside)\\b");
+
+    /** True if the category's word at {@code [start, end)} is an English participle of a verb ("seamlessly embedded into …"). */
+    static boolean participle(final String text, final int start, final int end) {
+        return text.substring(start, end).matches("(?iu)\\p{L}+ed") && PARTICIPLE_AFTER.matcher(text.substring(end, Math.min(text.length(), end + 12))).find();
+    }
+
+    /** A network of partners or experts, not an IT network ("mit Partnern in unserem Netzwerk", "ein starkes Netzwerk von Experten"). */
+    private static final Pattern BUSINESS_NETWORK = Pattern.compile("(?iu)(?:\\b(?:unser(?:em|es)?|our|im|in\\s+einem|ein(?:em)?|starke[sn]?|gro(?:ß|ss)e[sn]?"
+            + "|bundesweite[sn]?|regionale[sn]?|internationale[sn]?|breite[sn]?|eigene[sn]?)\\s+(?:\\p{L}+\\s+)?$)|partner\\p{L}*\\s*$");
+    private static final Pattern NETWORK_AFTER = Pattern.compile("(?iu)^\\p{L}*\\s+(?:von|aus|an|mit|of)\\s+(?:\\p{L}+[\\s-]+)?(?:partner|expert|spezialist|fach|unternehm|firmen|kolleg|berater|coach)");
+
+    /** True if the category's words at {@code [start, end)} are the word "Netzwerk" of a network of partners or experts. */
+    static boolean businessNetwork(final String text, final int start, final int end) {
+        final String hit = text.substring(start, end);
+        if (!hit.matches("(?iu)netzwerk|network|netzwerke|networks")) {
+            return false;
+        }
+        final String before = text.substring(Math.max(0, start - 40), start);
+        int from = start, to = end;
+        while (from > 0 && start - from < 300 && ".!?\n".indexOf(text.charAt(from - 1)) < 0) {
+            from--;
+        }
+        while (to < text.length() && to - end < 300 && ".!?\n".indexOf(text.charAt(to)) < 0) {
+            to++;
+        }
+        final String sentence = text.substring(from, to);
+        // a network of partners or experts ("Netzwerk von IT-Experten") never is IT; a vaguer one is, in a sentence about IT
+        return NETWORK_AFTER.matcher(text.substring(start, Math.min(text.length(), end + 60))).find()
+                || !sentence.matches("(?isu).*\\b(?:it|edv|lan|wlan|server|firewall|switch|router|verkabelung)\\b.*")
+                        && (BUSINESS_NETWORK.matcher(before).find() || sentence.matches("(?isu).*\\bmit\\s+(?:unseren\\s+)?partnern\\b.*"));
     }
 
     /** A bullet or a list number; a date ("12. März 2025", "1.10.") is no list number. */

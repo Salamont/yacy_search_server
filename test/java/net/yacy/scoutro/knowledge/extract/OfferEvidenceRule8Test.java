@@ -138,6 +138,41 @@ public class OfferEvidenceRule8Test {
         assertEquals(o.toString(), BusinessRules.STRUCTURAL_CONFIDENCE, o.get("photovoltaik"), 1e-9);
     }
 
+    /**
+     * T0 review (owner, 22 October 2026): a menu group of application areas ("Anwendungen": "Flooring" of a maker of coating
+     * machines), a network of partners ("mit Partnern in unserem Netzwerk"), an English participle ("embedded into") and an
+     * English word form starting like a term ("Laminating") name no offer, also on a services page; a group of references
+     * ("Referenzen": "Türen") shows the firm's own work.
+     */
+    @Test
+    public void applicationAreasPartnerNetworksParticiplesAndEnglishWordFormsAreNoOffers() {
+        final Map<String, Double> lacom = offers(rules("construction", "https://www.muster-coating.de/service/", List.of("Service – Laminating | Converting"),
+                "Laminating | Converting.\n- Anwendungen\n- Fuel Cell\n- Decor\n- Flooring\n- Industry\n- Leistungen\n- Auftragssysteme\n"
+                        + "- Service\n- Kontakt\n\n# Service.\n\nService, der die Produktion absichert."));
+        assertFalse(lacom.toString(), lacom.containsKey("bodenbelaege"));
+        final Map<String, Double> joiner = offers(rules("construction", "https://www.muster-schreinerei.de/", List.of("Schreinerei Muster"),
+                "Schreinerei Muster.\n- Leistungen\n- Fenster\n- Referenzen\n- Türen\n- Haustüren\n- Kontakt"));
+        assertTrue(joiner.toString(), joiner.containsKey("tueren"));
+        final Map<String, Double> web = offers(rules("software", "https://www.muster-web.de/leistungen.php", List.of("Muster | Software und Web Engineering"),
+                "Leistungen.\n\nWir entwickeln Webanwendungen.\n\nIn Usability-Fragen arbeiten wir erfolgreich mit Partnern in unserem Netzwerk zusammen.\n\n"
+                        + "Natürlich beraten wir Sie zu allen Themen rund um die IT. In unserem Netzwerk finden wir für jede Frage einen Ansprechpartner."));
+        assertFalse(web.toString(), web.containsKey("infrastruktur"));
+        final Map<String, Double> it = offers(rules("software", "https://www.muster-it.de/leistungen/", List.of("Leistungen"),
+                "Leistungen.\n\nWir planen und betreuen Ihr Netzwerk, Ihre Server und Ihre Firewall."));
+        assertTrue(it.toString(), it.containsKey("infrastruktur"));
+        // partners named in a sentence about IT keep its network; a network of IT experts is people
+        assertTrue(offers(rules("software", "https://www.muster-it.de/leistungen/", List.of("Leistungen"), "Leistungen.\n\nGemeinsam mit unseren"
+                + " Partnern planen wir Ihr Netzwerk und Ihre Server.")).containsKey("infrastruktur"));
+        assertFalse(offers(rules("software", "https://www.muster-it.de/leistungen/", List.of("Leistungen"), "Leistungen.\n\nWir entwickeln Software."
+                + " Dafür nutzen wir ein Netzwerk von IT-Experten.")).containsKey("infrastruktur"));
+        final Map<String, Double> apps = offers(rules("software", "https://www.muster-erp.de/en/solutions/erp/apps/", List.of("Apps for Business Central"),
+                "Our apps are seamlessly embedded into Microsoft Business Central.\n\n### Quality Assurance.\n\nQuality management directly in your ERP."));
+        assertFalse(apps.toString(), apps.containsKey("embedded"));
+        assertFalse(apps.toString(), apps.containsKey("qa_testing"));
+        assertTrue(offers(rules("software", "https://www.muster-qa.de/leistungen/", List.of("Leistungen"), "Leistungen.\n\nWir bieten Software Quality Assurance"
+                + " und Testautomatisierung.")).containsKey("qa_testing"));
+    }
+
     /** Gate round 2: the structured data name one operator twice; the rules read the page instead of skipping it. */
     @Test
     public void oneOperatorNamedTwiceInTheStructuredDataIsOneSubject() {
@@ -201,6 +236,15 @@ public class OfferEvidenceRule8Test {
             final Extraction ex = rules("software", url, List.of("SAP-Beratung im Wandel"), "SAP-Beratung im Wandel. Ein Beitrag über SAP S/4HANA.");
             assertTrue(url + " " + offers(ex), offers(ex).isEmpty());
         }
+        // 0.12.0 (T0 review): the title of a news item does not make it a services page; a services path still does
+        final String news = "https://www.muster-dreberis.de/en/news/cooperation-civil-security-technologies-and-services-2025";
+        final List<String> title = List.of("Cooperation – Civil Security Technologies and Services (online)");
+        assertFalse(BusinessRules.kinds(news, title).contains(BusinessRules.PageKind.SERVICES));
+        final Extraction ex = rules("software", news, title, "Cooperation – Civil Security Technologies and Services. Cybersecurity. "
+                + "Companies meet in an online event.");
+        assertTrue(offers(ex).toString(), offers(ex).isEmpty());
+        assertTrue(BusinessRules.kinds("https://www.muster-stellwerk.de/services/news/", null).contains(BusinessRules.PageKind.SERVICES));
+        assertTrue(BusinessRules.kinds("https://www.muster-stellwerk.de/it/", List.of("Unsere Leistungen")).contains(BusinessRules.PageKind.SERVICES));
     }
 
     /** The model's offer of a named provider needs that provider as the subject of the consulting verb, not as its client. */

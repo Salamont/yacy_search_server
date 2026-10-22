@@ -42,6 +42,8 @@ public final class TermMatcher<T> {
 
     private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{N}]+");
     static final int PREFIX_MIN = 6;
+    /** The rest of a word after a term that makes it an English form of another word ("laminat|ing"), not a German compound. */
+    private static final Pattern ENGLISH_ENDING = Pattern.compile("ings?|ed|ion|ions|ors?");
     static final int SUFFIX_MIN = 8;
 
     /** A hit: the entry, its span in the text and the matched words. */
@@ -153,6 +155,9 @@ public final class TermMatcher<T> {
             }
             // compounds: "Kurzzeitpflegeplatz" starts with "kurzzeitpflege", "Altbausanierung" ends with "sanierung"
             for (int len = Math.min(w.length() - 1, 40); len >= PREFIX_MIN; len--) {
+                if (ENGLISH_ENDING.matcher(w.substring(len)).matches()) {
+                    continue; // 0.12.0 (T0 review): "Laminating" is no compound of "Laminat", an English form of another word
+                }
                 final List<Term<T>> p = this.single.get(w.substring(0, len));
                 if (p != null) {
                     for (final Term<T> t : p) {

@@ -308,7 +308,14 @@ public class CollectionMigrationTest {
                 "jsonld/" + net.yacy.scoutro.knowledge.extract.JsonLdExtractor.VERSION + ",metadata/"
                         + net.yacy.scoutro.knowledge.extract.MetadataExtractor.VERSION + ",rule/"
                         + net.yacy.scoutro.knowledge.extract.RuleExtractor.VERSION + ",vocabulary/"
-                        + net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION);
+                        + net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION)
+                // 0.12.0 changed the default categories on purpose (gate T0, the software vocabulary), within the same re-read:
+                // each recorded hash of the categories with a setup's collections becomes exactly one new hash
+                .replaceAll("vocabulary/(\\d+)-(9192e239c049|ffe3a2e79047|44c7a4bdf84d|77a395381244|21fb237d6efd)-",
+                        "vocabulary/$1-<categories $2>-")
+                .replace("<categories 9192e239c049>", "4ba098e42de3").replace("<categories ffe3a2e79047>", "2437ec2944e9")
+                .replace("<categories 44c7a4bdf84d>", "60c8699722ff").replace("<categories 77a395381244>", "14e7b56fe8ff")
+                .replace("<categories 21fb237d6efd>", "b234856e4422");
     }
 
     /** The report of {@link #FORMER} for the vocabularies in force and these settings. */

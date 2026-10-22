@@ -37,7 +37,7 @@ by the rules the owner set on 22 October 2026. Release: [SCOUTRO_RELEASE_0.12.0.
 
 ## Results (stored contributions read again; a pair is shown if one of its contributions is)
 
-| Collection | Pairs | Signal holds (A) | Shown 0.11.7: right / wrong | Round 2, local, without the site's employer | Round 2 on Olares (phase 3c, `5c311fa`) | With the posting's delivery role (local) |
+| Collection | Pairs | Signal holds (A) | Shown 0.11.7: right / wrong | Round 2, local, without the site's employer | Round 2 on Olares (phase 3c, `5c311fa`): **measured** | With the posting's delivery role: **local expectation** |
 |---|---:|---:|---|---|---|---|
 | stackfinder | 63 | 6 | 6 / 50 | 6 / 8 | 6 / 4 | 6 / 1 |
 | checkthecoach | 17 (one piece of evidence) | 0 | 0 / 17 | 0 / 0 | 0 / 0 | 0 / 0 |
@@ -45,8 +45,10 @@ by the rules the owner set on 22 October 2026. Release: [SCOUTRO_RELEASE_0.12.0.
 
 - On Olares the employer named as its site hid the four pairs of QUANTO Solutions. Rewion kept the requirement of its
   qualifications ("Mindestens 5 Jahre Erfahrung in der Umsetzung oder Leitung von SAP Projekten") while its description,
-  which builds the business with clients, was hidden; the delivery role is now the posting's (tested locally; no further
-  production run).
+  which builds the business with clients, was hidden; the delivery role is now the posting's (`bf5f7f6`, tested locally).
+- **Measured on production data: 6 right of 10 shown.** The 6 of 7 after the correction of Rewion's posting is a **local
+  expectation** (stored contributions read again with the classes of this branch) until the read-only run of phase 3d
+  confirms it on Olares with the final commit.
 - One remains: placeworkers, "entfernen wir überflüssige Anpassungen und nutzen, was SAP bereits bietet" (its method for
   clients, read as own use).
 
@@ -65,9 +67,18 @@ Phase 3c counted the recorded needs (`NeedFunnel`): 486 new builds, 198 rebuilds
 and 20 care transitions, none with the own responsibility, the hospital's own process or the location their rules ask for.
 Of the sampled building needs all but a few own plans of companies were providers' offers ("Wir planen gemeinsam mit Ihnen
 den Umbau …", "planen und realisieren wir …"); they are no needs any more (`BusinessSignals.NEED_OFFER`, with the re-read).
-The care transitions are mostly care services' offers; two hospitals describe their discharge management, which the rule
-does not recognise without the words "unser Krankenhaus" and a location in the sentence. bauteamcheck and edelsenior hold
-few pages of possible customers; that is a matter of the crawl's scope, not of this release.
+The care transitions are mostly care services' offers. **Known gap of recognition:** two hospitals describe their own
+discharge management, a real need of the kind edelsenior's providers serve, and the rule does not recognise it: Krankenhaus
+Mechernich ("Unser Entlassmanagement zielt auf einen nahtlosen Übergang der entlassenen Patienten in die Anschlussbehandlung
+…") and the Kemperhof Koblenz of the Gemeinschaftsklinikum Mittelrhein ("Wir kontaktieren für Sie unsere Pflegefachkräfte
+der Pflegeüberleitung, falls Sie zu Hause einen ambulanten Pflegedienst benötigen"). Both are recorded as care transitions,
+but without the hospital's own process (`hospital_process` false), because the rule asks for "unser Krankenhaus" or "unsere
+Klinik" in the sentence and the matching rule for a location; the hospital and its place stand only in the page's address
+(`…/krankenhaus-mechernich/…`, `…/kemperhof-koblenz/…`). In bauteamcheck the sample's few plans of companies are a third
+party's quoted on a provider's page (the head office of TRILUX on an architect's page) or completed (an own building
+finished in 2022). So the missing customers of bauteamcheck and edelsenior are not only a matter of the crawl's scope: needs
+that are on the pages are not recognised in these words. 0.12.0 does not change this (no larger rework now); it is an item
+for a later release.
 
 ## All pairs
 

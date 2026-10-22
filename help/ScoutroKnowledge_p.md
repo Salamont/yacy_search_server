@@ -172,7 +172,8 @@ all collections and the page says so.
   structure: the site's title or brand line, a bulleted item or the page of
   one service. A service shown only by the structure is marked **structural
   evidence**. Tools the company uses, denials, news and a client's project
-  stay topics.
+  stay topics, and so do the application areas or markets of a menu
+  ("Anwendungen: … Flooring") and a network of partners.
 - **Services and prices:** every price exactly as the page published it:
   amount or range, currency, unit, kind (from, up to, range), conditions, VAT,
   care level, own share and the date. Nothing is estimated, converted,
