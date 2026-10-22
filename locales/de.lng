@@ -6110,6 +6110,7 @@ The selected collection filters the origin and its facts. Customer and partner s
 >Kind of evidence<==>Belegart<
 >use<==>Nutzung<
 >job requirement<==>Stellenanforderung<
+>documented purchase<==>belegter Einkauf<
 >Fit<==>Passung<
 >Time qualification<==>Zeitliche Einschränkung<
 >Project phase<==>Projektphase<
@@ -6791,6 +6792,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >planned organizational need<==>geplanter organisatorischer Bedarf<
 >explicit organizational need<==>ausdrücklicher organisatorischer Bedarf<
 >organizational care transition; possible cooperation<==>organisatorischer Pflegeübergang; mögliche Kooperation<
+>purchased service (documented by a provider's reference)<==>eingekaufte Leistung (belegt durch die Referenz eines Anbieters)<
+>purchased program (documented by a provider's reference)<==>eingekauftes Programm (belegt durch die Referenz eines Anbieters)<
 >own offered services<==>eigene angebotene Leistungen<
 >historical source metadata<==>historische Quellenmetadaten<
 >Use stored job signals for matching<==>Gespeicherte Stellensignale für Matching nutzen<

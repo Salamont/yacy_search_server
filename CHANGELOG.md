@@ -24,7 +24,15 @@ re-read of some pages by the LLM tier within its schedule and budget. `LlmExtrac
 - Matching: every reason names its kind of evidence (need, use, job requirement); support sought for an own migration is
   a need; customer and competitor are not exclusive. A provider of a product can be a customer of other providers; its
   clients' voices, others' use and its offer to the reader are no own use; only the delivery role of an employer that
-  offers the product itself is its capacity, a title alone excludes nothing.
+  offers the product itself is its capacity, a title alone excludes nothing; an employer named as the site of its posting
+  offers what the site's operator offers, also where the graph keeps the two apart.
+- Documented business relations: the rules read the clients a page documents for its operator (a project profile's client
+  field, the heading of a reference naming the client, a customer's voice with its company, before or after the quoted
+  words) as `customer_of` with source, project and state; several clients of one heading are each a client, an unclear role
+  makes no relation, and a bare "unsere Kunden"/"Referenzen" in a sentence or a menu names nobody. The project's
+  products are a documented purchase (`purchased_service`, a team or leadership program `purchased_need`): a matching reason
+  of the new evidence kind `reference` ("documented purchase") for every other provider of the service, none for the
+  documenting provider itself.
 
 ## 0.11.8 / 1.942-scoutro.42 — object views without a timeout, the topics of a website, consultant titles as own capacity (one update from 0.11.7)
 

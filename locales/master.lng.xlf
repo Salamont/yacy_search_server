@@ -18661,6 +18661,9 @@
     <trans-unit id="7e0a7060" xml:space="preserve" approved="no" translate="yes">
        <source>job requirement</source>
     </trans-unit>
+    <trans-unit id="4e449b67" xml:space="preserve" approved="no" translate="yes">
+       <source>documented purchase</source>
+    </trans-unit>
     <trans-unit id="113f1" xml:space="preserve" approved="no" translate="yes">
        <source>Fit</source>
     </trans-unit>
@@ -19044,6 +19047,12 @@
     </trans-unit>
     <trans-unit id="f6c8c9d3" xml:space="preserve" approved="no" translate="yes">
        <source>organizational care transition; possible cooperation</source>
+    </trans-unit>
+    <trans-unit id="5e397fdf" xml:space="preserve" approved="no" translate="yes">
+       <source>purchased service (documented by a provider's reference)</source>
+    </trans-unit>
+    <trans-unit id="36a00d30" xml:space="preserve" approved="no" translate="yes">
+       <source>purchased program (documented by a provider's reference)</source>
     </trans-unit>
     <trans-unit id="bbcf083d" xml:space="preserve" approved="no" translate="yes">
        <source>own offered services</source>

@@ -13876,9 +13876,10 @@
                   "need",
                   "use",
                   "job_requirement",
+                  "reference",
                   null
                 ],
-                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
               },
               "fit": {
                 "type": "string",
@@ -14198,9 +14199,10 @@
             "need",
             "use",
             "job_requirement",
+            "reference",
             null
           ],
-          "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+          "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
         },
         "fit": {
           "type": "string",
@@ -14676,9 +14678,10 @@
                   "need",
                   "use",
                   "job_requirement",
+                  "reference",
                   null
                 ],
-                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
               },
               "fit": {
                 "type": "string",
@@ -16216,9 +16219,10 @@
                         "need",
                         "use",
                         "job_requirement",
+                        "reference",
                         null
                       ],
-                      "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+                      "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
                     },
                     "fit": {
                       "type": "string",
@@ -17334,9 +17338,10 @@
                   "need",
                   "use",
                   "job_requirement",
+                  "reference",
                   null
                 ],
-                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use) or job_requirement (a required or desirable skill of a posting); null for other contexts."
+                "description": "0.12.0: the kind of evidence of the reason: need (planned migration or need, explicit need, organisational transition), use (internal use), job_requirement (a required or desirable skill of a posting) or reference (a purchase of the service documented by another provider's reference: project profile, reference heading); null for other contexts."
               },
               "fit": {
                 "type": "string",

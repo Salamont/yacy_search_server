@@ -361,6 +361,29 @@ public class MatchingTest {
         for(String product:List.of("SAP","Revit"))observation(candidate,"service","name",KgJson.obj("literal",product),product,"b");
         assertEquals("the consultant postings of a provider of the product",0,page("a","b").getInt("total"));
     }
+    /**
+     * 0.12.0 gate T6, round 2 (production: QUANTO Solutions, Rewion): the posting's employer and the site's unnamed operator are
+     * two entities of the graph; the employer named as its site is the operator, whose offer of the product makes its consultant
+     * posting its own capacity. A recruiter's posting for another company on the recruiter's site stays a customer's need.
+     */
+    @Test public void theEmployerNamedAsItsSiteOffersWhatTheSitesOperatorOffers()throws Exception {
+        offer("SAP Beratung");
+        String operator=KgIds.entityId("organization","test","","operator");live(operator,"b");
+        pageUrl="https://www.candidate.example/job/senior-business-consultant/";jobTitle="Senior Business Consultant Transformation (all genders)";
+        String job=signal("Mindestens 7 Jahre Erfahrung in SAP-Implementierungsprojekten erforderlich.","job");jobTitle="Engineer";pageUrl=null;run();
+        assertEquals("a title alone excludes nothing",1,page("a","b").getInt("total"));
+        store.write(WriteClass.SYSTEM,0,c->{try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_entity_key(scheme,scope,value,ent_rowid)"
+                +" SELECT v.term_id,'organization@candidate.example','operator',e.ent_rowid FROM kg_vocab v,kg_entity e WHERE v.kind=3"
+                +" AND v.name='domain_operator' AND e.public_id=?")){p.setString(1,operator);assertEquals(1,p.executeUpdate());}return null;});
+        assertEquals("the site's operator offers nothing yet",1,page("a","b").getInt("total"));
+        pageUrl="https://www.candidate.example/leistungen/";observation(operator,"service","name",KgJson.obj("literal","SAP"),"SAP","b");pageUrl=null;
+        assertEquals("the consultant posting of the site's operator",0,page("a","b").getInt("total"));
+        // a recruiter's site: the employer is not named as the site, whatever the recruiter offers
+        withdraw(job);
+        pageUrl="https://www.recruiter.example/jobs/sap-consultant/";jobTitle="Senior Business Consultant Transformation (all genders)";
+        signal("Mindestens 7 Jahre Erfahrung in SAP-Implementierungsprojekten erforderlich.","job");jobTitle="Engineer";pageUrl=null;run();
+        assertEquals("a posting on another site",1,page("a","b").getInt("total"));
+    }
     @Test public void inhouseKeyUserAndSkilledJobsOfCustomersStayCustomerNeeds()throws Exception {
         // 0.11.8: an industrial firm hiring for its own SAP stays a possible customer.
         offer("SAP Beratung");
@@ -412,6 +435,39 @@ public class MatchingTest {
         withdraw(voice);
         signal("Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.","organization");run();
         assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));
+    }
+    /**
+     * 0.12.0 (T6, round 2): a client documented by another provider's reference bought the service (regio iT bought SAP S/4HANA
+     * consulting from STELLWERK): a reason for every other provider of it, of the kind "reference"; the provider's own reference
+     * names an existing client, no suggestion.
+     */
+    @Test public void aPurchaseDocumentedByAnotherProvidersReferenceIsAReason()throws Exception {
+        offer("SAP S/4HANA Beratung");
+        pageUrl="https://referenz-anbieter.example/referenzen/success-stories/";
+        observation(candidate,"organization","system_signal",KgJson.obj("product","sap-s4hana","context","purchased_service","section","references",
+                "project","S/4HANA Release-Wechsel","state","completed"),"### S/4HANA Release-Wechsel bei Candidate.","b");
+        pageUrl=null;run();
+        JSONObject r=reasons("a","b").getJSONObject(0);
+        assertEquals("purchased_service",r.getString("context"));assertEquals("reference",r.getString("evidence_kind"));
+        assertEquals("stated",r.getString("evidence_strength"));
+    }
+    @Test public void theOwnReferenceOfAProviderNamesAClientNoSuggestion()throws Exception {
+        pageUrl="https://referenz-anbieter.example/leistungen/";offer("SAP S/4HANA Beratung");
+        pageUrl="https://referenz-anbieter.example/referenzen/";
+        observation(candidate,"organization","system_signal",KgJson.obj("product","sap-s4hana","context","purchased_service","section","references"),
+                "### S/4HANA Release-Wechsel bei Candidate.","b");
+        pageUrl=null;run();assertEquals(0,count());assertEquals(0,page("a","b").getInt("total"));
+    }
+    @Test public void aPurchasedProgramIsANeedButAPastBuildingIsNot()throws Exception {
+        offer("Architektur");offer("Teamentwicklung");
+        pageUrl="https://coach.example/referenzen/";
+        observation(candidate,"organization","business_need_signal",KgJson.obj("need","new-build","context","purchased_need","section","references"),
+                "### Neubau bei Candidate.","b");
+        observation(candidate,"organization","business_need_signal",KgJson.obj("need","team-development","context","purchased_need","section","references"),
+                "### Teamentwicklung bei Candidate.","b");
+        pageUrl=null;run();
+        JSONArray all=reasons("a","b");assertEquals(all.toString(),1,all.length());
+        assertEquals("purchased_need",all.getJSONObject(0).getString("context"));assertEquals("reference",all.getJSONObject(0).getString("evidence_kind"));
     }
     @Test public void projectCompletionOnlyRetiresTheIdentifiedProject()throws Exception {
         offer("Architektur");need("Wir planen den Neubau unseres Werkes in Berlin, Projekt Alpha.");need("Wir planen den Neubau unseres Werkes in Hamburg, Projekt Beta.");run();

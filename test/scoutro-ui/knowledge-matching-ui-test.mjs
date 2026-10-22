@@ -17,7 +17,7 @@ const obs={id:'kgo_'+'a'.repeat(20),schema:'scoutro.kg.history.v1',subject:targe
   locator:'/description',extractor:'jsonld/5',vocabulary_version:'3/products-1',assertion_status:'recorded',certainty:'stated',
   collections:['kgb'],live_statement:null,job_search:{status:'unknown'}};
 const reasons=Array.from({length:31},(_,i)=>({id:'kgd_'+String.fromCharCode(97+i%26).repeat(19)+(i<26?'a':'b'),proposal_id:proposal,
-  rule:'cad-bim',rule_version:'1',service:'revit support',product:'revit',context:'internal_use',evidence_kind:'use',evidence_strength:'stated',
+  rule:'cad-bim',rule_version:'1',service:'revit support',product:'revit',context:i===30?'purchased_service':'internal_use',evidence_kind:i===30?'reference':'use',evidence_strength:'stated',
   fit:'explicit_rule',temporal_status:'historical_not_reconfirmed',uncertainties:['company_role_unknown','external_purchase_or_cooperation_unconfirmed'],
   score:.6,observed_at:at,computed_at:processed,collection_a:'kga',collection_b:'kgb',origin_collection:'kga',target_collection:'kgb',
   evidence_complete:true,evidence:[{...obs,quote:obs.quote+' Evidence '+i}]}));
@@ -70,6 +70,9 @@ try {
       &&await item.locator('.skg-contribution[data-evidence-kind="use"]').count()===25,'every reason names its kind of evidence (0.12.0)');
     await item.locator('details > button').click();await page.waitForFunction(()=>document.querySelectorAll('#skg-sec-matches .skg-contribution').length===31);
     check(requests.some(u=>u.pathname.endsWith('/contributions')&&u.searchParams.get('offset')==='25'&&u.searchParams.get('collection')==='kga'),'more reasons preserve origin context');
+    const purchase=await item.locator('.skg-contribution[data-evidence-kind="reference"]').textContent();
+    check(purchase.includes(language==='de'?'Belegart: belegter Einkauf':'Kind of evidence: documented purchase')
+      &&purchase.includes(language==='de'?'eingekaufte Leistung':'purchased service'),'a documented purchase names its kind and context (0.12.0): '+purchase.slice(0,400));
     const history=item.locator('a[href*="view=history"]').first();check(new URL(await history.getAttribute('href'),base).searchParams.get('collection')==='kgb','archive link uses signal context');
     await history.click();await page.locator('#skg-history-items article').waitFor();
     check(new URL(page.url()).searchParams.get('observation')===obs.id,'history opens without a live statement');

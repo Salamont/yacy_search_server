@@ -201,7 +201,8 @@ public final class BusinessSignals {
 
     /** A heading of customers' voices or of a client list ("Kunden, die unsere Lösungen nutzen", "Kundenstimmen", "What our clients say"). */
     private static final Pattern CUSTOMER_VOICES=p("kunden,? die unsere|kundenstimmen|stimmen unserer kunden|das sagen unsere kunden|was unsere kunden sagen"
-            +"|erfahrungsberichte|testimonials?|customers using our|what our (?:customers|clients) say|our (?:customers|clients) say|our clients\\b");
+            +"|erfahrungsberichte|testimonials?|customers using our|what our (?:customers|clients) say|our (?:customers|clients) say|our clients\\b"
+            +"|unsere referenzen|referenzen sprechen|our references|references speak|^\\W*#+\\s*(?:kunden)?referenzen\\W*$|^\\W*#+\\s*references\\W*$");
     /** How far a heading of customers' voices reaches at most (the voices below it, up to the next heading). */
     private static final int VOICES_REACH=4000;
 

@@ -3670,7 +3670,37 @@ the answer names no provider. The pages of single services are LLM candidates (`
   product came from sentences about their offer, clients or partners, from their clients' voices or about others. The
   signal reader no longer reads own use from them. A provider of the product itself can still be a customer of other
   providers (owner decision of 22 October 2026: a pair is judged from the provider's view); only the delivery role of an
-  employer offering the product is its capacity, a title alone excludes nothing (docs/SCOUTRO_MATCHING.md).
+  employer offering the product is its capacity, a title alone excludes nothing (docs/SCOUTRO_MATCHING.md). The judged
+  reference with the corrected verdicts: docs/SCOUTRO_GATE_T6_0.12.0.md.
+- **Documented business relations (gate T6, round 2, owner decision of 22 October 2026):** the rules read the clients a
+  page documents for its operator (`BusinessRules.references`), each as `client customer_of operator` (confidence 0.65) with
+  the excerpt as its source:
+  - the client field of a project profile ("Kunden: …", "Auftraggeber: …", "Client: …") next to another field of the
+    profile ("Auftrag:", "Projekt:", "Rolle:", "Laufzeit:", "Leistungen:", "Scope:" …); a list of clients without such a
+    field is no profile;
+  - a heading of a reference page naming the client of its project ("### S/4HANA Release-Wechsel bei E.V.A. & regio iT");
+    with "für"/"for" only a name with a legal form, since the word also names a purpose ("… for Rocket Manufacturing");
+  - a customer's voice below a heading of customers' voices or references ("Kundenstimmen", "Das sagen unsere Kunden",
+    "## Referenzen"): the role line with its company ("Leiter Revision, Verbund AG.") and the paragraph after it, or the
+    quoted words and the signature below them ("„Mit white duck haben wir …“" / "Ronny Büchner. Managing Director. ESYON
+    GmbH."; the company is the signature's last part, with a legal form or after a role); the voice's own words are read for
+    that company (its use and its need), never for the page's operator, and the operator's own signature is none.
+
+  Several clients of one profile, heading or voice ("E.V.A. & regio iT") are each a client. A name that is no organisation's (a
+  person, a menu word, the reader "Ihr Unternehmen", a phrase such as "mehr Effizienz") is none, and where the role is
+  unclear no relation is made; at most 12 clients per page. The project's products become a `system_signal` of the client
+  with the context `purchased_service` (section `references`, the project's name and its state `completed`, `running` or
+  `unknown`), also those a voice names; a team or leadership development program becomes a `business_need_signal` with
+  `purchased_need`; a past building or care project is no need of the client now.
+- **No invented relation:** a bare marker of clients or references in a sentence ("Unsere Kunden und Millionen von Anwendern
+  vertrauen … Technologien und Methoden", "What Our Customers Say", "für unsere Kunden und Hilfesuchenden") is a phrase, no
+  list; on lines it is mostly a menu ("Referenzen / Biografie"), where only a legal name or an institution is a client or a
+  reference. With a colon or a word introducing the list ("Unsere Kunden: …", "Kunden wie …", "Unsere Kunden sind …") it is
+  one, as before. On the 658 exported pages of the quality gates (22 October 2026) this removes 33 relations, all wrong
+  ("Methoden", "Say", "Bäder", "Tiefbau", "PRÄSENTIERT"), and no right one. The relations act with the re-extraction of rule/8; relations read
+  before (also wrong ones from former rules) are not corrected by this. In matching such a purchase is a reason of the kind
+  `reference` for every other provider of the service; the provider's own reference names an existing client and makes no
+  suggestion (docs/SCOUTRO_MATCHING.md).
 
 ### 36.5 Tests
 
@@ -3680,7 +3710,11 @@ dash, list items linking to other sites, a row of short headings and the heading
 the structured data, the page of one service, news and careers pages, a bare menu with and without a brand line), `ServiceOfferPublicationTest.theTitleOfAServicesOwnPageShowsTheModelsServiceStructurally`,
 `theTitleProvesNoOfferOfAnotherOrganisation`, `LlmServiceTest.aNewCandidateRuleDecidesOnceMoreAboutSkippedPages`,
 `servicesPagesWithoutAnAcceptedServiceAreAskedOnceMoreWithoutTheCache` and `aServicesPageAskedOnceMoreKeepsItsPlaceUnderTheHostCap`, `BusinessSignalsTest.supportSoughtForAnOwnMigrationIsAPlannedMigration`,
-`MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`,
+`MatchingTest.customerRowsOfTheT6Table` and `everyReasonNamesItsKindOfEvidence`, `DocumentedRelationsTest` (a project
+profile, the headings of a reference page with a purpose heading that names no client, a customer's voice, a team development
+program, quoted words with their signature and the provider's own signature),
+`BusinessExtractionTest.aBareMarkerOfClientsInASentenceNamesNobody`, `MatchingTest.aPurchaseDocumentedByAnotherProvidersReferenceIsAReason`, `theOwnReferenceOfAProviderNamesAClientNoSuggestion`
+and `aPurchasedProgramIsANeedButAPastBuildingIsNot`,
 `BusinessViewTest.competitorsOfferTheSameCategoryAndTopicsMakeNone` (pointer, page per category, pagination, not found, the
 query plan through the partial index), `KnowledgeApiTest.readRoutesValidateTheirParameters`, `AgentCatalogTest`, and the UI
 test `test/scoutro-ui/knowledge-competitors-ui-test.mjs`. The quality gates T0 to T6 of the release run on production data

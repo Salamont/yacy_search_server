@@ -32,6 +32,8 @@ import java.util.regex.Pattern;
 
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.vocab.Categories;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
+import net.yacy.scoutro.knowledge.vocab.Signals;
 import net.yacy.scoutro.knowledge.vocab.TermMatcher;
 
 /**
@@ -311,6 +313,7 @@ public final class BusinessRules {
             services(run, servicePage ? SERVICE_PAGE_CONFIDENCE : HOME_PAGE_CONFIDENCE);
         }
         relations(run);
+        references(run);
         if (kinds.contains(PageKind.IMPRINT) || kinds.contains(PageKind.ABOUT)) {
             industryStatements(run);
         }
@@ -653,6 +656,22 @@ public final class BusinessRules {
             + "|privacy\\s+settings|\\btracking\\b|soziale(?:n)?\\s+medien|social\\s+media|werbung\\s+und\\s+analyse|advertising\\s+and\\s+analytics"
             + "|verwendung\\s+unserer\\s+(?:web)?seite|use\\s+of\\s+our\\s+(?:site|website)");
     /** A marker followed by a preposition is used in a sentence ("an unsere Partner für …"), it opens no list of names. */
+    /**
+     * A marker of clients or references without a colon or a word introducing a list ("unsere Kunden", "our customers",
+     * "Referenzen"): it starts a list only on lines, otherwise it is a phrase ("Unsere Kunden und Millionen von Anwendern
+     * vertrauen …", "What our customers say", "für unsere Kunden und Hilfesuchenden").
+     */
+    private static final Pattern BARE_LIST_MARKER = Pattern.compile("(?iu)(?:(?:unsere|our)\\s+(?:kunden|clients|customers)|referenz(?:en|kunden|liste)"
+            + "|references)\\s*");
+
+    private static boolean lineBreakAfter(final String text, final int at) {
+        int i = at;
+        while (i < text.length() && (text.charAt(i) == ' ' || text.charAt(i) == '\t' || text.charAt(i) == '.' || text.charAt(i) == '*')) {
+            i++;
+        }
+        return i >= text.length() || text.charAt(i) == '\n';
+    }
+
     private static final Pattern PREPOSITION_AFTER = Pattern.compile("(?u)^\\s*(?:für|fuer|in|im|aus|bei|von|vom|mit|zu|zur|zum|über|ueber|an|auf"
             + "|weiter|for|with|to|from|on|of|at)\\b");
 
@@ -701,13 +720,21 @@ public final class BusinessRules {
                 if (Vocabulary.MEMBER_OF.equals(mk.predicate) && personActor(run.text, m.start())) {
                     continue; // a person's membership ("eines Beraters als Mitglied des …"), not the organisation's
                 }
+                // 0.12.0: a bare marker in a sentence is a phrase ("unsere Kunden und Millionen von Anwendern …", "What our customers
+                // say"); on lines it is mostly a menu ("Referenzen / Biografie"), there only a legal name or an institution is a client
+                final boolean bare = BARE_LIST_MARKER.matcher(m.group()).matches();
+                final boolean bareOnLines = bare && (m.group().indexOf('\n') >= 0 || lineBreakAfter(run.text, m.end()));
+                if (bare && !bareOnLines) {
+                    continue;
+                }
                 final int from = m.end();
                 final int to = Math.min(run.text.length(), from + (mk.list ? 600 : 160));
                 final List<int[]> names = mk.list ? names(run.text, from, to) : first(run.text, from, to);
                 for (final int[] span : names) {
                     String name = run.text.substring(span[0], span[1]).trim();
                     name = STOP_WORDS.matcher(name).replaceFirst("");
-                    if (name.length() < 2 || BusinessFacts.personLike(name)) {
+                    if (name.length() < 2 || BusinessFacts.personLike(name)
+                            || bareOnLines && !LEGAL_FORM_ANY_CASE.matcher(name).find() && !INSTITUTION.matcher(name).find()) {
                         continue;
                     }
                     String predicate = mk.predicate;
@@ -735,6 +762,227 @@ public final class BusinessRules {
             final String standard = (c.group(1) != null ? c.group(1) : c.group(2)).replaceAll("\\s+", " ").trim();
             claim(run, run.subject, Vocabulary.CERTIFICATION, standard, c.start(), c.end(), 0.7);
         }
+    }
+
+    // ------------------------------------------------ documented business relations (0.12.0, gate T6, round 2)
+
+    /** The client field of a project profile ("Kunden: …", "Auftraggeber: …", "Client: …"), up to the next field. */
+    private static final Pattern PROFILE_CUSTOMER = Pattern.compile("(?imu)^[ \\t]*(?:Kunden?|Auftraggeber(?:in)?|Clients?|Customers?)[ \\t]*:[ \\t]*");
+    /** Another field of a project profile: without one, "Kunden:" is no profile (a list of clients is read as such). */
+    private static final Pattern PROFILE_FIELD = Pattern.compile("(?imu)^[ \\t]*(Auftrag|Projekt|Rolle|Laufzeit|Zeitraum|Leistung(?:en)?|Umfang"
+            + "|Project|Scope|Role|Duration)[ \\t]*:[ \\t]*([^\\n]*)");
+    /** A heading of a reference ("### S/4HANA Release-Wechsel bei E.V.A. & regio iT."): the project and its client(s). */
+    private static final Pattern REFERENCE_HEADING = Pattern.compile("(?mu)^[ \\t]*#{1,4}[ \\t]+(.{4,140}?)[ \\t]+(bei|für|fuer|at|for)[ \\t]+"
+            + "(?:(?:der|dem|den|die|das|the)[ \\t]+)?([^\\n]{2,90}?)[ \\t]*[.!]?[ \\t]*$");
+    /** Words of a role in a signature. */
+    private static final String ROLE_WORDS = "Head|Leiter(?:in)?|Leitung|Gesch(?:ä|ae)ftsf(?:ü|ue)hr(?:er|erin|ung)|CEO|CFO|CIO|CTO"
+            + "|COO|Manager(?:in)?|Director|Direktor(?:in)?|Vorstand|Inhaber(?:in)?|Gr(?:ü|ue)nder(?:in)?|Referent(?:in)?|Owner|Founder|Partner(?:in)?";
+    /** The role line of a customer's voice ("Leiter Revision, Verbund AG.", "Head of Internal Audit, Muster GmbH."). */
+    private static final Pattern VOICE_ROLE = Pattern.compile("(?u)^(.{0,90}?\\b(?:" + ROLE_WORDS + ")\\b.{0,60}?),"
+            + "[ \\t]*([^,\\n]{2,90}?)[ \\t]*\\.?[ \\t]*$");
+    private static final Pattern ROLE = Pattern.compile("(?u)\\b(?:" + ROLE_WORDS + ")\\b");
+    /** A paragraph of quoted words ("„Mit white duck haben wir …“"). */
+    private static final Pattern QUOTED = Pattern.compile("(?u)^[\\s*+]*[„“\"«‚‘]");
+    /** The parts of a signature: "**Ronny Büchner. **Managing Director. ESYON GmbH.", "Martin Kloker, Novicon GmbH". */
+    private static final Pattern SIGNATURE_SPLIT = Pattern.compile("\\s*[.,|]+\\s+|\\s+[|–]\\s+");
+    /** Words of a project's state: done or still running. */
+    private static final Pattern PROJECT_DONE = Pattern.compile("(?iu)\\b(?:abgeschlossen|erfolgreich|realisiert|umgesetzt|go-live|live\\s+gegangen"
+            + "|eingeführt|completed|delivered)\\b");
+    private static final Pattern PROJECT_RUNNING = Pattern.compile("(?iu)\\b(?:laufend|läuft|in\\s+arbeit|in\\s+umsetzung|seit|ongoing|in\\s+progress)\\b");
+    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&|;|(?<!-)\\s+und\\s+|(?<!-)\\s+and\\s+)\\s*");
+    /** The reader or a phrase, never a client ("für Ihr Unternehmen", "bei uns", "für mehr Effizienz"). */
+    private static final Pattern NOT_A_CLIENT = Pattern.compile("(?iu)^(?:Ihr|Ihre|Ihren|Ihrem|Sie|uns|unsere?[nmrs]?|our|your|you|mehr|alle|jede[nmrs]?"
+            + "|viele|Kunden|Unternehmen|Firmen|Projekte?)\\b");
+    private static final int MAX_DOCUMENTED = 12;
+    private static final Pattern LEGAL_FORM_ANY_CASE = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:" + LEGAL + ")(?![\\p{L}\\p{N}])");
+
+    /**
+     * The clients the page documents for its operator, with the direction "client customer_of operator", the source (the
+     * excerpt), the project and its state: a project profile's client field next to another field of the profile ("Kunden:
+     * … Auftrag: … Rolle: …"), a heading of a reference page naming the client of its project ("… bei der Muster AG"), and
+     * the voices below a heading of customers' voices with their company ("Leiter Revision, Verbund AG."). Several named
+     * clients of one profile or heading are each a client; a name that is no organisation's, the reader or a phrase is none.
+     * A client gets the products of its project as {@code purchased_service} and a program need as {@code purchased_need};
+     * a voice keeps its own words (its use and need). Nothing is guessed where the role is unclear.
+     */
+    private void references(final Run run) {
+        final Set<String> seen = new LinkedHashSet<>();
+        int found = 0;
+        // project profiles
+        final Matcher pc = PROFILE_CUSTOMER.matcher(run.text);
+        while (pc.find() && found < MAX_DOCUMENTED) {
+            final int from = pc.end(), limit = Math.min(run.text.length(), from + 400);
+            final Matcher field = PROFILE_FIELD.matcher(run.text).region(from, Math.min(run.text.length(), from + 800));
+            if (!field.find()) {
+                continue;
+            }
+            final int to = Math.min(limit, field.start());
+            String project = null;
+            final Matcher fields = PROFILE_FIELD.matcher(run.text).region(from, Math.min(run.text.length(), from + 800));
+            while (fields.find()) {
+                if (fields.group(1).matches("(?i)Auftrag|Projekt|Leistung(?:en)?|Umfang|Project|Scope")) {
+                    project = fields.group(2).trim();
+                    break;
+                }
+            }
+            final String context = run.text.substring(pc.start(), Math.min(run.text.length(), from + 800));
+            found += documented(run, run.text.substring(from, to).replace('\n', ' '), from, project == null ? context : project, context, seen);
+        }
+        // headings of a reference page
+        if (run.kinds.contains(PageKind.REFERENCES)) {
+            final Matcher h = REFERENCE_HEADING.matcher(run.text);
+            while (h.find() && found < MAX_DOCUMENTED) {
+                final int next = run.text.indexOf("\n#", h.end());
+                final String context = run.text.substring(h.start(), Math.min(next < 0 ? run.text.length() : next, h.end() + 400));
+                // "für"/"for" also names a purpose ("… for Rocket Manufacturing"): there only a name with a legal form is a client
+                if (h.group(2).matches("(?i)bei|at") || LEGAL_FORM.matcher(h.group(3)).find()) {
+                    found += documented(run, h.group(3), h.start(3), h.group(1), context, seen);
+                }
+            }
+        }
+        // customers' voices: a role line with the company, then the words ("Leiter Revision, Verbund AG." / "Wir nutzen …"), or the
+        // quoted words, then the signature ("„Mit white duck haben wir …“" / "Ronny Büchner. Managing Director. ESYON GmbH.")
+        final String[] paragraphs = run.text.split("\n[ \t]*\n");
+        final int[] starts = new int[paragraphs.length];
+        for (int i = 0, at = 0; i < paragraphs.length; i++) {
+            starts[i] = Math.max(0, run.text.indexOf(paragraphs[i], at));
+            at = Math.max(at, starts[i] + paragraphs[i].length());
+        }
+        for (int i = 0; i + 1 < paragraphs.length && found < MAX_DOCUMENTED; i++) {
+            final Matcher role = VOICE_ROLE.matcher(paragraphs[i].trim());
+            String company = null, words = null;
+            int named = -1;
+            if (QUOTED.matcher(paragraphs[i]).find()) {
+                company = signed(paragraphs[i + 1]);
+                words = paragraphs[i].trim();
+                named = starts[i + 1];
+            } else if (role.matches()) {
+                company = role.group(2).trim();
+                words = paragraphs[i + 1].trim();
+                named = starts[i];
+            }
+            if (company == null || words.length() < 20 || !BusinessSignals.customerVoiceSection(run.text, named) || ownName(run, company)) {
+                continue;
+            }
+            final Mention client = client(run, company, named, seen);
+            if (client == null) {
+                continue;
+            }
+            purchases(run, client, run.text.indexOf(company, named), "", words);
+            // the client's own words: its use and its need, read for it
+            BusinessSignals.extract(words, client, run.out, 2, Claim.KIND_RULE, "text", "text:" + run.text.indexOf(words, Math.max(0, starts[i] - 1)));
+            found++;
+        }
+    }
+
+    /** The clients named in {@code names} (each a client of the operator) with the products and program needs of their project. */
+    private int documented(final Run run, final String names, final int at, final String project, final String context, final Set<String> seen) {
+        int n = 0;
+        for (final String raw : NAME_SPLIT.split(names.replaceAll("\\s+", " ").trim())) {
+            final String name = raw.replaceAll("[.!:]+$", "").replaceAll("^[„“\"']|[„“\"']$", "").trim();
+            final Mention client = client(run, name, at, seen);
+            if (client != null) {
+                purchases(run, client, Math.max(0, run.text.indexOf(name, Math.max(0, at - 5))), project, project + " " + context);
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The client named {@code name} near {@code at}, as {@code client customer_of operator}; null if it is none or named before. */
+    private Mention client(final Run run, final String name, final int at, final Set<String> seen) {
+        if (!clientName(name) || ownName(run, name) || !seen.add(Normalizers.key(name))) {
+            return null;
+        }
+        final int start = Math.max(0, run.text.indexOf(name, Math.max(0, at - 5)));
+        final Mention client = organisation(run, name, start, start + name.length());
+        if (client == null || client.ref.equals(run.subject.ref)) {
+            return null;
+        }
+        relation(run, client, Vocabulary.CUSTOMER_OF, run.subject, start, start + name.length(), 0.65);
+        return client;
+    }
+
+    /**
+     * The products of the client's project as {@code purchased_service} and its team or leadership development program as
+     * {@code purchased_need}, with the project's name and state; a past building or care project is no need of the client now.
+     */
+    private void purchases(final Run run, final Mention client, final int at, final String project, final String text) {
+        final String state = PROJECT_RUNNING.matcher(text).find() ? "running" : PROJECT_DONE.matcher(text).find() ? "completed" : "unknown";
+        final Signals vocab = KgVocabularies.get().signals;
+        final String excerpt = Normalizers.clip(text.replaceAll("\\s+", " ").trim(), 300);
+        final String projectName = project.isBlank() ? "" : Normalizers.clip(project.replaceAll("\\s+", " ").trim(), 120);
+        final int start = Math.max(0, at);
+        for (final String product : vocab.products(text)) {
+            final Map<String, Object> v = new java.util.TreeMap<>(Map.of("product", product, "context", "purchased_service", "section", "references",
+                    "scope", "unspecified", "system_role", "unspecified", "state", state));
+            if (!projectName.isEmpty()) {
+                v.put("project", projectName);
+            }
+            run.out.add(new Claim(client.ref, Vocabulary.SYSTEM_SIGNAL, null, BusinessSignals.located(Values.canonical(v), "text:" + start), 2,
+                    Claim.KIND_RULE, false, "text:" + start, excerpt));
+        }
+        for (final String need : vocab.needs(text)) {
+            if (!List.of("leadership-development", "team-development").contains(need)) {
+                continue;
+            }
+            final Map<String, Object> v = new java.util.TreeMap<>(Map.of("need", need, "context", "purchased_need", "section", "references",
+                    "scope", "unspecified", "state", state));
+            if (!projectName.isEmpty()) {
+                v.put("project", projectName);
+            }
+            run.out.add(new Claim(client.ref, Vocabulary.BUSINESS_NEED_SIGNAL, null, BusinessSignals.located(Values.canonical(v), "text:" + start), 2,
+                    Claim.KIND_RULE, false, "text:" + start, excerpt));
+        }
+    }
+
+    /**
+     * The company of a signature below a client's quoted words: its last part, with a legal form or after a role
+     * ("**Ronny Büchner. **Managing Director. ESYON GmbH.", "Martin Kloker, Novicon GmbH."); null for anything else.
+     */
+    static String signed(final String paragraph) {
+        final String line = paragraph.replaceAll("[*_]+", " ").replaceAll("\\s+", " ").trim().replaceAll("[\\s.,]+$", "");
+        if (line.length() < 4 || line.length() > 160 || QUOTED.matcher(line).find()) {
+            return null;
+        }
+        final String[] parts = SIGNATURE_SPLIT.split(line);
+        if (parts.length < 2 || parts.length > 4) {
+            return null;
+        }
+        final String company = parts[parts.length - 1].trim();
+        final boolean afterRole = parts.length > 2 && ROLE.matcher(String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length - 1))).find();
+        return (LEGAL_FORM_ANY_CASE.matcher(company).find() || afterRole) && clientName(company) ? company : null;
+    }
+
+    /** True if {@code name} is the operator's own (its name or the site's address, "white duck GmbH" on whiteduck.de). */
+    private static boolean ownName(final Run run, final String name) {
+        final String bare = bare(name);
+        if (bare.length() < 3) {
+            return false;
+        }
+        final String site = run.host == null ? "" : run.host.toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "").replaceFirst("\\.[^.]+$", "")
+                .replaceAll("[^\\p{L}\\p{N}]", "");
+        return bare.equals(site) || run.subject != null && run.subject.name != null && bare.equals(bare(run.subject.name));
+    }
+
+    private static String bare(final String name) {
+        return LEGAL_FORM_ANY_CASE.matcher(name).replaceAll("").replaceAll("[^\\p{L}\\p{N}]", "").toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The name of a client: an organisation's (a legal form, a capital, or a brand with an inner capital such as "regio iT"),
+     * no person, no menu word, not the reader and no phrase.
+     */
+    static boolean clientName(final String name) {
+        if (name.length() < 2 || name.length() > 120 || name.split("\\s+").length > 10 || BusinessFacts.personLike(name)
+                || NOT_A_NAME.matcher(name).find() || NOT_A_CLIENT.matcher(name).find()) {
+            return false;
+        }
+        if (LEGAL_FORM_ANY_CASE.matcher(name).find()) {
+            return true;
+        }
+        final int first = name.codePointAt(0);
+        return Character.isUpperCase(first) || Character.isDigit(first) || name.matches("(?u)\\p{Ll}+\\s+\\p{Ll}*\\p{Lu}[\\p{L}]*.*");
     }
 
     /** An organisation named on the page: local to the page (a legal name also gets the operator-name key of the domain). */

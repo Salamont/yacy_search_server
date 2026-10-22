@@ -574,6 +574,7 @@
       <classpath><pathelement location="build/scoutro-kg-offer-evidence-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
       <arg value="net.yacy.scoutro.knowledge.extract.ServiceOfferEvidenceTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.OfferEvidenceRule8Test"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.DocumentedRelationsTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.ServiceOfferPublicationTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorInvalidReasonTest"/>

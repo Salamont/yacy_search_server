@@ -47,8 +47,10 @@ after the merge is a separate decision of the operator.
   business view names only the categories (`competitors.categories`, `path`). Derived at reading: no stored derivation, no
   fact, no matching input, **not part of the export, the download or the change feed**.
 - **B2, customers per service and reason** (`BusinessSignals`, `MatchingProjection`, `knowledge.js`): every reason names its
-  kind of evidence (`evidence_kind`: need, use, job requirement); support sought for an own migration reads as a planned
-  migration. Customer and competitor are not exclusive. `MatchingRules.VERSION` stays 1: every correct suggestion of today
+  kind of evidence (`evidence_kind`: need, use, job requirement, reference); support sought for an own migration reads as a
+  planned migration. Customer and competitor are not exclusive. The clients a provider documents (project profile,
+  reference heading, customer's voice) are `customer_of` relations with source, project and state; their purchase is a
+  reason of the kind `reference` for the other providers of the service. `MatchingRules.VERSION` stays 1: every correct suggestion of today
   stays visible.
 - Details: [knowledge graph, section 36](SCOUTRO_KNOWLEDGE_GRAPH.md#36-offers-back-customers-and-competitors-apart-0120),
   [matching](SCOUTRO_MATCHING.md).
@@ -65,7 +67,7 @@ Run on Olares without deployment (package repository, `docs/OPENCODE-GATES-0.12.
 | T3 protection cases | the tool "CI/CD", "TYPO3 CMS", other fields, navigation "Kontakt/Karriere": no return | tests pass (`OfferEvidenceRule8Test`); phase 2: no counterexample offered |
 | T4 LLM | STELLWERK's SAP DRC, Fast Close, Cash Management accepted (≤ 40 requests) | phase 2 (37 requests): SAP DRC and Fast Close accepted; Cash Management not: its pages hold 95–104 characters in Solr (the text loss of crawl or parsing, a separate item) |
 | T5 effort | the new LLM candidates and the services pages asked again (count), the re-read's duration | phase 2: 192,862 tracked pages, ≈ 47 min of extraction (14.6 ms per page); 991 new candidates and 7,404 services pages asked again, ≈ 16,900 model requests in estimate |
-| T6 customer/competitor | the plan's table as a test; pairs of today's suggestions judged from the provider's view | phase 2: of 34 pairs judged "provider of the product itself" 7 still shown (0.11.7: 32); of 7 judged customers 1 shown (0.11.7: 5). The owner set the rule (22 October 2026): a pair is judged from the provider's view (could the candidate buy its concrete services?), roles coexist per service, references may prove a business relationship. The reference is checked against that rule (phase 3b, with a sample per collection) before verdicts or rules change |
+| T6 customer/competitor | the plan's table as a test; pairs of today's suggestions judged from the provider's view | judged from the provider's view (owner rules of 22 October 2026; [the reference](SCOUTRO_GATE_T6_0.12.0.md)): 80 pairs of phase 1 and phase 3b, stored contributions read again with round 2. stackfinder: 6 pairs whose signal holds, all shown (0.11.7: all); of 57 whose signal does not hold 8 still shown (0.11.7: 50), 7 of them postings of two consultancies whose employer and site the graph keeps apart, now covered by the employer named as its site (to be measured on Olares, phase 3c). checkthecoach: 17 pairs resting on one reader's sentence, none shown (0.11.7: 17). Documented purchases (references, testimonials) add positive fits after the re-extraction. bauteamcheck and edelsenior: no customer suggestion in production; their needs are counted in phase 3c |
 
 Model budget of all test runs up to 0.12.0: at most 300 requests, at most 40 per run.
 

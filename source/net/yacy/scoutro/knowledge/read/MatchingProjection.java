@@ -234,6 +234,8 @@ public final class MatchingProjection {
             case "required_competence": case "desirable_competence": return "job_requirement";
             case "internal_use": return "use";
             case "planned_migration": case "planned_need": case "explicit_need": case "organizational_transition": return "need";
+            // 0.12.0 (T6, round 2): a purchase documented by another provider's reference
+            case "purchased_service": case "purchased_need": return "reference";
             default: return null;
         }
     }

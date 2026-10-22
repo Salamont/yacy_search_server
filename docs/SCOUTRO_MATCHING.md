@@ -288,8 +288,9 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
 - Every contribution names its kind of evidence, `evidence_kind`
   (`MatchingProjection.evidenceKind`): `need` (`planned_migration`, `planned_need`,
   `explicit_need`, `organizational_transition`), `use` (`internal_use`) or
-  `job_requirement` (`required_competence`, `desirable_competence`); null for other
-  contexts. Read at projection, nothing stored.
+  `job_requirement` (`required_competence`, `desirable_competence`), `reference`
+  (`purchased_service`, `purchased_need`, below); null for other contexts. Read at
+  projection, nothing stored.
 - `BusinessSignals` reads support sought for an own migration ("Für unsere
   S/4HANA-Migration suchen wir externe Unterstützung", "Wir suchen einen Partner für die
   Migration auf SAP S/4HANA") as `planned_migration` of the company; a sentence offering
@@ -330,6 +331,27 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
   - Tests: `BusinessSignalsTest.clientsVoicesOthersUseAndServiceWordsAreNoOwnUse`, `voicesBelowACustomersHeadingAreTheClientsUse`,
     `MatchingTest.aProviderOfTheProductItselfCanBeACustomerButNotByItsClientsVoices`, `consultantTitlesWithWordsBetweenAreOwnCapacity`,
     `ownCapacityAndSystemIntegratorJobsAreExcludedButCareConsultingIsNot`.
+  - **Documented purchases** (the owner's reference case: STELLWERK's success story "S/4HANA Release-Wechsel bei E.V.A. &
+    regio iT"): a client named by a provider's project profile, reference heading or customer's voice
+    (`BusinessRules.references`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4) carries the project's products as a `system_signal`
+    with the context `purchased_service`, a team or leadership development program as a `business_need_signal` with
+    `purchased_need`. It meets every other provider of that service: strength `stated`, score as own use, evidence kind
+    `reference`, the reason "… meets a documented purchase of … (a reference of another provider); present need not
+    reconfirmed". The documenting provider's own reference (the same site) makes no suggestion: the company is its client
+    already. Such a signal skips the reference-page rule and the sentence reader's context check (it comes from the reader of
+    references); a provider of the product itself can still be such a client. A purchased building or care project is no
+    need. The documented relation proves the relationship to the documenting provider only; for the others it shows a
+    possible fit.
+  - Tests: `DocumentedRelationsTest`, `MatchingTest.aPurchaseDocumentedByAnotherProvidersReferenceIsAReason`,
+    `theOwnReferenceOfAProviderNamesAClientNoSuggestion`, `aPurchasedProgramIsANeedButAPastBuildingIsNot`.
+  - **The employer named as its site** (production: QUANTO Solutions on quanto-solutions.de, Rewion on rewion.com): the
+    posting's employer and the site's unnamed operator can be two entities of the graph. An employer whose name is the
+    site's (registrable domain without its suffix, compared without legal form and punctuation) is the site's operator
+    (`kg_entity_key` `site_operator`/`domain_operator` of the domain): the operator's offer of the product or its role as an
+    IT consultancy counts as the employer's (`MatchingRules.siteOffersItself`). A recruiter's or a portal's posting for
+    another company is not affected: that company's name is not the site's. A consultant title without the product
+    ("Senior Business Consultant Transformation") is delivery capacity too, but, as every title, only together with an
+    employer offering the product. Test: `MatchingTest.theEmployerNamedAsItsSiteOffersWhatTheSitesOperatorOffers`.
 - Possible competitors are no matching kind and no derivation: they are read per category
   on demand (`…/kg/entities/{id}/competitors`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4).
 - The plan's table is `MatchingTest.customerRowsOfTheT6Table`.
