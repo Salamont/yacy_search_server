@@ -467,6 +467,8 @@ public final class KgSchema {
      * new title proof (rule/8, {@code LlmQueue.SERVICE_RECHECK}); a later rule version does not repeat it by itself.
      */
     public static final String META_LLM_SERVICE_RECHECK = "llm_service_recheck";
+    /** The rule of the LLM tier's per-host cap the skipped pages were decided by (0.12.1). */
+    public static final String META_LLM_HOST_CAP_RULE = "llm_host_cap_rule";
     /** End of the last derivation of linked_to, same_operator and the suggested matches. */
     public static final String META_DERIVED_AT = "derived_at";
 }

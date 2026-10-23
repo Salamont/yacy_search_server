@@ -187,8 +187,29 @@ public final class RuleExtractor {
         return url != null && (path == null || path.isEmpty() || "/".equals(path) || path.matches("(?i)^/(?:index\\.(?:html?|php)|home|start|de|en)/?$"));
     }
 
+    /**
+     * 0.12.1: the path of a technical resource of a site, never a page of its business: media, scripts, styles, fonts, archives and
+     * the machine interfaces of a CMS (WordPress' wp-json and wp-includes, oEmbed, feeds, xmlrpc). Such addresses filled the LLM
+     * tier's places of a host (a site's wp-json, script and preview images queued before its project references).
+     */
+    public static final Pattern RESOURCE = Pattern.compile("(?i)(?:/(?:wp-json|wp-includes|oembed|xmlrpc\\.php|feed)(?:/|$)"
+            + "|\\.(?:jpe?g|png|gif|svg|webp|avif|bmp|ico|css|js|mjs|json|woff2?|ttf|otf|eot|mp[34]|webm|mov|avi|zip|gz|rar|7z)$)");
+
+    /** True if the address is a technical resource ({@link #RESOURCE}) by its path. */
+    public static boolean resource(final String url) {
+        try {
+            final String path = url == null ? null : new URI(url).getRawPath();
+            return path != null && RESOURCE.matcher(path).find();
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
     /** True if tier 2 reads the text of this page (imprint, contact and similar paths or titles, home page, pages with structured data). */
     public static boolean candidate(final String url, final List<String> titles, final Extraction tier1) {
+        if (resource(url)) {
+            return false;
+        }
         if (tier1 != null && !tier1.subjects(1).isEmpty()) {
             return true;
         }

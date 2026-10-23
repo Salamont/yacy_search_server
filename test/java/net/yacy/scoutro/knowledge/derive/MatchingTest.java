@@ -75,6 +75,82 @@ public class MatchingTest {
     private JSONObject page(String... scopes)throws Exception{return new Suggestions(reader).page(provider,0,100,reader.viewer(List.of("a")),reader.viewer(List.of(scopes)));}
     private long count()throws Exception{return store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution"));}
     private void withdraw(String id)throws Exception {store.write(WriteClass.MAINTENANCE,0,c->{try(PreparedStatement p=c.prepareStatement("UPDATE kg_observation SET assertion_status='withdrawn' WHERE public_id=?")){p.setString(1,id);p.executeUpdate();}return null;});}
+    /**
+     * The page of an observation, active and processed after it (kg_doc), read again with evidence of the observation's tier from
+     * {@code extractor} (or none, with null), or (state 3) gone from the index.
+     */
+    private void page(String observation,int state,String extractor)throws Exception {
+        store.write(WriteClass.SYSTEM,0,c->{
+            String source;
+            try(PreparedStatement p=c.prepareStatement("SELECT source_id FROM kg_observation WHERE public_id=?")) {
+                p.setString(1,observation);try(ResultSet r=p.executeQuery()){r.next();source=r.getString(1);}
+            }
+            try(PreparedStatement p=c.prepareStatement("INSERT OR IGNORE INTO kg_doc(doc_id,state,token,solr_version,state_since,processed_at)"
+                    +" VALUES(?,?,zeroblob(8),1,0,?)")){p.setString(1,source);p.setInt(2,state);p.setLong(3,now+1);p.executeUpdate();}
+            if(extractor==null)return null;
+            String[] x=extractor.split("/");
+            try(PreparedStatement p=c.prepareStatement("INSERT OR IGNORE INTO kg_extractor(tier,name,version) VALUES(1,?,?)")){p.setString(1,x[0]);p.setString(2,x[1]);p.executeUpdate();}
+            String statement=KgIds.statementId(candidate,"name",source+extractor);
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_statement(public_id,subj,pred,obj_val,obj_key,quality,first_seen)"
+                    +" SELECT ?,e.ent_rowid,(SELECT min(term_id) FROM kg_vocab WHERE name='name'),?,randomblob(16),1,0 FROM kg_entity e WHERE e.public_id=?")) {
+                p.setString(1,statement);p.setString(2,extractor);p.setString(3,candidate);p.executeUpdate();
+            }
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_evidence(stmt_rowid,doc_rowid,tier,ext_id,kind,certainty,observed_at)"
+                    +" SELECT s.stmt_rowid,d.doc_rowid,1,x.ext_id,1,1,0 FROM kg_statement s,kg_doc d,kg_extractor x"
+                    +" WHERE s.public_id=? AND d.doc_id=? AND x.tier=1 AND x.name=? AND x.version=?")) {
+                p.setString(1,statement);p.setString(2,source);p.setString(3,x[0]);p.setString(4,x[1]);p.executeUpdate();
+            }return null;
+        });
+    }
+    /** 0.12.1: the reading of an earlier extractor that the page read again no longer carries feeds no matching. */
+    @Test public void anEarlierReadingOfAPageReadAgainIsNoMatchingInput()throws Exception {
+        offer("SAP S/4HANA Beratung");String use=signal("Wir nutzen SAP S/4HANA intern.","job");
+        page(use,1,"rule/8");run();
+        assertEquals("the page now carries only the readings of another extractor",0,count());
+        assertEquals(0,page("a","b").getInt("total"));
+        page(use,1,"jsonld/5");run();
+        assertEquals("its own extractor still reads it",1,count());
+    }
+    @Test public void anEarlierOfferOfAPageReadAgainIsNoOffer()throws Exception {
+        String offer=offer("SAP S/4HANA Beratung");signal("Wir nutzen SAP S/4HANA intern.","job");
+        page(offer,1,null);run();
+        assertEquals("the page was read again after the offer and carries no evidence of its tier",0,count());
+    }
+    @Test public void aPageGoneFromTheIndexKeepsItsReadings()throws Exception {
+        offer("SAP S/4HANA Beratung");String use=signal("Wir nutzen SAP S/4HANA intern.","job");
+        page(use,3,"rule/8");run();
+        assertEquals("history: a removed page is no newer reading",1,count());
+    }
+    /** 0.12.1: one offer per product and service, however many pages name it. */
+    @Test public void pagesNamingTheSameServiceAreOneOffer()throws Exception {
+        offer("SAP S/4HANA Beratung");offer("SAP S/4HANA Beratung");offer("SAP S/4HANA Beratung");
+        signal("Wir nutzen SAP S/4HANA intern.","job");
+        JSONObject result=run();
+        assertEquals(1,count());assertEquals("one offer checked against the one signal",1,result.getInt("checked"));
+    }
+    /** 0.12.1: a service named as the product is its offer; the product of its quote alone is none. */
+    @Test public void aServiceNamedAsTheProductIsItsOffer()throws Exception {
+        observation(provider,"service","name",KgJson.obj("literal","SAP"),"SAP Advanced Financial Closing","a");
+        observation(provider,"service","name",KgJson.obj("literal","Cloud"),"- SAP Analytics Cloud. - SAP Query.","a");
+        signal("Wir nutzen SAP unternehmensweit intern.","job");run();
+        assertEquals("the SAP service; the cloud service names no product of its own",1,count());
+    }
+    @Test public void aServiceNamedAsTheGeneralProductProvesNoSpecificStack()throws Exception {
+        observation(provider,"service","name",KgJson.obj("literal","SAP"),"SAP","a");
+        signal("Wir nutzen SAP S/4HANA intern.","job");run();
+        assertEquals("general SAP does not prove S/4HANA (docs/SCOUTRO_MATCHING.md)",0,count());
+    }
+    /** 0.12.1: offers written with verbs. */
+    @Test public void offersWrittenWithVerbsAreOffers()throws Exception {
+        for(String text:List.of("Unsere Experten führen SAP DRC in Ihrem S/4HANA-System ein.","Wir beraten Sie bei SAP S/4HANA.",
+                "Wir begleiten Ihre SAP S/4HANA Einführung.","Wir setzen SAP S/4HANA bei Ihnen um.","Wir unterstützen Sie mit SAP S/4HANA."))
+            assertFalse(text,MatchingRules.offers(probe(text)).isEmpty());
+        assertTrue("a product named without any support is no offer",MatchingRules.offers(probe("SAP S/4HANA Releases im Überblick.")).isEmpty());
+    }
+    private MatchingRules.Observation probe(String text)throws Exception {
+        String id=observation(provider,"service","description",KgJson.obj("literal",text),text,"a");
+        return store.read(c->MatchingRules.Observation.read(c,id));
+    }
     @Test public void itSupportIsExactProductAndNeedsNoTargetIndustry()throws Exception {
         offer("SAP S/4HANA Beratung");signal("Wir nutzen SAP S/4HANA intern.","job");run();
         assertEquals(1,page("a","b").getInt("total"));assertEquals(0,page("a").getInt("total"));

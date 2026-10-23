@@ -126,6 +126,16 @@ public class CrawlStartRecoveryTest {
                 "https://www.example.com/docs#top", "https://example.com")) {
             Assert.assertFalse("crawled: " + own, own.matches(filter));
         }
+        // 0.12.1: technical resources and documents are never loaded; pages with similar words are
+        for (final String skipped : Arrays.asList("https://example.com/wp-json/", "https://example.com/wp-json/oembed/1.0/embed?url=x&format=xml",
+                "https://example.com/wp-includes/js/wp-embed.min.js", "https://example.com/wp-content/uploads/2020/10/footer.JPG",
+                "https://example.com/files/success-story.pdf", "https://example.com/a/preise.docx?v=2", "https://example.com/feed/")) {
+            Assert.assertTrue("not crawled: " + skipped, skipped.matches(filter));
+        }
+        for (final String page : Arrays.asList("https://example.com/feedback/", "https://example.com/referenzen/success-stories/",
+                "https://example.com/pdf-erstellen/", "https://example.com/jobs/sap-berater.html")) {
+            Assert.assertFalse("crawled: " + page, page.matches(filter));
+        }
         // start marker, status, idempotent replay and stop work with the combined filter
         final CrawlRecord rec = only();
         Assert.assertEquals(rec.startMarker, ScoutroActions.startMarker(filter));

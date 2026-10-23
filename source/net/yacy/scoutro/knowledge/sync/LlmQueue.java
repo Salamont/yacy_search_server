@@ -48,6 +48,8 @@ final class LlmQueue {
 
     static final String SKIP_NOT_SELECTED = "not_selected";
     static final String SKIP_NOT_CANDIDATE = "not_candidate";
+    /** The rule of the per-host cap (0.12.1: service and reference pages keep places, technical resources take none). */
+    static final String HOST_CAP_RULE = "2";
     static final String SKIP_HOST_CAP = "host_cap";
     static final String SKIP_NO_HOST = "no_host";
     static final String FAILED = "llm_failed";
@@ -144,6 +146,13 @@ final class LlmQueue {
     private LlmQueue() {}
 
     /** Queue priority by path (0 first): imprint and about pages, then services, locations and contact, then the home page. */
+    /** True for a page of the site's services, of one service or of its references, by its address (0.12.1, host cap). */
+    static boolean corePage(final String url) {
+        final java.util.Set<BusinessRules.PageKind> kinds = BusinessRules.kinds(url, null);
+        return kinds.contains(BusinessRules.PageKind.SERVICES) || kinds.contains(BusinessRules.PageKind.SERVICE_DETAIL)
+                || kinds.contains(BusinessRules.PageKind.REFERENCES);
+    }
+
     static int priority(final String url) {
         String path;
         try {

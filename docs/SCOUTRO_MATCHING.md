@@ -359,6 +359,18 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
   on demand (`…/kg/entities/{id}/competitors`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 36.4).
 - The plan's table is `MatchingTest.customerRowsOfTheT6Table`.
 
+## 0.12.1: the current reading, one offer per service, offers written with verbs
+
+- **Only the current reading of a page is an input** (`MatchingRules.current`): an observation of an active page that was
+  processed after it and carries no evidence of its tier from its extractor any more is history, not a matching input
+  (offers, signals, the employer's own offer, retirements, business roles; at reading through `Observation.current`). A page
+  gone from the index keeps its observations. Observations are never deleted for it.
+- **One offer per rule, product and service of a provider** (`MatchingService.distinct`), its evidence the latest
+  observation; checks per provider shrink by the number of pages naming the service.
+- **Offers written with verbs** (`MatchingRules.SUPPORT`) and a service named or categorized as the product itself are
+  offers of the product. Products stay exact.
+- Details: docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 37.
+
 ## Validation and limits
 
 Targeted SQLite tests cover the rule groups' positives/negatives, exact products,

@@ -147,13 +147,14 @@ public final class MatchingService {
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE organization_id=? AND"
                 +" (predicate='service_area' OR (predicate='system_signal' AND json_valid(value) AND json_extract(value,'$.context')='offered_capability')"
                 +" OR (subject_type='service' AND predicate IN('name','category','description'))) AND assertion_status='recorded'"
-                +" ORDER BY observation_rowid LIMIT ?")) {
+                +" AND "+MatchingRules.current("kg_observation")+" ORDER BY observation_rowid LIMIT ?")) {
             p.setString(1,out.provider);p.setInt(2,MAX_PROVIDER_FACTS+1);
             try(ResultSet r=p.executeQuery()){while(r.next()) {
                 if(++facts>MAX_PROVIDER_FACTS){out.deferred="provider_fact_limit";out.complete=true;out.unchanged=false;return out;}
                 Observation o=Observation.read(c,r);offers.addAll(MatchingRules.offers(o));if("service_area".equals(o.predicate))regions.add(o);
             }}
         }
+        offers=distinct(offers);
         offers.sort(Comparator.comparing(MatchingService::offerKey));String resume=state.optString("offer","");
         for(Offer offer:offers) {
             String key=offerKey(offer);if(key.compareTo(resume)<0)continue;
@@ -161,7 +162,8 @@ public final class MatchingService {
             String predicate=List.of("it-support","cad-bim").contains(offer.rule)?"system_signal":"business_need_signal";
             String field="system_signal".equals(predicate)?"product":"need";
             try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='"+predicate+"' AND json_valid(value)"
-                    +" AND json_extract(value,'$."+field+"')=? AND observation_rowid>? ORDER BY observation_rowid LIMIT ?")) {
+                    +" AND json_extract(value,'$."+field+"')=? AND observation_rowid>? AND "+MatchingRules.current("kg_observation")
+                    +" ORDER BY observation_rowid LIMIT ?")) {
                 p.setString(1,offer.key);p.setLong(2,after);p.setInt(3,remaining-out.checked+1);
                 try(ResultSet r=p.executeQuery()){while(r.next()) {
                     if(out.checked==remaining){out.nextOffer=key;out.nextCandidate=after;return out;}
@@ -176,6 +178,16 @@ public final class MatchingService {
         return out;
     }
     private static String offerKey(Offer offer){return offer.evidence.id+":"+offer.rule+":"+offer.key+":"+offer.service;}
+    /**
+     * One offer per rule, product or need and service of a provider (0.12.1): each page naming the provider's service was its own
+     * offer before, checked against every signal of the product again (59 observations of one "SAP" service: 59 times the same
+     * 3,700 signals). The offer keeps the latest of its observations (the newest reading) as its evidence.
+     */
+    static List<Offer> distinct(List<Offer> offers) {
+        Map<String,Offer> one=new LinkedHashMap<>();
+        for(Offer offer:offers)one.put(offer.rule+"\0"+offer.key+"\0"+offer.service,offer);
+        return new ArrayList<>(one.values());
+    }
     private static void upsert(Connection c,Pending row,String generation,long now)throws SQLException {
         Offer offer=row.offer;Observation signal=row.signal;
         String kind=offer.kind==3?"suggested_customer":"suggested_partner";
