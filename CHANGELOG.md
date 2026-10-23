@@ -2,6 +2,21 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.12.1 / 1.942-scoutro.44 — the current reading in the matching, one offer per service, the LLM tier's places
+
+On 0.12.0: no schema change, no re-extraction, no vocabulary change; `MatchingRules.VERSION` stays 1.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.12.1.md).
+
+- Matching: only the current reading of a page is an input. An observation of an active page that was processed after it
+  and carries no evidence of its tier from its extractor any more is history (a provider's menu item read as its own system
+  by an earlier rule version); a page gone from the index keeps its observations. One offer per rule, product and service
+  of a provider instead of one per page naming it. Offers written with verbs ("führen SAP DRC … ein", "wir beraten",
+  "begleiten") and a service named or categorized as the product itself are offers; products stay exact.
+- LLM tier: technical resources (wp-json, scripts, images, feeds) are no candidates and take no place of their host; pages of
+  the services, of one service and of the references keep a place up to twice the per-host cap; the pages skipped at the cap
+  are decided once more, once per graph.
+- Crawl: every crawl start leaves out technical resources and documents (PDF, office files, e-books). No crawl is repeated.
+
 ## 0.12.0 / 1.942-scoutro.43 — services back, customers and competitors apart (one update from 0.11.7, including 0.11.8)
 
 On 0.11.8 (published, not installed in production): no schema change (knowledge graph schema 9; a partial index created

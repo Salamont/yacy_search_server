@@ -703,6 +703,36 @@ public class LlmServiceTest {
         assertEquals("imprint and about pages first, contact page left out", 3, this.model.calls.get());
     }
 
+    /** 0.12.1: a page of the site's services or references keeps a place over the cap, up to twice it; a careers page does not. */
+    @Test
+    public void serviceAndReferencePagesKeepPlacesOverTheCap() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
+        add("BBBBBBhost01", "https://www.muster-pflege.de/ueber-uns", "c1", LD, TEXT + " Seit 1990.");
+        add("CCCCCChost01", "https://www.muster-pflege.de/karriere/kultur", "c1", LD, TEXT + " Seit 1991.");
+        add("DDDDDDhost01", "https://www.muster-pflege.de/referenzen/projekte", "c1", LD, TEXT + " Seit 1992.");
+        add("EEEEEEhost01", "https://www.muster-pflege.de/leistungen/tagespflege", "c1", LD, TEXT + " Seit 1993.");
+        add("FFFFFFhost01", "https://www.muster-pflege.de/leistungen/kurzzeitpflege", "c1", LD, TEXT + " Seit 1994.");
+        settleSync();
+        settleLlm();
+        assertEquals(List.of("1:", "1:", "3:host_cap", "1:", "1:", "3:host_cap"), List.of(llmStatus("AAAAAAhost01"),
+                llmStatus("BBBBBBhost01"), llmStatus("CCCCCChost01"), llmStatus("DDDDDDhost01"), llmStatus("EEEEEEhost01"),
+                llmStatus("FFFFFFhost01")));
+    }
+
+    /** 0.12.1: a technical resource of a site is no candidate and takes no place of its host. */
+    @Test
+    public void technicalResourcesTakeNoPlace() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/wp-json/", "c1", LD, TEXT);
+        add("BBBBBBhost01", "https://www.muster-pflege.de/wp-content/uploads/logo.png", "c1", LD, TEXT + " Seit 1990.");
+        add("CCCCCChost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT + " Seit 1991.");
+        add("DDDDDDhost01", "https://www.muster-pflege.de/ueber-uns", "c1", LD, TEXT + " Seit 1992.");
+        settleSync();
+        settleLlm();
+        assertEquals(List.of("3:not_candidate", "3:not_candidate", "1:", "1:"), List.of(llmStatus("AAAAAAhost01"),
+                llmStatus("BBBBBBhost01"), llmStatus("CCCCCChost01"), llmStatus("DDDDDDhost01")));
+        assertEquals(2, this.model.calls.get());
+    }
+
     @Test
     public void pagesThatAreNoCandidatesAreSkipped() throws Exception {
         add("AAAAAAhost01", "https://www.muster-pflege.de/blog/rezepte", "c1", null, "Ein Rezept für Apfelkuchen.", "Rezepte");

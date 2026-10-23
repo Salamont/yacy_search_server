@@ -28,6 +28,19 @@ public final class MatchingRules {
     private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
     public static final String VERSION="1";
     /**
+     * 0.12.1: the current reading of an observation's page, as an SQL condition on the observation {@code o}. Observations are
+     * history: a page read again by a newer extractor keeps its earlier readings (SCOUTRO_DURABLE_OBSERVATIONS.md), so readings a
+     * later rule version no longer makes (a product name in a menu read as a system in use) fed the matching beside the new ones.
+     * An observation is current unless its page is still active, was processed after the observation was recorded and carries no
+     * evidence of its tier from its extractor any more. A page that left the index keeps its observations (an advertisement that
+     * is gone is still the evidence of its job).
+     */
+    public static String current(String o) {
+        return "(NOT EXISTS(SELECT 1 FROM kg_doc cd WHERE cd.doc_id="+o+".source_id AND cd.state=1 AND cd.processed_at>"+o+".recorded_at)"
+                +" OR EXISTS(SELECT 1 FROM kg_doc cd JOIN kg_evidence ce ON ce.doc_rowid=cd.doc_rowid AND ce.tier="+o+".tier"
+                +" JOIN kg_extractor cx ON cx.ext_id=ce.ext_id WHERE cd.doc_id="+o+".source_id AND cx.name||'/'||cx.version="+o+".extractor))";
+    }
+    /**
      * The checks of one read (0.11.8), by signal, actor and offer: within one read transaction they give the same answer for
      * every contribution that shares them, and a projection of 10,000 contributions asked them again for each (read_timeout).
      * Off unless a reader opens it with {@link #openMemo()}; the matching run never uses it.
@@ -62,7 +75,8 @@ public final class MatchingRules {
         Map<String,Map<String,List<Observation>>> retirements=new HashMap<>();
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='system_signal' AND json_valid(value)"
                 +" AND organization_id IN (SELECT o.organization_id FROM kg_observation o WHERE o.public_id IN ("+ids+"))"
-                +" AND assertion_status='recorded' AND json_extract(value,'$.context') IN('shutdown','completed_migration') ORDER BY observation_rowid")) {
+                +" AND assertion_status='recorded' AND json_extract(value,'$.context') IN('shutdown','completed_migration') AND "+current("kg_observation")
+                +" ORDER BY observation_rowid")) {
             p.setString(1,entity);p.setString(2,entity);
             try(ResultSet r=p.executeQuery()){while(r.next()) {
                 Observation later=Observation.read(c,r);
@@ -80,6 +94,8 @@ public final class MatchingRules {
         public String id,actor,originalActor,subject,type,predicate,text,source,url,revision,status,assertedAt;
         public JSONObject value,identity;
         public Long observedAt;
+        /** False for a reading its page no longer carries ({@link MatchingRules#current}); read with {@link #read(Connection,ResultSet)}. */
+        public boolean current=true;
         public final Map<Integer,String> collections=new TreeMap<>();
         public static Observation read(Connection c,String id)throws SQLException {
             try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE public_id=?")) {
@@ -91,6 +107,9 @@ public final class MatchingRules {
             try(PreparedStatement s=c.prepareStatement("SELECT k.coll_id,k.name FROM kg_observation_scope os"
                     +" JOIN kg_observation b USING(observation_rowid) JOIN kg_collection k USING(coll_id) WHERE b.public_id=? ORDER BY k.name")) {
                 s.setString(1,o.id);try(ResultSet names=s.executeQuery()){while(names.next())o.collections.put(names.getInt(1),names.getString(2));}
+            }
+            try(PreparedStatement s=c.prepareStatement("SELECT 1 FROM kg_observation o WHERE o.observation_rowid=? AND NOT "+current("o"))) {
+                s.setLong(1,r.getLong("observation_rowid"));try(ResultSet old=s.executeQuery()){o.current=!old.next();}
             }return o;
         }
         /**
@@ -109,6 +128,10 @@ public final class MatchingRules {
                     +" JOIN kg_observation b USING(observation_rowid) JOIN kg_collection k USING(coll_id) WHERE b.public_id IN ("+ids+")")) {
                 s.setString(1,entity);s.setString(2,entity);
                 try(ResultSet names=s.executeQuery()){while(names.next()){Observation o=out.get(names.getString(1));if(o!=null)o.collections.put(names.getInt(2),names.getString(3));}}
+            }
+            try(PreparedStatement s=c.prepareStatement("SELECT o.public_id FROM kg_observation o WHERE o.public_id IN ("+ids+") AND NOT "+current("o"))) {
+                s.setString(1,entity);s.setString(2,entity);
+                try(ResultSet old=s.executeQuery()){while(old.next()){Observation o=out.get(old.getString(1));if(o!=null)o.current=false;}}
             }return out;
         }
         /** The row without its collections (enough for {@link #offers}, which never authorizes anything). */
@@ -125,7 +148,7 @@ public final class MatchingRules {
             return o;
         }
         public boolean accessible(Viewer v){return v==null?!collections.isEmpty():v.all()?!collections.isEmpty():collections.keySet().stream().anyMatch(v.collections()::contains);}
-        public boolean usable(){return actor!=null&&"recorded".equals(status)&&!text.isBlank();}
+        public boolean usable(){return actor!=null&&"recorded".equals(status)&&current&&!text.isBlank();}
         public String name() {
             if(!Objects.equals(actor,originalActor))return null;
             JSONArray names=identity.optJSONArray("organization");
@@ -146,6 +169,14 @@ public final class MatchingRules {
         public final List<String> uncertainties=new ArrayList<>();
         public final List<Observation> extra=new ArrayList<>();
     }
+    /**
+     * The words of a provider's support of a product: the nouns and, since 0.12.1, the verbs a provider writes them with ("wir beraten
+     * Sie", "führen SAP DRC in Ihrem System ein", "begleiten Ihre Migration"); the noun alone missed most offers written as sentences.
+     */
+    static final String SUPPORT="Beratung|berat(?:en|e|end)\\b|consulting|Support|Unterstützung|unterstütz(?:en|t|e)\\b|Schulung|schul(?:en|t)\\b"
+            +"|Training|Workshop|Einführung|einführ\\p{L}*|führ(?:en|t|e)\\s+(?:\\S+\\s+){1,8}?ein\\b|Integration|integrier\\p{L}*"
+            +"|Implementierung|implementier\\p{L}*|Betreuung|betreu(?:en|t|e)\\b|Migration|migrier\\p{L}*|begleit(?:en|et|e|ung)\\b"
+            +"|Umsetzung|(?:setzen|setzt)\\s+(?:\\S+\\s+){1,8}?um\\b";
     private static boolean has(String text,String regex){return PATTERNS.computeIfAbsent(regex,r->Pattern.compile("(?iu)"+r)).matcher(text).find();}
     private static String compact(String text){return text.toLowerCase(Locale.ROOT).replaceAll("\\s+"," ").trim();}
 
@@ -161,11 +192,14 @@ public final class MatchingRules {
         if(!service&&!offered)return List.of();
         String text=o.value.optString("literal",o.text)+" "+o.text;
         List<Offer> out=new ArrayList<>();
-        if(has(text,"Beratung|consulting|Support|Unterstützung|Schulung|Training|Einführung|Integration|Implementierung|Betreuung|Migration")) {
-            for(String product:KgVocabularies.get().signals.products(text)) {
-                String rule=Set.of("revit","archicad").contains(product)?"cad-bim":"it-support";
-                out.add(new Offer(o,rule,product,product+" support",3));
-            }
+        Set<String> products=new LinkedHashSet<>();
+        if(has(text,SUPPORT))products.addAll(KgVocabularies.get().signals.products(text));
+        // 0.12.1: a service named or categorized as the product itself ("SAP", software/sap) is a service of it, also without a
+        // word of support (as for an employer's own postings, offersItself); the product of its name only, never of its quote
+        if(service&&List.of("name","category").contains(o.predicate))products.addAll(KgVocabularies.get().signals.products(o.value.optString("literal","")));
+        for(String product:products) {
+            String rule=Set.of("revit","archicad").contains(product)?"cad-bim":"it-support";
+            out.add(new Offer(o,rule,product,product+" support",3));
         }
         if(service) {
             if(has(text,"Architektur|architectur|Entwurfsplanung|Genehmigungsplanung|Generalplanung|Bauplanung"))
@@ -304,7 +338,7 @@ public final class MatchingRules {
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE organization_id=? AND assertion_status='recorded' AND"
                 +" ((predicate='system_signal' AND json_valid(value) AND json_extract(value,'$.context')='offered_capability'"
                 +" AND json_extract(value,'$.product')=?) OR (subject_type='service' AND predicate IN('name','category','description')))"
-                +" ORDER BY observation_rowid LIMIT 2501")) {
+                +" AND "+current("kg_observation")+" ORDER BY observation_rowid LIMIT 2501")) {
             p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
                 Observation o=Observation.fields(r);
                 for(Offer own:offers(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
@@ -418,7 +452,7 @@ public final class MatchingRules {
     }
     private static boolean itConsultancyOf(Connection c,String actor)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT value FROM kg_observation WHERE organization_id=? AND predicate='business_role_evidence'"
-                +" AND assertion_status='recorded' AND json_valid(value)")) {
+                +" AND assertion_status='recorded' AND json_valid(value) AND "+current("kg_observation"))) {
             p.setString(1,actor);try(ResultSet r=p.executeQuery()){while(r.next()) {
                 JSONObject v=Values.json(r.getString(1));if(v==null)continue;
                 if("own_offered_services".equals(v.optString("context"))&&List.of("it_consultancy","system_integrator").contains(v.optString("role")))return true;
@@ -467,7 +501,7 @@ public final class MatchingRules {
         List<Observation> out=new ArrayList<>();
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='system_signal' AND json_valid(value)"
                 +" AND json_extract(value,'$.product')=? AND organization_id=? AND assertion_status='recorded'"
-                +" AND json_extract(value,'$.context') IN('shutdown','completed_migration')")) {
+                +" AND json_extract(value,'$.context') IN('shutdown','completed_migration') AND "+current("kg_observation"))) {
             p.setString(1,product);p.setString(2,signal.actor);
             try(ResultSet r=p.executeQuery()){while(r.next())out.add(Observation.read(c,r));}
         }return out;
@@ -480,7 +514,8 @@ public final class MatchingRules {
         if(project.isBlank()||floor==null)return false;
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='business_need_signal' AND json_valid(value)"
                 +" AND json_extract(value,'$.need')=? AND organization_id=? AND assertion_status='recorded'"
-                +" AND json_extract(value,'$.project')=? AND json_extract(value,'$.context') IN('completed_need','cancelled_need')")) {
+                +" AND json_extract(value,'$.project')=? AND json_extract(value,'$.context') IN('completed_need','cancelled_need')"
+                +" AND "+current("kg_observation"))) {
             p.setString(1,signal.value.optString("need"));p.setString(2,signal.actor);p.setString(3,project);
             try(ResultSet r=p.executeQuery()){while(r.next()){Observation other=Observation.read(c,r);Long time=effectiveTime(other,false);if(time!=null&&time>floor)return true;}}
         }return false;

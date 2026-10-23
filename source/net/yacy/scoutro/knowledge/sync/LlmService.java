@@ -666,6 +666,19 @@ public final class LlmService {
             }
         }
         KgStore.putMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES, RuleExtractor.VERSION);
+        // 0.12.1: the per-host cap keeps places for service and reference pages and counts no technical resource; the pages it
+        // skipped are decided once more under it (a page still over the cap is skipped again, without a request)
+        if (!LlmQueue.HOST_CAP_RULE.equals(KgStore.getMeta(tx, KgSchema.META_LLM_HOST_CAP_RULE))) {
+            if (rules != null || lastExtractor != null || upgraded) {
+                final int n = LlmQueue.reconsider(tx, LlmQueue.SKIP_HOST_CAP);
+                if (n > 0) {
+                    LlmQueue.resetCursors(tx);
+                    KgStore.event(tx, 1, "llm_host_cap_changed", n + " pages skipped at the per-host cap are decided again (rule "
+                            + LlmQueue.HOST_CAP_RULE + ")", this.clock.getAsLong());
+                }
+            }
+            KgStore.putMeta(tx, KgSchema.META_LLM_HOST_CAP_RULE, LlmQueue.HOST_CAP_RULE);
+        }
         // 0.12.0 (C3): the services pages the tier read without an accepted service are asked once more, without the cache
         // whose answer kept only what the former proof accepted; every other page keeps its reading. Once per graph.
         if (KgStore.getMeta(tx, KgSchema.META_LLM_SERVICE_RECHECK) == null) {
@@ -1186,12 +1199,20 @@ public final class LlmService {
                 added[1]++;
                 continue;
             }
+            // 0.12.1: a technical resource (wp-json, a script, an image) is no candidate and takes no place of its host
+            if (RuleExtractor.resource(t.url)) {
+                LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
+                this.counters.skippedNotCandidate.incrementAndGet();
+                continue;
+            }
             Long n = load.get(t.hostId);
             if (n == null) {
                 n = LlmQueue.hostLoad(tx, t.hostId);
             }
-            // a services page asked once more (0.12.0) had its place under the cap as a done page: it keeps it
-            if (n >= this.cfg.llmMaxDocsPerHost && !LlmQueue.SERVICE_RECHECK.equals(t.reason)) {
+            // a services page asked once more (0.12.0) had its place under the cap as a done page: it keeps it; a page of the
+            // site's services or references keeps one up to twice the cap (0.12.1: the places went to whatever page came first)
+            if (n >= this.cfg.llmMaxDocsPerHost && !LlmQueue.SERVICE_RECHECK.equals(t.reason)
+                    && !(LlmQueue.corePage(t.url) && n < 2L * this.cfg.llmMaxDocsPerHost)) {
                 // queued documents of the host are kept; the cap counts them
                 if (!queued(tx, t.docId)) {
                     LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);

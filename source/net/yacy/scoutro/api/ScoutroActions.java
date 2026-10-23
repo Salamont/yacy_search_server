@@ -1178,10 +1178,22 @@ final class ScoutroActions {
         return value instanceof String ? (String) value : null;
     }
 
+    /**
+     * The addresses no Scoutro crawl loads (0.12.1): the technical resources of a site (media, scripts, styles, fonts, archives,
+     * WordPress' wp-json, wp-includes, oEmbed, feeds and xmlrpc) and documents (PDF, office files, e-books), which the owner does
+     * not let the crawler read. They took places of the pages per domain (10 of 46 documents of one site) and were never business
+     * text; the blacklist of the installation stays as it is.
+     */
+    static final String SKIPPED_ADDRESSES = ".*/(?:wp-json|wp-includes|oembed|xmlrpc\\.php|feed)(?:[/?#].*)?"
+            + "|.*\\.(?i:jpe?g|png|gif|svg|webp|avif|bmp|ico|css|js|mjs|json|woff2?|ttf|otf|eot|mp[34]|webm|mov|avi|zip|gz|rar|7z"
+            + "|pdf|docx?|xlsx?|pptx?|odt|ods|odp|rtf|epub)(?:[?#].*)?";
+
     static String mustNotMatch(final CrawlRequest request, final String marker) {
-        final String start = marker == null ? "" : startMarkerFilter(marker);
-        if (!request.hostOnly) return start;
-        return start.isEmpty() ? request.outsideHostFilter() : start + "|" + request.outsideHostFilter();
+        final List<String> filters = new ArrayList<>();
+        if (marker != null) filters.add(startMarkerFilter(marker));
+        if (request.hostOnly) filters.add(request.outsideHostFilter());
+        filters.add(SKIPPED_ADDRESSES);
+        return String.join("|", filters);
     }
 
     private JSONObject dispatchCrawl(final CrawlRequest request, final String marker) throws ApiException {

@@ -3751,3 +3751,74 @@ and `aPurchasedProgramIsANeedButAPastBuildingIsNot`,
 query plan through the partial index), `KnowledgeApiTest.readRoutesValidateTheirParameters`, `AgentCatalogTest`, and the UI
 test `test/scoutro-ui/knowledge-competitors-ui-test.mjs`. The quality gates T0 to T6 of the release run on production data
 read-only before the merge (docs/SCOUTRO_RELEASE_0.12.0.md).
+
+## 37. The current reading in the matching, one offer per service, the LLM tier's places and the crawl's addresses (0.12.1)
+
+### 37.1 Finding (production, 23 October 2026, read only)
+
+- **STELLWERK had no customer suggestion** after 0.12.0, with five services and 4,165 SAP signals in the graph. The matching
+  had no contribution of it: its cycle had not reached it (`cycle_complete` false, `deferred` `work_budget` at 50,000 checks
+  an hour), and every page naming its "SAP" service was an offer of its own, checked against the same 3,700 signals again.
+- **Earlier readings fed the matching.** Observations are history (SCOUTRO_DURABLE_OBSERVATIONS.md): a page read again by a
+  newer extractor keeps its earlier readings. The provider's own menu item "SAP In-House Cash" stood as a system in use and
+  "Kernkompetenz SAP Rechnungswesen" as a requirement, three times per page; the rules of today read neither (the same
+  quotes: `stated_competence` or nothing). The 306 `internal_use` SAP signals had no contribution at all; the samples were
+  such readings, and the matching's context check refused them.
+- **An offer needed a noun** ("Beratung", "Einführung"). "Unsere Experten … führen SAP DRC in Ihrem S/4HANA-System ein",
+  "Wir machen Sie mit SAP Fiori vertraut" and a service named "SAP" were no offer; STELLWERK passed only by the word
+  "Consulting" in its page titles.
+- **The LLM tier's places of a host went to whatever came first.** 25 places per host count done and queued pages; the
+  site's wp-json, a script and preview images were queued, the careers pages read, the project references (67,000
+  characters), a services page and a reference story skipped (`host_cap`).
+- **The crawl's 15 pages per domain** included 10 technical addresses of 46 documents (wp-json, oEmbed, a script, images) and
+  one PDF the installation's blacklist should have kept out.
+
+### 37.2 The current reading (`MatchingRules.current`)
+
+An observation is a matching input only while it is its page's current reading: unless its page is still active
+(`kg_doc.state` 1), was processed after the observation was recorded and carries no evidence of the observation's tier from
+the observation's extractor any more. A page gone from the index keeps its observations (an advertisement that is gone is
+still the evidence of its job). The condition applies to the provider's offers, the signals, the employer's own offer, the
+retirements of a system or a need and the business roles; at reading, `Observation.current` (set by `read` and
+`referencedBy`) makes a contribution resting on an earlier reading unusable at once, before the cycle reconciles it. The
+observations themselves, their history, export and corrections are unchanged; nothing is deleted.
+
+### 37.3 One offer per service, offers written with verbs
+
+- `MatchingService.distinct`: one offer per rule, product or need and service of a provider, its evidence the latest of its
+  observations. The contribution's identity names its evidence, so contributions of the former duplicates are removed when
+  the provider's partition completes; `MatchingRules.VERSION` stays 1, no suggestion is recomputed beyond that.
+- `MatchingRules.SUPPORT`: the nouns as before plus the verbs a provider writes them with (beraten, unterstützen, schulen,
+  einführen and "führen … ein", integrieren, implementieren, betreuen, migrieren, begleiten, "setzen … um", Umsetzung,
+  Workshop).
+- A service named or categorized as the product itself ("SAP", `software/sap`) is an offer of it without a word of support,
+  as the employer's own offer already was since 0.12.0; the product of its name only, never of its quote ("Cloud" quoting
+  "SAP Analytics Cloud" offers nothing). Products stay exact: general SAP proves no S/4HANA, BW or SAC
+  ([matching](SCOUTRO_MATCHING.md)).
+
+### 37.4 The LLM tier's places of a host
+
+- A technical resource (`RuleExtractor.RESOURCE`: media, scripts, styles, fonts, archives, wp-json, wp-includes, oEmbed,
+  feeds, xmlrpc) is no candidate and takes no place: the scan marks it `not_candidate` before the cap is counted.
+- A page of the site's services, of one service or of its references (`LlmQueue.corePage`, by its address) keeps a place up
+  to twice the cap (`scoutro.kg.llm.maxDocsPerHost`, default 25); careers, news and other pages stay under the cap.
+- The pages skipped at the cap are decided once more under this rule, once per graph (`kg_meta` `llm_host_cap_rule` = 2,
+  event `llm_host_cap_changed`); a page still over the cap is skipped again without a request.
+
+### 37.5 The crawl's addresses
+
+Every Scoutro crawl start (administrator, account, agent, Discovery) excludes the technical resources and documents (PDF,
+office files, e-books) with its URL filter (`ScoutroActions.SKIPPED_ADDRESSES`, an alternative of `mustnotmatch` after the
+start marker and the host filter). The owner does not let the crawler read documents (23 October 2026); the installation's
+blacklist stays as it is. A crawl already in the index is not crawled again by this release; a page stored nearly empty
+before the HTML parser's correction of 12 October (27.6) stays so until the operator crawls its domain again on the crawl
+page (URL, collection, pages per domain and depth; pages older than three days are reloaded).
+
+### 37.6 Tests
+
+`MatchingTest.anEarlierReadingOfAPageReadAgainIsNoMatchingInput`, `anEarlierOfferOfAPageReadAgainIsNoOffer`,
+`aPageGoneFromTheIndexKeepsItsReadings`, `pagesNamingTheSameServiceAreOneOffer`, `aServiceNamedAsTheProductIsItsOffer`,
+`aServiceNamedAsTheGeneralProductProvesNoSpecificStack`, `offersWrittenWithVerbsAreOffers`;
+`LlmServiceTest.serviceAndReferencePagesKeepPlacesOverTheCap`, `technicalResourcesTakeNoPlace`;
+`CrawlStartRecoveryTest.crawlStaysOnItsStartHostAndKeepsItsMarker` (technical resources and documents are not crawled, pages
+with similar words are).
