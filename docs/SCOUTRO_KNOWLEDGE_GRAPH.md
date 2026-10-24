@@ -3822,3 +3822,43 @@ page (URL, collection, pages per domain and depth; pages older than three days a
 `LlmServiceTest.serviceAndReferencePagesKeepPlacesOverTheCap`, `technicalResourcesTakeNoPlace`;
 `CrawlStartRecoveryTest.crawlStaysOnItsStartHostAndKeepsItsMarker` (technical resources and documents are not crawled, pages
 with similar words are).
+
+## 38. Own use in the clause of its verb (0.12.2, `BusinessSignals.VERSION` 4)
+
+### 38.1 Finding (production, 24 October 2026, read only)
+
+After 0.12.1 the matching read only current readings; of those in stackfinder-web, 58 were own use and 2 planned migrations.
+Judged from the provider's view, about a quarter of them were own use. One sentence of STELLWERK's blog, "Für SAP-Anwender in
+Finanzbuchhaltung & Controlling stellt sich die Frage: Was müssen wir jetzt im System umsetzen, um diese Chancen zu nutzen?",
+made STELLWERK the customer of 214 SAP providers. The reader took a use verb and "wir" anywhere in the sentence together with
+any product of it.
+
+### 38.2 What the reader accepts as own use
+
+- **One clause** (`ownUseProducts`, `CLAUSE_END`): its use verb (`OWN_USE_VERB`), the product and "wir"/"unser" or the company's
+  name stand in one clause. Clauses end at a colon, semicolon, question or exclamation mark, a dash and a comma before a
+  subordinate or contrasting clause ("…, um diese Chancen zu nutzen", "Teams, die Azure … nutzen", "…, was SAP bereits bietet",
+  "…, auf der Unternehmen … betreiben"); a list of names keeps its commas; a relative clause of the company's own ("…, die wir
+  intern nutzen") belongs to its antecedent. Only the products of such clauses get the context.
+- **Own systems or data** ("auf unsere SAP-Daten zuzugreifen", "unser SAP-System") are own use without a use verb.
+- **None:** a question (an FAQ, a rhetorical question to the reader); advice to the reader ("Wir empfehlen die Umstellung … einzuplanen"),
+  also as a planned migration; a row of delivery verbs ("Wir entwickeln, modernisieren und betreiben … auf Microsoft Azure",
+  "Wir planen, migrieren und betreiben …", an offer); the noun "Nutzen" (German use verbs in lower case only); a product as the
+  subject ("Salesforce verwendet nach eigenen Angaben …", "SAP is running"); "lässt sich … nutzen"; others as the subject
+  ("Zahlreiche Energieversorger arbeiten …"); a product's technology ("Unsere Lösungen basieren auf … und nutzen …"); examples of
+  models and services; a list of three or more platforms worked with; "Azure-eigene" (no own word); "don't/don’t" (negation);
+  "Bestandskunden" (customers' projects).
+- Unchanged: a client's voice on its provider's page stays the client's (the matching's `customerVoice`), and a provider of the
+  product with an own-use statement of its own can be a customer of other providers (regio iT, "Wir betreiben eine SAP
+  First-Strategie").
+
+### 38.3 What an existing graph does
+
+Nothing is extracted again: the matching re-reads every stored quote with the current reader (`contextConfirmed`) at its cycle
+and at reading, so suggestions resting on a reading the reader no longer makes disappear at once. The stored observations keep
+their context as history; pages extracted after the update get the new contexts.
+
+### 38.4 Tests
+
+`BusinessSignalsTest.ownUseOfTheProductionReadings`: every current reading of own use and planned migration of stackfinder-web of
+24 October 2026 (15 own use, 26 none, the client's voice of dab), plus the existing reader, matching and documented-relation tests.
