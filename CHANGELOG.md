@@ -2,6 +2,19 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.12.2 / 1.942-scoutro.45 — own use in the clause of its verb
+
+On 0.12.1: no schema change, no re-extraction; `BusinessSignals.VERSION` 4 (no extractor identity), `MatchingRules.VERSION`
+stays 1. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.12.2.md).
+
+- The shared reader of system signals reads own use only where the use verb, the product and "wir"/"unser" or the company's
+  name stand in one clause, or where the company names its own systems or data of the product ("unsere SAP-Daten"). A
+  question, advice to the reader ("Wir empfehlen …"), a row of delivery verbs ("Wir entwickeln, modernisieren und betreiben
+  …"), the noun "Nutzen", a product or others as the subject, "lässt sich … nutzen", a product's technology, examples of
+  models and services and a list of platforms worked with are none; "don’t" is a negation. The matching re-reads stored quotes
+  with it, so suggestions resting on such readings disappear without re-extraction (production: one sentence had made
+  STELLWERK the customer of 214 SAP providers).
+
 ## 0.12.1 / 1.942-scoutro.44 — the current reading in the matching, one offer per service, the LLM tier's places
 
 On 0.12.0: no schema change, no re-extraction, no vocabulary change; `MatchingRules.VERSION` stays 1.

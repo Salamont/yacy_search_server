@@ -306,4 +306,77 @@ public class BusinessSignalsTest {
         Extraction e=new Extraction(30);LlmExtractor.apply(r.accepted,known,e,ExtractContext.none());assertEquals(1,e.claims().size());
         LlmExtractor.Result bare=LlmExtractor.validate(answer.replace(quote,"SAP"),new LlmExtractor.Chunk("SAP",0),known,Set.of());assertEquals(0,bare.values);
     }
+
+    /**
+     * 0.12.2: the current readings of own use and planned migration in stackfinder-web on 24 October 2026 (production, all of
+     * them), judged from the provider's view: own use only where the company says it uses the product itself; a provider's
+     * offer, a question, others' use, a recommendation to the reader, a use verb with another object, a list of platforms worked
+     * with, a slogan or a legal text are none. {quote, product, the company's name (or empty)}.
+     */
+    private static final String[][] OWN_USE={
+            {"Wenn wir Softwarelösung in der Azure Cloud entwickeln verwenden wir übrigens.","microsoft-azure",""}, // toowoxx.de,
+            {"Wir nutzen die Salesforce Marketing Cloud für unseren E-Mail Service, für die Bereitstellung von Cloud Pages und zum Anbieten von Formularen, mit welchen Sie mit uns in Kontakt treten können.","salesforce",""}, // rio.cloud,
+            {"Wir nutzen Salesforce Sales Cloud zur Verwaltung von Kundendaten.","salesforce",""}, // cloudogu.com,
+            {"As our CRM system, we use the service of Salesforce.","salesforce",""}, // www.tradebyte.com,
+            {"Seit mehr als 25 Jahren nutzen wir Standardfunktionen des zentralen IT-Systems SAP ERP im Verwaltungsbereich.","sap",""}, // init-software.de,
+            {"Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.","sap",""}, // www.regioit.de,
+            {"Zur Bearbeitung und Dokumentation von Anfragen sowie zur Verwaltung von Interessenten, Kunden, Projekten und Geschäftskontakten verwenden wir Salesforce.","salesforce",""}, // www.pluspol-interactive.de,
+            {"Zur Verarbeitung der Daten nutzen wir das SAP B1 Integration Framework [B1iF].","sap",""}, // neumeier-edv.de,
+            {"Aareon nutzt für Interessenten- und Kundendaten Cloud Dienste von HubSpot sowie Salesforce und intern Microsoft®-Office-Anwendungen (z.","salesforce","Aareon"}, // www.aareon.de,
+            {"Wir nutzen zur Kundenbetreuung und zur Verbesserung des Nutzungserlebnisses das CRM Modul / Marketing Cloud der Salesforce.","salesforce",""}, // flowfact.de,
+            {"Wir nutzen dazu das Analyse-Tool Pardot der salesforce.","salesforce",""}, // www.service1.com,
+            {"Bei der Nutzung einer Mietlizenz verwenden wir für die Identitätsprüfung Azure Active Directory B2C (Azure AD B2C), einen Dienst von Microsoft, der uns den Identitätsnachweis der Nutzer unserer Anwendungen ermöglicht.","microsoft-azure",""}, // valentin-software.com,
+            {"In unserer Software GeoT*SOL und PV*SOL verwenden wir eine Microsoft Azure-Datenbank um anonyme Nutzungsdaten zu erfassen.","microsoft-azure",""}, // valentin-software.com,
+            {"We use Salesforce Sales Cloud to manage customer data.","salesforce",""}, // www.vernaio.com,
+            {"We use the CRM system Salesforce (Salesforce.","salesforce",""}  // www.iris-sensing.com
+    };
+    private static final String[][] NO_OWN_USE={
+            {"Wir entwickeln, modernisieren und betreiben Cloud- und KI-Lösungen auf Microsoft Azure – von der ersten Idee bis zum produktiven Betrieb.","microsoft-azure",""}, // whiteduck.de,
+            {"Wir empfehlen die Umstellung im SAP HCM rechtzeitig einzuplanen, um genügend Zeit für Prüfungen und Tests zu haben!","sap",""}, // www.novamushr01.com,
+            {"Statt neue Komplexität hinzuzufügen, entfernen wir überflüssige Anpassungen und nutzen, was SAP bereits bietet.","sap",""}, // www.placeworkers.com,
+            {"Je nach Datenschutz- und Performance-Anforderungen nutzen wir Cloud-Modelle wie Azure OpenAI oder Anthropic Claude.","microsoft-azure",""}, // octavia.de,
+            {"Wir sind systemunabhängig und arbeiten mit Shopify, Shopware, WooCommerce, Magento und Salesforce Commerce Cloud – inklusive der jeweils plattformspezifischen SEO-Optimierung.","salesforce",""}, // www.seo-kueche.de,
+            {"Unsere Lösungen basieren auf SharePoint Online und nutzen zudem weitere Microsoft Anwendungen und Services, wie zum Beispiel Entra ID (ehemals Azure Active Directory).","microsoft-azure",""}, // www.d-velop.de,
+            {"Azure ist die Plattform darunter, auf der Unternehmen eigene Server, Datenbanken und Anwendungen betreiben - mit mehreren hundert einzelnen Diensten.","microsoft-azure",""}, // datadiorama.com,
+            {"Azure ist die Cloud-Plattform darunter, auf der Unternehmen eigene Server, Datenbanken und Anwendungen betreiben.","microsoft-azure",""}, // datadiorama.com,
+            {"je stärker eine Umgebung Azure-eigene Spezialdienste nutzt, desto aufwendiger wird der Umzug.","microsoft-azure",""}, // datadiorama.com,
+            {"3.6 Die bestimmungsgemäße Nutzung der Software besteht darin, die SAP-Softwareanwendungen des eigenen Unternehmens zu testen und zu analysieren, um unsichere Konfigurationen und/oder Berechtigungen (oder in anderen Sicherheits- und Compliance-relevanten Bereichen) in diesen Softwareanwendungen zu finden, sowie darin, die Befunde und alle anderen Resultate des Testens und der Analyse zur Verbesserung solcher Konfigurationen und Berechtigungen zu verwenden.","sap",""}, // www.scdsoft.de,
+            {"10KBLAZE is the name that Onapsis uses to refer to a set of publicly-released SAP exploits.","sap","Onapsis"}, // onapsis.com,
+            {"We provide tasks for managing clusters, running jobs, and monitoring activity, ensuring predictable Azure spend and enterprise-grade SLA protection for critical data pipelines.","microsoft-azure",""}, // www.betasystems.com,
+            {"We develop, modernize and operate cloud and AI solutions on Microsoft Azure – from the initial idea to productive operation.","microsoft-azure",""}, // whiteduck.de,
+            {"Für SAP-HCM-Bestandskunden entwickeln wir belastbare Migrationsszenarien, die technische End-of-Life-Risiken absichern und gleichzeitig die Chance nutzen, HR-Prozesse zu harmonisieren und für die Cloud-Welt neu zu denken.","sap",""}, // www.spotconsulting.de,
+            {"Zahlreiche Energieversorger arbeiten erfolgreich mit unserer Lösung enventa Receivables Energy in SAP®.","sap",""}, // www.enventa-group.com,
+            {"Salesforce verwendet nach eigenen Angaben unter anderem das EU-US Data Privacy Framework sowie Standardvertragsklauseln und weitere vertragliche Schutzmechanismen.","salesforce",""}, // www.pluspol-interactive.de,
+            {"### SAP is running, we want more.","sap",""}, // hpc.de,
+            {"Wir planen, migrieren und betreiben Cloud-Infrastrukturen auf AWS, Microsoft Azure, Google Cloud und STACKIT, DevOps-Plattformen und Kubernetes – für Mittelstand und Konzerne in Bayern, Deutschland und der DACH-Region.","microsoft-azure",""}, // www.ventx.de,
+            {"Unser Angebot richtet sich an Teams, die Azure-Anwendungen produktiv betreiben:.","microsoft-azure",""}, // whiteduck.de,
+            {"### Do we need to run SAP to use the Digital Euro Hub?","sap",""}, // www.sapfioneer.com,
+            {"We don’t use Microsoft Azure as a standard solution, but as a strategic tool to tackle complex challenges securely, scalably, and economically.","microsoft-azure",""}, // devdeer.com,
+            {"Im Blick bleibt dabei stets der wirtschaftliche Nutzen und wir beraten in Fragen Kosten und Nutzen im Rahmen einer SAP-Einführung.","sap",""}, // www.si-pro.com,
+            {"In den kommenden Stufen lässt sich der Code flexibel in Cloud-Umgebungen (SAP Analytics Cloud oder Microsoft Azure), auf intern gehosteten Servern oder über die PAL on premise im SAP-HANA-Kern nutzen;","microsoft-azure",""}, // marmeladenbaum.de,
+            {"In den kommenden Stufen lässt sich der Code flexibel in Cloud-Umgebungen (SAP Analytics Cloud oder Microsoft Azure), auf intern gehosteten Servern oder über die PAL on premise im SAP-HANA-Kern nutzen;","sap-sac",""}, // marmeladenbaum.de,
+            {"Unser Angebot richtet sich an Teams, die Azure als strategische Plattform nutzen:.","microsoft-azure",""}, // whiteduck.de,
+            {"Für SAP-Anwender in Finanzbuchhaltung & Controlling stellt sich die Frage: Was müssen wir jetzt im System umsetzen, um diese Chancen zu nutzen?","sap","STELLWERK Consulting AG"}  // stellwerk.net
+    };
+    /** The contexts of own use or a plan the reader gives the product, unnamed and with the company's name (as the matching reads). */
+    private static Set<String> ownContexts(String quote,String product,String name) throws Exception {
+        Set<String> out=new TreeSet<>();
+        for(String actor:Arrays.asList(null,name.isEmpty()?null:name))
+            for(String v:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,quote,"text",Vocabulary.ORGANIZATION,actor)) {
+                JSONObject o=new JSONObject(v);
+                if(product.equals(o.getString("product"))&&Set.of("internal_use","planned_migration").contains(o.getString("context")))out.add(o.getString("context"));
+            }
+        return out;
+    }
+    @Test public void ownUseOfTheProductionReadings() throws Exception {
+        List<String> missed=new ArrayList<>(),wrong=new ArrayList<>();
+        for(String[] c:OWN_USE)if(!ownContexts(c[0],c[1],c[2]).contains("internal_use"))missed.add(c[0]);
+        for(String[] c:NO_OWN_USE)if(!ownContexts(c[0],c[1],c[2]).isEmpty())wrong.add(c[0]);
+        assertTrue("own use missed: "+missed,missed.isEmpty());
+        assertTrue("own use or plan read where there is none: "+wrong,wrong.isEmpty());
+        // a client's voice on its provider's page (dab): the client's own SAP, never the provider's (the matching's customerVoice)
+        String voice="Wir nutzen dab Nexus, um über eine zertifizierte Schnittstelle strukturiert auf unsere SAP-Daten zuzugreifen.";
+        assertTrue(BusinessSignals.customerVoice(voice,List.of("dab")));
+        assertTrue(ownContexts(voice,"sap","").contains("internal_use"));
+    }
 }

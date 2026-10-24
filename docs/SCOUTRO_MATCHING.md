@@ -371,6 +371,14 @@ explicit procedure. Do not edit schema_version or drop tables to fake a downgrad
   offers of the product. Products stay exact.
 - Details: docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 37.
 
+## 0.12.2: own use in the clause of its verb
+
+The shared reader of system signals (`BusinessSignals.read`, version 4) reads own use only where the use verb, the product and
+"wir"/"unser" or the company's name stand in one clause, or where the company names its own systems or data of the product.
+Questions, advice to the reader, rows of delivery verbs, a product as the subject, others as the subject and lists of platforms
+are none. The matching re-reads stored quotes with it (`contextConfirmed`), so no re-extraction is needed. Details:
+docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 38.
+
 ## Validation and limits
 
 Targeted SQLite tests cover the rule groups' positives/negatives, exact products,

@@ -23,13 +23,46 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
 public final class BusinessSignals {
     /** The patterns of the inline expressions, compiled once (0.11.8: they were compiled again on every read of a quote). */
     private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
-    public static final String VERSION="3";
-    private static final Pattern CUSTOMERS=p("Kundenprojekt|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
+    public static final String VERSION="4"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2)
+    private static final Pattern CUSTOMERS=p("Kundenprojekt|Bestandskunden|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
     /** 0.12.0: "setzen … ein" with the particle at the clause's end (not the article of "setzen auf ein …"), "arbeiten mit" as words. */
     private static final Pattern USE=p("nutzen|nutzt|verwenden|verwendet|betreiben|betreibt|setzen\\b[^.!?;:]{0,60}?\\bein\\b(?=\\s*(?:[.,;:!?)]|$))"
             +"|\\barbeiten\\b.{0,20}\\bmit\\b|\\buses?\\b(?![\\s-]*cases?\\b)|\\boperate\\b|\\brunning\\b");
+    /**
+     * 0.12.2: a use verb of the company's own use: the German verbs in lower case (the noun "Nutzen" is no use: "der
+     * wirtschaftliche Nutzen"), "running" only of the company's own systems ("we are running", "running our"), never a product
+     * running ("SAP is running") or an activity ("running jobs").
+     */
+    private static final Pattern OWN_USE_VERB=Pattern.compile("(?u)\\b(?:nutzen|nutzt|verwenden|verwendet|betreiben|betreibt|einsetzen|einsetzt)\\b"
+            +"|\\bsetzen\\b[^.!?;:]{0,60}?\\bein\\b(?=\\s*(?:[.,;:!?)]|$))|\\barbeiten\\b.{0,20}\\bmit\\b"
+            +"|(?iu:\\buses?\\b(?![\\s-]*cases?\\b)(?!\\s+to\\b)|\\boperate\\b|\\bwe(?:'re|’re|\\s+are)\\s+running\\b|\\brunning\\s+our\\b)");
+    /**
+     * 0.12.2: where a clause of a sentence ends: a colon, semicolon, question or exclamation mark, a dash, and a comma before a
+     * subordinate or contrasting clause ("…, um diese Chancen zu nutzen", "Teams, die Azure nutzen", "…, was SAP bereits bietet",
+     * "…, auf der Unternehmen … betreiben"). A list of names keeps its commas.
+     */
+    private static final Pattern CLAUSE_END=Pattern.compile("(?iu)[:;?!]|\\s[–—-]\\s|,\\s*(?=(?:um|die|der|das|den|dem|deren|dessen|welche[nmrs]?|was|wo|wie|wenn|weil|damit|dass|ob|obwohl"
+            +"|aber|sondern|denn|während|sodass|so dass|desto|which|that|who|where|when|while|because|but|ensuring|to)\\b"
+            +"|(?:auf|in|mit|bei|für|von|zu|an|über|unter)\\s+(?:der|dem|den|denen|die|das|welche[nmrs]?|which|whom)\\b)");
+    /** 0.12.2: the company's own word in a clause: "wir", "unser", "intern", "eigene" (not the compound "Azure-eigene"). */
+    private static final Pattern OWN_WORD=p("\\bintern\\b|in.house(?![\\s-]{0,2}(?:cash|bank))|\\bunser(?:e[nmrs]?)?\\b|\\bwir\\b|our internal|\\bour\\b|\\bwe\\b|(?<![-\\p{L}])eigene[nrms]?\\b");
+    /**
+     * 0.12.2: a provider's own services in a row of delivery verbs ("Wir entwickeln, modernisieren und betreiben … auf Microsoft
+     * Azure", "Wir planen, migrieren und betreiben Cloud-Infrastrukturen …"): its offer, not its own use or plan.
+     */
+    private static final Pattern DELIVERY_ROW=p("\\b(?:entwickeln|modernisieren|implementieren|planen|migrieren|bauen|konzipieren|beraten|begleiten|realisieren"
+            +"|integrieren|betreiben|liefern|develop|modernize|modernise|implement|plan|migrate|build|design|operate|deliver)\\b\\s*,\\s*(?:und\\s+|and\\s+)?"
+            +"(?:entwickeln|modernisieren|implementieren|planen|migrieren|bauen|konzipieren|beraten|begleiten|realisieren|integrieren|betreiben|liefern"
+            +"|develop|modernize|modernise|implement|plan|migrate|build|design|operate|deliver)\\b");
+    /** 0.12.2: advice to the reader ("Wir empfehlen die Umstellung … einzuplanen"): no plan or use of the company. */
+    private static final Pattern RECOMMENDATION=p("\\bwir\\s+empfehlen\\b|\\bempfehlen\\s+wir\\b|\\bunsere?\\s+Empfehlung\\b|\\bwe\\s+recommend\\b|\\bour\\s+recommendation\\b");
+    /**
+     * 0.12.2: a product named as the subject of a use verb ("Salesforce verwendet nach eigenen Angaben …", "SAP is running"): the
+     * product acts, the company does not use it.
+     */
+    private static final String PRODUCT_SUBJECT="(?:verwendet|nutzt|betreibt|setzt|is\\s+running|runs|uses)\\b";
     /** "in-house", but not the SAP treasury modules In-House Cash / In-House Bank(ing): a product name is no actor. */
     private static final String IN_HOUSE="in.house(?![\\s-]{0,2}(?:cash|bank))";
     private static final Pattern OWN=p("\\bintern\\b|"+IN_HOUSE+"|\\bunser(?:e[nmrs]?)?\\b|\\bwir\\b|our internal|\\bwe\\b|\\beigene[nrms]?\\b");
@@ -82,6 +115,15 @@ public final class BusinessSignals {
             +"|\\b(?:Unternehmen|Firmen|Kunden|Organisationen),\\s+die\\b"
             +"|\\b(?:allen|alle|verschiedenen|diversen|unterschiedlichen)\\s+(?:gängigen\\s+|relevanten\\s+|führenden\\s+)?[\\p{L}/-]*(?:Systemen|Tools|Plattformen|Lösungen)\\b"
             +"|\\b(?:easy|simple|ready|intuitive|free)\\s+to\\s+use\\b|\\bfor\\s+use\\b"
+            // 0.12.2: what can be done ("lässt sich … nutzen"), others as the subject ("Zahlreiche Energieversorger arbeiten …"),
+            // a product's technology ("Unsere Lösungen basieren auf … und nutzen …"), examples of models and services, a list of
+            // three or more platforms worked with ("arbeiten mit Shopify, Shopware, WooCommerce …")
+            +"|\\b(?:lässt|lassen)\\s+sich\\b"
+            +"|^\\W*(?:zahlreiche|viele|die\\s+meisten|mehr\\s+als\\s+\\d+|über\\s+\\d+|hunderte|tausende|numerous|hundreds\\s+of|thousands\\s+of)\\s+\\p{L}+"
+            +"|^\\W*unser(?:e|er)?\\s+(?:Lösung(?:en)?|Software|Produkte?|Plattform(?:en)?|Apps?|Anwendung(?:en)?|Tools?|Module?|Services|Dienste)\\b"
+            +"|^\\W*our\\s+(?:solutions?|software|products?|platforms?|apps?|applications?|tools?|modules?|services)\\b"
+            +"|\\b(?:Modelle|Dienste|Services|Komponenten|models|services|components)\\s+(?:wie|such as|like)\\s"
+            +"|\\b(?:mit|nutzen|verwenden|with|use)\\b[^.;:!?]*?\\p{Lu}[\\p{L}0-9]*,\\s*\\p{Lu}[\\p{L}0-9]*,\\s*\\p{Lu}[\\p{L}0-9]*"
             // the quoted words of a client ("„Als junges Unternehmen setzen wir mit SAP B1 …“"): a customer's voice
             +"|^\\W{0,3}[„“\"«‚]"
             +"|[„“\"”][^„“\"”]{10,}[“”\"]\\s*,?\\s*(?:says|said|sagt|sagte|erklärt|erklärte|so)\\b");
@@ -140,7 +182,7 @@ public final class BusinessSignals {
     /** Recruiting words: a sentence seeking staff ("SAP-Berater (m/w/d)", "Verstärkung") is no sought support (0.12.0). */
     private static final Pattern STAFF=p("\\(\\s*[mwfdx]\\s*/\\s*[mwfdx]|Berater|Consultant|Verstärkung|Kolleg|Mitarbeiter|Bewerb|Stelle|hiring|join us");
     private static final Pattern SHUTDOWN=p("abgeschaltet|außer Betrieb|ausser Betrieb|stillgelegt|decommissioned|switched off");
-    private static final Pattern NEGATION=p("\\bnicht\\b|\\bkeine?[nrs]?\\b|\\bnot\\b|\\bwithout\\b");
+    private static final Pattern NEGATION=p("\\bnicht\\b|\\bkeine?[nrs]?\\b|\\bnot\\b|\\bwithout\\b|n['’]t\\b");
     private static final Pattern OFFER=p("wir bieten|wir erbringen|wir unterstützen|unsere Leistungen|we offer|we provide|we support");
     private static final Pattern NEED=p("Bedarf|benötigen|benötigt|brauchen|suchen.{0,40}(?:Unterstützung|Partner)|need|require|seeking.{0,40}support");
     private static final Pattern OWN_CARE=p("unser(?:e[nmrs]?)?.{0,80}(?:Entlassmanagement|Überleitungsmanagement|Pflegeüberleitung)|wir.{0,80}(?:organisieren|koordinieren).{0,80}(?:Entlass|Pflegeüber)|our.{0,80}discharge management");
@@ -279,6 +321,41 @@ public final class BusinessSignals {
     }
 
     /** Shared by rules, structured data and the LLM validator/application. */
+    /**
+     * 0.12.2: the products the company itself uses by a clause of the quote ({@link #CLAUSE_END}): one with a use verb of its own
+     * ({@link #OWN_USE_VERB}), the product and its own word or name, where the product is not the subject of the verb.
+     */
+    static Set<String> ownUseProducts(String quote,Signals vocab,String actorName) {
+        Set<String> out=new LinkedHashSet<>();
+        // a relative clause of the company's own ("… auf unsere SAP-Daten zu, die wir intern nutzen") belongs to its antecedent
+        List<String> clauses=new ArrayList<>();
+        for(String part:CLAUSE_END.split(quote)) {
+            if(!clauses.isEmpty()&&OWN_RELATIVE.matcher(part).find())clauses.set(clauses.size()-1,clauses.get(clauses.size()-1)+", "+part);
+            else clauses.add(part);
+        }
+        for(String clause:clauses) {
+            // the company's own systems or data of the product ("auf unsere SAP-Daten zuzugreifen", "unser SAP-System") are its use
+            if(OWN_POSSESSION.matcher(clause).find()&&!productSubject(clause,vocab)){out.addAll(vocab.products(clause));continue;}
+            if(!OWN_USE_VERB.matcher(clause).find())continue;
+            Set<String> products=vocab.products(clause);
+            if(products.isEmpty())continue;
+            boolean self=OWN_WORD.matcher(clause).find()||actorName!=null&&clause.toLowerCase(Locale.ROOT).contains(actorName.toLowerCase(Locale.ROOT));
+            if(!self||productSubject(clause,vocab))continue;
+            out.addAll(products);
+        }
+        return out;
+    }
+    /** 0.12.2: the company's own systems or data of a product ("unsere SAP-Daten", "unser SAP-System", "our SAP landscape"). */
+    private static final Pattern OWN_POSSESSION=p("\\bunser(?:e[nmrs]?)?\\s+(?:eigene[nmrs]?\\s+)?[\\p{L}0-9/®]+-?(?:Daten|Systems?|Systeme[nm]?|Systemlandschaft|Landschaft|Umgebung|Instanz|Installation)\\b"
+            +"|\\bour\\s+(?:own\\s+)?[\\p{L}0-9/®]+\\s+(?:data|systems?|landscape|environment|instance|installation)\\b");
+    /** 0.12.2: a relative clause with the company as its subject ("die wir intern nutzen", "which we use"). */
+    private static final Pattern OWN_RELATIVE=p("^\\s*(?:die|der|das|den|dem|welche[nmrs]?|which|that)\\s+(?:wir|we)\\b");
+    /** 0.12.2: a product named right before a use verb of which it is the subject ("Salesforce verwendet …", "SAP is running"). */
+    private static boolean productSubject(String clause,Signals vocab) {
+        Matcher m=p("([\\p{L}0-9/®-]+(?:\\s+[\\p{L}0-9/®-]+)?)\\s+"+PRODUCT_SUBJECT).matcher(clause);
+        while(m.find())if(!vocab.products(m.group(1)).isEmpty()&&!p("\\b(?:wir|we)\\b").matcher(m.group(1)).find())return true;
+        return false;
+    }
     public static List<String> read(String predicate,String quote,String section,String actorType,String actorName) {
         if(quote==null||quote.length()>900)return List.of();
         Signals vocab=KgVocabularies.get().signals;
@@ -297,15 +374,22 @@ public final class BusinessSignals {
             if(NEGATION.matcher(quote).find())return out;
             // An unnamed "we" next to another named company: whose system it is stays unclear (postings resolve their employer).
             if(own&&!named&&!posting&&otherCompanyNamed(quote,actorName,vocab))own=false;
+            // 0.12.2: a question (an FAQ, a rhetorical question to the reader) states no use, plan, migration or shutdown
+            boolean question=quote.trim().endsWith("?");
             if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|Unterstützung|Schulung|Training|consulting|implementation").matcher(quote).find()
+                    // 0.12.2: a row of delivery verbs is the provider's offer ("Wir entwickeln, modernisieren und betreiben …")
+                    ||!posting&&(own||named)&&DELIVERY_ROW.matcher(quote).find()
                     // 0.12.0 (T6): the provider speaking to its reader, or running and supporting systems for others, offers them
                     ||!posting&&(own||named)&&(READER.matcher(quote).find()||OFFER_TO.matcher(quote).find()||serviceOfProduct(quote,vocab)))context="offered_capability";
             else if(customer)context="customer_projects";
+            else if(question||RECOMMENDATION.matcher(quote).find()) context=null;
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
             else if(MIGRATION.matcher(quote).find()&&COMPLETED.matcher(quote).find()&&(own||named))context="completed_migration";
             else if(MIGRATION.matcher(quote).find()&&(PLAN.matcher(quote).find()||SOUGHT.matcher(quote).find()&&!OFFER.matcher(quote).find()&&!STAFF.matcher(quote).find())&&(own||named))context="planned_migration";
             // no own use: a cooperation, examples, others' systems, quoted words; experience "used" is a competence (0.12.0, T6)
-            else if(USE.matcher(quote).find()&&(own||named)&&!NOT_OWN_USE.matcher(quote).find()
+            // 0.12.2: the company's own use in one clause (its verb, the product and "wir"/"unser" or its name), not anywhere in the
+            // sentence ("…, um diese Chancen zu nutzen", "Teams, die Azure … nutzen")
+            else if(USE.matcher(quote).find()&&(own||named)&&!NOT_OWN_USE.matcher(quote).find()&&!ownUseProducts(quote,vocab,named?actorName:null).isEmpty()
                     &&(!KNOWLEDGE.matcher(quote).find()||EXPLICIT_OWN.matcher(quote).find()))context="internal_use";
             else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(field)||"qualifications".equals(field))
                 // A requirement belongs to a posting; a company's own competence statement (Kernkompetenz) is no need.
@@ -316,7 +400,8 @@ public final class BusinessSignals {
             if(customer&&p("\\bintern\\b|"+IN_HOUSE).matcher(quote).find())return out;
             // A reference page reports client work: a system used, migrated or shut down there is the client's.
             if(references&&List.of("internal_use","planned_migration","completed_migration","shutdown").contains(context))context="customer_projects";
-            for(String product:vocab.products(quote)) {
+            // 0.12.2: own use is the use of the products of its clauses
+            for(String product:"internal_use".equals(context)?ownUseProducts(quote,vocab,named?actorName:null):vocab.products(quote)) {
                 Map<String,Object> fields=new TreeMap<>();fields.put("product",product);fields.put("context",context);
                 fields.put("section",section);fields.put("scope",p("unternehmensweit|vollständig|organisation.wide|throughout our company").matcher(quote).find()?"organization":"unspecified");
                 String role="unspecified";
