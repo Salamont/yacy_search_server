@@ -34,9 +34,10 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * name only a navigation lists (a site's menu lists its places too), while anything else there is refused. A quote that gives
  * the place's full address (a street with its number and a postal code) states a place by itself. On a project or reference
  * page a named building is the object of a project, not a place of the page's operator, unless the operator states that it
- * runs it or the name is one of its establishments. A name of a service of the page needs the place's sign too; nothing is
- * converted or merged.
- * This is knowledge of the language and of websites, not of an industry.
+ * runs it or the name is one of its establishments; in a field whose providers run the places they name (the vocabulary's
+ * {@code operates_places}: care), a place with its sign is the provider's own there too. A name of a service of the page needs
+ * the place's sign too; nothing is converted or merged.
+ * This is knowledge of the language and of websites; what a field's providers do is its vocabulary's.
  */
 public final class PlaceEvidence {
 
@@ -118,7 +119,9 @@ public final class PlaceEvidence {
             "warehouse", "center", "centre", "store", "shop", "school",
             // 0.13.0 (gate A4, run 6): care's places named by their kind
             "wohngruppe", "wohngruppen", "wg", "wgs", "spital", "centrum", "apotheke", "beratungsstelle", "beratungsstellen",
-            "pflegedienst", "treff");
+            "pflegedienst", "treff",
+            // 0.13.0 (gate A4, run 8): the day group of youth welfare
+            "tagesgruppe", "tagesgruppen");
     /** A street with its number, or a postal code with a place (an address). */
     private static final Pattern ADDRESS = Pattern.compile("(?iu)(?:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)\\s*\\d"
             + "|(?<!\\d)\\d{5}\\s+\\p{Lu}\\p{Ll}");
@@ -177,6 +180,16 @@ public final class PlaceEvidence {
      */
     public static Result check(final String raw, final String name, final String quote, final String url, final String type,
             final boolean serviceOfPage) {
+        return check(raw, name, quote, url, type, serviceOfPage, false);
+    }
+
+    /**
+     * {@link #check(String, String, String, String, String, boolean)} on a page whose field's providers may run the places they
+     * name ({@link ExtractContext#operatesPlaces}): a place of a project page with its sign is the provider's own; without one it
+     * stays the object of a project.
+     */
+    public static Result check(final String raw, final String name, final String quote, final String url, final String type,
+            final boolean serviceOfPage, final boolean operatesPlaces) {
         final String key = fold(name);
         if (key.isEmpty() || PAGE_LABELS.contains(key)) {
             return new Result(Verdict.REFUSED, PAGE_LABEL, null);
@@ -196,15 +209,24 @@ public final class PlaceEvidence {
         final boolean quoteLine = quote != null && quote.indexOf('|') < 0 && (quote.indexOf('•') < 0 || POSTAL.matcher(quote).find());
         if (quoteLine && !found.isEmpty() && STREET_NUMBER.matcher(quote).find() && POSTAL.matcher(quote).find()) {
             // 0.13.0 (gate A4, run 6): a quote with the place's full address (street and number, postal code) states a place, also
-            // of an activity's name ("Suchtberatung. Obstmarkt 28. 90403 Nürnberg.") and on a project page, where the operator's own
+            // of an activity's name ("Suchtberatung. Musterweg 28. 12345 Musterstadt.") and on a project page, where the operator's own
             // places are given with their address and a reference names a building with its town
             return new Result(Verdict.PLACE, null, quote.trim());
         }
         final boolean placeWord = placeWord(name);
-        if (!placeWord && !ADDRESS.matcher(name).find() && ACTIVITY.matcher(key.replace(" ", "")).find()) {
+        // 0.13.0 (gate A4, run 8): a street with its number after the name in its own segment, outside a menu, states a place, also
+        // of an activity's name ("Muster-Erziehungsberatung Beispielweg 15. 12345 Musterstadt.")
+        boolean addressed = false;
+        for (final int[] at : found) {
+            if (!(navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1]))) {
+                final int[] seg = segment(text, at[0], at[1]);
+                addressed |= STREET_NUMBER.matcher(text.substring(seg[0], seg[1])).find();
+            }
+        }
+        if (!placeWord && !addressed && !ADDRESS.matcher(name).find() && ACTIVITY.matcher(key.replace(" ", "")).find()) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
-        if (SENTENCE.matcher(name.trim()).find() && words(name) >= 4 && lowerWords(name) >= 2 && !ADDRESS.matcher(name).find()
+        if (!addressed && SENTENCE.matcher(name.trim()).find() && words(name) >= 4 && lowerWords(name) >= 2 && !ADDRESS.matcher(name).find()
                 && !(quoteLine && ADDRESS.matcher(quote).find())) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // a sentence of the page, not a name ("Die Gebäude sind … errichtet.")
         }
@@ -251,11 +273,11 @@ public final class PlaceEvidence {
         if (addressName && address == null) {
             address = name.trim();
         }
-        if (url != null && PROJECT_PAGE.matcher(path(url)).find() && !own) {
+        final boolean projectObject = url != null && PROJECT_PAGE.matcher(path(url)).find() && !own;
+        if (projectObject && !operatesPlaces) {
             // the building of a project reference is the object of a project, not a place of the page's operator, unless a passage
             // names who runs it; a site with its address stays a site
-            return Vocabulary.SITE.equals(type) && address != null ? new Result(Verdict.PLACE, null, address)
-                    : new Result(Verdict.REFUSED, PROJECT_OBJECT, null);
+            return projectObject(type, address);
         }
         if (proof == null && (addressName || placeWord && properName(name))) {
             proof = quote != null && !quote.isBlank() ? quote.trim() : name.trim();
@@ -266,6 +288,12 @@ public final class PlaceEvidence {
         }
         if (proof != null) {
             return new Result(Verdict.PLACE, null, proof);
+        }
+        if (projectObject) {
+            // 0.13.0 (gate A4, run 8): a provider that runs the places it names lists its own homes on its project pages
+            // ("Projekte": "Pflegeheim Musterstadt „Am See“ seit 01.01.2025 als neuer Standort"); a name without a sign of a place
+            // there (a town, a course) stays the object of a project
+            return projectObject(type, address);
         }
         if (found.isEmpty()) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // not on the page at all
@@ -279,6 +307,12 @@ public final class PlaceEvidence {
             return new Result(Verdict.REFUSED, SERVICE_NAME, null); // the name of a service of the page needs a sign of a place
         }
         return new Result(Verdict.UNCLEAR, null, null);
+    }
+
+    /** The object of a project: refused, unless it is a site with its address. */
+    private static Result projectObject(final String type, final String address) {
+        return Vocabulary.SITE.equals(type) && address != null ? new Result(Verdict.PLACE, null, address)
+                : new Result(Verdict.REFUSED, PROJECT_OBJECT, null);
     }
 
     /** True if the name begins with the name of the page's registrable domain ("Muster Smart Factory" on www.muster.de). */
@@ -348,8 +382,9 @@ public final class PlaceEvidence {
 
     /**
      * The occurrences of the name in the text, case-insensitive, as words: its words in order with any separators between (at most
-     * six characters: a comma, a line, a period, Markdown), so that the model's "Musterweg 5, 12345 Ort" is found where the page
-     * writes "Musterweg 5" and "12345 Ort" on two lines. At most {@link #MAX_TOKENS} words of it are matched.
+     * eight characters: a comma, a line, a period, Markdown's marks of a heading), so that the model's "Musterweg 5, 12345 Ort" is
+     * found where the page writes "Musterweg 5" and "12345 Ort" on two lines, and "Muster parc Ort" where it writes "Muster parc.
+     * #### Ort." (0.13.0, gate A4, run 8). At most {@link #MAX_TOKENS} words of it are matched.
      */
     private static List<int[]> occurrences(final String text, final String name) {
         final List<int[]> out = new ArrayList<>();
@@ -363,7 +398,7 @@ public final class PlaceEvidence {
         if (tokens.isEmpty()) {
             return out;
         }
-        final Matcher m = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])" + String.join("[^\\p{L}\\p{N}]{1,6}", tokens) + "(?![\\p{L}\\p{N}])")
+        final Matcher m = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])" + String.join("[^\\p{L}\\p{N}]{1,8}", tokens) + "(?![\\p{L}\\p{N}])")
                 .matcher(text);
         while (m.find() && out.size() < 50) {
             out.add(new int[] {m.start(), m.end()});

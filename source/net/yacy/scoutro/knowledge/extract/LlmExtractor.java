@@ -1211,7 +1211,7 @@ public final class LlmExtractor {
                 // 0.13.0: every accepted answer (fresh, cached or replayed) is checked again with the page's text: a place needs a
                 // place in its context; a proper name without one is kept and marked
                 final PlaceEvidence.Result place = PlaceEvidence.check(ctx == null || ctx.serviceText == null ? quote : ctx.serviceText, name,
-                        quote, ctx == null ? null : ctx.pageUrl, type, serviceOfPage(known, name));
+                        quote, ctx == null ? null : ctx.pageUrl, type, serviceOfPage(known, name), ctx != null && ctx.operatesPlaces());
                 if (place.verdict == PlaceEvidence.Verdict.REFUSED) {
                     continue;
                 }

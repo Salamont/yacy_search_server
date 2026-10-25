@@ -3991,33 +3991,41 @@ reason):
 
 - **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort"; not with its number: "Haus 3" is
   a name, though no proof of a place by itself, "Halle 7" may be a fair's) or the name of an activity or a
-  field of work without a place word, unless the name is an address ("Hochbau", "Logistikbau", "Gebäudetechnik", but not
-  "Burgstraße 30, 12345 Musterungen"; `entity_facility_not_a_place`); a sentence of the page as a name (four words or more, two
-  words of four letters or more in lower case, ending with ".", "!" or "?", without an address in the name or the quote: not
-  "Geschäftsstelle des Muster e.V."; the same reason); an entry that stands only in a site's menu (a short segment among at least
+  field of work without a place word, unless the name is an address or an occurrence outside a menu has a street with its
+  number in the name's own segment ("Hochbau", "Logistikbau", "Gebäudetechnik", but not "Burgstraße 30, 12345 Musterungen" or
+  "Muster-Erziehungsberatung Beispielweg 15. 12345 Musterstadt."; `entity_facility_not_a_place`); a sentence of the page as a
+  name (four words or more, two words of four letters or more in lower case, ending with ".", "!" or "?", without an address in
+  the name, the quote or the name's own segment: not "Geschäftsstelle des Muster e.V."; the same reason); an entry that stands only in a site's menu (a short segment among at least
   two short neighbours, one of the two segments before or after it the label of a section: "Leistungen | Newsletter | Kontakt")
   and is no name (neither a place word nor a proper name), or a name nowhere on the page (the same reason);
   on a project or reference page (by its address) the building of a project, unless a passage names who runs it ("betreibt",
   "unser", a named organisation that plans or opens it), the name is an establishment of the operator ("Niederlassung
   Rostock", "Hauptsitz", "Filiale", "Geschäftsstelle": a project is never one) or a place word with the name of the page's
-  domain ("Muster Smart Factory" on muster.de; `entity_facility_project_object`; a site with its address stays a site); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
+  domain ("Muster Smart Factory" on muster.de; `entity_facility_project_object`; a site with its address stays a site); in a
+  field whose providers run the places they name (the vocabulary's `"operates_places": true`, care; every vocabulary of the
+  page's collections must say so) a place of a project page with a sign of a place (below) is the provider's own, a name without
+  one stays the object of a project ("Projekte": "Pflegeheim Musterstadt „Am See“ … als neuer Standort" is a place,
+  a town alone is not); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
 - **A place:** a quote that gives the place's full address, a street with its number and a postal code, outside a menu line
-  ("Suchtberatung. Obstmarkt 28. 90403 Nürnberg.", "Verwaltung. Boschstraße 9. 63768 Musterstadt."), also of an activity's
+  ("Suchtberatung. Musterweg 28. 12345 Musterstadt.", "Verwaltung. Musterstraße 9. 12345 Musterstadt."), also of an activity's
   name and on a project page, where the operator's own places are given with their address while a reference names a building
   with its town; a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
   "Seniorenzentrum Am Park", "Hauptsitz Kassel", "Niederlassung Kassel", "Seniorentagesstätte Musterstadt"; the first word ending
   with a place word is the place word, a later one a proper name: "Seniorenzentrum Musterheim"; a person's name joined to a place
   word is a proper name: "Paul-Gerhardt-Haus"; the place words include care's places by their kind: "Wohngruppe", "WG",
-  "Pflegedienst", "Beratungsstelle", "Spital", "Centrum", "Apotheke", "Treff"), also in a list of a site's places and in a menu;
+  "Pflegedienst", "Beratungsstelle", "Spital", "Centrum", "Apotheke", "Treff", "Tagesgruppe"), also in a list of a site's places
+  and in a menu;
   an occurrence outside
   a menu, or the model's quote outside a menu line, with an address (a street with its number, a postal code with a place) or a
   verb of a place ("betreibt", "befindet sich", "liegt", "eröffnet"; "unser Werk in …"); an imprint's line with bullets is no menu
   line when it holds a postal code ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"); an entry of a list on a page of the site's
   places by its address (`/standorte/`, `/einrichtungen/`, `/filialen/`, `/locations/`, …).
-- **Where the name stands:** its words in order with any separators between (a comma, a line, a period, Markdown): the model's
-  "Musterweg 5, 34117 Kassel" is found where the page writes the street and the place on two lines; a name not found so is looked
-  for by the model's quote, which is grounded in the page. (Gate A4 of 0.13.0: with literal matching, most addresses of the
-  production pages counted as "not on the page" and were refused.)
+- **Where the name stands:** its words in order with any separators between (at most eight characters: a comma, a line, a
+  period, Markdown's marks of a heading): the model's "Musterweg 5, 34117 Kassel" is found where the page writes the street and
+  the place on two lines, "Muster parc Musterstadt" where it writes "Muster parc.\n\n#### Musterstadt."; a name not found so is
+  looked for by the model's quote, which is grounded in the page. (Gate A4 of 0.13.0: with literal matching, most addresses of
+  the production pages counted as "not on the page" and were refused; in the eighth run, a care operator's homes written as a
+  heading over their town.)
 - **A list is no menu.** Short entries without a section's label beside them (a site's places, "- Muster Pflege Altstadt",
   "Musterstadt.", an imprint's line) are read as running text: a proper name there without a sign of a place is unclear, not
   refused. (Gate A4 of 0.13.0, third run: lists of a site's branches and imprint lines read as menus held about half of the
@@ -4025,7 +4033,9 @@ reason):
 - **A menu lists places too.** A name that stands only in a site's menu ("Unsere Häuser | Haus Lindenhof | Kontakt") is a place
   by its own words (above), else kept unclear and marked: never confirmed by the menu, never refused for it. (Gate A4 of 0.13.0,
   sixth run: of the refused facilities of the care collection only about two in three were artefacts; most of the rest were a
-  care operator's homes, group homes and services listed in its menus, and places given with their full address.)
+  care operator's homes, group homes and services listed in its menus, and places given with their full address. Eighth run:
+  still about two in three in the care collection, most of the rest a care operator's own homes on its project pages, names
+  written across a heading's marks and offices of counselling with their address; corrected above.)
 - **Unclear:** a proper name outside a menu without any of these, and a name only a menu lists. It is kept as published and
   marked (40.5).
 
@@ -4092,7 +4102,10 @@ source first), with `extractor` (`name/version`) and `model` of that evidence (n
 
 `PlaceEvidenceTest` (the check: menu items, page labels, generic nouns, activities, project pages, service names, addresses,
 verbs, unclear names; `refusedPlacesOfTheSixthRun`: a menu's places by their kind or a person's name, a quote with the full
-address, a numbered house, the operator's establishment and its named place on a project page), `LlmExtractorInvalidReasonTest` (one case per code), `LlmReplayTest` (test 26: a version in `REPLAYS`
+address, a numbered house, the operator's establishment and its named place on a project page; `refusedPlacesOfTheEighthRun`:
+a care provider's own homes on its project page and a builder's built ones, `ExtractContext.operatesPlaces`, a name across a
+heading's marks, an activity's name with its street and number, a day group), `CollectionProfilesTest`
+(`operates_places` read, reported when invalid, never part of the vocabulary version), `LlmExtractorInvalidReasonTest` (one case per code), `LlmReplayTest` (test 26: a version in `REPLAYS`
 asks nothing and keeps the mark, a version outside examines again; test 22: a replay twice and a cached answer with the artifact
 bring nothing back; test 23: the menu facility is gone, the place and its service stay, the unclear name is marked; the quotes
 read back), `CurrentListsTest` (test 23 lists and review, test 24 current lists and `include_stale`, test 25 the two times).

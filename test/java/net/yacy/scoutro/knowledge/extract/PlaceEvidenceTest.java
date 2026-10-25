@@ -36,7 +36,11 @@ public class PlaceEvidenceTest {
     private static final String PROJECT_URL = "https://www.muster-hochbau.de/projekte/institut-kassel/";
 
     private static ExtractContext ctx(final String text, final String url) {
-        return new ExtractContext(KgVocabularies.get(), Set.of("construction"), false, List.of("bau-web")).withServiceText(text).withPage(url);
+        return ctx(text, url, "construction");
+    }
+
+    private static ExtractContext ctx(final String text, final String url, final String vocabulary) {
+        return new ExtractContext(KgVocabularies.get(), Set.of(vocabulary), false, List.of("muster-web")).withServiceText(text).withPage(url);
     }
 
     private static LlmExtractor.Known service(final String id, final String name) {
@@ -308,6 +312,46 @@ public class PlaceEvidenceTest {
         // a fair's hall with its number is no confirmed place, a computer's name with a number none
         assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check("Besuchen Sie uns in Halle 7, Stand 7-236.", "Halle 7",
                 "Besuchen Sie uns in Halle 7, Stand 7-236.", "https://www.muster-it.de/", "site", false).verdict);
+    }
+
+    /**
+     * Gate A4 (0.13.0, run 8): a provider of care lists its own homes on its project page (a builder's project page names the
+     * homes it built); a name the page writes across a heading's marks is found; a street with its number after an activity's name
+     * in its segment states a place; a day group is a place by its kind.
+     */
+    @Test
+    public void refusedPlacesOfTheEighthRun() {
+        final String projects = "Unsere Projekte.\n## Am See.\nPflegeheim Musterstadt „Am See“ seit 01.01.2025 als neuer Standort.\n\nBeispielstadt\n\n"
+                + "Wir haben auch einen Standort in Ihrer Nähe.\n### Pflegedienst Musterstadt\n### Kurzzeitpflege in Beispielstadt\n### Muster Pflege gGmbH\n";
+        final String[][] homes = {{"facility", "Pflegeheim Musterstadt „Am See“"}, {"facility", "Kurzzeitpflege in Beispielstadt"},
+            {"facility", "Beispielstadt"}};
+        final String url = "https://www.muster-pflege.de/projekte";
+        final Extraction care = new Extraction(100);
+        LlmExtractor.apply(accepted(projects, homes), List.of(), care, ctx(projects, url, "care").withReplay());
+        assertEquals("a name without a sign of a place stays the object of a project",
+                Set.of("Pflegeheim Musterstadt „Am See“", "Kurzzeitpflege in Beispielstadt"), named(care, Vocabulary.FACILITY));
+        assertTrue(unconfirmed(care).toString(), unconfirmed(care).isEmpty());
+        final Extraction built = new Extraction(100);
+        LlmExtractor.apply(accepted(projects, homes), List.of(), built, ctx(projects, url, "construction").withReplay());
+        assertTrue(named(built, Vocabulary.FACILITY).toString(), named(built, Vocabulary.FACILITY).isEmpty());
+        assertTrue(ctx(projects, url, "care").operatesPlaces());
+        assertFalse(ctx(projects, url, "construction").operatesPlaces());
+        assertFalse("every vocabulary of the page's collections must say so",
+                new ExtractContext(KgVocabularies.get(), Set.of("care", "construction"), false, List.of("muster-web")).operatesPlaces());
+        assertFalse(new ExtractContext(KgVocabularies.get(), Set.of(), false, List.of("muster-web")).operatesPlaces());
+
+        final String parcs = "Unsere Häuser im Norden.\n\nMuster parc.\n\n#### Beispielstadt.\n\nMuster parc.\n\n#### Musterdorf.\n";
+        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(parcs, "Muster parc Beispielstadt", "Muster parc. #### Beispielstadt.",
+                "https://www.muster-care.de/", "facility", false).verdict);
+        final String places = "** Muster-Berufsfachschule für Pflege Musterstraße 14. 12345 Musterstadt. **0123/45 67 89. Zur Einrichtung "
+                + "** Muster-Erziehungsberatung Beispielweg 15. 12345 Musterstadt. **0123/45 67 80. Zur Einrichtung\n";
+        assertEquals(PlaceEvidence.Verdict.PLACE, PlaceEvidence.check(places, "Muster-Erziehungsberatung", "Muster-Erziehungsberatung",
+                "https://www.muster-beratung.de/", "facility", false).verdict);
+        assertEquals("an activity's name stays refused without its address", PlaceEvidence.Verdict.REFUSED, PlaceEvidence.check(
+                "Leistungen | Erziehungsberatung | Kontakt", "Erziehungsberatung", "Erziehungsberatung", "https://www.muster-beratung.de/",
+                "facility", false).verdict);
+        assertEquals(PlaceEvidence.Verdict.PLACE, PlaceEvidence.check("Die Tagesgruppe Musterstadt betreut zwölf Kinder.", "Tagesgruppe Musterstadt",
+                "Die Tagesgruppe Musterstadt betreut zwölf Kinder.", "https://www.muster-jugendhilfe.de/", "facility", false).verdict);
     }
 
     /**

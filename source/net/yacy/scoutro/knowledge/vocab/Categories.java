@@ -61,7 +61,11 @@ import org.json.JSONObject;
  * collection). Each vocabulary also names the facility kinds the LLM tier may
  * assign on the pages of its collections ({@code llm_kinds}); a file may fix
  * the kinds of single collections ({@code collection_llm_kinds}). Kinds are no
- * part of {@link #version}: they never re-extract.
+ * part of {@link #version}: they never re-extract. A vocabulary may state that
+ * the providers of its field run the places their pages name
+ * ({@code operates_places}, care: homes, day care, residential groups), which
+ * the check of the LLM tier's places reads (0.13.0); it is no part of
+ * {@link #version} either, as it changes no rule.
  */
 public final class Categories {
 
@@ -120,6 +124,11 @@ public final class Categories {
          * industry without a target category ({@link net.yacy.scoutro.knowledge.extract.Audiences}).
          */
         public final Map<String, Entry> organisations;
+        /**
+         * 0.13.0: the providers of the field run the places their pages name ({@code operates_places}: care): a place on a project
+         * page of such a provider is its own, not the object of a project ({@link net.yacy.scoutro.knowledge.extract.PlaceEvidence}).
+         */
+        public final boolean operatesPlaces;
         final TermMatcher<Entry> categoryMatcher;
         final TermMatcher<Entry> segmentMatcher;
         final TermMatcher<Entry> organisationMatcher;
@@ -131,6 +140,12 @@ public final class Categories {
 
         Vocab(final String name, final String de, final String en, final Set<String> llmKinds, final Map<String, Entry> groups,
                 final Map<String, Entry> categories, final Map<String, Entry> segments, final Map<String, Entry> organisations) {
+            this(name, de, en, llmKinds, groups, categories, segments, organisations, false);
+        }
+
+        Vocab(final String name, final String de, final String en, final Set<String> llmKinds, final Map<String, Entry> groups,
+                final Map<String, Entry> categories, final Map<String, Entry> segments, final Map<String, Entry> organisations,
+                final boolean operatesPlaces) {
             this.name = name;
             this.de = de;
             this.en = en;
@@ -139,6 +154,7 @@ public final class Categories {
             this.categories = Collections.unmodifiableMap(categories);
             this.segments = Collections.unmodifiableMap(segments);
             this.organisations = Collections.unmodifiableMap(organisations);
+            this.operatesPlaces = operatesPlaces;
             this.categoryMatcher = TermMatcher.of(categories.values(), e -> e.terms, true);
             this.segmentMatcher = TermMatcher.of(segments.values(), e -> e.terms, false);
             this.organisationMatcher = TermMatcher.of(organisations.values(), e -> e.terms, false);
@@ -369,6 +385,15 @@ public final class Categories {
                             problems.add(where, "invalid llm_kinds of '" + clip(name) + "' (a list of facility kinds)");
                         }
                     }
+                    if (v.has("operates_places")) {
+                        // a later file replaces it, as the kinds
+                        final Object o = v.opt("operates_places");
+                        if (o instanceof Boolean) {
+                            raw.operatesPlaces = (Boolean) o;
+                        } else {
+                            problems.add(where, "invalid operates_places of '" + clip(name) + "' (true or false)");
+                        }
+                    }
                     merge(raw.groups, v.optJSONArray("groups"), where + " " + name + " groups", problems);
                     merge(raw.categories, v.optJSONArray("categories"), where + " " + name + " categories", problems);
                     merge(raw.segments, v.optJSONArray("segments"), where + " " + name + " segments", problems);
@@ -417,7 +442,8 @@ public final class Categories {
                 }
             }
             out.put(vn, new Vocab(vn, raw.de == null ? vn : raw.de, raw.en == null ? vn : raw.en,
-                    raw.llmKinds == null ? Collections.emptySet() : raw.llmKinds, groups, categories, segments, organisations));
+                    raw.llmKinds == null ? Collections.emptySet() : raw.llmKinds, groups, categories, segments, organisations,
+                    raw.operatesPlaces));
         }
         for (final Iterator<Map.Entry<String, String>> it = collections.entrySet().iterator(); it.hasNext();) {
             final Map.Entry<String, String> c = it.next();
@@ -429,7 +455,7 @@ public final class Categories {
         final Map<String, Entry> ct = flat(customerTypes, "customer type", problems);
         final Map<String, Entry> cs = flat(companySizes, "company size", problems);
         final Map<String, Entry> et = flat(employmentTypes, "employment type", problems);
-        // the facility kinds (of vocabularies and of collections) are left out: they never re-extract
+        // the facility kinds (of vocabularies and of collections) and operates_places are left out: they never re-extract
         final String version = version(collections, out, ct, cs, et);
         return new Categories(version, collections, collectionKinds, out, ct, cs, et);
     }
@@ -439,6 +465,7 @@ public final class Categories {
         String en;
         /** null: not given (no kinds). */
         Set<String> llmKinds;
+        boolean operatesPlaces;
         final Map<String, JSONObject> groups = new LinkedHashMap<>();
         final Map<String, JSONObject> categories = new LinkedHashMap<>();
         final Map<String, JSONObject> segments = new LinkedHashMap<>();

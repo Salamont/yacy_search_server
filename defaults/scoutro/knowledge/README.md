@@ -8,7 +8,7 @@ declared audience (section 39), and the product tree (section 39).
 
 | File | Content |
 |------|---------|
-| `categories.json` | Seed vocabularies (care, coaching, software, construction), profiles an operator gives a collection: service categories with German and English labels, match terms, the Scoutro group (industry subcategory) and the safe NACE Rev. 2.1 level of each category; audience segments; the facility kinds of the LLM tier (`llm_kinds`, not versioned); customer types, company sizes and employment types. Versioned by content; not a closed list. It maps no collection. |
+| `categories.json` | Seed vocabularies (care, coaching, software, construction), profiles an operator gives a collection: service categories with German and English labels, match terms, the Scoutro group (industry subcategory) and the safe NACE Rev. 2.1 level of each category; audience segments; the facility kinds of the LLM tier (`llm_kinds`, not versioned) and whether the field's providers run the places they name (`operates_places`, not versioned); customer types, company sizes and employment types. Versioned by content; not a closed list. It maps no collection. |
 | `products.json`, `needs.json` | The global signal vocabularies: products with their aliases and, since package 7 (0.13.0, version 2), their tree (`parents`: vendor, product, module such as SAP, S/4HANA, FI), the vendors that state nothing beside a product of theirs (`general`: SAP) and the kinds of service (`service_types`: consulting, implementation, migration, integration, development, operation, training, licence); and the needs. A text names every product it states; a product never states its modules. An operator's file of the same name in `DATA/SCOUTRO/knowledge/vocabulary/` replaces the shipped one. |
 | `nace-2.1.csv` | The statistical classification of economic activities NACE Rev. 2.1 (sections, divisions, groups and classes, English titles). |
 
@@ -30,7 +30,12 @@ knowledge graph's settings page), or by a `collections` map in a file of
 `"collections": {"my-portal-web": "software"}`. The vocabulary also brings
 the facility kinds the LLM tier may assign on the collection's pages
 (`llm_kinds`; `scoutro.kg.llm.kinds.<collection>` replaces them, a file may
-fix them for one collection with `collection_llm_kinds`). An installation
+fix them for one collection with `collection_llm_kinds`). A vocabulary may
+state that the providers of its field run the places their pages name
+(`"operates_places": true`, care: homes, day care, residential groups): on
+a project page of such a provider a place with a sign of a place (a place
+word with its name, an address, a place verb) is its own, not the object of
+a project; like the kinds, it is not versioned and re-extracts nothing. An installation
 that used the collection map earlier versions shipped here keeps it as
 `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`, written
 once at the upgrade.

@@ -207,6 +207,7 @@
   "care": {
    "de": "Pflege und Betreuung",
    "en": "Care and support",
+   "operates_places": true,
    "llm_kinds": [
     "adultdaycare",
     "assistedliving",
