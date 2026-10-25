@@ -57,15 +57,17 @@ public final class PlaceEvidence {
     public static final String PROJECT_OBJECT = "entity_facility_project_object";
     public static final String SERVICE_NAME = "entity_facility_service_name";
 
+    /** A word of a name (before the word sets, which are folded with it). */
+    private static final Pattern WORD = Pattern.compile("\\p{L}[\\p{L}\\p{N}'’-]*");
     /** The words of a website's sections, folded: a facility of such a name is a page label. */
-    static final Set<String> PAGE_LABELS = Set.of("kontakt", "kontaktformular", "uber uns", "ueber uns", "wir uber uns", "team", "jobs", "job",
+    static final Set<String> PAGE_LABELS = folded("kontakt", "kontaktformular", "uber uns", "ueber uns", "wir uber uns", "team", "jobs", "job",
             "karriere", "stellenangebote", "referenzen", "referenz", "projekte", "projekt", "aktuelles", "news", "neuigkeiten", "blog",
             "presse", "impressum", "datenschutz", "datenschutzerklarung", "home", "startseite", "leistungen", "unsere leistungen",
             "service", "services", "downloads", "download", "anfahrt", "galerie", "unternehmen", "philosophie", "geschichte", "historie",
             "partner", "faq", "sitemap", "login", "suche", "agb", "contact", "contact us", "about", "about us", "career", "careers",
             "references", "projects", "imprint", "legal notice", "privacy", "privacy policy", "company", "history", "gallery", "search");
     /** A generic noun that alone names no place, folded. */
-    static final Set<String> GENERIC = Set.of("gebaude", "haus", "werk", "standort", "standorte", "niederlassung", "filiale", "einrichtung",
+    static final Set<String> GENERIC = folded("gebaude", "haus", "werk", "standort", "standorte", "niederlassung", "filiale", "einrichtung",
             "einrichtungen", "zentrale", "buro", "halle", "gelande", "objekt", "anlage", "building", "buildings", "site", "plant", "office",
             "location", "branch", "facility", "premises");
     /** The ending of a name of an activity or a field of work (German and English): "Hochbau", "Baustatische Prüfung", "Gebäudetechnik". */
@@ -102,7 +104,6 @@ public final class PlaceEvidence {
             + "|bauvorhaben|objekte)(?:[./_\\-]|$)");
     /** Separators of the segments of a page text (as {@link LlmExtractor#underHeading} reads them). */
     private static final Pattern SEGMENT = Pattern.compile("[.!?|•·:;\\n\\r*]+|\\s[-–—]\\s");
-    private static final Pattern WORD = Pattern.compile("\\p{L}[\\p{L}\\p{N}'’-]*");
 
     private PlaceEvidence() {}
 
@@ -314,6 +315,15 @@ public final class PlaceEvidence {
     }
 
     /** The folded comparison form of a name: words folded and separated by one space. */
+    /** The words as {@link #fold} compares them ("impressum" is folded as every name is). */
+    private static Set<String> folded(final String... words) {
+        final Set<String> out = new java.util.HashSet<>();
+        for (final String w : words) {
+            out.add(fold(w));
+        }
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
     static String fold(final String name) {
         final StringBuilder sb = new StringBuilder();
         for (final Matcher w = WORD.matcher(name == null ? "" : name.toLowerCase(Locale.ROOT)); w.find();) {

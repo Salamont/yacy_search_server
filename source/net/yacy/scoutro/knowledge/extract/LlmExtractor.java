@@ -151,8 +151,8 @@ public final class LlmExtractor {
             + "3. Every entity and every claim needs \"quote\": a passage copied character for character from the page text"
             + " (at most 200 characters) that contains the names involved.\n"
             + "4. Do not extract persons or private individuals, and no e-mail addresses or phone numbers.\n"
-            + "5. Types: organization, facility (a named place of business or care; no menu item, service or project building), site"
-            + " (a building or location), service (a service or product the organisation offers, stated as offered: in its list of services, an offer"
+            + "5. Types: organization, facility (a named place of business or care, never a menu item), site (a building or"
+            + " location), service (a service or product the organisation offers, stated as offered: in its list of services, an offer"
             + " or a price; not a tool of the web page such as print or spell check, not a team or a role), job (a job posting with its"
             + " title, advertised as a vacancy; not the role of a team member). Relations: operates"
             + " (organization -> facility or site), offers (organization or facility -> service), located_at (organization, facility"
@@ -359,6 +359,11 @@ public final class LlmExtractor {
             "entity_service_team_or_role", // a "service" named as a team, a department or staff ("Service team", "Vertriebsteam")
             "entity_service_not_offered", // no independent, bounded source offer or named price evidence for this service
             "entity_job_not_advertised", // a "job" no advertisement states: no vacancy, no gender marker, no hiring statement
+            // 0.13.0: a place needs a place in its context (PlaceEvidence); a section of the site is no entity. The building of a
+            // project page (entity_facility_project_object) is refused where the page's address is known, when it is published
+            "entity_page_label", // "Kontakt", "Referenzen", "Über uns": a label of the site's pages, as a facility, site or service
+            "entity_facility_not_a_place", // a generic noun, an activity, or a name the text never shows as a place (only in a menu)
+            "entity_facility_service_name", // the name of a service the rules found on the page, without a sign of a place
             // claims
             "claim_not_object",
             "claim_extra_field", // a field other than subject, predicate, object, hedged, quote
