@@ -437,7 +437,77 @@ public final class BusinessRules {
             s.at.add(h.start);
             positions.add(new int[] {h.start, h.end, list.indexOf(s)});
         }
+        uncategorized(run, hits, services.size());
         prices(run, positions, list);
+    }
+
+    /** 0.13.0: a heading of the site's offers on a line of its own ("Leistungen", "## Unsere Leistungen", "Our services:"). */
+    private static final Pattern OFFER_HEADING = Pattern.compile("(?imu)^[ \\t]*(?:#{1,4}[ \\t]*)?[*_]*(?:unsere[ \\t]+)?(?:leistungen"
+            + "|leistungsspektrum|leistungsbereiche|angebote?|kompetenzen|our[ \\t]+services|services|what[ \\t]+we[ \\t]+do|was[ \\t]+wir[ \\t]+tun)"
+            + "[*_]*[ \\t]*[:.]?[ \\t]*$");
+    private static final Pattern ITEM_LINE = Pattern.compile("(?mu)^[ \\t]*(?:[-*\u2022\u00b7][ \\t]+)?[*_]*([^\\n]{2,60}?)[*_]*[ \\t.]*$");
+    private static final int MAX_UNCATEGORIZED = 12;
+
+    /**
+     * 0.13.0 (rule/9): the items of an offer list under an offer heading that match no category of the vocabulary ("Leistungen /
+     * Hochbau / Logistikbau"): a service with its name, without a category, flagged {@code uncategorized}, structural and hedged
+     * (confidence 0.4, uncertain); never a page label ("Referenzen" ends the list), a date, a question or more than four words. No
+     * fuzzy mapping: an item is never given a category it does not name. The matching reads no product or need from it; the view
+     * lists it, and a report of such names is the input for the vocabulary's upkeep.
+     */
+    private void uncategorized(final Run run, final List<TermMatcher.Hit<Categories.Entry>> hits, final int already) {
+        int n = 0;
+        final Set<String> seen = new LinkedHashSet<>();
+        final Matcher heading = OFFER_HEADING.matcher(run.text);
+        while (heading.find() && n < MAX_UNCATEGORIZED && already + n < MAX_SERVICES) {
+            int at = heading.end();
+            for (int items = 0; items < 20 && at < run.text.length(); items++) {
+                while (at < run.text.length() && (run.text.charAt(at) == '\n' || run.text.charAt(at) == '\r')) {
+                    at++;
+                }
+                final Matcher line = ITEM_LINE.matcher(run.text).region(at, run.text.length());
+                if (!line.lookingAt()) {
+                    break;
+                }
+                final String item = line.group(1).trim().replaceAll("[\\s.:;,]+$", "");
+                final int start = line.start(1), end = start + item.length();
+                at = line.end();
+                final int words = item.split("\\s+").length;
+                if (item.isEmpty() || words > 4 || PlaceEvidence.pageLabel(item) || OFFER_HEADING.matcher(item).matches()) {
+                    break; // the next section of the menu or the page: the list has ended
+                }
+                if (item.endsWith("?") || GENDER_MARK.matcher(item).find() || item.matches(".*\\d.*") || NOT_A_NAME.matcher(item).find()
+                        || ServiceEvidence.useOrRecruiting(item) || ServiceEvidence.negated(item)) {
+                    continue;
+                }
+                boolean categorized = false;
+                for (final TermMatcher.Hit<Categories.Entry> h : hits) {
+                    categorized |= h.start < end && h.end > start;
+                }
+                final String key = Normalizers.key(item);
+                if (categorized || key == null || !seen.add(key) || n >= MAX_UNCATEGORIZED) {
+                    continue;
+                }
+                final Mention m = run.out.add(new Mention(BusinessFacts.SERVICE_REF + "item:" + key, Vocabulary.SERVICE, 2));
+                if (m.name == null) {
+                    m.name = Normalizers.clip(item, 120);
+                    final String provider = Mention.providerKey(run.subject);
+                    m.serviceKey = provider == null ? null : provider + "|item:" + key;
+                }
+                hedged(run, m, Vocabulary.NAME, m.name, start, end);
+                hedged(run, m, Vocabulary.UNCATEGORIZED, "offer_item", start, end);
+                final int a = Math.max(0, heading.start()), b = Math.min(run.text.length(), end + 30);
+                run.out.add(new Claim(run.subject.ref, Vocabulary.OFFERS, m.ref, null, 2, Claim.KIND_RULE, true, loc(start, end),
+                        Normalizers.clip(Normalizers.excerpt(run.text, a, b), Math.max(this.maxExcerpt, 200)), STRUCTURAL_CONFIDENCE));
+                n++;
+            }
+        }
+    }
+
+    private void hedged(final Run run, final Mention m, final String predicate, final String value, final int start, final int end) {
+        final int a = Math.max(0, start - 30), b = Math.min(run.text.length(), end + 30);
+        run.out.add(new Claim(m.ref, predicate, null, value, 2, Claim.KIND_RULE, true, loc(start, end),
+                Normalizers.clip(Normalizers.excerpt(run.text, a, b), this.maxExcerpt), STRUCTURAL_CONFIDENCE));
     }
 
     /** An entry of a menu that heads a group of its items. */

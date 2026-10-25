@@ -313,9 +313,12 @@ public class CollectionMigrationTest {
                 // each recorded hash of the categories with a setup's collections becomes exactly one new hash
                 .replaceAll("vocabulary/(\\d+)-(9192e239c049|ffe3a2e79047|44c7a4bdf84d|77a395381244|21fb237d6efd)-",
                         "vocabulary/$1-<categories $2>-")
-                .replace("<categories 9192e239c049>", "4ba098e42de3").replace("<categories ffe3a2e79047>", "2437ec2944e9")
-                .replace("<categories 44c7a4bdf84d>", "60c8699722ff").replace("<categories 77a395381244>", "14e7b56fe8ff")
-                .replace("<categories 21fb237d6efd>", "b234856e4422");
+                // 0.13.0 changed the default categories (the vocabularies' organisations) and the products (their tree, package 7) on
+                // purpose, within the one re-read of rule/9: each hash of 0.12.0 becomes exactly one new hash, the signals' hash one too
+                .replace("<categories 9192e239c049>", "4da033928d9e").replace("<categories ffe3a2e79047>", "b539fe6c90fc")
+                .replace("<categories 44c7a4bdf84d>", "43bb064bd2ae").replace("<categories 77a395381244>", "a7a52087ef45")
+                .replace("<categories 21fb237d6efd>", "cc036dde7de8")
+                .replace("signals-222778f8d6a129fa06a550b3", "signals-ecea6c239b4d816e2155ed07");
     }
 
     /** The report of {@link #FORMER} for the vocabularies in force and these settings. */

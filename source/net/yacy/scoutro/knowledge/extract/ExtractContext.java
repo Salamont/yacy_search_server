@@ -59,6 +59,8 @@ public final class ExtractContext {
     public final String serviceTitle;
     /** 0.12.0: the page's subject by the rules ({@link BusinessRules#pageSubject}), the provider of what its title shows. */
     public final Mention serviceOperator;
+    /** 0.13.0: the page's address, for the role of a place on it ({@link PlaceEvidence}: a project page's building); null if unknown. */
+    public final String pageUrl;
 
     /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
@@ -86,6 +88,7 @@ public final class ExtractContext {
         this.serviceText = null;
         this.serviceTitle = null;
         this.serviceOperator = null;
+        this.pageUrl = null;
     }
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText) {
@@ -94,6 +97,11 @@ public final class ExtractContext {
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
             final String serviceTitle, final Mention serviceOperator) {
+        this(c, postingTitles, otherTitles, serviceText, serviceTitle, serviceOperator, c.pageUrl);
+    }
+
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
+            final String serviceTitle, final Mention serviceOperator, final String pageUrl) {
         this.categories = c.categories;
         this.nace = c.nace;
         this.vocabularies = c.vocabularies;
@@ -105,6 +113,12 @@ public final class ExtractContext {
         this.serviceText = serviceText;
         this.serviceTitle = serviceTitle;
         this.serviceOperator = serviceOperator;
+        this.pageUrl = pageUrl;
+    }
+
+    /** 0.13.0: this context with the page's address ({@link #pageUrl}). */
+    public ExtractContext withPage(final String url) {
+        return new ExtractContext(this, this.postingTitles, this.otherTitles, this.serviceText, this.serviceTitle, this.serviceOperator, url);
     }
 
     /** This context with the job titles of the page: {postings, others} of {@link BusinessRules#jobTitleKeys}. */

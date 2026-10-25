@@ -151,8 +151,8 @@ public final class LlmExtractor {
             + "3. Every entity and every claim needs \"quote\": a passage copied character for character from the page text"
             + " (at most 200 characters) that contains the names involved.\n"
             + "4. Do not extract persons or private individuals, and no e-mail addresses or phone numbers.\n"
-            + "5. Types: organization, facility (a physical place of business or care with its own name), site (a building or"
-            + " location), service (a service or product the organisation offers, stated as offered: in its list of services, an offer"
+            + "5. Types: organization, facility (a named place of business or care; no menu item, service or project building), site"
+            + " (a building or location), service (a service or product the organisation offers, stated as offered: in its list of services, an offer"
             + " or a price; not a tool of the web page such as print or spell check, not a team or a role), job (a job posting with its"
             + " title, advertised as a vacancy; not the role of a team member). Relations: operates"
             + " (organization -> facility or site), offers (organization or facility -> service), located_at (organization, facility"
@@ -683,7 +683,7 @@ public final class LlmExtractor {
                 }
             }
             // a known entity has its type from another tier; a new service or job needs the context that states its type
-            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context, serviceTitle);
+            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context, serviceTitle, known);
             if (untyped != null) {
                 r.invalid(untyped);
                 r.sample(untyped, "entity", null, type, null, null, null, quote);
@@ -866,13 +866,23 @@ public final class LlmExtractor {
      * <li>a service named as a team, a department or staff is none. An independent offer cue must name it in a bounded
      * source passage ({@link ServiceEvidence}); answer claims and values cannot supply missing source context;</li>
      * <li>a job needs an advertisement: a vacancy or a gender marker in its name, its quote or the heading its quote stands
-     * under, or a hiring statement about it that advertises it. The role of a team member is no job.</li>
+     * under, or a hiring statement about it that advertises it. The role of a team member is no job;</li>
+     * <li>0.13.0: a facility or a site needs a place in its context ({@link PlaceEvidence}): never a page label, a generic noun or
+     * an activity, never only a menu item; a service is never a page label.</li>
      * </ul>
      * Other types are not checked here.
      */
     private static String unstatedType(final String type, final String id, final String name, final String quote, final String text,
-            final String raw, final Map<String, List<String>> context, final String serviceTitle) {
+            final String raw, final Map<String, List<String>> context, final String serviceTitle, final List<Known> known) {
+        if (Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) {
+            // 0.13.0: a place needs a place in its context (PlaceEvidence); an unclear one is decided when it is published
+            final PlaceEvidence.Result place = PlaceEvidence.check(raw, name, quote, null, type, serviceOfPage(known, name));
+            return place.verdict == PlaceEvidence.Verdict.REFUSED ? place.reason : null;
+        }
         if (Vocabulary.SERVICE.equals(type)) {
+            if (PlaceEvidence.pageLabel(name)) {
+                return PlaceEvidence.PAGE_LABEL; // 0.13.0: "Kontakt", "Referenzen", "Über uns" name sections of the site
+            }
             if (TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
                 return "entity_service_team_or_role";
             }
@@ -890,6 +900,17 @@ public final class LlmExtractor {
             return "entity_job_not_advertised";
         }
         return null;
+    }
+
+    /** 0.13.0: true if the rules found a service of this name on the page (a known entity): a place of that name needs a place's sign. */
+    static boolean serviceOfPage(final List<Known> known, final String name) {
+        final String key = Normalizers.key(name);
+        for (final Known k : known) {
+            if (Vocabulary.SERVICE.equals(k.mention.type) && key != null && key.equals(Normalizers.key(k.mention.name))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 0.12.0: the title of a page that shows the site's offers names the service: a structural offer (no team or role). */
@@ -1149,6 +1170,20 @@ public final class LlmExtractor {
                     quote = normal(proof);
                 }
             }
+            if (Vocabulary.SERVICE.equals(type) && same == null && PlaceEvidence.pageLabel(name)) {
+                continue; // 0.13.0: a section of the site is no service, also of an old accepted or cached answer
+            }
+            boolean unconfirmed = false;
+            if ((Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) && same == null) {
+                // 0.13.0: every accepted answer (fresh, cached or replayed) is checked again with the page's text: a place needs a
+                // place in its context; a proper name without one is kept and marked
+                final PlaceEvidence.Result place = PlaceEvidence.check(ctx == null || ctx.serviceText == null ? quote : ctx.serviceText, name,
+                        quote, ctx == null ? null : ctx.pageUrl, type, serviceOfPage(known, name));
+                if (place.verdict == PlaceEvidence.Verdict.REFUSED) {
+                    continue;
+                }
+                unconfirmed = place.verdict == PlaceEvidence.Verdict.UNCLEAR;
+            }
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection
             }
@@ -1169,6 +1204,9 @@ public final class LlmExtractor {
             if (named.add(ref)) {
                 out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
                         structural.contains(ref) ? BusinessRules.STRUCTURAL_CONFIDENCE : null));
+                if (unconfirmed) {
+                    out.add(new Claim(ref, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
+                }
             }
         }
         final JSONArray claims = accepted.optJSONArray("claims");

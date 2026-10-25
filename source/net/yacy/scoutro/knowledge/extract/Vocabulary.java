@@ -43,7 +43,7 @@ import java.util.TreeSet;
  */
 public final class Vocabulary {
 
-    public static final String VERSION = "4";
+    public static final String VERSION = "5"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0)
 
     // entity types (kg_vocab kind 1)
     public static final String ORGANIZATION = "organization";
@@ -99,6 +99,20 @@ public final class Vocabulary {
      * organisation, no service, no {@code offers}, no derived industry ({@link #T_CODE}, a category id).
      */
     public static final String TOPIC = "topic";
+
+    // version 5 (0.13.0)
+    /**
+     * A facility or site of the LLM tier whose context states no place ({@link T_CODE}: its type): a proper name read outside a
+     * navigation, but without a place word, an address or a place verb ({@code PlaceEvidence}). Kept as published, not counted as a
+     * facility and listed for review; a judged rule correction, never a hand edit, resolves it.
+     */
+    public static final String TYPE_UNCONFIRMED = "type_unconfirmed";
+    /**
+     * A service of the rules read as an item of an offer list under an offer heading whose name matches no category of the
+     * vocabulary ({@link T_CODE}, {@code offer_item}): listed in the view and in the report for the vocabulary's upkeep, never a
+     * matching input (it has no category).
+     */
+    public static final String UNCATEGORIZED = "uncategorized";
 
     // version 2: relations between organisations (D), all directed as stated by the source
     public static final String PARENT_OF = "parent_of";
@@ -340,6 +354,9 @@ public final class Vocabulary {
         relation(p, MANUFACTURER_OF);
         relation(p, HAS_BRAND);
         literal(p, TOPIC, false, T_CODE);
+        // version 5
+        literal(p, TYPE_UNCONFIRMED, true, T_CODE);
+        literal(p, UNCATEGORIZED, true, T_CODE);
         PREDICATES = Collections.unmodifiableMap(p);
         final Map<String, String> ids = new LinkedHashMap<>();
         ids.put(REGISTER, ID_REGISTER);

@@ -133,7 +133,7 @@ public final class LlmReading {
     /** {@link #context(KgConfig, SolrDoc, String)} with the page's tiers 1 and 2: their subject offers what the page's title shows. */
     public static ExtractContext context(final KgConfig cfg, final SolrDoc d, final String stored, final Extraction base) {
         return BaseTiers.context(cfg, d).withJobTitles(BusinessRules.jobTitleKeys(stored, d.url, d.titles)).withServiceText(stored)
-                .withServiceTitle(BusinessRules.offerTitle(d.url, d.titles), BusinessRules.pageSubject(base));
+                .withServiceTitle(BusinessRules.offerTitle(d.url, d.titles), BusinessRules.pageSubject(base)).withPage(d.url);
     }
 
     // ------------------------------------------------------------ a page given as text
