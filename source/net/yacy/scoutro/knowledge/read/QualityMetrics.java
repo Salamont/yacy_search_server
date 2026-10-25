@@ -101,6 +101,11 @@ public final class QualityMetrics {
         all.put("topic_statements", (c, o) -> statements(c, o, "topic"));
         all.put("service_product_page_duplicate_candidates", this::productPageDuplicates);
         all.put("identity_keys", this::identityKeys);
+        // 0.13.0: the input of the vocabularies and the review of places (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40)
+        all.put("services_uncategorized", (c, o) -> entities(c, o, "service", hasPred("uncategorized")));
+        all.put("uncategorized_service_names", this::uncategorizedNames);
+        all.put("facilities_type_unconfirmed", (c, o) -> entities(c, o, "facility", hasPred("type_unconfirmed")));
+        all.put("sites_type_unconfirmed", (c, o) -> entities(c, o, "site", hasPred("type_unconfirmed")));
         for (final Map.Entry<String, Metric> m : all.entrySet()) {
             final JSONObject into = new JSONObject();
             try {
@@ -205,6 +210,27 @@ public final class QualityMetrics {
         }
         KgJson.put(into, "unit", "services per normalised name (top 20)");
         KgJson.put(into, "top", top);
+    }
+
+    /** 0.13.0: the names of the services without a category (offer items), per collection (top 50 each): the vocabulary's input. */
+    private void uncategorizedNames(final Connection c, final JSONObject into) throws SQLException {
+        final JSONObject by = new JSONObject();
+        try (PreparedStatement p = c.prepareStatement("SELECT k.name, lower(trim(n.obj_val)) AS nm, count(DISTINCT e.ent_rowid) FROM kg_entity e"
+                + " JOIN kg_statement u ON u.subj = e.ent_rowid AND u.pred = " + term("uncategorized", 2) + " JOIN kg_statement n"
+                + " ON n.subj = e.ent_rowid AND n.pred = " + term("name", 2) + " JOIN kg_entity_scope es ON es.ent_rowid = e.ent_rowid"
+                + " JOIN kg_collection k ON k.coll_id = es.coll_id WHERE e.status = 1 AND e.type = " + term("service", 1)
+                + " GROUP BY k.name, nm ORDER BY k.name, 3 DESC, nm"); ResultSet r = p.executeQuery()) {
+            while (r.next()) {
+                JSONArray names = by.optJSONArray(r.getString(1));
+                if (names == null) {
+                    names = new JSONArray();
+                    KgJson.put(by, r.getString(1), names);
+                }
+                if (names.length() < 50) names.put(KgJson.obj("name", r.getString(2), "services", r.getLong(3)));
+            }
+        }
+        KgJson.put(into, "unit", "services without a category per normalised name and collection (top 50 each)");
+        KgJson.put(into, "by_collection", by);
     }
 
     private void offersByTier(final Connection c, final JSONObject into) throws SQLException {

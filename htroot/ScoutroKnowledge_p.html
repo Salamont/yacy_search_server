@@ -89,7 +89,7 @@
 <button class="btn btn-primary" type="submit">Search</button>
 </form>
 <div id="skg-groups" class="skg-groups" hidden></div>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Quality</th><th>Sources</th><th>Source read</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
 <div class="sseo-controls"><button class="btn btn-default" id="skg-prev" type="button">Previous</button><span id="skg-range" role="status"></span><button class="btn btn-default" id="skg-next" type="button">Next</button></div>
 </section>
 
@@ -183,7 +183,7 @@
 <p><a class="btn btn-default btn-sm" id="skg-svc-network" href="ScoutroKnowledge_p.html?view=services">Network of all providers</a></p>
 <h3 id="skg-svc-group-title"></h3>
 <dl id="skg-svc-group" class="sseo-stats"></dl>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Source read</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
 </div>
 <div class="sseo-controls"><button class="btn btn-default" id="skg-svc-prev" type="button">Previous</button><span id="skg-svc-range" role="status"></span><button class="btn btn-default" id="skg-svc-next" type="button">Next</button></div>
 </section>
@@ -726,7 +726,9 @@
 <span data-skg-label="hosts">Hosts</span>
 <span data-skg-label="duplicates">Possible duplicates</span>
 <span data-skg-label="first_seen">First seen</span>
-<span data-skg-label="last_confirmed">Last confirmed</span>
+<span data-skg-label="last_confirmed">Source read</span>
+<span data-skg-label="evaluated">Evaluated</span>
+<span data-skg-label="model_named">model %1</span>
 <span data-skg-label="sources">Sources</span>
 <span data-skg-label="statements">Statements</span>
 <span data-skg-label="evidence">Show evidence</span>
@@ -1090,6 +1092,7 @@
 <span data-skg-label="website_topics_note">Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.</span>
 <span data-skg-label="topic_no_offer">no proof of an offer</span>
 <span data-skg-label="offer_structural">structural evidence: the page's title, a list or the service's own page</span>
+<span data-skg-label="uncategorized_service">without a category: an item of an offer list</span>
 <span data-skg-label="sec_website_technologies">Website technologies</span>
 <span data-skg-label="website_technologies_note">Technologies the site's pages integrate, read from their technical markup (generator, scripts, stylesheets, plugin comments). A website observation: no proof of the company's internal software, of an offer or of a customer project. A technology a later crawl no longer finds is not observed again, which is not the same as removed.</span>
 <span data-skg-label="techcat_cms">content management system</span>
@@ -1111,6 +1114,8 @@
 <span data-skg-label="assertion_corrected">corrected; original statement retained</span>
 <span data-skg-label="assertion_withdrawn">withdrawn; original statement retained</span>
 <span data-skg-label="p_system_signal">System or competence signal</span>
+<span data-skg-label="p_type_unconfirmed">Type unconfirmed (no place in its context)</span>
+<span data-skg-label="p_uncategorized">Without a category (offer item)</span>
 <span data-skg-label="p_business_need_signal">Organizational need signal</span>
 <span data-skg-label="p_business_role_evidence">Own offered services and role</span>
 <span data-skg-label="p_job_status">Evidenced vacancy status</span>

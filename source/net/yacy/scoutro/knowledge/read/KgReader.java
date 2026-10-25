@@ -138,6 +138,15 @@ public final class KgReader {
         public String category;
         /** An audience code (customer type, segment, target category or industry). */
         public String audience;
+        /**
+         * 0.13.0: also entities without a current statement (their sources left the index or are too old); by default a list and
+         * its count hold only entities with a current statement ({@link #currentStatement}), as the entity's own view shows them.
+         */
+        public boolean includeStale;
+        /** 0.13.0: also facilities and sites whose type no source confirms ({@code type_unconfirmed}) in a filter by their type. */
+        public boolean includeUnconfirmed;
+        /** 0.13.0: {@code type_unconfirmed} lists only the places whose type no source confirms (the review report). */
+        public String review;
         public int offset;
         public int limit = 25;
     }
@@ -229,6 +238,20 @@ public final class KgReader {
                 + " AND (cd.loaded_at IS NULL OR cd.loaded_at >= " + (now - this.cfg.maxAgeMillis) + ") AND " + visibleDoc(v, "cd") + ")";
     }
 
+    /**
+     * 0.13.0, SQL condition: entity {@code alias} is a place whose type no source the viewer sees confirms: a current
+     * {@code type_unconfirmed} mark of the LLM tier, and no current name of it from another tier or from a page without the mark.
+     */
+    String typeUnconfirmed(final Viewer v, final String alias, final long now) {
+        final String mark = "(SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = '" + Vocabulary.TYPE_UNCONFIRMED + "')";
+        return "EXISTS (SELECT 1 FROM kg_statement us WHERE us.subj = " + alias + ".ent_rowid AND us.pred = " + mark + " AND "
+                + currentStatement(v, "us", now) + ") AND NOT EXISTS (SELECT 1 FROM kg_statement ns JOIN kg_evidence ne ON ne.stmt_rowid"
+                + " = ns.stmt_rowid JOIN kg_doc nd ON nd.doc_rowid = ne.doc_rowid WHERE ns.subj = " + alias + ".ent_rowid AND ns.pred ="
+                + " (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'name') AND " + currentDoc("nd", now) + " AND " + visibleDoc(v, "nd")
+                + " AND (ne.tier < 3 OR NOT EXISTS (SELECT 1 FROM kg_statement ms JOIN kg_evidence me ON me.stmt_rowid = ms.stmt_rowid"
+                + " WHERE ms.subj = " + alias + ".ent_rowid AND ms.pred = " + mark + " AND me.doc_rowid = ne.doc_rowid)))";
+    }
+
     boolean current(final int state, final long stateSince, final Long loadedAt, final long now) {
         final boolean live = state == 1 || (state == 2 && now - stateSince <= this.cfg.unavailableGraceMillis);
         return live && (loadedAt == null || now - loadedAt <= this.cfg.maxAgeMillis);
@@ -254,6 +277,14 @@ public final class KgReader {
         Long lastConfirmed;
         /** The last load of any visible page behind it, current or not: when a fact that is gone was last seen. */
         Long lastSeen;
+        /**
+         * 0.13.0: when the newest evidence was extracted ({@code observed_at}; of a current source if there is one), and by which
+         * extractor ({@code name/version}) and model: a reading of today never makes an old source look freshly confirmed.
+         */
+        Long extractedAt;
+        String extractedBy;
+        String extractedModel;
+        private boolean extractedCurrent;
         Long firstObserved;
         String quality;
 
@@ -306,8 +337,9 @@ public final class KgReader {
                 in.append(in.length() == 0 ? "" : ",").append(r.longValue());
             }
             try (PreparedStatement ps = c.prepareStatement("SELECT e.stmt_rowid, e.certainty, e.tier, e.kind, d.doc_rowid, d.state,"
-                    + " d.state_since, d.loaded_at, e.observed_at FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
-                    + " WHERE e.stmt_rowid IN (" + in + ") AND " + visibleDoc(v, "d"));
+                    + " d.state_since, d.loaded_at, e.observed_at, x.name, x.version, x.model FROM kg_evidence e JOIN kg_doc d"
+                    + " ON d.doc_rowid = e.doc_rowid JOIN kg_extractor x ON x.ext_id = e.ext_id WHERE e.stmt_rowid IN (" + in + ") AND "
+                    + visibleDoc(v, "d"));
                     ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     final Stat s = byRow.get(rs.getLong(1));
@@ -323,7 +355,16 @@ public final class KgReader {
                     if (loaded != null && (s.lastSeen == null || loaded > s.lastSeen)) {
                         s.lastSeen = loaded;
                     }
-                    if (!current(state, rs.getLong(7), loaded, now)) {
+                    final boolean live = current(state, rs.getLong(7), loaded, now);
+                    // the newest extraction, of a current source before any other
+                    if (s.extractedAt == null || live && !s.extractedCurrent || live == s.extractedCurrent && observed > s.extractedAt) {
+                        s.extractedAt = observed;
+                        s.extractedBy = rs.getString(10) + "/" + rs.getString(11);
+                        // agents see no model names (forAgents)
+                        s.extractedModel = !this.modelDetail || rs.getString(12) == null || rs.getString(12).isEmpty() ? null : rs.getString(12);
+                        s.extractedCurrent = live;
+                    }
+                    if (!live) {
                         continue;
                     }
                     s.current = true;
@@ -421,16 +462,29 @@ public final class KgReader {
         return this.store.read(c -> {
             final StringBuilder where = new StringBuilder(visibleEntity(v, "e"));
             final List<Object> args = new ArrayList<>();
+            // a filter by quality "stale" asks for the others
+            final boolean stale = q.includeStale || "stale".equals(q.quality);
             if (q.type != null) {
                 where.append(" AND e.type = (SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = ?)");
                 args.add(q.type);
             }
             if (q.host != null) {
                 final List<String> hostIds = hostIds(q.host);
+                // 0.13.0: by the host's current pages; a page that left the index lists nothing of its own
                 where.append(" AND e.ent_rowid IN (SELECT s.subj FROM kg_doc d JOIN kg_evidence ev ON ev.doc_rowid = d.doc_rowid"
                         + " JOIN kg_statement s ON s.stmt_rowid = ev.stmt_rowid WHERE d.host_id IN (")
-                        .append(placeholders(hostIds.size())).append(") AND ").append(visibleDoc(v, "d")).append(")");
+                        .append(placeholders(hostIds.size())).append(") AND ").append(visibleDoc(v, "d"))
+                        .append(stale ? "" : " AND " + currentDoc("d", now)).append(")");
                 args.addAll(hostIds);
+            }
+            if (!stale) {
+                where.append(" AND EXISTS (SELECT 1 FROM kg_statement cs WHERE cs.subj = e.ent_rowid AND ").append(currentStatement(v, "cs", now))
+                        .append(")");
+            }
+            if (Vocabulary.TYPE_UNCONFIRMED.equals(q.review)) {
+                where.append(" AND ").append(typeUnconfirmed(v, "e", now));
+            } else if (q.type != null && !q.includeUnconfirmed && (Vocabulary.FACILITY.equals(q.type) || Vocabulary.SITE.equals(q.type))) {
+                where.append(" AND NOT (").append(typeUnconfirmed(v, "e", now)).append(")");
             }
             if (q.q != null) {
                 final String match = ftsQuery(q.q);
@@ -499,8 +553,33 @@ public final class KgReader {
                 KgJson.put(o, "context", context.get(r));
                 items.put(o);
             }
-            return page(q.offset, q.limit, total, items, c, v);
+            final JSONObject out = page(q.offset, q.limit, total, items, c, v);
+            if (Vocabulary.TYPE_UNCONFIRMED.equals(q.review)) {
+                KgJson.put(out, "review", review(c, where.toString(), args, v));
+            }
+            return out;
         });
+    }
+
+    /**
+     * 0.13.0: the review report of the places whose type no source confirms, per collection and model (the mark's evidence;
+     * agents see no model): {collection, model, entities}.
+     */
+    private JSONArray review(final Connection c, final String where, final List<Object> args, final Viewer v) throws SQLException {
+        final JSONArray out = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement("SELECT k.name, x.model, count(DISTINCT s.subj) FROM kg_statement s JOIN kg_evidence ev"
+                + " ON ev.stmt_rowid = s.stmt_rowid JOIN kg_extractor x ON x.ext_id = ev.ext_id JOIN kg_doc_collection dc ON dc.doc_rowid = ev.doc_rowid"
+                + " JOIN kg_collection k ON k.coll_id = dc.coll_id WHERE s.pred = (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = '"
+                + Vocabulary.TYPE_UNCONFIRMED + "')" + (v.all() ? "" : " AND dc.coll_id IN (" + ids(v) + ")")
+                + " AND s.subj IN (SELECT e.ent_rowid FROM kg_entity e WHERE " + where + ") GROUP BY k.name, x.model ORDER BY k.name, x.model")) {
+            bind(ps, args);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.put(KgJson.obj("collection", rs.getString(1), "model", this.modelDetail ? rs.getString(2) : null, "entities", rs.getLong(3)));
+                }
+            }
+        }
+        return out;
     }
 
     /** The NACE codes at {@code code} or finer (an industry filter matches finer classifications too). */
@@ -652,6 +731,7 @@ public final class KgReader {
         final Set<Long> docs = new HashSet<>();
         Long last = null;
         Long first = null;
+        Stat extracted = null;
         String quality = "stale";
         int count = 0;
         for (final Stat s : stats) {
@@ -659,6 +739,10 @@ public final class KgReader {
                 continue;
             }
             count++;
+            if (s.extractedAt != null && (extracted == null || s.extractedCurrent && !extracted.extractedCurrent
+                    || s.extractedCurrent == extracted.extractedCurrent && s.extractedAt > extracted.extractedAt)) {
+                extracted = s;
+            }
             docs.addAll(s.docs);
             if (s.lastConfirmed != null && (last == null || s.lastConfirmed > last)) {
                 last = s.lastConfirmed;
@@ -696,6 +780,7 @@ public final class KgReader {
         KgJson.put(o, "role", EntityRoles.of(c, rowid, type, name == null ? null : name.objVal, v));
         KgJson.put(o, "first_seen", iso(first));
         KgJson.put(o, "last_confirmed", iso(last));
+        times(o, last, extracted);
         KgJson.put(o, "counts", KgJson.obj("statements", count, "sources", docs.size(), "truncated", stats.size() >= SUMMARY_STATEMENTS));
         if (detail) {
             KgJson.put(o, "hosts", hosts(c, rowid, v));
@@ -901,8 +986,21 @@ public final class KgReader {
         KgJson.put(o, "kinds", new JSONArray(s.kinds));
         KgJson.put(o, "first_seen", iso(v.all() ? s.firstSeenStored : s.firstObserved));
         KgJson.put(o, "last_confirmed", iso(s.lastConfirmed));
+        times(o, s.lastConfirmed, s);
         KgJson.put(o, "sources", s.docs.size());
         return o;
+    }
+
+    /**
+     * 0.13.0: the two times of a fact (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40): {@code source_loaded_at}, the newest crawl of a
+     * current source ({@code last_confirmed} is the same time, kept for the contract), and {@code extracted_at}, when its newest
+     * evidence was extracted, with the extractor and (not for agents) the model of that evidence.
+     */
+    static void times(final JSONObject o, final Long sourceLoadedAt, final Stat extracted) {
+        KgJson.put(o, "source_loaded_at", iso(sourceLoadedAt));
+        KgJson.put(o, "extracted_at", extracted == null ? null : iso(extracted.extractedAt));
+        KgJson.put(o, "extractor", extracted == null ? null : extracted.extractedBy);
+        KgJson.put(o, "model", extracted == null ? null : extracted.extractedModel);
     }
 
     /** The best name of an entity among the viewer's name statements (stored order; nothing invisible is read). */

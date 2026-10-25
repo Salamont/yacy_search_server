@@ -143,7 +143,8 @@ final class KnowledgeRead {
             switch (resource) {
                 case "entities":
                     if (parts.size() == 1) {
-                        allow(q, "q", "type", "host", "quality", "offset", "limit", "collection", "industry", "category", "audience");
+                        allow(q, "q", "type", "host", "quality", "offset", "limit", "collection", "industry", "category", "audience",
+                                "include_stale", "include_unconfirmed", "review");
                         final KgReader.EntityQuery eq = new KgReader.EntityQuery();
                         eq.q = text(q, "q", 200);
                         eq.industry = code(q, "industry", net.yacy.scoutro.knowledge.vocab.Nace.CODE);
@@ -152,6 +153,10 @@ final class KnowledgeRead {
                         eq.type = oneOf(q, "type", Vocabulary.TYPES);
                         eq.host = q.get("host") == null || q.get("host").isEmpty() ? null : SeoAnalysis.host(q.get("host"));
                         eq.quality = oneOf(q, "quality", QUALITIES);
+                        // 0.13.0: current entities by default; the places whose type no source confirms apart (their review)
+                        eq.includeStale = bool(q, "include_stale", false);
+                        eq.includeUnconfirmed = bool(q, "include_unconfirmed", false);
+                        eq.review = oneOf(q, "review", Set.of(Vocabulary.TYPE_UNCONFIRMED));
                         eq.offset = intParam(q, "offset", 0, 0, KgReader.MAX_OFFSET);
                         eq.limit = intParam(q, "limit", 25, 1, KgReader.MAX_LIMIT);
                         out = reader.entities(eq, viewer);

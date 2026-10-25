@@ -6344,7 +6344,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Knowledge graph<==>Wissensgraph<
 <html lang="en">==<html lang="de">
 >Growth allowed<==>Wachstum erlaubt<
->Last confirmed<==>Zuletzt bestätigt<
+>Source read<==>Quelle gelesen<
+>Evaluated<==>Ausgewertet<
+>model %1<==>Modell %1<
 >Settings valid<==>Einstellungen gültig<
 >register entry<==>Registereintrag<
 , for example in==, zum Beispiel in
@@ -6820,6 +6822,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >corrected; original statement retained<==>korrigiert; ursprüngliche Aussage erhalten<
 >withdrawn; original statement retained<==>zurückgenommen; ursprüngliche Aussage erhalten<
 >System or competence signal<==>System- oder Kompetenzhinweis<
+>Type unconfirmed (no place in its context)<==>Typ unbestätigt (kein Ort im Kontext)<
+>Without a category (offer item)<==>Ohne Kategorie (Leistungseintrag)<
 >Organizational need signal<==>Organisatorischer Bedarfshinweis<
 >Own offered services and role<==>Eigene Leistungen und Unternehmensrolle<
 >Evidenced vacancy status<==>Belegter Anzeigenstatus<
@@ -6903,6 +6907,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.<==>Themen, die die Website nennt, ohne sie anzubieten: ohne Preis, ohne Angebotsformulierung, nicht auf einer Leistungsseite. Ein Thema ist kein Angebotsbeleg und fließt nie in Kunden- oder Partnervorschläge ein. Ein Thema, das eine angezeigte Leistung bereits trägt, steht hier nicht noch einmal.<
 >no proof of an offer<==>kein Angebotsbeleg<
 >structural evidence: the page's title, a list or the service's own page<==>struktureller Beleg: Seitentitel, Liste oder eigene Leistungsseite<
+>without a category: an item of an offer list<==>ohne Kategorie: ein Eintrag einer Leistungsliste<
 >Website technologies<==>Website-Technologien<
 >Technologies the site's pages integrate, read from their technical markup (generator, scripts, stylesheets, plugin comments). A website observation: no proof of the company's internal software, of an offer or of a customer project. A technology a later crawl no longer finds is not observed again, which is not the same as removed.<==>Technologien, die die Seiten der Website einbinden, gelesen aus ihrem technischen Markup (Generator, Skripte, Stylesheets, Plugin-Kommentare). Eine Website-Beobachtung: kein Nachweis der internen Software des Unternehmens, eines Angebots oder eines Kundenprojekts. Findet ein späterer Crawl eine Technologie nicht mehr, ist sie nicht erneut beobachtet, nicht zwingend entfernt.<
 >content management system<==>Content-Management-System<

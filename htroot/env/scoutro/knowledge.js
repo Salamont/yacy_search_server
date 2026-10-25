@@ -759,7 +759,8 @@
     { const note = nameNote(e); if (note) $('object-name').append(' ', note); }
     stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ...(e.role ? [['erole', roleBadge(e.role)]] : []), ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
       ['identifiers', ids.childNodes.length ? ids : t('none')], ['hosts', hosts.childNodes.length ? hosts : t('none')],
-      ['duplicates', dups.childNodes.length ? dups : t('none')], ['first_seen', date(e.first_seen)], ['last_confirmed', date(e.last_confirmed)],
+      ['duplicates', dups.childNodes.length ? dups : t('none')], ['first_seen', date(e.first_seen)], ['last_confirmed', date(e.source_loaded_at || e.last_confirmed)],
+      ...(e.extracted_at ? [['evaluated', evaluated(e)]] : []),
       ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)], ['technical_id', e.id]]);
     businessInto(b);
     await statements(e.id, 'out', $('out'), 0, run);
@@ -936,6 +937,13 @@
     if (status === 'confirmed') b.title = t('s_confirmed_hint');
     return b;
   }
+  // 0.13.0: when the newest evidence was extracted, with extractor and model ("evaluated: 24.10.2026 (llm/5, model …)"); the
+  // source's time is apart, so a reading of today never makes an old source look freshly confirmed
+  function evaluated(item) {
+    if (!item?.extracted_at) return null;
+    const by = [item.extractor, item.model ? t('model_named').replace('%1', item.model) : null].filter(Boolean).join(', ');
+    return date(item.extracted_at) + (by ? ' (' + by + ')' : '');
+  }
   function factMeta(item) {
     const meta = node('div', null, 'skg-meta');
     if (item.status) meta.append(statusBadge(item.status));
@@ -945,7 +953,8 @@
       // 0.13.0: text a site repeats on many pages is one piece of evidence ("1 piece of evidence on 7 pages")
       item.sources != null ? (item.evidence_count != null && item.evidence_count < item.sources
         ? t('evidence_on_pages').replace('%1', fmt(item.evidence_count)).replace('%2', fmt(item.sources)) : t('sources') + ': ' + fmt(item.sources)) : null,
-      item.last_confirmed ? t('last_confirmed') + ': ' + date(item.last_confirmed) : null].filter(Boolean).join(' · '), 'sseo-note'));
+      (item.source_loaded_at || item.last_confirmed) ? t('last_confirmed') + ': ' + date(item.source_loaded_at || item.last_confirmed) : null,
+      item.extracted_at ? t('evaluated') + ': ' + evaluated(item) : null].filter(Boolean).join(' · '), 'sseo-note'));
     return meta;
   }
   function factItem(head, item) {
@@ -1187,6 +1196,8 @@
       const head = node('div', null, 'skg-statement-head'); head.append(link(sv.name || t('unnamed_service'), { view: 'object', id: sv.id }));
       // 0.12.0: an offer only the page's structure shows (title, list, the service's own page) is named as such
       if (sv.offer_evidence === 'structural') head.append(' · ', node('span', t('offer_structural'), 'sseo-note skg-offer-structural'));
+      // 0.13.0: an item of an offer list that matches no category is listed, never matched
+      if (sv.uncategorized) head.append(' · ', node('span', t('uncategorized_service'), 'sseo-note skg-uncategorized'));
       const li = factItem(head, sv); if (sv.offer_evidence) li.dataset.offerEvidence = sv.offer_evidence;
       if (sv.categories?.length) li.insertBefore(node('p', sv.categories.map(c => codeLabel(c) || c.value).join(' · '), 'skg-value'), li.children[1]);
       if (sv.description) li.insertBefore(node('p', sv.description, 'skg-value'), li.children[1]);

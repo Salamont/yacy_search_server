@@ -561,8 +561,9 @@ public final class BusinessView {
             final JSONArray amounts, final Set<String> docs) throws SQLException {
         final long s = offer.stat.objEnt;
         final List<Fact> facts = facts(c, s, false, List.of(Vocabulary.NAME, Vocabulary.CATEGORY, Vocabulary.DESCRIPTION, Vocabulary.PRICE,
-                Vocabulary.MONETARY_AMOUNT), v, now, 200);
+                Vocabulary.MONETARY_AMOUNT, Vocabulary.UNCATEGORIZED), v, now, 200);
         String name = null;
+        boolean uncategorized = false;
         final List<Fact> categories = new ArrayList<>();
         final List<Fact> descriptions = new ArrayList<>();
         final List<Fact> p = new ArrayList<>();
@@ -583,6 +584,9 @@ public final class BusinessView {
                 case Vocabulary.MONETARY_AMOUNT:
                     money.add(f);
                     break;
+                case Vocabulary.UNCATEGORIZED:
+                    uncategorized = !"stale".equals(f.stat.quality);
+                    break;
                 default:
                     p.add(f);
             }
@@ -597,6 +601,10 @@ public final class BusinessView {
         }
         collect(offer, docs);
         KgJson.put(o, "categories", codes(categories, cats, KgVocabularies.get().nace, docs));
+        if (uncategorized && categories.isEmpty()) {
+            // 0.13.0: an item of an offer list that matches no category: listed, never matched (the vocabulary's input)
+            KgJson.put(o, "uncategorized", true);
+        }
         if (!descriptions.isEmpty()) {
             KgJson.put(o, "description", descriptions.get(0).stat.objVal);
         }
@@ -1128,6 +1136,8 @@ public final class BusinessView {
         KgJson.put(o, "confidence", round(f.confidence));
         KgJson.put(o, "kinds", new JSONArray(f.stat.kinds));
         KgJson.put(o, "last_confirmed", KgReader.iso(f.stat.lastConfirmed));
+        // 0.13.0: when the source was read and when (by what) it was evaluated
+        KgReader.times(o, f.stat.lastConfirmed, f.stat);
         KgJson.put(o, "sources", f.stat.docs.size());
         KgJson.put(o, "evidence_count", f.evidence.size());
         final JSONArray src = new JSONArray();

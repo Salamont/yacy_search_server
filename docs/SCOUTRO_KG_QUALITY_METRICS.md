@@ -43,6 +43,9 @@ Administrator only, read only, never an agent route. Answer `scoutro.kg.quality.
 | `topic_statements` | categories named without an offer (`topic`) | F |
 | `service_product_page_duplicate_candidates` | groups of active services stating the same own page (`website` without scheme, `www.` and trailing slash): candidates of the `product_url` identity, which joins only the same name | F |
 | `identity_keys` | keys of active entities by scheme (`product_url` exists only with `scoutro.kg.identity.productUrl`) | F |
+| `services_uncategorized` | active services without a category: offer items of an offer list that match no category (`uncategorized`, 0.13.0) | 0.13.0 |
+| `uncategorized_service_names` | their normalised names per collection, top 50 each: the input of the vocabularies (no fuzzy mapping) | 0.13.0 |
+| `facilities_type_unconfirmed` / `sites_type_unconfirmed` | places of the LLM tier marked `type_unconfirmed` (a proper name without a place in its context, docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40); the review list is `GET kg/entities?review=type_unconfirmed` | 0.13.0 |
 
 `offers_evidence_by_tier` and `price_statements_by_tier` include tier 4 (operator statements). The baseline procedure
 below now measures the corrections too: compare `withdrawn_evidence`, `monetary_amounts_by_role` and
