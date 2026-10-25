@@ -42,9 +42,14 @@ evidence, and per collection the suggestions, clients and places before and afte
 
 | Gate | Result |
 |---|---|
-| Part 1 (A0, A1, A3, A4, A5) | **open** |
-| Part 2 (A2, the replay of A4) | **open** |
-| M0 / M1 | **open** |
+| Part 1 (A0, A1, A3, A4, A5) | run and judged (25 October 2026) |
+| Part 2 (A2, the replay of A4) | A2 on the stored excerpts run and judged; A2 on the pages and the replay **void** (the probe read the pages without their text and the vocabularies without the NACE list): **to run again** with the corrected probe |
+| M0 / M1 | M0 taken (25 October 2026); M1 after the update |
+
+The judgement of A2 changed the reader in two general forms (section 39.2): a goal that names whom the provider serves, and an
+organisation's word before the field it is from. The diagnosis of the providers split into two organisations (A3: the site's own
+organisation known only by its `@id`; two `@id`s of one organisation) is recorded with the owner; its change is not part of this
+candidate unless the owner decides so.
 
 ## The owner's decisions (25 October 2026)
 

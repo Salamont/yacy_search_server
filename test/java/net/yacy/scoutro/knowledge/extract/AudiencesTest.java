@@ -141,6 +141,38 @@ public class AudiencesTest {
         }
     }
 
+    /**
+     * Gate A2 (0.13.0): a goal that names whom the provider serves is an address; its excerpt holds the goal and is confirmed again.
+     * Customers without a field, and a satisfied group that is no goal, name no audience.
+     */
+    @Test
+    public void aGoalNamesWhomTheProviderServes() {
+        final ExtractContext bau = vocabulary("construction", "bau-web");
+        final String text = "Muster Hausverwaltung. Wir übernehmen Vermietung und Verwaltung Ihres Objekts. Zufriedene Eigentümer sind unser"
+                + " wichtigstes Anliegen.";
+        final Extraction ex = rules(text, "https://www.muster-bau.de/verwaltung/", bau);
+        assertEquals(List.of("construction/eigentuemer"), site(ex, Vocabulary.AUDIENCE_SEGMENT));
+        for (final String excerpt : excerpts(ex, Vocabulary.AUDIENCE_SEGMENT)) {
+            assertTrue(excerpt, Audiences.confirms(Vocabulary.AUDIENCE_SEGMENT, "construction/eigentuemer", excerpt, 2));
+        }
+        for (final String t : List.of("Zufriedene Kunden sind unser Ziel.", "Zufriedene Eigentümer empfehlen uns weiter.")) {
+            assertTrue(t, Audiences.audiences(Audiences.read(t, bau)).isEmpty());
+        }
+    }
+
+    /** Gate A2 (0.13.0): an organisation's word before the field it is from names that field; a preposition between ends it. */
+    @Test
+    public void anOrganisationsWordBeforeItsField() {
+        final ExtractContext all = Audiences.all();
+        assertTrue(Audiences.audiences(Audiences.read("Software für Händler aus dem E-Commerce.", all)).toString()
+                .contains("target_category=software/e_commerce"));
+        assertTrue(Audiences.audiences(Audiences.read("Wir arbeiten für Kunden aus dem Bereich Entsorgung.", all)).toString()
+                .contains("target_category=construction/entsorgung"));
+        assertFalse(Audiences.audiences(Audiences.read("Wir beraten Unternehmen aus der Region bei Cloud-Projekten.", all)).toString()
+                .contains("software/cloud"));
+        assertFalse(Audiences.audiences(Audiences.read("Wir beraten Sie gern zu Daten aus der Cloud.", all)).toString().contains("software/cloud"));
+    }
+
     /** A term of a product or a place whose word ends like an organisation's is none ("Netzwerk", "Rechenzentren", "Fertighäuser"). */
     @Test
     public void wordsThatEndLikeOrganisationsAreNone() {

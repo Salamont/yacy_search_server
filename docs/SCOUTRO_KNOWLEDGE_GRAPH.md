@@ -3888,14 +3888,19 @@ provider's page).
 - **The clause of the address:** after a marker of an address ("wir unterstützen", "wir beraten", "Lösungen für", "designed
   for", a heading "Für wen", "Zielgruppe") the audience is read up to the clause's end (at most 150 characters; a sentence's
   end, a list's end, a footer). "wir beraten Sie gern" addresses the reader: no audience unless the clause names
-  organisations ("Sie als Pflegedienst"). A negated clause is none ("nicht nur … sondern auch" is no negation).
+  organisations ("Sie als Pflegedienst"). A negated clause is none ("nicht nur … sondern auch" is no negation). A goal that
+  names whom the provider serves is an address too ("Zufriedene Eigentümer sind unser wichtigstes Anliegen", "happy patients are
+  our priority"): its group is read, and the excerpt ends with the goal so that it is confirmed again (gate A2: an owners'
+  audience of the finding was written so).
 - **An organisation's word as its head:** a phrase is an audience if it ends with a general word for organisations or for
   people of a role (Unternehmen, Betriebe, Einrichtungen, Dienste, Büros, Praxen, Kanzleien, Agenturen, Händler, Hersteller,
   Anbieter, Dienstleister, Träger, Kommunen, Vereine; companies, firms, providers, agencies, practices, manufacturers,
   organisations), a term of `customer_types` or a vocabulary's `segments`, or a category term that itself names organisations
   ("pflegedienst"). This is language knowledge in the code, not industry knowledge.
 - **The field from the vocabulary:** the category comes from vocabulary terms inside that phrase, also as the modifier of a
-  compound ("WordPress-Agenturen" → `software/cms`). Where no category term names a field's organisations, a vocabulary's
+  compound ("WordPress-Agenturen" → `software/cms`), or after the organisation's word and "aus" ("Unternehmen aus dem
+  E-Commerce", "Kunden aus dem Bereich Entsorgung", "clients from the energy sector"; at most three words between,
+  none a preposition: "Unternehmen aus der Region bei Cloud-Projekten" names no field). Where no category term names a field's organisations, a vocabulary's
   optional `organisations` give a `target_industry` without a category ("Softwareunternehmen" → 62, "Bauunternehmen" → F).
 - **Every vocabulary is read**, the page's own too; what decides is the named relation. A service or product term without an
   organisation's head (Netzwerk, Cloud, Sanierung) and a website's technology are no audience.

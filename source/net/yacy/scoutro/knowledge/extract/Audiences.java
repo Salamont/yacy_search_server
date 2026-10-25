@@ -26,7 +26,8 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * <li><b>The clause of the address.</b> An audience is read in the clause of its marker ("Wir unterstützen", "Zielgruppe",
  * "Lösungen für", "designed for"), as the marker's object; the clause ends at a sentence end, a colon or semicolon, a line, a
  * dash between words or a comma before a subordinate clause. A heading ("Für wen?", "Zielgruppe:") is read in the unit that
- * follows it, a list under it line by line.</li>
+ * follows it, a list under it line by line. A goal that names whom the provider serves ("Zufriedene Eigentümer sind unser Ziel")
+ * is an address too: its group is read.</li>
  * <li><b>An organisation's word as its head.</b> A customer type, an audience segment, a company size and a word of a field's
  * organisations (the vocabulary's {@code organisations}) name kinds of customers by themselves. A service category's term names
  * an audience only inside a phrase whose head is a word for organisations or for people of a role ({@link #HEADS}: Unternehmen,
@@ -96,6 +97,12 @@ public final class Audiences {
             + "|(?:lösungen|loesungen|software|angebote?|leistungen|produkte|beratung|solutions|services|products)\\s+(?:für|fuer|for))\\b\\s*:?\\s*");
     /** A marker that heads its audience ("Für wen?", "Zielgruppe:", "Who we serve"): the audience follows in the next unit. */
     private static final Pattern HEADING = Pattern.compile("(?iu)^(?:für\\s+wen|fuer\\s+wen|zielgruppen?|who\\s+we\\s+serve)");
+    /**
+     * A goal that names whom the provider serves ("Zufriedene Bauherren sind unser größtes Anliegen", "happy patients are our
+     * priority"): the group before the goal is the audience (group 1).
+     */
+    static final Pattern GOAL = Pattern.compile("(?iu)\\b(?:zufriedene|glückliche|glueckliche|satisfied|happy)\\s+([^.!?:;|\\n]{2,80}?)\\s+"
+            + "(?:sind|ist|are|is)\\s+(?:unser|unsere|our)\\s+(?:\\p{L}+\\s+)?(?:ziel|anliegen|anspruch|antrieb|goal|aim|priority)\\b");
     static final int MAX_MARKERS = 6;
     /** A clause is read up to this many characters (so that the stored excerpt, at most 200 characters, holds it). */
     static final int MAX_CLAUSE = 150;
@@ -105,7 +112,8 @@ public final class Audiences {
     /**
      * The heads of a phrase that names organisations, folded ({@link TermMatcher#fold}): a word ends with one of them
      * ("Pflegeeinrichtungen", "WordPress-Agenturen", "Cloud-Anbieter") or is one after the category's word ("WordPress Agenturen",
-     * "cloud providers"). Such a word alone names no field ("Hersteller", "Unternehmen": the customer types read those).
+     * "cloud providers"), or comes before the field it is from ("Unternehmen aus dem E-Commerce"). Such a word alone names no field
+     * ("Hersteller", "Unternehmen": the customer types read those).
      */
     static final List<String> HEADS = List.of(
             "unternehmen", "unternehmer", "firmen", "firma", "betriebe", "betrieb", "einrichtungen", "einrichtung", "dienstleister",
@@ -118,6 +126,17 @@ public final class Audiences {
     /** People of a role of a field: the word alone may be the category's own term ("Architekten", "Steuerberater"). */
     static final List<String> ROLES = List.of("architekten", "handwerker", "aerzte", "zahnaerzte", "anwaelte", "steuerberater", "makler",
             "therapeuten", "apotheker", "gastronomen", "landwirte", "bauherren", "architects", "dentists", "lawyers");
+    /** Words for clients that name organisations only before the field they are from ("Kunden aus dem Bereich Logistik"). */
+    static final List<String> CLIENTS = List.of("kunden", "kundinnen", "auftraggeber", "mandanten", "customers", "clients");
+    /**
+     * An organisation's word and the field it is from, before a category's term: "Händler aus dem E-Commerce", "Kunden aus dem
+     * Bereich Logistik", "Betriebe aus der regionalen Lebensmittelbranche", "clients from the energy sector"; at most three words between, none of them a preposition (group 1: the word, group 2: the words between).
+     */
+    private static final Pattern FIELD_OF = Pattern.compile("(?iu)(?:^|[^\\p{L}])(\\p{L}+)\\s+(?:aus|from)\\s+(?:(?:dem|den|the)\\s+"
+            + "(?:bereichen?|branchen?|sektoren|sektor|sector|industry|field)\\s+|(?:der|dem|den|the)\\s+)?((?:[\\p{L}\\p{N}&/.-]+"
+            + "(?:\\s*,\\s*|\\s+und\\s+|\\s+and\\s+|\\s+&\\s+|\\s+)){0,3})$");
+    private static final Pattern PREPOSITION = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:bei|mit|in|im|am|an|auf|für|fuer|von|vom|zu|zum|zur"
+            + "|durch|über|ueber|unter|nach|seit|for|with|at|on|by|of|to)(?:[^\\p{L}]|$)");
     /**
      * Words that name an organisation only as the end of a category's own term ("Pflegedienst", "Pflegeheim"), never as the head of
      * another one ("Cloud-Dienste" are services). Words such as "-haus", "-werk" or "-zentrum" end products and places too
@@ -164,6 +183,17 @@ public final class Audiences {
             }
             final int sentence = sentenceEnd(text, from, Math.min(text.length(), from + MAX_SENTENCE));
             out.add(new Address(m.start(), m.end(), from, Math.max(from, to), Math.max(to, sentence), phrases(text, from, to, ctx, true)));
+        }
+        // a goal that names whom the provider serves: its group, with the goal in the excerpt so that stored evidence reads again
+        final Matcher g = GOAL.matcher(text);
+        while (g.find() && markers < MAX_MARKERS) {
+            markers++;
+            final List<Audience> named = new ArrayList<>();
+            for (final Audience a : phrases(text, g.start(1), g.end(1), ctx, true)) {
+                named.add(new Audience(a.predicate, a.value, a.start, g.end()));
+            }
+            final int sentence = sentenceEnd(text, g.end(), Math.min(text.length(), g.end() + MAX_SENTENCE));
+            out.add(new Address(g.start(), g.start(1), g.start(1), g.end(1), Math.max(g.end(), sentence), named));
         }
         return out;
     }
@@ -321,6 +351,13 @@ public final class Audiences {
         final String word = TermMatcher.fold(text.substring(a, b).replace("-", ""));
         if (EREIEN.matcher(word).find() || ends(word, ROLES) || ends(word, HEADS) && !HEADS.contains(word)) {
             return true;
+        }
+        final Matcher field = FIELD_OF.matcher(text.substring(Math.max(0, a - 90), a));
+        if (field.find() && !PREPOSITION.matcher(field.group(2)).find()) {
+            final String head = TermMatcher.fold(field.group(1));
+            if (HEADS.contains(head) || CLIENTS.contains(head)) {
+                return true;
+            }
         }
         for (final String term : h.entry.terms) {
             final String t = TermMatcher.fold(term.replaceAll("[\\s-]+", ""));

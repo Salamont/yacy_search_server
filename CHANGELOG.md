@@ -9,7 +9,8 @@ LLM tier's stored answers are replayed without a model request (`LlmExtractor.VE
 `BusinessSignals.VERSION` 5; `MatchingRules.VERSION` stays 1. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.13.0.md).
 
 - **Declared audience** (`Audiences`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 39): only a phrase that names organisations
-  ("Pflegeeinrichtungen", "WordPress-Agenturen", "Softwareunternehmen"), in the clause of the address; the reader's address
+  ("Pflegeeinrichtungen", "WordPress-Agenturen", "Softwareunternehmen", "Unternehmen aus dem E-Commerce"), in the clause of the
+  address or of a goal that names whom the provider serves ("Zufriedene Eigentümer sind unser Anliegen"); the reader's address
   ("wir beraten Sie gern"), service words (Netzwerk, Cloud, Sanierung) and a footer are no audience; every vocabulary is read, the
   page's own too; the vocabularies' optional `organisations` give a target industry. Stored audience facts take effect only while
   the reader confirms their quote. The older suggestions are labelled *audience fit* (`legacy-2`, `declared_audience`), ranked
