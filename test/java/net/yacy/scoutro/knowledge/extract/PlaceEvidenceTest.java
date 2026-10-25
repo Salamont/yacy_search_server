@@ -241,6 +241,18 @@ public class PlaceEvidenceTest {
         LlmExtractor.apply(accepted(imprint, sites), List.of(), i, ctx(imprint, "https://www.muster-maler.de/impressum/").withReplay());
         assertEquals(Set.of("Musterkamp 33", "J. N. Muster & Söhne. Niederlassung Kassel.", "Hauptsitz Kassel"), named(i, Vocabulary.SITE));
         assertTrue(unconfirmed(i).toString(), unconfirmed(i).isEmpty());
+        // the fourth run: a day centre's place word, an address whose town ends like an activity, an association's abbreviation,
+        // a town whose name ends with a place word
+        final String care = "Unsere Häuser\n\nSeniorentagesstätte Musterstadt\n\nBurgstraße 30, 12345 Musterungen\n\n"
+                + "Geschäftsstelle des Musterwerkes Musterstadt e.V.\n\nMuster-Seniorenzentrum Musterheim\n";
+        final String[][] houses = {{"facility", "Seniorentagesstätte Musterstadt"}, {"site", "Burgstraße 30, 12345 Musterungen"},
+            {"facility", "Geschäftsstelle des Musterwerkes Musterstadt e.V."}, {"facility", "Muster-Seniorenzentrum Musterheim"}};
+        final Extraction h = new Extraction(100);
+        LlmExtractor.apply(accepted(care, houses), List.of(), h, ctx(care, "https://www.muster-pflege.de/").withReplay());
+        assertEquals(Set.of("Seniorentagesstätte Musterstadt", "Geschäftsstelle des Musterwerkes Musterstadt e.V.", "Muster-Seniorenzentrum Musterheim"),
+                named(h, Vocabulary.FACILITY));
+        assertEquals(Set.of("Burgstraße 30, 12345 Musterungen"), named(h, Vocabulary.SITE));
+        assertTrue(unconfirmed(h).toString(), unconfirmed(h).isEmpty());
         // a menu with a section's label beside the name names none
         final String menu = "Startseite | Sonnenhof | Kontakt\n\nMuster Pflege gGmbH";
         final Extraction m = new Extraction(100);

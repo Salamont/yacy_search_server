@@ -63,11 +63,12 @@ public final class PlaceEvidence {
     private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{N}]+");
     private static final int MAX_TOKENS = 16;
     /**
-     * The end of a sentence: a name that ends so, has four words or more and two of them in lower case (a verb, an article: "Die
-     * Gebäude sind vollständig … errichtet.") is a sentence of the page; "J. N. Muster & Söhne. Niederlassung Kassel." is a name.
+     * The end of a sentence: a name that ends so, has four words or more and two words of four letters or more in lower case (a
+     * verb, an adjective: "Die Gebäude sind vollständig … errichtet.") is a sentence of the page; "J. N. Muster & Söhne.
+     * Niederlassung Kassel." and "Geschäftsstelle des Muster e.V." are names.
      */
     private static final Pattern SENTENCE = Pattern.compile("[.!?]$");
-    private static final Pattern LOWER_WORD = Pattern.compile("(?<![\\p{L}\\p{N}])\\p{Ll}[\\p{L}-]*");
+    private static final Pattern LOWER_WORD = Pattern.compile("(?<![\\p{L}\\p{N}])\\p{Ll}[\\p{L}-]{3,}");
     /** A postal code with its place: an address of an imprint line ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"). */
     private static final Pattern POSTAL = Pattern.compile("(?<!\\d)\\d{5}\\s+\\p{Lu}\\p{Ll}");
     /**
@@ -106,7 +107,7 @@ public final class PlaceEvidence {
      */
     static final List<String> PLACE_WORDS = List.of("heim", "pflegeheim", "zentrum", "residenz", "stift", "tagespflege", "nachtpflege",
             "kurzzeitpflege", "wohngemeinschaft", "wohnpark", "wohnanlage", "hospiz", "klinik", "kliniken", "klinikum", "krankenhaus", "praxis",
-            "kita", "kindergarten", "krippe", "schule", "akademie", "campus", "werk", "werkstatt", "werkstätten", "niederlassung", "zweigstelle",
+            "kita", "kindergarten", "krippe", "schule", "akademie", "campus", "werk", "werkstatt", "werkstätten", "stätte", "niederlassung", "zweigstelle",
             "filiale", "standort", "zentrale", "hauptsitz", "firmensitz", "unternehmenssitz", "zentren", "heime", "wohngemeinschaften",
             "büro", "geschäftsstelle", "lager", "halle", "hotel", "restaurant", "café", "laden", "showroom", "ausstellung", "studio",
             "haus", "hof", "station", "sozialstation", "home", "clinic", "hospital", "practice", "office", "branch", "plant", "factory",
@@ -165,7 +166,7 @@ public final class PlaceEvidence {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
         final boolean placeWord = placeWord(name);
-        if (!placeWord && ACTIVITY.matcher(key.replace(" ", "")).find()) {
+        if (!placeWord && !ADDRESS.matcher(name).find() && ACTIVITY.matcher(key.replace(" ", "")).find()) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
         // the quote's own address, outside a menu line (an imprint's line with bullets is no menu: it holds a postal code)
@@ -260,9 +261,13 @@ public final class PlaceEvidence {
         return false;
     }
 
-    /** True if the name holds more than its place words: a proper part ("Pflegeheim St. Anna", "Haus Linde", "Werk Kassel"). */
+    /**
+     * True if the name holds more than its place word: a proper part ("Pflegeheim St. Anna", "Haus Linde", "Werk Kassel"). The first
+     * word ending with a place word is the place word; a later one is a proper name (a town: "Seniorenzentrum Musterheim").
+     */
     static boolean properName(final String name) {
         int words = 0, proper = 0;
+        boolean placeSeen = false;
         for (final Matcher w = WORD.matcher(name); w.find();) {
             words++;
             final String f = TermMatcher.fold(w.group().replace("-", ""));
@@ -270,7 +275,9 @@ public final class PlaceEvidence {
             for (final String p : PLACE_WORDS) {
                 place |= f.endsWith(TermMatcher.fold(p));
             }
-            if (!place && Character.isUpperCase(w.group().codePointAt(0)) && !GENERIC.contains(f)) {
+            if (place && !placeSeen) {
+                placeSeen = true;
+            } else if (Character.isUpperCase(w.group().codePointAt(0)) && !GENERIC.contains(f)) {
                 proper++;
             }
         }

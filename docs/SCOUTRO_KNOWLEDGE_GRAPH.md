@@ -3990,16 +3990,18 @@ month ago.
 reason):
 
 - **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort") or the name of an activity or a
-  field of work without a place word ("Hochbau", "Logistikbau", "Gebäudetechnik"; `entity_facility_not_a_place`); a sentence of
-  the page as a name (four words or more, two of them in lower case, ending with ".", "!" or "?", without an address in the name
-  or the quote; the same reason); a name that stands only in a site's menu (a short segment among at least two short neighbours,
+  field of work without a place word, unless the name is an address ("Hochbau", "Logistikbau", "Gebäudetechnik", but not
+  "Burgstraße 30, 12345 Musterungen"; `entity_facility_not_a_place`); a sentence of the page as a name (four words or more, two
+  words of four letters or more in lower case, ending with ".", "!" or "?", without an address in the name or the quote: not
+  "Geschäftsstelle des Muster e.V."; the same reason); a name that stands only in a site's menu (a short segment among at least two short neighbours,
   one of the two segments before or after it the label of a section: "Leistungen | Sonnenhof | Kontakt") without a sign of a
   place, or nowhere on the page (the same reason);
   on a project or reference page (by its address) the building of a project, unless a passage names who runs it ("betreibt",
   "unser", a named organisation that plans or opens it; `entity_facility_project_object`; a site with its address stays a
   site); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
 - **A place:** a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
-  "Seniorenzentrum Am Park", "Hauptsitz Kassel", "Niederlassung Kassel"), also in a list of a site's places; an occurrence outside
+  "Seniorenzentrum Am Park", "Hauptsitz Kassel", "Niederlassung Kassel", "Seniorentagesstätte Musterstadt"; the first word ending
+  with a place word is the place word, a later one a proper name: "Seniorenzentrum Musterheim"), also in a list of a site's places; an occurrence outside
   a menu, or the model's quote outside a menu line, with an address (a street with its number, a postal code with a place) or a
   verb of a place ("betreibt", "befindet sich", "liegt", "eröffnet"; "unser Werk in …"); an imprint's line with bullets is no menu
   line when it holds a postal code ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"); an entry of a list on a page of the site's
