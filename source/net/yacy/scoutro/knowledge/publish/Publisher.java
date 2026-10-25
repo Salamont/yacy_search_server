@@ -473,6 +473,33 @@ public final class Publisher {
         return result;
     }
 
+    /**
+     * 0.13.0: the replay of a page's stored LLM answer (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40): its tier-3 evidence is replaced by
+     * the validated answer, as {@link #applyLlm} replaces it, while the page's mark (status, reason, hash) stays: the page is read
+     * again by nobody. A compare-and-set on what the replay read (the content hash) and on a mark: a page to do is read by the tier.
+     */
+    public Result applyLlmReplay(final Connection tx, final Doc doc, final byte[] llmInput, final Extraction extraction, final int extId,
+            final long now) throws SQLException {
+        final long rowid;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_rowid FROM kg_doc WHERE doc_id = ? AND state = 1"
+                + " AND coalesce(content_hash, input_hash) = ? AND llm_status IS NOT NULL")) {
+            ps.setString(1, doc.docId);
+            ps.setBytes(2, llmInput);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return new Result(Outcome.ABORT_GENERATION);
+                }
+                rowid = rs.getLong(1);
+            }
+        }
+        final Aggregates agg = new Aggregates(this.cfg, this.terms, now);
+        agg.touchDocument(tx, rowid, 3);
+        final Result result = new Result(Outcome.PUBLISHED);
+        replaceEvidence(tx, doc, rowid, extraction, agg, result, now, LLM_TIER, extId, true);
+        agg.finish(tx);
+        return result;
+    }
+
     private void replaceEvidence(final Connection tx, final Doc doc, final long rowid, final Extraction ex, final Aggregates agg,
             final Result result, final long now) throws SQLException {
         replaceEvidence(tx, doc, rowid, ex, agg, result, now, REPLACED_TIERS, 0, true);

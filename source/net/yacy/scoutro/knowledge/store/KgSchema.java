@@ -469,6 +469,11 @@ public final class KgSchema {
     public static final String META_LLM_SERVICE_RECHECK = "llm_service_recheck";
     /** The rule of the LLM tier's per-host cap the skipped pages were decided by (0.12.1). */
     public static final String META_LLM_HOST_CAP_RULE = "llm_host_cap_rule";
+    /**
+     * 0.13.0: {@code pending} while the LLM tier replays its stored answers for a version whose change is the validation only
+     * ({@code LlmExtractor.REPLAYS}, docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40); the version replayed to once that is done.
+     */
+    public static final String META_LLM_VALIDATION = "llm_validation";
     /** End of the last derivation of linked_to, same_operator and the suggested matches. */
     public static final String META_DERIVED_AT = "derived_at";
 }

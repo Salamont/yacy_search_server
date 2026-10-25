@@ -71,7 +71,17 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class LlmExtractor {
 
     public static final String NAME = "llm";
-    public static final String VERSION = "4";
+    /**
+     * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no entity; the
+     * change is what is kept of an answer, not the question.
+     */
+    public static final String VERSION = "5";
+    /**
+     * The versions whose stored answers this version reads again without a model request (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40):
+     * their change to this one is the validation only, so their tier-3 evidence is rebuilt into the answer, validated with the
+     * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
+     */
+    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4");
     public static final int TIER = 3;
     public static final int CHUNK_CHARS = 4000;
     public static final int MAX_ANSWER_BYTES = 64 * 1024;
@@ -96,6 +106,11 @@ public final class LlmExtractor {
     static final List<String> VALUE_PREDICATES = List.of(Vocabulary.PRICE, Vocabulary.SALARY, Vocabulary.CATEGORY, Vocabulary.INDUSTRY,
             Vocabulary.CUSTOMER_TYPE, Vocabulary.AUDIENCE_SEGMENT, Vocabulary.TARGET_CATEGORY, Vocabulary.COMPANY_SIZE,
             Vocabulary.EMPLOYMENT_TYPE,Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS);
+
+    /** True for a value the model may only point at ({@link #VALUE_PREDICATES}); the replay rebuilds those of an answer. */
+    public static boolean valuePredicate(final String predicate) {
+        return VALUE_PREDICATES.contains(predicate);
+    }
 
     /** Subject and object types each relation accepts. */
     private static final Map<String, Set<String>[]> RELATION_TYPES = new LinkedHashMap<>();
