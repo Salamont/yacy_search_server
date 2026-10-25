@@ -896,7 +896,26 @@ public final class BusinessRules {
     private static final Pattern PROJECT_DONE = Pattern.compile("(?iu)\\b(?:abgeschlossen|erfolgreich|realisiert|umgesetzt|go-live|live\\s+gegangen"
             + "|eingeführt|completed|delivered)\\b");
     private static final Pattern PROJECT_RUNNING = Pattern.compile("(?iu)\\b(?:laufend|läuft|in\\s+arbeit|in\\s+umsetzung|seit|ongoing|in\\s+progress)\\b");
-    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&|;|(?<!-)\\s+und\\s+|(?<!-)\\s+and\\s+)\\s*");
+    /** Several clients of one profile or heading ("E.V.A. & regio iT"); "& Co. KG" is part of a legal form, never a split (0.13.0). */
+    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&(?!\\s*Co\\b)|;|(?<!-)\\s+und\\s+(?!Co\\b)|(?<!-)\\s+and\\s+)\\s*");
+    /**
+     * 0.13.0: a field label after a sentence end in a project profile written on one line ("Kunde: Beispiel AG. Systemgröße: ca. 350
+     * User. Gesamtaufwand: 20 Personentage."): the client's name ends before it.
+     */
+    private static final Pattern NEXT_FIELD = Pattern.compile("(?u)\\.[ \\t]+(?:\\*\\*)?\\p{Lu}[\\p{L}\\- ]{1,40}(?:\\*\\*)?[ \\t]*:");
+    /**
+     * 0.13.0: an anonymised client ("Städtisches Versorgungsunternehmen", "Internationaler Online-Modeversandhändler", "Führender
+     * deutscher IT-Dienstleister"): no legal form, its last word a general word for an organisation, every word before it an
+     * adjective; it names no company, and its project stays a reference of the provider without a client.
+     */
+    private static final Pattern ANONYMOUS_HEAD = Pattern.compile("(?iu)(?:unternehmen|händler|haendler|dienstleister|versorger|gruppe|konzern"
+            + "|hersteller|mittelständler|mittelstaendler|anbieter|betreiber|kunde|company|retailer|provider|group|manufacturer|operator)$");
+    /**
+     * An adjective of such a description: a word in lower case ("deutscher") or a capitalised adjective by its ending ("Städtisches",
+     * "Internationaler", "Führender", "Großer"); a name such as "Muster" or "Schneider" is none.
+     */
+    private static final Pattern ADJECTIVE = Pattern.compile("(?u)^(?:\\p{Ll}[\\p{L}-]*|\\p{Lu}\\p{Ll}*(?:isch|lich|ig|al|iv|ar|end|ell|ös|oes|ern)"
+            + "(?:e|er|es|en|em)?|(?:Groß|Gross|Klein|Bekannt|Namhaft|Renommiert|Neu|Mittelgroß|Mittelgross)(?:e|er|es|en|em))$");
     /** The reader or a phrase, never a client ("für Ihr Unternehmen", "bei uns", "für mehr Effizienz"). */
     private static final Pattern NOT_A_CLIENT = Pattern.compile("(?iu)^(?:Ihr|Ihre|Ihren|Ihrem|Sie|uns|unsere?[nmrs]?|our|your|you|mehr|alle|jede[nmrs]?"
             + "|viele|Kunden|Unternehmen|Firmen|Projekte?|ein|eine[nmrs]?|diverse|verschiedene|privat\\w*|Familie|Herr|Frau|Eheleute"
@@ -949,6 +968,11 @@ public final class BusinessRules {
                 while (to < run.text.length() && to - from < 160 && run.text.charAt(to) != '\n' && !run.text.startsWith("**", to)) {
                     to++;
                 }
+            }
+            // 0.13.0: "Kunde: Beispiel AG. Systemgröße: …": the name ends before the next field of a profile written on one line
+            final Matcher nextField = NEXT_FIELD.matcher(run.text).region(from, to);
+            if (nextField.find()) {
+                to = nextField.start();
             }
             // "ARGE Brienzersee (Bauherr: …)": a remark in brackets; "SBB AG, Infrastruktur – Ausbau …": the company before its unit
             String value = run.text.substring(from, to).replace('\n', ' ').replaceAll("\\([^()]*:[^()]*\\)", " ").split("\\s+[–—]\\s+")[0]
@@ -1090,7 +1114,7 @@ public final class BusinessRules {
 
     /** The client named {@code name} near {@code at}, as {@code client customer_of operator}; null if it is none or named before. */
     private Mention client(final Run run, final String name, final int at, final Set<String> seen) {
-        if (!clientName(name) || ownName(run, name) || !seen.add(Normalizers.key(name))) {
+        if (!clientName(name) || anonymised(name) || ownName(run, name) || !seen.add(Normalizers.key(name))) {
             return null;
         }
         final int start = Math.max(0, run.text.indexOf(name, Math.max(0, at - 5)));
@@ -1098,6 +1122,8 @@ public final class BusinessRules {
         if (client == null || client.ref.equals(run.subject.ref)) {
             return null;
         }
+        // 0.13.0: one client per provider site (the client_name key within the provider's registrable domain)
+        client.client = true;
         relation(run, client, Vocabulary.CUSTOMER_OF, run.subject, start, start + name.length(), 0.65);
         return client;
     }
@@ -1151,6 +1177,23 @@ public final class BusinessRules {
         final String company = parts[parts.length - 1].trim();
         final boolean afterRole = parts.length > 2 && ROLE.matcher(String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length - 1))).find();
         return (LEGAL_FORM_ANY_CASE.matcher(company).find() || afterRole) && clientName(company) ? company : null;
+    }
+
+    /** 0.13.0: true for an anonymised client ({@link #ANONYMOUS_HEAD}): no legal form, a general organisation word after adjectives. */
+    public static boolean anonymised(final String name) {
+        if (name == null || LEGAL_FORM_ANY_CASE.matcher(name).find()) {
+            return false;
+        }
+        final String[] words = name.trim().replaceAll("[.,;:]+$", "").split("\\s+");
+        if (words.length == 0 || !ANONYMOUS_HEAD.matcher(words[words.length - 1].replace("-", "")).find()) {
+            return false;
+        }
+        for (int i = 0; i < words.length - 1; i++) {
+            if (!ADJECTIVE.matcher(words[i]).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** True if {@code name} is the operator's own (its name or the site's address, "white duck GmbH" on whiteduck.de). */

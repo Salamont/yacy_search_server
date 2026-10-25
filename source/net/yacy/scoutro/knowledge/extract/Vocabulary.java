@@ -209,6 +209,12 @@ public final class Vocabulary {
      * page is another service; joins only services of the same name.
      */
     public static final String PRODUCT_URL = "product_url";
+    /**
+     * 0.13.0: a client a provider's page documents (its project profiles, reference headings and titles, customers' voices) by its
+     * name without the legal form, within the registrable domain of the provider page: the same client on five pages of one
+     * provider is one organisation; never across two providers' domains; no discriminator by itself.
+     */
+    public static final String CLIENT_NAME = "client_name";
 
     // literal datatypes
     public static final String T_STRING = "string";
@@ -230,7 +236,7 @@ public final class Vocabulary {
     public static final Set<String> STRONG_SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK);
 
     public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, OPERATOR_NAME, FACILITY_ADDRESS,
-            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL);
+            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL, CLIENT_NAME);
 
     /** Relations between organisations (version 2, part D). */
     public static final Set<String> BUSINESS_RELATIONS = set(PARENT_OF, SUBSIDIARY_OF, CARRIER_OF, MEMBER_OF, ASSOCIATION_MEMBER,

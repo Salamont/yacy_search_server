@@ -46,6 +46,11 @@ public final class Mention {
      * offers them; resolved by the {@code domain_operator} key to the declared site operator.
      */
     public boolean domainOperator;
+    /**
+     * 0.13.0: a client the page documents for its operator ({@code BusinessRules.references}): resolved by the {@code client_name}
+     * key, its name without the legal form within the registrable domain of the provider page.
+     */
+    public boolean client;
     /** A key of the {@code job_posting} scheme (employer, title, location), within the registrable domain. */
     public String jobKey;
     /**
