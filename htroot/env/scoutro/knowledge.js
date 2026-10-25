@@ -1045,7 +1045,10 @@
           'construction execution': 'construction_execution', 'energy/facility planning': 'energy_planning',
           'leadership/organization development': 'leadership_development', 'team/organization development': 'team_development',
           outpatient: 'outpatient', short_term: 'short_term' })[c.service];
-        part.append(node('p', t('match_rule_' + c.rule) + (product ? ': ' + product : '') + ' · ' + t('matched_service') + ': ' + (c.service_name || (serviceKey ? t('service_' + serviceKey) : c.service)), 'skg-reason'));
+        // 0.13.0: the kind of the offered service beside its product ("SAP FI – implementation")
+        const kinds = (c.service_types || []).map(x => t('stype_' + x)).join(', ');
+        part.append(node('p', t('match_rule_' + c.rule) + (product ? ': ' + product : '') + ' · ' + t('matched_service') + ': ' + (c.service_name || (serviceKey ? t('service_' + serviceKey) : c.service))
+          + (kinds ? ' – ' + kinds : ''), 'skg-reason'));
         const context = c.context ? t('ctx_' + c.context) : '';
         const when = c.observed_at ? t(c.context === 'internal_use' ? 'last_proved' : 'last_observed').replace('%1', date(c.observed_at)) : t('historical_date_unknown');
         // 0.12.0: the kind of evidence of every reason (need, use, job requirement)

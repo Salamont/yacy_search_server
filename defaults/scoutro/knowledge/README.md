@@ -1,11 +1,15 @@
 # Scoutro knowledge graph: business vocabularies
 
 Files read by the knowledge graph (vocabulary 2, package 6; see
-`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 23).
+`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 23). Package 7 (0.13.0) adds the
+optional `organisations` of a vocabulary (the words naming the organisations of
+its field, with their NACE level: "Softwareunternehmen" → 62), read by the
+declared audience (section 39), and the product tree (section 39).
 
 | File | Content |
 |------|---------|
 | `categories.json` | Seed vocabularies (care, coaching, software, construction), profiles an operator gives a collection: service categories with German and English labels, match terms, the Scoutro group (industry subcategory) and the safe NACE Rev. 2.1 level of each category; audience segments; the facility kinds of the LLM tier (`llm_kinds`, not versioned); customer types, company sizes and employment types. Versioned by content; not a closed list. It maps no collection. |
+| `products.json`, `needs.json` | The global signal vocabularies: products with their aliases and, since package 7 (0.13.0, version 2), their tree (`parents`: vendor, product, module such as SAP, S/4HANA, FI), the vendors that state nothing beside a product of theirs (`general`: SAP) and the kinds of service (`service_types`: consulting, implementation, migration, integration, development, operation, training, licence); and the needs. A text names every product it states; a product never states its modules. An operator's file of the same name in `DATA/SCOUTRO/knowledge/vocabulary/` replaces the shipped one. |
 | `nace-2.1.csv` | The statistical classification of economic activities NACE Rev. 2.1 (sections, divisions, groups and classes, English titles). |
 
 ## Extending the vocabularies

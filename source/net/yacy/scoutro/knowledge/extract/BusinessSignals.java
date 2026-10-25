@@ -23,7 +23,8 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
 public final class BusinessSignals {
     /** The patterns of the inline expressions, compiled once (0.11.8: they were compiled again on every read of a quote). */
     private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
-    public static final String VERSION="4"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2)
+    public static final String VERSION="5"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2);
+    // 5: a planned migration in the clause of its verb, its product and the company (0.13.0)
     private static final Pattern CUSTOMERS=p("Kundenprojekt|Bestandskunden|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
@@ -345,6 +346,27 @@ public final class BusinessSignals {
         }
         return out;
     }
+    /**
+     * 0.13.0: the products of a planned migration by a clause of the quote ({@link #CLAUSE_END}), as own use since 0.12.2: the
+     * migration ("Migration", "Umstellung", "migrieren"), the plan or the sought support ({@link #PLAN}, {@link #SOUGHT}), the product
+     * and "wir"/"unser" or the company's name stand in one clause ("Wir planen die Migration auf S/4HANA"). A plan of something else
+     * next to another party's migration ("Wir planen Workshops; die Migration übernehmen Partner") and a product of another clause
+     * are none.
+     */
+    static Set<String> plannedMigrationProducts(String quote,Signals vocab,String actorName) {
+        Set<String> out=new LinkedHashSet<>();
+        List<String> clauses=new ArrayList<>();
+        for(String part:CLAUSE_END.split(quote)) {
+            if(!clauses.isEmpty()&&OWN_RELATIVE.matcher(part).find())clauses.set(clauses.size()-1,clauses.get(clauses.size()-1)+", "+part);
+            else clauses.add(part);
+        }
+        for(String clause:clauses) {
+            if(!MIGRATION.matcher(clause).find()||!(PLAN.matcher(clause).find()||SOUGHT.matcher(clause).find()))continue;
+            boolean self=OWN_WORD.matcher(clause).find()||actorName!=null&&clause.toLowerCase(Locale.ROOT).contains(actorName.toLowerCase(Locale.ROOT));
+            if(self)out.addAll(vocab.products(clause));
+        }
+        return out;
+    }
     /** 0.12.2: the company's own systems or data of a product ("unsere SAP-Daten", "unser SAP-System", "our SAP landscape"). */
     private static final Pattern OWN_POSSESSION=p("\\bunser(?:e[nmrs]?)?\\s+(?:eigene[nmrs]?\\s+)?[\\p{L}0-9/®]+-?(?:Daten|Systems?|Systeme[nm]?|Systemlandschaft|Landschaft|Umgebung|Instanz|Installation)\\b"
             +"|\\bour\\s+(?:own\\s+)?[\\p{L}0-9/®]+\\s+(?:data|systems?|landscape|environment|instance|installation)\\b");
@@ -385,7 +407,9 @@ public final class BusinessSignals {
             else if(question||RECOMMENDATION.matcher(quote).find()) context=null;
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
             else if(MIGRATION.matcher(quote).find()&&COMPLETED.matcher(quote).find()&&(own||named))context="completed_migration";
-            else if(MIGRATION.matcher(quote).find()&&(PLAN.matcher(quote).find()||SOUGHT.matcher(quote).find()&&!OFFER.matcher(quote).find()&&!STAFF.matcher(quote).find())&&(own||named))context="planned_migration";
+            // 0.13.0: the migration, the plan (or the support sought), the product and the company in one clause
+            else if(MIGRATION.matcher(quote).find()&&(PLAN.matcher(quote).find()||SOUGHT.matcher(quote).find()&&!OFFER.matcher(quote).find()&&!STAFF.matcher(quote).find())&&(own||named)
+                    &&!plannedMigrationProducts(quote,vocab,named?actorName:null).isEmpty())context="planned_migration";
             // no own use: a cooperation, examples, others' systems, quoted words; experience "used" is a competence (0.12.0, T6)
             // 0.12.2: the company's own use in one clause (its verb, the product and "wir"/"unser" or its name), not anywhere in the
             // sentence ("…, um diese Chancen zu nutzen", "Teams, die Azure … nutzen")
@@ -401,7 +425,8 @@ public final class BusinessSignals {
             // A reference page reports client work: a system used, migrated or shut down there is the client's.
             if(references&&List.of("internal_use","planned_migration","completed_migration","shutdown").contains(context))context="customer_projects";
             // 0.12.2: own use is the use of the products of its clauses
-            for(String product:"internal_use".equals(context)?ownUseProducts(quote,vocab,named?actorName:null):vocab.products(quote)) {
+            for(String product:"internal_use".equals(context)?ownUseProducts(quote,vocab,named?actorName:null)
+                    :"planned_migration".equals(context)?plannedMigrationProducts(quote,vocab,named?actorName:null):vocab.products(quote)) {
                 Map<String,Object> fields=new TreeMap<>();fields.put("product",product);fields.put("context",context);
                 fields.put("section",section);fields.put("scope",p("unternehmensweit|vollständig|organisation.wide|throughout our company").matcher(quote).find()?"organization":"unspecified");
                 String role="unspecified";

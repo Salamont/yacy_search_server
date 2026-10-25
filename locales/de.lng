@@ -6138,6 +6138,17 @@ The selected collection filters the origin and its facts. Customer and partner s
 >Reasons and supporting facts<==>Gründe und zugrunde liegende Fakten<
 >Supporting statements are no longer fully available.<==>Die zugrunde liegenden Aussagen sind nicht mehr vollständig verfügbar.<
 >declared audience<==>erklärte Zielgruppe<
+>SAP FI (Finance)<==>SAP FI (Finanzwesen)<
+>SAP FI-AA (asset accounting)<==>SAP FI-AA (Anlagenbuchhaltung)<
+>Microsoft family (specific product unknown)<==>Microsoft-Familie (konkretes Produkt unbekannt)<
+>consulting<==>Beratung<
+>implementation<==>Einführung<
+>migration or upgrade<==>Migration oder Upgrade<
+>integration<==>Integration<
+>development<==>Entwicklung<
+>operation and support<==>Betrieb und Support<
+>training<==>Schulung<
+>licence sales<==>Lizenzvertrieb<
 >%1 piece(s) of evidence on %2 pages<==>%1 Beleg(e) (auf %2 Seiten)<
 >Audience fit: the declared audience of A meets the industry of B (no evidence of a need)<==>Zielgruppen-Passung: erklärte Zielgruppe von A trifft die Branche von B (kein Bedarfsbeleg)<
 >Suggested customers and partners<==>Vorgeschlagene Kunden und Partner<

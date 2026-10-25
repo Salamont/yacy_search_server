@@ -92,6 +92,9 @@ public final class MatchingProjection {
         String serviceName=service.text;JSONArray stated=service.identity.optJSONArray("subject");
         if("service".equals(service.type)&&stated!=null)for(int i=0;i<stated.length();i++)if("name".equals(stated.optJSONObject(i).optString("predicate")))serviceName=stated.optJSONObject(i).optString("value");
         KgJson.put(result,"service_name",serviceName);
+        // 0.13.0: the kind of the offered service, the second axis of an offer ("SAP FI – implementation"); shown, never scored
+        KgJson.put(result,"service_types",new JSONArray(net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().signals
+                .serviceTypes(service.value.optString("literal",service.text)+" "+service.text)));
         KgJson.put(result,"location",signal.value.optString("location",null));KgJson.put(result,"project",signal.value.optString("project",null));
         KgJson.put(result,"phase",signal.value.optString("phase",null));
         return result;
