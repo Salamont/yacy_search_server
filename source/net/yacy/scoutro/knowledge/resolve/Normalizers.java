@@ -165,8 +165,8 @@ public final class Normalizers {
     }
 
     /**
-     * 0.13.0: the comparison form of a client's name without its legal form ("Schloss Wachenheim AG" and "Schloss Wachenheim" give
-     * "schloss wachenheim"); the key of {@code client_name}. Abbreviations are not guessed ("regio iT" stays apart from its long
+     * 0.13.0: the comparison form of a client's name without its legal form ("Schloss Beispielstein AG" and "Schloss Beispielstein"
+     * give "schloss beispielstein"); the key of {@code client_name}. Abbreviations are not guessed ("regio Muster" stays apart from its long
      * name). Null for no name.
      */
     public static String clientKey(final String name) {

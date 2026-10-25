@@ -2,6 +2,33 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.13.0 / 1.942-scoutro.46 — declared audiences, clients, places of the LLM tier and its replay
+
+On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `Vocabulary.VERSION` 5, vocabulary package 7); the
+LLM tier's stored answers are replayed without a model request (`LlmExtractor.VERSION` 5, `REPLAYS` = {4});
+`BusinessSignals.VERSION` 5; `MatchingRules.VERSION` stays 1. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.13.0.md).
+
+- **Declared audience** (`Audiences`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 39): only a phrase that names organisations
+  ("Pflegeeinrichtungen", "WordPress-Agenturen", "Softwareunternehmen"), in the clause of the address; the reader's address
+  ("wir beraten Sie gern"), service words (Netzwerk, Cloud, Sanierung) and a footer are no audience; every vocabulary is read, the
+  page's own too; the vocabularies' optional `organisations` give a target industry. Stored audience facts take effect only while
+  the reader confirms their quote. The older suggestions are labelled *audience fit* (`legacy-2`, `declared_audience`), ranked
+  below the matching, and hidden when their basis is stale or unconfirmed.
+- **Clients:** one client per provider site (`client_name`), the names of project profiles written on one line, `& Co. KG` in a
+  legal form, anonymised clients are none.
+- **Signals:** a planned migration in the clause of its verb (the correction of the 0.12.2 notes); the product tree (vendor →
+  product → module) and the kinds of service.
+- **Offers:** an item of an offer list without a category is a service *without a category* (hedged; the matching ignores it;
+  quality metric `uncategorized_service_names`). The name of a section (Kontakt, Über uns, Referenzen, Jobs) is no service.
+- **LLM tier** (section 40): a facility or site needs a place in its context (`PlaceEvidence`): no menu item, page label, generic
+  noun, activity or project building; an unclear proper name is kept and marked `type_unconfirmed` (left out of the type filter
+  and its count; `review=type_unconfirmed`). Every accepted answer is checked again, cached ones too; the stored answers of
+  `llm/4` are replayed from their evidence, with the model and prompt hash of the answer, without a request.
+- **Reading:** lists and counts hold the current entities (`include_stale`); every fact shows *Source read* and *Evaluated* (with
+  extractor and model); repeated text counts once ("1 piece of evidence on 7 pages").
+- **Rollback** to 0.12.2 on the updated graph would extract every page again and ask the model again for every document (a
+  version outside its own): restore the backup taken before the update instead.
+
 ## 0.12.2 / 1.942-scoutro.45 — own use in the clause of its verb
 
 On 0.12.1: no schema change, no re-extraction; `BusinessSignals.VERSION` 4 (no extractor identity), `MatchingRules.VERSION`

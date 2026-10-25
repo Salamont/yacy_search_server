@@ -1,0 +1,69 @@
+# Scoutro 0.13.0: declared audiences, clients, places of the LLM tier and its replay
+
+Prepared versions: **0.13.0 / 1.942-scoutro.46**. Numeric YaCy peer version **1.942** stays unchanged. No schema change; one
+re-extraction of tiers 1 and 2 (`rule/9`, vocabulary package 7); the LLM tier's stored answers are replayed without a model
+request (`llm/5`). Each step after the merge is a separate decision of the operator.
+
+| What | Value |
+|---|---|
+| Release | the declared audience only from a phrase that names organisations, in the clause of its address; one client per provider site; planned migration in the clause of its verb; the product tree and the kinds of service; offer items without a category; a facility or site of the LLM tier needs a place in its context; the replay of the stored answers; current lists and the two times of a fact |
+| Source commit on `main` | **open** (on 0.12.2, `1100927`) |
+| Image | `ghcr.io/salamont/scoutro:1.942-scoutro.46`, alias `0.13.0`, linux/amd64 |
+| Registry digest | **open** until publication |
+| Knowledge graph schema | **9, unchanged** |
+| Extractors | `rule/9` (was 8), `Vocabulary.VERSION` 5, vocabulary package 7 (`categories.json` with `organisations`, `products.json` version 2 with the tree and `service_types`); `jsonld/6` unchanged; `LlmExtractor.VERSION` 5 with `REPLAYS` = {4} (the question's version stays 4); `BusinessSignals.VERSION` 5 (no extractor identity); `MatchingRules.VERSION` stays 1 |
+| Upgrade from | 0.12.2 / `1.942-scoutro.45`, installed in production |
+
+## What the update does
+
+1. **One re-extraction** of every tracked page by the rules of `rule/9` (as every change of the extractor identity): the
+   declared audiences of the shared reader `Audiences`, the clients of `client_name`, the offer items, the product tree. A
+   statement whose only evidence was the former window of an audience is deleted with it.
+2. **The replay of the LLM tier** (`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 40.3): the stored answers of `llm/4` are rebuilt from their
+   evidence, validated with the page's text and published as `llm/5` with the model and prompt hash of the answer, page by page
+   after its re-extraction. **No model request.** A refused place (a menu item, a page label, an activity, a project's building)
+   loses its evidence; a proper name without a place is kept and marked `type_unconfirmed`. Status: `llm.validation`; events
+   `llm_validation_queued`, `llm_validation_done`.
+3. The pages the LLM tier skipped as no candidate are decided once more by `rule/9` (the existing mechanism, no request: the
+   candidate rule is unchanged). New and changed pages are asked with the new prompt (the definition of a facility, the products'
+   vocabulary): its hash is new, so their chunks no longer hit the cache of the former prompt.
+4. Reading: a stored audience fact of the LLM tier takes effect only while the reader confirms its quote; suggestions of the older
+   path resting on a stale or unconfirmed basis are not shown; lists and counts hold the current entities.
+
+The work of 1 and 2 is CPU only, about one rule extraction per page; the LLM schedule does not hold the replay.
+
+## Gates (production data, read only)
+
+The gates and the measurement run on production data, read only and without a model, in the private package repository
+(`docs/OPENCODE-GATES-0.13.0.md`, parts 1 and 2; `docs/OPENCODE-MEASURE-0.13.0.md`, M0 before and M1 after the update): the
+vocabularies of the collections, the declared audiences and the older suggestions on them, the reader on their stored excerpts,
+the operators of split providers, the LLM tier's places with the replay on their stored answers, the completeness of tier-3
+evidence, and per collection the suggestions, clients and places before and after.
+
+| Gate | Result |
+|---|---|
+| Part 1 (A0, A1, A3, A4, A5) | **open** |
+| Part 2 (A2, the replay of A4) | **open** |
+| M0 / M1 | **open** |
+
+## Decisions to confirm
+
+- Unclear places: kept, marked `type_unconfirmed`, left out of the type filter and its count, listed with
+  `review=type_unconfirmed` (proposal).
+- The prompt's definition of a facility ("a named place of business or care, never a menu item"; new and changed pages only).
+- No targeted re-run of the LLM tier (proposal).
+- Services without a category are shown, with the report `uncategorized_service_names` (proposal).
+- Documents (PDF, office files) already in the index: not part of 0.13.0 (the owner's decision is open).
+
+## Rollback to 0.12.2
+
+Start the 0.12.2 image by digest on the same DATA. The graph keeps schema 9; 0.12.2 sees a new rule and LLM version in
+`kg_meta` and extracts every page again with `rule/8`; it would also examine every document again by `llm/4` (a version
+outside its own), with model requests. To avoid them, restore the backup taken before the update (`graph-<UTC>-before-...`
+or the regular backup of the day) instead of rolling back on the updated graph.
+
+## Tests of this release
+
+`AudiencesTest`, `DeclaredAudienceTest`, `ClientIdentityTest`, `BusinessSignalsTest`, `MatchingTest`, `PlaceEvidenceTest`,
+`LlmExtractorInvalidReasonTest`, `LlmReplayTest`, `CurrentListsTest`, `ServiceOfferEvidenceTest`, `CollectionMigrationTest`,
+`CollectionFitTest`, and the regression of `tools/scoutro/ci/scoutro-checks.sh`.

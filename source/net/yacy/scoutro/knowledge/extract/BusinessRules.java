@@ -966,7 +966,7 @@ public final class BusinessRules {
     private static final Pattern PROJECT_DONE = Pattern.compile("(?iu)\\b(?:abgeschlossen|erfolgreich|realisiert|umgesetzt|go-live|live\\s+gegangen"
             + "|eingeführt|completed|delivered)\\b");
     private static final Pattern PROJECT_RUNNING = Pattern.compile("(?iu)\\b(?:laufend|läuft|in\\s+arbeit|in\\s+umsetzung|seit|ongoing|in\\s+progress)\\b");
-    /** Several clients of one profile or heading ("E.V.A. & regio iT"); "& Co. KG" is part of a legal form, never a split (0.13.0). */
+    /** Several clients of one profile or heading ("Energie Muster AG & Stadtwerke Beispiel"); "& Co. KG" is part of a legal form, never a split (0.13.0). */
     private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&(?!\\s*Co\\b)|;|(?<!-)\\s+und\\s+(?!Co\\b)|(?<!-)\\s+and\\s+)\\s*");
     /**
      * 0.13.0: a field label after a sentence end in a project profile written on one line ("Kunde: Beispiel AG. Systemgröße: ca. 350
