@@ -168,7 +168,8 @@ all collections and the page says so.
   collection and model (`review`). A menu item, a page label ("Kontakt",
   "Referenzen"), a generic noun, an activity ("Logistikbau"), the building of
   a project page or the name of a service of the page is no place: it is
-  dropped and counted.
+  dropped and counted. The name of a section ("Kontakt", "Über uns",
+  "Referenzen", "Jobs") is no service either.
 - **Services without a category (0.13.0):** an item of an offer list under
   an offer heading ("Leistungen") that matches no category is listed as a
   service *without a category* (uncertain); matching ignores it. The quality

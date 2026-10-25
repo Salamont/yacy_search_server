@@ -72,7 +72,7 @@ public final class LlmExtractor {
 
     public static final String NAME = "llm";
     /**
-     * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no entity; the
+     * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no place; the
      * change is what is kept of an answer, not the question.
      */
     public static final String VERSION = "5";
@@ -82,6 +82,12 @@ public final class LlmExtractor {
      * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
      */
     public static final java.util.Set<String> REPLAYS = java.util.Set.of("4");
+    /**
+     * The version of the question (prompt, schema and the requests' form): part of the prompt hash and of the cache key. A version
+     * in {@link #REPLAYS} changes what is kept of an answer, not the question, so it keeps the question's version: a cached answer
+     * is used, and validated again by {@link #apply} as every answer is.
+     */
+    public static final String QUESTION_VERSION = "4";
     public static final int TIER = 3;
     public static final int CHUNK_CHARS = 4000;
     public static final int MAX_ANSWER_BYTES = 64 * 1024;
@@ -254,9 +260,9 @@ public final class LlmExtractor {
         PROMPT_HASH = promptHash(SYSTEM_PROMPT);
     }
 
-    /** The hash of a system prompt together with the schema and the version: the prompt part of the extractor identity. */
+    /** The hash of a system prompt together with the schema and the question's version: the prompt part of the extractor identity. */
     public static String promptHash(final String systemPrompt) {
-        return sha256Hex(VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()+"\u0000"
+        return sha256Hex(QUESTION_VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()+"\u0000"
                 +net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().signals.version).substring(0, 16);
     }
 
@@ -374,9 +380,9 @@ public final class LlmExtractor {
             "entity_service_team_or_role", // a "service" named as a team, a department or staff ("Service team", "Vertriebsteam")
             "entity_service_not_offered", // no independent, bounded source offer or named price evidence for this service
             "entity_job_not_advertised", // a "job" no advertisement states: no vacancy, no gender marker, no hiring statement
-            // 0.13.0: a place needs a place in its context (PlaceEvidence); a section of the site is no entity. The building of a
+            // 0.13.0: a place needs a place in its context (PlaceEvidence); a section of the site is no place. The building of a
             // project page (entity_facility_project_object) is refused where the page's address is known, when it is published
-            "entity_page_label", // "Kontakt", "Referenzen", "Über uns": a label of the site's pages, as a facility, site or service
+            "entity_page_label", // "Kontakt", "Referenzen", "Über uns": a label of the site's pages as a place, a section's name as a service
             "entity_facility_not_a_place", // a generic noun, an activity, or a name the text never shows as a place (only in a menu)
             "entity_facility_service_name", // the name of a service the rules found on the page, without a sign of a place
             // claims
@@ -562,7 +568,7 @@ public final class LlmExtractor {
     public static byte[] cacheKey(final String promptHash, final String model, final Chunk chunk, final String title, final String domain,
             final String language, final List<Known> known, final Collection<String> kinds, final String extra) {
         final StringBuilder sb = new StringBuilder();
-        sb.append(NAME).append('\u0000').append(VERSION).append('\u0000').append(promptHash).append('\u0000').append(model)
+        sb.append(NAME).append('\u0000').append(QUESTION_VERSION).append('\u0000').append(promptHash).append('\u0000').append(model)
                 .append('\u0000').append(domain).append('\u0000').append(language).append('\u0000')
                 .append(title == null ? "" : Normalizers.clip(title, MAX_STRING)).append('\u0000');
         for (final Known k : known) {
@@ -888,7 +894,8 @@ public final class LlmExtractor {
      * <li>a job needs an advertisement: a vacancy or a gender marker in its name, its quote or the heading its quote stands
      * under, or a hiring statement about it that advertises it. The role of a team member is no job;</li>
      * <li>0.13.0: a facility or a site needs a place in its context ({@link PlaceEvidence}): never a page label, a generic noun or
-     * an activity, never only a menu item; a service is never a page label.</li>
+     * an activity, never only a menu item; a service is never the name of a section ("Kontakt", "Über uns", "Referenzen", "Jobs";
+     * a label that may name an offer, "News", keeps the proof of its offer, 0.12.0).</li>
      * </ul>
      * Other types are not checked here.
      */
@@ -900,8 +907,8 @@ public final class LlmExtractor {
             return place.verdict == PlaceEvidence.Verdict.REFUSED ? place.reason : null;
         }
         if (Vocabulary.SERVICE.equals(type)) {
-            if (PlaceEvidence.pageLabel(name)) {
-                return PlaceEvidence.PAGE_LABEL; // 0.13.0: "Kontakt", "Referenzen", "Über uns" name sections of the site
+            if (PlaceEvidence.sectionLabel(name)) {
+                return PlaceEvidence.PAGE_LABEL; // 0.13.0: "Kontakt", "Über uns", "Referenzen", "Jobs" name sections of the site
             }
             if (TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
                 return "entity_service_team_or_role";
@@ -1190,7 +1197,7 @@ public final class LlmExtractor {
                     quote = normal(proof);
                 }
             }
-            if (Vocabulary.SERVICE.equals(type) && same == null && PlaceEvidence.pageLabel(name)) {
+            if (Vocabulary.SERVICE.equals(type) && same == null && PlaceEvidence.sectionLabel(name)) {
                 continue; // 0.13.0: a section of the site is no service, also of an old accepted or cached answer
             }
             boolean unconfirmed = false;

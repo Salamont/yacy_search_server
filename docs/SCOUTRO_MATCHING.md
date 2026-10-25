@@ -379,6 +379,28 @@ Questions, advice to the reader, rows of delivery verbs, a product as the subjec
 are none. The matching re-reads stored quotes with it (`contextConfirmed`), so no re-extraction is needed. Details:
 docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 38.
 
+## 0.13.0: the product tree, the kinds of service, audience fit apart
+
+- **The product tree** (`products.json` version 2, `parents`: vendor → product → module, e.g. SAP → S/4HANA → FI, CO, FI-AA,
+  Cash Management, DRC, ILM; Microsoft → Dynamics 365 Business Central, Finance & Operations, Customer Engagement, Power BI,
+  Power Platform, Azure, Microsoft 365; Salesforce → Sales, Service and Marketing Cloud, Tableau, MuleSoft; further ERP
+  products without a parent). A text names every product it states, the finest too: "SAP S/4HANA FI" states S/4HANA and FI,
+  so an offer of S/4HANA and an offer of FI both fit it, each as an exact product. A product never states its modules (a
+  signal of S/4HANA proves no FI), and the vendor of `general` (SAP) states nothing of its own beside a product of it
+  (general SAP still proves no S/4HANA). An alias inside another product's longer alias is that product's ("SAP BW" in "SAP
+  BW/4HANA"). Every exact match of 0.12.2 stays. `MatchingRules.VERSION` is unchanged; the vocabulary's hash is part of the
+  extractor identity, so the re-extraction of 0.13.0 reads every page with the tree.
+- **The kind of a service** (`service_types`: consulting, implementation, migration, integration, development, operation,
+  training, licence) is the second axis of an offer ("SAP FI – implementation"). A contribution names the kinds its offer
+  states (`service_types`); they are shown, never scored.
+- **Audience fit is no matching kind.** The older derivation (`DerivedService`, `legacy_industry_or_partner`) is labelled
+  *audience fit* (`evidence_kind` `declared_audience`, `rule_version` `legacy-2`), takes a declared audience only while the
+  reader `Audiences` confirms its quote, and is ranked below every matching contribution of the same pair. It proves no need.
+  Details: docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 39.
+- **A planned migration** is read in the clause of its verb (`BusinessSignals.VERSION` 5), as own use since 0.12.2; the matching
+  re-reads stored quotes with it (`contextConfirmed`).
+- **An offer item without a category** (section 39.7) has no product and no category: the matching does not read it.
+
 ## Validation and limits
 
 Targeted SQLite tests cover the rule groups' positives/negatives, exact products,

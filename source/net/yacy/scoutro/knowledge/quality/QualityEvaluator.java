@@ -141,8 +141,8 @@ public final class QualityEvaluator {
             return out;
         }
         for (final Claim c : ex.claims()) {
-            if ((c.tier == LlmExtractor.TIER) != model) {
-                continue;
+            if ((c.tier == LlmExtractor.TIER) != model || Vocabulary.TYPE_UNCONFIRMED.equals(c.predicate)) {
+                continue; // 0.13.0: the mark of a place without a place in its context is the validator's, no statement of the model
             }
             final Mention s = ex.mention(c.subject);
             if (s == null || s.name == null) {

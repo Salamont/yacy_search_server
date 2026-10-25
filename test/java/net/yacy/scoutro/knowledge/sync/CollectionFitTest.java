@@ -55,10 +55,10 @@ public class CollectionFitTest {
 
     private static final String BAU = "bauteamcheck-web", STACK = "stackfinder-web";
     /**
-     * The prompt hash of the release (Scoutro 0.11.5, main e45d21d; 0.13.0: the definition of a facility, the products' tree and
-     * {@code LlmExtractor.VERSION} 5): the question changes none of it.
+     * The prompt hash of the release (Scoutro 0.11.5, main e45d21d; 0.13.0: the definition of a facility and the products' tree;
+     * {@code LlmExtractor.VERSION} 5 keeps the question's version 4): the question changes none of it.
      */
-    private static final String PROMPT_HASH_0115 = "140eb876497bc9f9";
+    private static final String PROMPT_HASH_0115 = "c2016bce82a82b85";
     private static final String PROMPT_AND_SCHEMA_0115 = "8a09718cfd968614166037f745aaac71ae344e4381cc79fb47cdbdc7b26cce0d";
     private static final String HOME = "Drolshagens Feinkost und Confiserie: Pralinen, Trüffel und Geschenkkörbe aus eigener Manufaktur.";
 

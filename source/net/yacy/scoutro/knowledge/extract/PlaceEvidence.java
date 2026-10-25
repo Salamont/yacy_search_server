@@ -66,6 +66,15 @@ public final class PlaceEvidence {
             "service", "services", "downloads", "download", "anfahrt", "galerie", "unternehmen", "philosophie", "geschichte", "historie",
             "partner", "faq", "sitemap", "login", "suche", "agb", "contact", "contact us", "about", "about us", "career", "careers",
             "references", "projects", "imprint", "legal notice", "privacy", "privacy policy", "company", "history", "gallery", "search");
+    /**
+     * The names of a website's sections that never name an offer either ("Kontakt", "Über uns", "Referenzen", "Jobs"), folded: a
+     * service of such a name is a page label too. Labels that may name an offer ("News", "Downloads", "Service", "Partner") are
+     * not among them: a service of such a name keeps the proof of its offer (0.12.0).
+     */
+    static final Set<String> SECTION_LABELS = folded("kontakt", "kontaktformular", "uber uns", "ueber uns", "wir uber uns", "impressum",
+            "datenschutz", "datenschutzerklarung", "referenzen", "referenz", "jobs", "karriere", "stellenangebote", "startseite", "home",
+            "sitemap", "login", "agb", "anfahrt", "contact", "contact us", "about", "about us", "imprint", "legal notice", "privacy",
+            "privacy policy", "references", "career", "careers");
     /** A generic noun that alone names no place, folded. */
     static final Set<String> GENERIC = folded("gebaude", "haus", "werk", "standort", "standorte", "niederlassung", "filiale", "einrichtung",
             "einrichtungen", "zentrale", "buro", "halle", "gelande", "objekt", "anlage", "building", "buildings", "site", "plant", "office",
@@ -110,6 +119,11 @@ public final class PlaceEvidence {
     /** True if the name is one of a website's sections ("Kontakt", "Über uns"). */
     public static boolean pageLabel(final String name) {
         return name != null && PAGE_LABELS.contains(fold(name));
+    }
+
+    /** True if the name is the name of a website's section that never names an offer ({@link #SECTION_LABELS}): no service. */
+    public static boolean sectionLabel(final String name) {
+        return name != null && SECTION_LABELS.contains(fold(name));
     }
 
     /**
