@@ -46,21 +46,32 @@ evidence, and per collection the suggestions, clients and places before and afte
 | Part 2 (A2, the replay of A4) | **open** |
 | M0 / M1 | **open** |
 
-## Decisions to confirm
+## The owner's decisions (25 October 2026)
 
 - Unclear places: kept, marked `type_unconfirmed`, left out of the type filter and its count, listed with
-  `review=type_unconfirmed` (proposal).
+  `review=type_unconfirmed`.
 - The prompt's definition of a facility ("a named place of business or care, never a menu item"; new and changed pages only).
-- No targeted re-run of the LLM tier (proposal).
-- Services without a category are shown, with the report `uncategorized_service_names` (proposal).
-- Documents (PDF, office files) already in the index: not part of 0.13.0 (the owner's decision is open).
+- No targeted re-run of the LLM tier.
+- Services without a category are shown, with the report `uncategorized_service_names`.
+- Documents (PDF, office files) already in the index: not part of 0.13.0. The cleanup of earlier documents and tests comes
+  outside this release.
 
 ## Rollback to 0.12.2
 
-Start the 0.12.2 image by digest on the same DATA. The graph keeps schema 9; 0.12.2 sees a new rule and LLM version in
-`kg_meta` and extracts every page again with `rule/8`; it would also examine every document again by `llm/4` (a version
-outside its own), with model requests. To avoid them, restore the backup taken before the update (`graph-<UTC>-before-...`
-or the regular backup of the day) instead of rolling back on the updated graph.
+The graph keeps schema 9; 0.12.2 sees a new rule and LLM version in `kg_meta`, extracts every page again with `rule/8` (about
+6 hours) and examines every document again by `llm/4` (`llm/5` is a version outside its own), with model requests. In this
+order:
+
+1. Note the value of `scoutro.kg.llm.maxRequestsPerDay` (unset: 0, no cap) and set it to a small value while 0.13.0 runs
+   (Advanced Properties, `ConfigProperties_p.html`). It is written to `yacy.conf` at once and holds from the graph's next start.
+2. Start the 0.12.2 image by digest on the same DATA; its status shows the small cap in `llm.dailyRequests.cap`.
+3. Restore the backup taken before the update in 0.12.2 (recommended; `POST /scoutro/api/v1/kg/control`
+   `{"action":"restore","backup":"<file>"}`), never in 0.13.0, which would convert it again. The restored graph carries
+   `rule/8` and `llm/4`: neither the re-extraction of every page nor the examination of every document remains.
+4. Set the old value again when the owner decides; until then model requests stay within the small cap per UTC day.
+
+Costs: without the restore, the rules' re-extraction of every page (about 6 hours) and model requests only up to the set daily
+cap; with it, the copy of the backup and the pages changed since it.
 
 ## Tests of this release
 

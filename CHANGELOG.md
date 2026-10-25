@@ -26,8 +26,10 @@ LLM tier's stored answers are replayed without a model request (`LlmExtractor.VE
   `llm/4` are replayed from their evidence, with the model and prompt hash of the answer, without a request.
 - **Reading:** lists and counts hold the current entities (`include_stale`); every fact shows *Source read* and *Evaluated* (with
   extractor and model); repeated text counts once ("1 piece of evidence on 7 pages").
-- **Rollback** to 0.12.2 on the updated graph would extract every page again and ask the model again for every document (a
-  version outside its own): restore the backup taken before the update instead.
+- **Rollback** to 0.12.2 on the updated graph would extract every page again (about 6 hours) and examine every document again
+  by the model (a version outside its own): set `scoutro.kg.llm.maxRequestsPerDay` to a small value before 0.12.2 starts (note
+  the old one), then restore the backup taken before the update in 0.12.2 (recommended); see
+  `docs/SCOUTRO_RELEASE_0.13.0.md`.
 
 ## 0.12.2 / 1.942-scoutro.45 — own use in the clause of its verb
 
