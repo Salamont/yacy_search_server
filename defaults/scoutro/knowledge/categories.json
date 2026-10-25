@@ -1895,6 +1895,32 @@
       "agencies"
      ]
     }
+   ],
+   "organisations": [
+    {
+     "code": "software_unternehmen",
+     "de": "Softwareunternehmen und IT-Dienstleister",
+     "en": "Software and IT service companies",
+     "nace": "62",
+     "terms": [
+      "softwareunternehmen",
+      "softwarefirmen",
+      "softwarehäuser",
+      "softwarehaus",
+      "softwarehersteller",
+      "softwareanbieter",
+      "it-unternehmen",
+      "it-firmen",
+      "it-dienstleister",
+      "it-systemhäuser",
+      "systemhäuser",
+      "software companies",
+      "software vendors",
+      "software houses",
+      "it service providers",
+      "it companies"
+     ]
+    }
    ]
   },
   "construction": {
@@ -3524,6 +3550,28 @@
       "wohnungsgesellschaften",
       "wohnungsbaugenossenschaften",
       "housing associations"
+     ]
+    }
+   ],
+   "organisations": [
+    {
+     "code": "bauunternehmen",
+     "de": "Bauunternehmen und Handwerksbetriebe",
+     "en": "Construction companies and trades",
+     "nace": "F",
+     "terms": [
+      "bauunternehmen",
+      "baufirmen",
+      "baubetriebe",
+      "bauunternehmer",
+      "handwerksbetriebe",
+      "handwerksunternehmen",
+      "handwerksfirmen",
+      "bauhandwerker",
+      "construction companies",
+      "construction firms",
+      "building contractors",
+      "construction contractors"
      ]
     }
    ]

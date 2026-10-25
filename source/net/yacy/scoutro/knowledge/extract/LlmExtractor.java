@@ -1286,12 +1286,11 @@ public final class LlmExtractor {
                 }
                 break;
             case Vocabulary.TARGET_CATEGORY:
-                for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : c.allVocabularies()) {
-                    for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
-                            : v.categories(quote, 0, quote.length())) {
-                        if (!out.contains(h.entry.id)) {
-                            out.add(h.entry.id);
-                        }
+                // 0.13.0: only a phrase of the quote that names organisations of the field ("Pflegedienste", "WordPress-Agenturen"),
+                // read by the shared reader; a service or product term alone ("Cloud-Migrationen", "Netzwerk") is no audience
+                for (final Audiences.Audience a : Audiences.named(quote, c)) {
+                    if (Vocabulary.TARGET_CATEGORY.equals(a.predicate) && !out.contains(a.value)) {
+                        out.add(a.value);
                     }
                 }
                 break;

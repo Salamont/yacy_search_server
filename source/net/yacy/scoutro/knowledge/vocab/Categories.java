@@ -114,11 +114,23 @@ public final class Categories {
         public final Map<String, Entry> groups;
         public final Map<String, Entry> categories;
         public final Map<String, Entry> segments;
+        /**
+         * 0.13.0: the words that name the organisations of the field where no category term does ("Softwareunternehmen",
+         * "Bauunternehmen", "Handwerksbetriebe"), each with the NACE level it implies: an audience naming them gives a target
+         * industry without a target category ({@link net.yacy.scoutro.knowledge.extract.Audiences}).
+         */
+        public final Map<String, Entry> organisations;
         final TermMatcher<Entry> categoryMatcher;
         final TermMatcher<Entry> segmentMatcher;
+        final TermMatcher<Entry> organisationMatcher;
 
         Vocab(final String name, final String de, final String en, final Set<String> llmKinds, final Map<String, Entry> groups,
                 final Map<String, Entry> categories, final Map<String, Entry> segments) {
+            this(name, de, en, llmKinds, groups, categories, segments, Collections.emptyMap());
+        }
+
+        Vocab(final String name, final String de, final String en, final Set<String> llmKinds, final Map<String, Entry> groups,
+                final Map<String, Entry> categories, final Map<String, Entry> segments, final Map<String, Entry> organisations) {
             this.name = name;
             this.de = de;
             this.en = en;
@@ -126,8 +138,10 @@ public final class Categories {
             this.groups = Collections.unmodifiableMap(groups);
             this.categories = Collections.unmodifiableMap(categories);
             this.segments = Collections.unmodifiableMap(segments);
+            this.organisations = Collections.unmodifiableMap(organisations);
             this.categoryMatcher = TermMatcher.of(categories.values(), e -> e.terms, true);
             this.segmentMatcher = TermMatcher.of(segments.values(), e -> e.terms, false);
+            this.organisationMatcher = TermMatcher.of(organisations.values(), e -> e.terms, false);
         }
 
         /** Categories named in the text, with their positions. */
@@ -137,6 +151,11 @@ public final class Categories {
 
         public List<TermMatcher.Hit<Entry>> segments(final String text, final int from, final int to) {
             return this.segmentMatcher.find(text, from, to);
+        }
+
+        /** 0.13.0: the words of the field's organisations named in the text ({@link #organisations}). */
+        public List<TermMatcher.Hit<Entry>> organisations(final String text, final int from, final int to) {
+            return this.organisationMatcher.find(text, from, to);
         }
     }
 
@@ -353,6 +372,7 @@ public final class Categories {
                     merge(raw.groups, v.optJSONArray("groups"), where + " " + name + " groups", problems);
                     merge(raw.categories, v.optJSONArray("categories"), where + " " + name + " categories", problems);
                     merge(raw.segments, v.optJSONArray("segments"), where + " " + name + " segments", problems);
+                    merge(raw.organisations, v.optJSONArray("organisations"), where + " " + name + " organisations", problems);
                 }
             }
         }
@@ -387,8 +407,17 @@ public final class Categories {
                     segments.put(x.id, x);
                 }
             }
+            final Map<String, Entry> organisations = new LinkedHashMap<>();
+            for (final JSONObject o : raw.organisations.values()) {
+                final Entry x = entry(vn + "/" + o.optString("code"), vn, o, null, nace, "organisation", problems);
+                if (x != null && x.nace == null) {
+                    problems.add(x.id, "organisation needs a NACE code");
+                } else if (x != null) {
+                    organisations.put(x.id, x);
+                }
+            }
             out.put(vn, new Vocab(vn, raw.de == null ? vn : raw.de, raw.en == null ? vn : raw.en,
-                    raw.llmKinds == null ? Collections.emptySet() : raw.llmKinds, groups, categories, segments));
+                    raw.llmKinds == null ? Collections.emptySet() : raw.llmKinds, groups, categories, segments, organisations));
         }
         for (final Iterator<Map.Entry<String, String>> it = collections.entrySet().iterator(); it.hasNext();) {
             final Map.Entry<String, String> c = it.next();
@@ -413,6 +442,7 @@ public final class Categories {
         final Map<String, JSONObject> groups = new LinkedHashMap<>();
         final Map<String, JSONObject> categories = new LinkedHashMap<>();
         final Map<String, JSONObject> segments = new LinkedHashMap<>();
+        final Map<String, JSONObject> organisations = new LinkedHashMap<>();
     }
 
     private static void merge(final Map<String, JSONObject> into, final JSONArray items, final String where, final Problems problems) {
@@ -509,7 +539,7 @@ public final class Categories {
         sb.append(collections).append('\u0000');
         for (final Vocab v : vocabs.values()) {
             sb.append(v.name).append('\u0001');
-            for (final Map<String, Entry> m : List.of(v.groups, v.categories, v.segments)) {
+            for (final Map<String, Entry> m : List.of(v.groups, v.categories, v.segments, v.organisations)) {
                 for (final Entry e : m.values()) {
                     sb.append(e.id).append('|').append(e.group).append('|').append(e.nace).append('|').append(e.terms).append('\u0002');
                 }

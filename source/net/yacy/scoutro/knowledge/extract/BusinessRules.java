@@ -60,8 +60,10 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * a gender marker, employment types, the published salary with its unit,
  * deadline, start, application route; no recruiter;</li>
  * <li>the declared audience after markers ("Für wen", "Zielgruppe", "Wir
- * unterstützen", "Unsere Kunden sind"): customer types, segments, company
- * sizes, target industries, need, and the service area.</li>
+ * unterstützen", "Unsere Kunden sind"), read by {@link Audiences} in the
+ * marker's clause (0.13.0): customer types, segments, company sizes, target
+ * categories and industries of a phrase naming organisations; need and the
+ * service area up to the sentence's end.</li>
  * </ul>
  * Every claim quotes its span ({@code text:offset+length}); excerpts are
  * redacted by the publisher.
@@ -2589,57 +2591,40 @@ public final class BusinessRules {
 
     // ------------------------------------------------------------ audiences
 
-    private static final Pattern AUDIENCE = Pattern.compile("(?iu)\\b(?:für\\s+wen|fuer\\s+wen|zielgruppen?|wir\\s+unterstützen|wir\\s+unterstuetzen"
-            + "|wir\\s+beraten|wir\\s+begleiten|wir\\s+helfen|unser\\s+angebot\\s+richtet\\s+sich\\s+an|richtet\\s+sich\\s+an|unsere\\s+kunden\\s+sind"
-            + "|wir\\s+arbeiten\\s+für|speziell\\s+für|our\\s+clients\\s+are|we\\s+help|we\\s+support|designed\\s+for|who\\s+we\\s+serve)\\b\\s*:?\\s*");
     private static final Pattern NEED = Pattern.compile("(?iu)\\b(?:wenn\\s+sie|falls\\s+sie|bei\\s+fragen\\s+(?:rund\\s+)?(?:um|zu)|when\\s+you)\\s+"
             + "([^.!?;\\n]{8,120})");
 
+    /**
+     * 0.13.0 (rule/9): the declared audience by the shared reader ({@link Audiences}): in the clause of each marker, a phrase that
+     * names organisations or people of a role; target categories and industries of every vocabulary, the page's own too. A need
+     * and a service area are read up to the end of the marker's sentence, no longer over a window across sentences and footers.
+     */
     private void audiences(final Run run) {
-        final Matcher m = AUDIENCE.matcher(run.text);
-        int windows = 0;
-        while (m.find() && windows < 6) {
-            windows++;
-            final int from = m.end();
-            final int to = Math.min(run.text.length(), from + 320);
-            final Set<String> done = new LinkedHashSet<>();
-            for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.customerTypes(run.text, from, to)) {
-                if (done.add("ct:" + h.entry.id)) {
-                    claimAround(run, run.subject, Vocabulary.CUSTOMER_TYPE, h.entry.id, m.start(), h.end, 0.6);
+        final Set<String> done = new LinkedHashSet<>();
+        for (final Audiences.Address a : Audiences.read(run.text, run.ctx)) {
+            for (final Audiences.Audience x : a.audiences) {
+                if (done.add(x.predicate + ":" + x.value)) {
+                    addressed(run, x.predicate, x.value, a.markerStart, x.end,
+                            Vocabulary.TARGET_CATEGORY.equals(x.predicate) || Vocabulary.TARGET_INDUSTRY.equals(x.predicate) ? 0.55 : 0.6);
                 }
             }
-            for (final Categories.Vocab v : run.ctx.vocabularies) {
-                for (final TermMatcher.Hit<Categories.Entry> h : v.segments(run.text, from, to)) {
-                    if (done.add("seg:" + h.entry.id)) {
-                        claimAround(run, run.subject, Vocabulary.AUDIENCE_SEGMENT, h.entry.id, m.start(), h.end, 0.6);
-                    }
-                }
-            }
-            for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.companySizes(run.text, from, to)) {
-                if (done.add("size:" + h.entry.id)) {
-                    claimAround(run, run.subject, Vocabulary.COMPANY_SIZE, h.entry.id, m.start(), h.end, 0.6);
-                }
-            }
-            // target industries: the categories of every vocabulary ("für Pflegeeinrichtungen" on a software page)
-            for (final Categories.Vocab v : run.ctx.allVocabularies()) {
-                if (run.ctx.vocabularies.contains(v)) {
-                    continue; // the page's own field names its services, not its customers
-                }
-                for (final TermMatcher.Hit<Categories.Entry> h : v.categories(run.text, from, to)) {
-                    if (done.add("cat:" + h.entry.id)) {
-                        claimAround(run, run.subject, Vocabulary.TARGET_CATEGORY, h.entry.id, m.start(), h.end, 0.55);
-                        if (h.entry.nace != null && run.ctx.nace.valid(h.entry.nace) && done.add("nace:" + h.entry.nace)) {
-                            claimAround(run, run.subject, Vocabulary.TARGET_INDUSTRY, h.entry.nace, m.start(), h.end, 0.55);
-                        }
-                    }
-                }
-            }
-            final Matcher need = NEED.matcher(run.text).region(from, to);
+            final Matcher need = NEED.matcher(run.text).region(a.from, a.sentenceEnd);
             if (need.find() && !personBetween(run.text, need.start(), need.end())) {
                 claim(run, run.subject, Vocabulary.NEED, Normalizers.clip(need.group(1).trim(), 120), need.start(), need.end(), 0.55);
             }
-            areas(run, from, to, run.subject, true);
+            areas(run, a.from, a.sentenceEnd, run.subject, true);
         }
+    }
+
+    /**
+     * A claim of the page's audience whose excerpt starts at its marker and ends shortly after the phrase, so that the stored
+     * excerpt (at most 200 characters) holds both and {@link Audiences#confirms} reads it again as it was read.
+     */
+    private void addressed(final Run run, final String predicate, final String value, final int markerStart, final int end,
+            final double confidence) {
+        final int b = Math.min(run.text.length(), end + 10);
+        run.out.add(new Claim(run.subject.ref, predicate, null, value, 2, Claim.KIND_RULE, false, loc(markerStart, end),
+                Normalizers.clip(Normalizers.excerpt(run.text, markerStart, b), Math.max(this.maxExcerpt, 200)), confidence));
     }
 
     // ----------------------------------------------------------------- areas
