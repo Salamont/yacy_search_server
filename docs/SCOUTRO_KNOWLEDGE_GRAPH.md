@@ -3991,20 +3991,28 @@ reason):
 
 - **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort") or the name of an activity or a
   field of work without a place word ("Hochbau", "Logistikbau", "Gebäudetechnik"; `entity_facility_not_a_place`); a sentence of
-  the page as a name (four words or more, ending with ".", "!" or "?"; the same reason); a name that stands only in a navigation
-  (a short segment among at least two short neighbours) without a sign of a place, or nowhere on the page (the same reason);
+  the page as a name (four words or more, two of them in lower case, ending with ".", "!" or "?", without an address in the name
+  or the quote; the same reason); a name that stands only in a site's menu (a short segment among at least two short neighbours,
+  one of the two segments before or after it the label of a section: "Leistungen | Sonnenhof | Kontakt") without a sign of a
+  place, or nowhere on the page (the same reason);
   on a project or reference page (by its address) the building of a project, unless a passage names who runs it ("betreibt",
   "unser", a named organisation that plans or opens it; `entity_facility_project_object`; a site with its address stays a
   site); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
 - **A place:** a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
-  "Seniorenzentrum Am Park"), also in a list of a site's places; an occurrence outside the navigation, or the model's quote outside
-  a menu line, with an address (a street with its number, a postal code with a place) or a verb of a place ("betreibt",
-  "befindet sich", "liegt", "eröffnet"; "unser Werk in …").
+  "Seniorenzentrum Am Park", "Hauptsitz Kassel", "Niederlassung Kassel"), also in a list of a site's places; an occurrence outside
+  a menu, or the model's quote outside a menu line, with an address (a street with its number, a postal code with a place) or a
+  verb of a place ("betreibt", "befindet sich", "liegt", "eröffnet"; "unser Werk in …"); an imprint's line with bullets is no menu
+  line when it holds a postal code ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"); an entry of a list on a page of the site's
+  places by its address (`/standorte/`, `/einrichtungen/`, `/filialen/`, `/locations/`, …).
 - **Where the name stands:** its words in order with any separators between (a comma, a line, a period, Markdown): the model's
   "Musterweg 5, 34117 Kassel" is found where the page writes the street and the place on two lines; a name not found so is looked
   for by the model's quote, which is grounded in the page. (Gate A4 of 0.13.0: with literal matching, most addresses of the
   production pages counted as "not on the page" and were refused.)
-- **Unclear:** a proper name outside the navigation without any of these. It is kept as published and marked (40.5).
+- **A list is no menu.** Short entries without a section's label beside them (a site's places, "- Muster Pflege Altstadt",
+  "Musterstadt.", an imprint's line) are read as running text: a proper name there without a sign of a place is unclear, not
+  refused. (Gate A4 of 0.13.0, third run: lists of a site's branches and imprint lines read as menus held about half of the
+  places the check refused in the care collection.)
+- **Unclear:** a proper name outside a menu without any of these. It is kept as published and marked (40.5).
 
 The validator of fresh answers refuses what the check refuses (the reasons are codes of the LLM tier's counters and samples; the
 mark of 40.4 is the validator's, so the model quality check rates no such statement);

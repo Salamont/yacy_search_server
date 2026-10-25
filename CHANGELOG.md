@@ -30,7 +30,9 @@ On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `json
   and its count; `review=type_unconfirmed`). Every accepted answer is checked again, cached ones too; the stored answers of
   `llm/4` are replayed from their evidence, with the model and prompt hash of the answer, without a request; the replay checks
   the places and the names of sections, services and offers keep the evidence they were published with. A name that is an
-  address, or a place word with a proper name, is a place; a name is found as the page writes it (lines, commas).
+  address, or a place word with a proper name, is a place; a name is found as the page writes it (lines, commas); a list of a
+  site's places or an imprint's line is no menu (only short labels beside a section's label are); an entry of a list on a page of
+  the site's places is a place.
 - **Reading:** lists and counts hold the current entities (`include_stale`); every fact shows *Source read* and *Evaluated* (with
   extractor and model); repeated text counts once ("1 piece of evidence on 7 pages").
 - **Rollback** to 0.12.2 on the updated graph would extract every page again (about 6 hours) and examine every document again

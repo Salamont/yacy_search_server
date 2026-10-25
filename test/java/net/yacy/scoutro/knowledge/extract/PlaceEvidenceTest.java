@@ -216,6 +216,39 @@ public class PlaceEvidenceTest {
     }
 
     /**
+     * Gate A4, third run (0.13.0): a list of a site's places is no menu. On a page of the site's places its proper names are places,
+     * elsewhere they are kept and marked; an imprint's line with bullets holds an address; a name with periods is no sentence; a
+     * menu (short labels beside a section's label) still names no facility.
+     */
+    @Test
+    public void aListOfPlacesIsNoMenu() {
+        final String list = "Unsere Standorte\n\n- Muster Pflege Altstadt\n- Muster Pflege Nordheide\n- Muster Pflege Am See\n\nMuster Pflege gGmbH\n";
+        final String[][] places = {{"site", "Muster Pflege Altstadt", "- Muster Pflege Altstadt"}, {"site", "Muster Pflege Nordheide"}};
+        final Extraction onPlaces = new Extraction(100);
+        LlmExtractor.apply(accepted(list, places), List.of(), onPlaces, ctx(list, "https://www.muster-pflege.de/standorte/").withReplay());
+        assertEquals(Set.of("Muster Pflege Altstadt", "Muster Pflege Nordheide"), named(onPlaces, Vocabulary.SITE));
+        assertTrue(unconfirmed(onPlaces).toString(), unconfirmed(onPlaces).isEmpty());
+        final Extraction elsewhere = new Extraction(100);
+        LlmExtractor.apply(accepted(list, places), List.of(), elsewhere, ctx(list, "https://www.muster-pflege.de/").withReplay());
+        assertEquals(Set.of("Muster Pflege Altstadt", "Muster Pflege Nordheide"), named(elsewhere, Vocabulary.SITE));
+        assertEquals("kept, and marked", Set.of("Muster Pflege Altstadt", "Muster Pflege Nordheide"), unconfirmed(elsewhere));
+        // an imprint's line with bullets, a branch named with periods, the seat of a company
+        final String imprint = "Impressum\n\nMalerbetrieb Muster GmbH • Musterkamp 33 • 22607 Hamburg\n\nJ. N. Muster & Söhne. Niederlassung Kassel.\n\n"
+                + "Hauptsitz Kassel\n";
+        final String[][] sites = {{"site", "Musterkamp 33", "Malerbetrieb Muster GmbH • Musterkamp 33 • 22607 Hamburg"},
+            {"site", "J. N. Muster & Söhne. Niederlassung Kassel."}, {"site", "Hauptsitz Kassel"}};
+        final Extraction i = new Extraction(100);
+        LlmExtractor.apply(accepted(imprint, sites), List.of(), i, ctx(imprint, "https://www.muster-maler.de/impressum/").withReplay());
+        assertEquals(Set.of("Musterkamp 33", "J. N. Muster & Söhne. Niederlassung Kassel.", "Hauptsitz Kassel"), named(i, Vocabulary.SITE));
+        assertTrue(unconfirmed(i).toString(), unconfirmed(i).isEmpty());
+        // a menu with a section's label beside the name names none
+        final String menu = "Startseite | Sonnenhof | Kontakt\n\nMuster Pflege gGmbH";
+        final Extraction m = new Extraction(100);
+        LlmExtractor.apply(accepted(menu, new String[][] {{"facility", "Sonnenhof"}}), List.of(), m, ctx(menu, "https://www.muster-pflege.de/").withReplay());
+        assertTrue(named(m, Vocabulary.FACILITY).toString(), named(m, Vocabulary.FACILITY).isEmpty());
+    }
+
+    /**
      * Gate A4 (0.13.0): the replay keeps a service and its offer as they were published (the rules of their reading), and applies
      * the checks of the new version only: the name of a section is no service. A fresh answer passes the offer proof as before.
      */

@@ -62,8 +62,20 @@ public final class PlaceEvidence {
     /** A token of a name for its occurrences: letters or digits ("Musterweg", "5", "12345"). */
     private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{N}]+");
     private static final int MAX_TOKENS = 16;
-    /** The end of a sentence: a name that ends so (and has four words or more) is a sentence of the page. */
+    /**
+     * The end of a sentence: a name that ends so, has four words or more and two of them in lower case (a verb, an article: "Die
+     * Gebäude sind vollständig … errichtet.") is a sentence of the page; "J. N. Muster & Söhne. Niederlassung Kassel." is a name.
+     */
     private static final Pattern SENTENCE = Pattern.compile("[.!?]$");
+    private static final Pattern LOWER_WORD = Pattern.compile("(?<![\\p{L}\\p{N}])\\p{Ll}[\\p{L}-]*");
+    /** A postal code with its place: an address of an imprint line ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"). */
+    private static final Pattern POSTAL = Pattern.compile("(?<!\\d)\\d{5}\\s+\\p{Lu}\\p{Ll}");
+    /**
+     * A page of a site's places by its address ({@code /standorte/}, {@code /einrichtungen/}, {@code /locations/}): a proper name in
+     * its lists is one of them.
+     */
+    private static final Pattern PLACES_PAGE = Pattern.compile("(?iu)(?:^|/)(?:unsere-)?(?:standorte?\\d*|locations?|filialen?|niederlassungen"
+            + "|einrichtungen|h(?:ae|ä)user|offices|branches)(?:[./_\\-]|$)");
     /** The words of a website's sections, folded: a facility of such a name is a page label. */
     static final Set<String> PAGE_LABELS = folded("kontakt", "kontaktformular", "uber uns", "ueber uns", "wir uber uns", "team", "jobs", "job",
             "karriere", "stellenangebote", "referenzen", "referenz", "projekte", "projekt", "aktuelles", "news", "neuigkeiten", "blog",
@@ -82,7 +94,8 @@ public final class PlaceEvidence {
             "privacy policy", "references", "career", "careers");
     /** A generic noun that alone names no place, folded. */
     static final Set<String> GENERIC = folded("gebaude", "haus", "werk", "standort", "standorte", "niederlassung", "filiale", "einrichtung",
-            "einrichtungen", "zentrale", "buro", "halle", "gelande", "objekt", "anlage", "building", "buildings", "site", "plant", "office",
+            "einrichtungen", "zentrale", "hauptsitz", "firmensitz", "buro", "halle", "gelande", "objekt", "anlage", "building", "buildings", "site",
+            "plant", "office",
             "location", "branch", "facility", "premises");
     /** The ending of a name of an activity or a field of work (German and English): "Hochbau", "Baustatische Prüfung", "Gebäudetechnik". */
     static final Pattern ACTIVITY = Pattern.compile("(?iu)(?:bau|ung|ungen|technik|service|services|wesen|management|arbeiten|leistung"
@@ -93,7 +106,8 @@ public final class PlaceEvidence {
      */
     static final List<String> PLACE_WORDS = List.of("heim", "pflegeheim", "zentrum", "residenz", "stift", "tagespflege", "nachtpflege",
             "kurzzeitpflege", "wohngemeinschaft", "wohnpark", "wohnanlage", "hospiz", "klinik", "kliniken", "klinikum", "krankenhaus", "praxis",
-            "kita", "kindergarten", "schule", "akademie", "campus", "werk", "werkstatt", "niederlassung", "zweigstelle", "filiale", "standort", "zentrale",
+            "kita", "kindergarten", "krippe", "schule", "akademie", "campus", "werk", "werkstatt", "werkstätten", "niederlassung", "zweigstelle",
+            "filiale", "standort", "zentrale", "hauptsitz", "firmensitz", "unternehmenssitz", "zentren", "heime", "wohngemeinschaften",
             "büro", "geschäftsstelle", "lager", "halle", "hotel", "restaurant", "café", "laden", "showroom", "ausstellung", "studio",
             "haus", "hof", "station", "sozialstation", "home", "clinic", "hospital", "practice", "office", "branch", "plant", "factory",
             "warehouse", "center", "centre", "store", "shop", "school");
@@ -154,12 +168,16 @@ public final class PlaceEvidence {
         if (!placeWord && ACTIVITY.matcher(key.replace(" ", "")).find()) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
-        if (SENTENCE.matcher(name.trim()).find() && words(name) >= 4) {
+        // the quote's own address, outside a menu line (an imprint's line with bullets is no menu: it holds a postal code)
+        final boolean quoteLine = quote != null && quote.indexOf('|') < 0 && (quote.indexOf('•') < 0 || POSTAL.matcher(quote).find());
+        if (SENTENCE.matcher(name.trim()).find() && words(name) >= 4 && lowerWords(name) >= 2 && !ADDRESS.matcher(name).find()
+                && !(quoteLine && ADDRESS.matcher(quote).find())) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // a sentence of the page, not a name ("Die Gebäude sind … errichtet.")
         }
         final String text = raw == null || raw.isEmpty() ? quote : raw;
         String proof = null, address = null;
         boolean running = false;
+        boolean listed = false;
         boolean own = false;
         // the name as the page writes it (its words, whatever stands between them: "Musterweg 5, 12345 Ort" is "Musterweg 5\n12345
         // Ort" there), else the model's quote, which is grounded in the page
@@ -168,10 +186,13 @@ public final class PlaceEvidence {
             found = occurrences(text, quote);
         }
         for (final int[] at : found) {
-            if (navigation(text, at[0], at[1])) {
-                continue;
+            final boolean shortLabels = navigation(text, at[0], at[1]);
+            if (shortLabels && labelNear(text, at[0], at[1])) {
+                continue; // a site's menu: short labels beside one of its sections ("Leistungen | Sonnenhof | Kontakt")
             }
+            // running text, or a list of short entries without a section's label (a site's places, an imprint's line)
             running = true;
+            listed |= shortLabels;
             final int[] seg = segment(text, at[0], at[1]);
             final String passage = text.substring(seg[0], seg[1]);
             own |= OWN.matcher(passage).find();
@@ -185,7 +206,7 @@ public final class PlaceEvidence {
         }
         // the quote's own sign of a place, outside a menu line ("Haus Linde. Lindenweg 3. 34117 Kassel."; "Haus Linde | Kontakt |
         // Lindenweg 3" is a menu with the footer's address)
-        if (quote != null && !found.isEmpty() && quote.indexOf('|') < 0 && quote.indexOf('•') < 0) {
+        if (quoteLine && !found.isEmpty()) {
             own |= OWN.matcher(quote).find();
             final boolean located = ADDRESS.matcher(quote).find();
             if (located && address == null) {
@@ -208,6 +229,10 @@ public final class PlaceEvidence {
                     : new Result(Verdict.REFUSED, PROJECT_OBJECT, null);
         }
         if (proof == null && (addressName || placeWord && properName(name))) {
+            proof = quote != null && !quote.isBlank() ? quote.trim() : name.trim();
+        }
+        if (proof == null && listed && url != null && PLACES_PAGE.matcher(path(url)).find()) {
+            // an entry of a list on a page of the site's places ("Unsere Standorte", "Einrichtungen") is one of them
             proof = quote != null && !quote.isBlank() ? quote.trim() : name.trim();
         }
         if (proof != null) {
@@ -312,6 +337,36 @@ public final class PlaceEvidence {
         return seen > 0 && labels >= 2;
     }
 
+    /** True if one of the two segments before or after the occurrence is the label of a site's section: a menu. */
+    static boolean labelNear(final String text, final int start, final int end) {
+        final int[] seg = segment(text, start, end);
+        int at = seg[0];
+        for (int i = 0; i < 2; i++) {
+            final int p = previousContent(text, at);
+            if (p < 0) {
+                break;
+            }
+            final int[] prev = segment(text, p, p + 1);
+            if (PAGE_LABELS.contains(fold(text.substring(prev[0], prev[1])))) {
+                return true;
+            }
+            at = prev[0];
+        }
+        at = seg[1];
+        for (int i = 0; i < 2; i++) {
+            final int n = nextContent(text, at);
+            if (n >= text.length()) {
+                break;
+            }
+            final int[] next = segment(text, n, n + 1);
+            if (PAGE_LABELS.contains(fold(text.substring(next[0], next[1])))) {
+                return true;
+            }
+            at = next[1];
+        }
+        return false;
+    }
+
     /** The segment (between two separators) that holds {@code [start, end)}. */
     static int[] segment(final String text, final int start, final int end) {
         int a = start;
@@ -356,6 +411,14 @@ public final class PlaceEvidence {
             i++;
         }
         return i;
+    }
+
+    private static int lowerWords(final String s) {
+        int n = 0;
+        for (final Matcher m = LOWER_WORD.matcher(s); m.find();) {
+            n++;
+        }
+        return n;
     }
 
     private static int words(final String s) {
