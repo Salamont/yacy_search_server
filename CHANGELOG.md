@@ -18,8 +18,9 @@ On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `json
 - **Clients:** one client per provider site (`client_name`), the names of project profiles written on one line, `& Co. KG` in a
   legal form, anonymised clients are none.
 - **Providers** (section 41, `OrganisationIds`): the organisation of the structured data known by the root `@id` of its own domain,
-  without a `url`, is the domain's operator (if it is the page's only organisation of a root `@id`); two `@id`s of one organisation on one host (language segments, fragment) are one if
-  the names agree and no legal name, legal form or strong identifier differs. A provider split in two before is joined at the
+  without a `url`, is the domain's operator (if it is the page's only organisation of a root `@id`); two `@id`s of one organisation on one host (language segments, a fragment of the organisation's node) are one if
+  a name agrees (a legal name or alias in common is not enough) and no legal name, legal form or strong identifier differs; a
+  fragment of another node (`#brand`, a partner's, a contact record) names another. A provider split in two before is joined at the
   next reading of its page. In doubt two; an `@id` below the root (a portal's company profile) is no operator.
 - **Signals:** a planned migration in the clause of its verb (the correction of the 0.12.2 notes); the product tree (vendor →
   product → module) and the kinds of service.
@@ -27,7 +28,7 @@ On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `json
   quality metric `uncategorized_service_names`). The name of a section (Kontakt, Über uns, Referenzen, Jobs) is no service.
 - **LLM tier** (section 40): a facility or site needs a place in its context (`PlaceEvidence`): no menu item, page label, generic
   noun, activity or project building; an unclear proper name is kept and marked `type_unconfirmed` (left out of the type filter
-  and its count; `review=type_unconfirmed`; the mark takes none of the page's limit of statements). Every accepted answer is checked again, cached ones too; the stored answers of
+  and its count; `review=type_unconfirmed`; the mark takes none of the page's limit of statements); a name only a menu lists is kept unclear, a quote with the place's full address is a place, as are care's places by their kind (Wohngruppe, WG, Pflegedienst, Beratungsstelle) and a person's name joined to a place word; on a project page the operator's establishments stay its own. Every accepted answer is checked again, cached ones too; the stored answers of
   `llm/4` are replayed from their evidence, with the model and prompt hash of the answer, without a request; the replay checks
   the places and the names of sections, services and offers keep the evidence they were published with. A name that is an
   address, or a place word with a proper name, is a place; a name is found as the page writes it (lines, commas); a list of a

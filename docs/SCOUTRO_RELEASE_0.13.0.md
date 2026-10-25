@@ -26,8 +26,9 @@ of the knowledge graph before the update is mandatory.** Each step after the mer
    not undone by a later version: the backup taken before the update is the way back (see below).
 2. **The replay of the LLM tier** (`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 40.3): the stored answers of `llm/4` are rebuilt from their
    evidence, validated with the page's text and published as `llm/5` with the model and prompt hash of the answer, page by page
-   after its re-extraction. **No model request.** A refused place (a menu item, a page label, an activity, a project's building)
-   loses its evidence; a proper name without a place is kept and marked `type_unconfirmed` (the mark takes none of the page's
+   after its re-extraction. **No model request.** A refused place (a page label, a generic noun, an activity, a sentence, a
+   project's building, a menu entry that is no name) loses its evidence; a proper name without a place, and a name only a menu
+   lists, is kept and marked `type_unconfirmed` (the mark takes none of the page's
    limit of statements, so no item the page held before is cut). Status: `llm.validation`; events
    `llm_validation_queued`, `llm_validation_done`.
 3. The pages the LLM tier skipped as no candidate are decided once more by `rule/9` (the existing mechanism, no request: the
@@ -72,7 +73,8 @@ suggestions in M1).
 - Documents (PDF, office files) already in the index: not part of 0.13.0. The cleanup of earlier documents and tests comes
   outside this release.
 - Providers split into two organisations: part of 0.13.0, with general rules only (the root `@id` of the own domain without
-  `url`; two `@id`s that differ only by language segments or the fragment, with the same name or legal name), blocked by a
+  `url`; two `@id`s that differ only by language segments or the fragment, with the same name or legal name; after the owner's
+  "in doubt apart" on the merge list of gate A6: a name in common and a fragment of the organisation's node), blocked by a
   differing strong identifier or legal name and across registrable domains, in doubt two; every merge listed by gate A6 and
   judged before the merge; the backup before the update is mandatory.
 

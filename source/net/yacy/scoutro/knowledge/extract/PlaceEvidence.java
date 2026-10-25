@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.vocab.TermMatcher;
 
 /**
@@ -23,15 +24,18 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * <li>its name is a place's name: never a word of a website's sections ({@link #PAGE_LABELS}: Kontakt, Über uns, Jobs, Referenzen,
  * …), never a generic noun alone ({@link #GENERIC}: Gebäude, Haus, Werk, Standort, …) and never the name of an activity ("Hochbau",
  * "Baustatische Prüfung", {@link #ACTIVITY});</li>
- * <li>it is read outside a run of short labels (a navigation); a name the model quoted from the menu is searched on the page, where
- * its own page or a sentence may state it;</li>
+ * <li>it is read outside a run of short labels (a navigation) for its proof; a name the model quoted from the menu is searched on
+ * the page, where its own page or a sentence may state it;</li>
  * <li>the context states a place: a place word bound to the name ("Pflegeheim St. Anna", "Seniorenzentrum Haus Linde", "Werk
  * Kassel"), an address in the name's segment ("…, Hauptstraße 5, 34117 Kassel"), or a place verb in its clause ("unsere
  * Niederlassung in Leipzig", "wir betreiben … in", "befindet sich in").</li>
  * </ul>
- * A proper name read outside a navigation without such a sign is {@link Verdict#UNCLEAR}: kept as published and marked. On a
- * project or reference page a named building is the object of a project, not a place of the page's operator, unless the
- * operator states that it runs it. A name of a service of the page needs the place's sign too; nothing is converted or merged.
+ * A proper name read outside a navigation without such a sign is {@link Verdict#UNCLEAR}: kept as published and marked; so is a
+ * name only a navigation lists (a site's menu lists its places too), while anything else there is refused. A quote that gives
+ * the place's full address (a street with its number and a postal code) states a place by itself. On a project or reference
+ * page a named building is the object of a project, not a place of the page's operator, unless the operator states that it
+ * runs it or the name is one of its establishments. A name of a service of the page needs the place's sign too; nothing is
+ * converted or merged.
  * This is knowledge of the language and of websites, not of an industry.
  */
 public final class PlaceEvidence {
@@ -111,10 +115,25 @@ public final class PlaceEvidence {
             "filiale", "standort", "zentrale", "hauptsitz", "firmensitz", "unternehmenssitz", "zentren", "heime", "wohngemeinschaften",
             "büro", "geschäftsstelle", "lager", "halle", "hotel", "restaurant", "café", "laden", "showroom", "ausstellung", "studio",
             "haus", "hof", "station", "sozialstation", "home", "clinic", "hospital", "practice", "office", "branch", "plant", "factory",
-            "warehouse", "center", "centre", "store", "shop", "school");
+            "warehouse", "center", "centre", "store", "shop", "school",
+            // 0.13.0 (gate A4, run 6): care's places named by their kind
+            "wohngruppe", "wohngruppen", "wg", "wgs", "spital", "centrum", "apotheke", "beratungsstelle", "beratungsstellen",
+            "pflegedienst", "treff");
     /** A street with its number, or a postal code with a place (an address). */
     private static final Pattern ADDRESS = Pattern.compile("(?iu)(?:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)\\s*\\d"
             + "|(?<!\\d)\\d{5}\\s+\\p{Lu}\\p{Ll}");
+    /** A street with its number (with {@link #POSTAL}: a full address). */
+    private static final Pattern STREET_NUMBER = Pattern.compile("(?iu)(?:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)\\s*\\d");
+    /** A number in a name ("Haus 3", "Halle 5"): no generic noun alone, though no proof of a place either ("Halle 7" of a fair). */
+    /** A word written as a name ("Paul", "Gerhardt"; not "IT"). */
+    private static final Pattern TITLE = Pattern.compile("\\p{Lu}\\p{Ll}[\\p{L}’']*");
+    private static final Pattern NUMBER = Pattern.compile("(?<![\\p{L}\\p{N}])\\d+[a-z]?(?![\\p{L}\\p{N}])");
+    /**
+     * An establishment of the page's operator ("Niederlassung Rostock", "Hauptsitz Schöneberg", "Prüfsitz in Kassel mit
+     * Zweitniederlassung in Göttingen"): a project is never one.
+     */
+    private static final Pattern ESTABLISHMENT = Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:zweig|zweit|haupt)?niederlassung|zweigstelle|filiale"
+            + "|geschäftsstelle|geschaeftsstelle|(?:haupt|firmen|unternehmens)sitz)(?![\\p{L}])");
     /** A verb or phrase binding the name to a place in its clause. */
     private static final Pattern PLACE_VERB = Pattern.compile("(?iu)\\b(?:betreiben|betreibt|betrieben|befindet\\s+sich|befinden\\s+sich|liegt|gelegen"
             + "|eröffnet|eröffnen|öffnet|öffnen|located|operate[sd]?|opened|ansässig|sitz\\s+in|zuhause\\s+in|zu\\s+hause\\s+in)\\b"
@@ -162,30 +181,39 @@ public final class PlaceEvidence {
         if (key.isEmpty() || PAGE_LABELS.contains(key)) {
             return new Result(Verdict.REFUSED, PAGE_LABEL, null);
         }
-        if (GENERIC.contains(key.replaceFirst("^(?:das|die|der|unser|unsere|the|our)\\s+", ""))) {
+        // a generic noun alone, not with its number ("Haus 3", "Halle 5": the fold drops the number)
+        if (!NUMBER.matcher(name).find() && GENERIC.contains(key.replaceFirst("^(?:das|die|der|unser|unsere|the|our)\\s+", ""))) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
-        }
-        final boolean placeWord = placeWord(name);
-        if (!placeWord && !ADDRESS.matcher(name).find() && ACTIVITY.matcher(key.replace(" ", "")).find()) {
-            return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
-        }
-        // the quote's own address, outside a menu line (an imprint's line with bullets is no menu: it holds a postal code)
-        final boolean quoteLine = quote != null && quote.indexOf('|') < 0 && (quote.indexOf('•') < 0 || POSTAL.matcher(quote).find());
-        if (SENTENCE.matcher(name.trim()).find() && words(name) >= 4 && lowerWords(name) >= 2 && !ADDRESS.matcher(name).find()
-                && !(quoteLine && ADDRESS.matcher(quote).find())) {
-            return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // a sentence of the page, not a name ("Die Gebäude sind … errichtet.")
         }
         final String text = raw == null || raw.isEmpty() ? quote : raw;
-        String proof = null, address = null;
-        boolean running = false;
-        boolean listed = false;
-        boolean own = false;
         // the name as the page writes it (its words, whatever stands between them: "Musterweg 5, 12345 Ort" is "Musterweg 5\n12345
         // Ort" there), else the model's quote, which is grounded in the page
         List<int[]> found = occurrences(text, name);
         if (found.isEmpty() && quote != null && !quote.isBlank()) {
             found = occurrences(text, quote);
         }
+        // the quote's own address, outside a menu line (an imprint's line with bullets is no menu: it holds a postal code)
+        final boolean quoteLine = quote != null && quote.indexOf('|') < 0 && (quote.indexOf('•') < 0 || POSTAL.matcher(quote).find());
+        if (quoteLine && !found.isEmpty() && STREET_NUMBER.matcher(quote).find() && POSTAL.matcher(quote).find()) {
+            // 0.13.0 (gate A4, run 6): a quote with the place's full address (street and number, postal code) states a place, also
+            // of an activity's name ("Suchtberatung. Obstmarkt 28. 90403 Nürnberg.") and on a project page, where the operator's own
+            // places are given with their address and a reference names a building with its town
+            return new Result(Verdict.PLACE, null, quote.trim());
+        }
+        final boolean placeWord = placeWord(name);
+        if (!placeWord && !ADDRESS.matcher(name).find() && ACTIVITY.matcher(key.replace(" ", "")).find()) {
+            return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
+        }
+        if (SENTENCE.matcher(name.trim()).find() && words(name) >= 4 && lowerWords(name) >= 2 && !ADDRESS.matcher(name).find()
+                && !(quoteLine && ADDRESS.matcher(quote).find())) {
+            return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // a sentence of the page, not a name ("Die Gebäude sind … errichtet.")
+        }
+        String proof = null, address = null;
+        boolean running = false;
+        boolean listed = false;
+        // an establishment of the operator ("Niederlassung Rostock"), or a place word with the operator's name ("Muster Smart
+        // Factory" on muster.de): the operator's own, never the object of a project
+        boolean own = ESTABLISHMENT.matcher(name).find() || placeWord && operatorsName(name, url);
         for (final int[] at : found) {
             final boolean shortLabels = navigation(text, at[0], at[1]);
             if (shortLabels && labelNear(text, at[0], at[1])) {
@@ -239,13 +267,39 @@ public final class PlaceEvidence {
         if (proof != null) {
             return new Result(Verdict.PLACE, null, proof);
         }
-        if (!running) {
-            return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // only in a navigation, or not on the page at all
+        if (found.isEmpty()) {
+            return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // not on the page at all
+        }
+        if (!running && !placeWord && !properName(name)) {
+            // only in a navigation, and no name there ("Leistungen | Newsletter | Kontakt"); a name a menu lists is kept unclear
+            // below: a site's menu lists its places too ("Unsere Häuser | Haus Lindenhof | Kontakt", 0.13.0, gate A4, run 6)
+            return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
         if (serviceOfPage) {
             return new Result(Verdict.REFUSED, SERVICE_NAME, null); // the name of a service of the page needs a sign of a place
         }
         return new Result(Verdict.UNCLEAR, null, null);
+    }
+
+    /** True if the name begins with the name of the page's registrable domain ("Muster Smart Factory" on www.muster.de). */
+    static boolean operatorsName(final String name, final String url) {
+        if (url == null || name == null) {
+            return false;
+        }
+        final String host;
+        try {
+            host = java.net.URI.create(url).getHost();
+        } catch (final IllegalArgumentException e) {
+            return false;
+        }
+        final String domain = host == null ? null : Normalizers.registrableDomain(host);
+        if (domain == null || domain.indexOf('.') < 0) {
+            return false;
+        }
+        final String label = fold(domain.substring(0, domain.indexOf('.')).replace('-', ' '));
+        final String first = label.indexOf(' ') < 0 ? label : label.substring(0, label.indexOf(' '));
+        final Matcher w = WORD.matcher(name);
+        return first.length() >= 3 && w.find() && fold(w.group().split("-")[0]).equals(first);
     }
 
     /** True if a word of the name is a place word ("Seniorenzentrum", "Pflegeheim", "Werk"). */
@@ -270,6 +324,14 @@ public final class PlaceEvidence {
         boolean placeSeen = false;
         for (final Matcher w = WORD.matcher(name); w.find();) {
             words++;
+            final String[] parts = w.group().split("-");
+            if (parts.length >= 3 && placeWord(parts[parts.length - 1]) && TITLE.matcher(parts[0]).matches() && TITLE.matcher(parts[1]).matches()) {
+                // a person's name joined to a place word: "Paul-Gerhardt-Haus", "Fritz-Muster-Heim"
+                words++;
+                proper++;
+                placeSeen = true;
+                continue;
+            }
             final String f = TermMatcher.fold(w.group().replace("-", ""));
             boolean place = false;
             for (final String p : PLACE_WORDS) {

@@ -178,14 +178,18 @@ public class PlaceEvidenceTest {
         assertTrue(unconfirmed(ex).toString(), unconfirmed(ex).isEmpty());
     }
 
-    /** Test 20: no facilities: generic nouns, a menu item beside the footer's address, a project's building, an operates claim alone. */
+    /**
+     * Test 20: no confirmed facilities: generic nouns, a menu item beside the footer's address (a name only a menu lists is kept
+     * unclear and marked, never confirmed: gate A4, run 6), a project's building, an operates claim alone.
+     */
     @Test
     public void whatIsNoFacility() throws Exception {
         final String text = "Haus\nWerk\nStandort\n\nSonnenhof | Kontakt | Musterstraße 5, 34117 Kassel\n";
         final String[][] none = {{"facility", "Haus"}, {"facility", "Werk"}, {"facility", "Standort"}, {"facility", "Sonnenhof"}};
         final Extraction ex = new Extraction(100);
         LlmExtractor.apply(accepted(text, none), List.of(), ex, ctx(text, "https://www.muster.de/"));
-        assertTrue(named(ex, Vocabulary.FACILITY).toString(), named(ex, Vocabulary.FACILITY).isEmpty());
+        assertEquals("only the menu's name, and marked", Set.of("Sonnenhof"), named(ex, Vocabulary.FACILITY));
+        assertEquals(Set.of("Sonnenhof"), unconfirmed(ex));
         // the building of a project reference stays the project's; with its address it may be a site
         final String project = "# Neubau Seniorenzentrum Haus Linde\n\nDas Seniorenzentrum Haus Linde, Lindenweg 3, 34117 Kassel, haben wir 2025 fertiggestellt.";
         final Extraction p = new Extraction(100);
@@ -203,7 +207,7 @@ public class PlaceEvidenceTest {
                 "quote", "Muster Pflege gGmbH betreibt Einrichtungen in der Region.", "at", menu.indexOf("Muster Pflege"))));
         final Extraction o = new Extraction(100);
         LlmExtractor.apply(a, List.of(), o, ctx(menu, "https://www.muster-pflege.de/"));
-        assertTrue(named(o, Vocabulary.FACILITY).toString(), named(o, Vocabulary.FACILITY).isEmpty());
+        assertEquals("not confirmed by the claim", Set.of("Sonnenhof"), unconfirmed(o));
     }
 
     /**
@@ -264,11 +268,46 @@ public class PlaceEvidenceTest {
                 named(h, Vocabulary.FACILITY));
         assertEquals(Set.of("Burgstraße 30, 12345 Musterungen"), named(h, Vocabulary.SITE));
         assertTrue(unconfirmed(h).toString(), unconfirmed(h).isEmpty());
-        // a menu with a section's label beside the name names none
+        // a menu with a section's label beside the name confirms none: its name is kept unclear and marked
         final String menu = "Startseite | Sonnenhof | Kontakt\n\nMuster Pflege gGmbH";
         final Extraction m = new Extraction(100);
         LlmExtractor.apply(accepted(menu, new String[][] {{"facility", "Sonnenhof"}}), List.of(), m, ctx(menu, "https://www.muster-pflege.de/").withReplay());
-        assertTrue(named(m, Vocabulary.FACILITY).toString(), named(m, Vocabulary.FACILITY).isEmpty());
+        assertEquals(Set.of("Sonnenhof"), unconfirmed(m));
+    }
+
+    /**
+     * Gate A4 (0.13.0, run 6: refused places of the samples judged): a site's menu lists its places too, by their kind (a group home,
+     * a care service, a counselling office) or by a person's name ("Paul-Gerhardt-Haus"); a quote with the place's full address is a
+     * place, an activity's name too; a number keeps a generic noun ("Haus 3"); on a project page an establishment of the operator
+     * or a place word with the operator's name is the operator's, a building of a project stays the project's.
+     */
+    @Test
+    public void refusedPlacesOfTheSixthRun() {
+        final String menu = "Unsere Häuser | Paul-Gerhardt-Haus | WG Musterstadt | Pflegedienst Musterstadt | Beratungsstelle Musterstadt | Newsletter"
+                + " | Kontakt\n\nMuster Pflege gGmbH";
+        final String[][] houses = {{"facility", "Paul-Gerhardt-Haus"}, {"facility", "WG Musterstadt"}, {"facility", "Pflegedienst Musterstadt"},
+            {"facility", "Beratungsstelle Musterstadt"}, {"facility", "Newsletter"}, {"facility", "Muster Wohnen"}};
+        final Extraction m = new Extraction(100);
+        LlmExtractor.apply(accepted(menu + " | Muster Wohnen", houses), List.of(), m, ctx(menu + " | Muster Wohnen", "https://www.muster-pflege.de/").withReplay());
+        assertEquals(Set.of("Paul-Gerhardt-Haus", "WG Musterstadt", "Pflegedienst Musterstadt", "Beratungsstelle Musterstadt", "Muster Wohnen"),
+                named(m, Vocabulary.FACILITY));
+        assertEquals("a name only the menu lists is marked", Set.of("Muster Wohnen"), unconfirmed(m));
+        final String care = "Haus 3 ist eine Jugendwohngruppe der Muster Jugendhilfe.\n\nSuchtberatung. Musterweg 28. 12345 Musterstadt.\n";
+        final Extraction c = new Extraction(100);
+        LlmExtractor.apply(accepted(care, new String[][] {{"facility", "Haus 3"}, {"facility", "Suchtberatung", "Suchtberatung. Musterweg 28. 12345 Musterstadt."}}),
+                List.of(), c, ctx(care, "https://www.muster-jugendhilfe.de/").withReplay());
+        assertEquals(Set.of("Haus 3", "Suchtberatung"), named(c, Vocabulary.FACILITY));
+        assertEquals("a number names no place by itself", Set.of("Haus 3"), unconfirmed(c));
+        final String project = "# Neubau Rathaus Musterstadt\n\nDas Rathaus Musterstadt haben wir 2025 fertiggestellt.\n\n"
+                + "Muster Smart Factory\n\nNiederlassung Beispielstadt\n";
+        final String[][] own = {{"facility", "Rathaus Musterstadt"}, {"facility", "Muster Smart Factory"}, {"facility", "Niederlassung Beispielstadt"}};
+        final Extraction p = new Extraction(100);
+        LlmExtractor.apply(accepted(project, own), List.of(), p, ctx(project, "https://www.muster.de/projekte/rathaus/").withReplay());
+        assertEquals(Set.of("Muster Smart Factory", "Niederlassung Beispielstadt"), named(p, Vocabulary.FACILITY));
+        assertTrue(unconfirmed(p).toString(), unconfirmed(p).isEmpty());
+        // a fair's hall with its number is no confirmed place, a computer's name with a number none
+        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check("Besuchen Sie uns in Halle 7, Stand 7-236.", "Halle 7",
+                "Besuchen Sie uns in Halle 7, Stand 7-236.", "https://www.muster-it.de/", "site", false).verdict);
     }
 
     /**

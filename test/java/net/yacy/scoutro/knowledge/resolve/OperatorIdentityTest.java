@@ -157,16 +157,51 @@ public class OperatorIdentityTest {
         assertEquals("in either order", 1L, organisationsOf("www.beispiel-beratung.de"));
     }
 
-    /** Two organisations of root @ids on one page (the site's and a partner's): neither is the operator by its @id alone. */
+    /** The operator keys of a domain. */
+    private long operatorKeys(final String domain) throws Exception {
+        return this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_entity_key k JOIN kg_vocab v ON v.term_id = k.scheme"
+                + " WHERE v.name IN ('domain_operator', 'site_operator') AND k.scope = 'organization@" + domain + "'"));
+    }
+
+    /**
+     * A partner's node at the root of the site (a fragment of its own, run 5 of gate A6) is no root @id: the site's organisation
+     * alone is the operator; the partner stays apart. Two organisations of the site's node (both fragments name an organisation) on
+     * one page: neither is the operator by its @id alone.
+     */
     @Test
     public void twoOrganisationsOfRootIdsAreNoOperator() throws Exception {
         publish("STARTShost09", "https://www.muster-agentur.de/", "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\","
                 + "\"@id\":\"https://www.muster-agentur.de/#organization\",\"name\":\"Muster Agentur\"},{\"@type\":\"Organization\","
                 + "\"@id\":\"https://www.muster-agentur.de/#beispiel-ag\",\"name\":\"Beispiel AG\"}]}", "Muster Agentur. Unser Partner: Beispiel AG.");
-        assertEquals(0L, this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_entity_key k JOIN kg_vocab v ON v.term_id = k.scheme"
-                + " WHERE v.name IN ('domain_operator', 'site_operator') AND k.scope = 'organization@muster-agentur.de'")).longValue());
+        assertEquals("the site's organisation, not the partner", 1L, operatorKeys("muster-agentur.de"));
         assertEquals(1L, organisations("Muster Agentur"));
         assertEquals(1L, organisations("Beispiel AG"));
+        publish("STARTShost10", "https://www.muster-studio.de/", "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\","
+                + "\"@id\":\"https://www.muster-studio.de/#organization\",\"name\":\"Muster Studio\"},{\"@type\":\"Organization\","
+                + "\"@id\":\"https://www.muster-studio.de/#/schema/Organization\",\"name\":\"Beispiel Studio\"}]}", "Muster Studio. Startseite.");
+        assertEquals(0L, operatorKeys("muster-studio.de"));
+        assertEquals(1L, organisations("Muster Studio"));
+        assertEquals(1L, organisations("Beispiel Studio"));
+    }
+
+    /**
+     * Gate A6, run 5: a country page whose organisation shares only the legal name (an alias) with the site's, and a brand's node of
+     * the same name, stay apart: a name must agree, and a fragment of another node names another.
+     */
+    @Test
+    public void aLegalNameOrABrandsNodeInCommonIsNoOrganisation() throws Exception {
+        publish("BALKONhost11", "https://www.muster-balkone.de/", organisation("https://www.muster-balkone.de/#organization", "Muster Balkone GmbH",
+                "https://www.muster-balkone.de", null), "Muster Balkone GmbH. Startseite.");
+        publish("BALKCHhost11", "https://www.muster-balkone.de/ch/", organisation("https://www.muster-balkone.de/ch/#organization",
+                "Muster Balkone Schweiz", "https://www.muster-balkone.de", "\"legalName\":\"Muster Balkone GmbH\""), "Muster Balkone Schweiz.");
+        assertEquals("only the legal name in common: two", 2L, this.store.read(c -> KgStore.queryLong(c, "SELECT count(DISTINCT e.ent_rowid)"
+                + " FROM kg_entity e JOIN kg_statement s ON s.subj = e.ent_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE e.status = 1"
+                + " AND v.name = 'name' AND s.obj_val IN ('Muster Balkone GmbH', 'Muster Balkone Schweiz')")).longValue());
+        publish("SOFTWAhost12", "https://www.muster-soft.de/", organisation("https://www.muster-soft.de/#organization", "Muster Soft",
+                "https://www.muster-soft.de", null), "Muster Soft. Startseite.");
+        publish("SOFTBRhost12", "https://www.muster-soft.de/marke/", "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\","
+                + "\"@id\":\"https://www.muster-soft.de/#brand\",\"name\":\"Muster Soft\",\"url\":\"https://www.muster-soft.de\"}", "Muster Soft. Marke.");
+        assertEquals("the brand's node is another", 2L, organisations("Muster Soft"));
     }
 
     /** Two companies of one name on a portal, each by its own @id below the portal's root, stay two and are not its operator. */

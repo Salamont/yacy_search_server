@@ -453,13 +453,14 @@ public final class IdentityResolver {
                 && OrganisationIds.apart(va, names(tx, a), legalForms(tx, a), vb, names(tx, b), legalForms(tx, b)) == null;
     }
 
-    /** The comparison forms ({@link Normalizers#key}) of a mention's name and legal name. */
+    /**
+     * The comparison form ({@link Normalizers#key}) of a mention's name. 0.13.0: two {@code @id}s of one organisation need a name
+     * in common; a legal name or an alias in common is not enough (the companies of a group share them).
+     */
     private static java.util.Set<String> names(final Mention m) {
         final java.util.Set<String> out = new java.util.TreeSet<>();
-        for (final String n : new String[] {m.name, m.legalName}) {
-            if (Normalizers.key(n) != null) {
-                out.add(Normalizers.key(n));
-            }
+        if (Normalizers.key(m.name) != null) {
+            out.add(Normalizers.key(m.name));
         }
         return out;
     }
@@ -475,13 +476,12 @@ public final class IdentityResolver {
         return out;
     }
 
-    /** The comparison forms of the entity's names and aliases. */
+    /** The comparison forms of the entity's names (not its aliases, as {@link #names(Mention)}). */
     private java.util.Set<String> names(final Connection tx, final long ent) throws SQLException {
         final java.util.Set<String> out = new java.util.TreeSet<>();
-        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred IN (?, ?) AND obj_val IS NOT NULL")) {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred = ? AND obj_val IS NOT NULL")) {
             ps.setLong(1, ent);
             ps.setInt(2, this.terms.predicate(Vocabulary.NAME));
-            ps.setInt(3, this.terms.predicate(Vocabulary.ALIAS));
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     final String k = Normalizers.key(rs.getString(1));

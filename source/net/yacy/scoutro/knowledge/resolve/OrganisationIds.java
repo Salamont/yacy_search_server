@@ -40,10 +40,12 @@ import net.yacy.scoutro.knowledge.extract.Vocabulary;
  * <li>An {@code @id} whose path, without language segments, is the root of the page's own registrable domain ({@link #root})
  * names the site's own organisation: without a {@code url} of its own it is the domain's operator, as an organisation whose
  * {@code url} is the site.</li>
- * <li>Two {@code @id}s of one host that differ only by language segments of the path or by the fragment
- * ({@code https://www.muster.de/#organization}, {@code https://www.muster.de/en/#organization/}) name one organisation
- * ({@link #canonical}). They are no discriminator against each other only if the names agree and no legal name, legal form or
- * other discriminator differs ({@link #apart}); otherwise the two stay apart. In doubt, two.</li>
+ * <li>Two {@code @id}s of one host that differ only by language segments of the path or by a fragment that names the
+ * organisation's node ({@code https://www.muster.de/#organization}, {@code https://www.muster.de/en/#organization/}) name one
+ * organisation ({@link #canonical}); a fragment that names another node ({@code #brand}, a partner's {@code #beispiel-ag}, a
+ * contact record) names another. They are no discriminator against each other only if a name agrees (a legal name or an alias
+ * in common is not enough: the companies of a group share them) and no legal name, legal form or other discriminator differs
+ * ({@link #apart}); otherwise the two stay apart. In doubt, two.</li>
  * </ul>
  */
 public final class OrganisationIds {
@@ -62,6 +64,12 @@ public final class OrganisationIds {
     private static final Set<String> COUNTRIES = Set.of(Locale.getISOCountries());
     /** A language (ISO 639-1) with a region (ISO 3166-1) or without: {@code en}, {@code de-at}, {@code en_US}. */
     private static final Pattern LANGUAGE = Pattern.compile("([a-z]{2})(?:[-_]([a-z]{2}))?");
+    /**
+     * A fragment that names the organisation's node: its segments ({@code #/schema/Organization/base}) are words of an
+     * organisation and of the schema only; none at all is the node too.
+     */
+    private static final Set<String> ORGANISATION_NODE = Set.of("organization", "organisation", "org", "identity", "company", "corporation");
+    private static final Set<String> SCHEMA_SEGMENTS = Set.of("schema", "base");
 
     private OrganisationIds() {}
 
@@ -71,11 +79,27 @@ public final class OrganisationIds {
         return m.matches() && LANGUAGES.contains(m.group(1)) && (m.group(2) == null || COUNTRIES.contains(m.group(2).toUpperCase(Locale.ROOT)));
     }
 
+    /** True if a fragment names the organisation's node ({@code organization}, {@code /schema/Organization/base}, none). */
+    static boolean organisationNode(final String fragment) {
+        boolean node = fragment == null || fragment.replace("/", "").isEmpty();
+        for (final String s : (fragment == null ? "" : fragment).toLowerCase(Locale.ROOT).split("/")) {
+            if (s.isEmpty() || SCHEMA_SEGMENTS.contains(s)) {
+                continue;
+            }
+            if (!ORGANISATION_NODE.contains(s)) {
+                return false;
+            }
+            node = true;
+        }
+        return node;
+    }
+
     /**
      * The organisation an {@code @id} names on the registrable domain {@code domain}: the {@code @id} without the language
-     * segments of its path, without its fragment and without a trailing slash; scheme and host in lower case, everything else
-     * as written ({@code https://www.muster.de/en/#organization/} gives {@code https://www.muster.de/}). Null if the {@code @id}
-     * is no web address or lies on another registrable domain.
+     * segments of its path, without a fragment that names the organisation's node ({@link #organisationNode}; another fragment
+     * names another node and stays) and without a trailing slash; scheme and host in lower case, everything else as written
+     * ({@code https://www.muster.de/en/#organization/} gives {@code https://www.muster.de/}, {@code https://www.muster.de/#brand}
+     * gives {@code https://www.muster.de/#brand}). Null if the {@code @id} is no web address or lies on another registrable domain.
      */
     public static String canonical(final String ldId, final String domain) {
         if (ldId == null || domain == null) {
@@ -99,10 +123,13 @@ public final class OrganisationIds {
             }
         }
         return scheme + "://" + host + (u.getPort() < 0 ? "" : ":" + u.getPort()) + "/" + String.join("/", path)
-                + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery());
+                + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery()) + (organisationNode(u.getRawFragment()) ? "" : "#" + u.getRawFragment());
     }
 
-    /** True if the {@code @id} is the root of its own registrable domain {@code domain}: its path holds language segments only. */
+    /**
+     * True if the {@code @id} is the root of its own registrable domain {@code domain}: its path holds language segments only and
+     * its fragment names the organisation's node (a partner's {@code #beispiel-ag} at the root is no root {@code @id}).
+     */
     public static boolean root(final String ldId, final String domain) {
         final String c = canonical(ldId, domain);
         return c != null && c.indexOf('/', c.indexOf("://") + 3) == c.length() - 1;
@@ -184,7 +211,8 @@ public final class OrganisationIds {
 
     /**
      * Whether two organisations whose {@code @id}s may name one organisation stay apart: null if they are one (their
-     * {@code @id}s name one organisation, a name in common ({@link Normalizers#key}), no legal name, legal form or other
+     * {@code @id}s name one organisation, a name in common ({@link Normalizers#key}; names only, not a legal name or an alias),
+     * no legal name, legal form or other
      * discriminator that differs), else the reason they stay two: {@link #OTHER_ID}, {@link #NAMES_DIFFER},
      * {@link #LEGAL_NAME_DIFFERS}, {@link #LEGAL_FORM_DIFFERS} or the scheme of the conflicting discriminator (a strong
      * identifier: {@code register}, {@code vat}, …).

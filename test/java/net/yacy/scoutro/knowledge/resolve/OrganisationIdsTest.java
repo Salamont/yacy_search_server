@@ -37,7 +37,15 @@ public class OrganisationIdsTest {
         assertEquals("https://www.muster.de/", OrganisationIds.canonical("https://www.muster.de/#organization", "muster.de"));
         assertEquals("https://www.muster.de/", OrganisationIds.canonical("https://WWW.Muster.de/en/#organization/", "muster.de"));
         assertEquals("https://www.muster.de/", OrganisationIds.canonical("https://www.muster.de/de-at/#org", "muster.de"));
-        assertEquals("https://www.muster.de/firmen/beta", OrganisationIds.canonical("https://www.muster.de/en/firmen/beta/#o", "muster.de"));
+        assertEquals("https://www.muster.de/firmen/beta", OrganisationIds.canonical("https://www.muster.de/en/firmen/beta/#organization", "muster.de"));
+        for (final String node : new String[] {"#Organization", "#/schema/Organization", "#/schema/Organization/base", "#identity", "#organization/", ""}) {
+            assertEquals(node, "https://www.muster.de/", OrganisationIds.canonical("https://www.muster.de/" + node, "muster.de"));
+        }
+        // a fragment of another node names another: a brand, a contact record, a partner
+        assertEquals("https://www.muster.de/#brand", OrganisationIds.canonical("https://www.muster.de/en/#brand", "muster.de"));
+        assertEquals("https://www.muster.de/#/schema/com_contact/contact/1",
+                OrganisationIds.canonical("https://www.muster.de/#/schema/com_contact/contact/1", "muster.de"));
+        assertEquals("https://www.muster.de/#beispiel-ag", OrganisationIds.canonical("https://www.muster.de/#beispiel-ag", "muster.de"));
         assertEquals("a segment of two letters that is no language stays", "https://www.muster.de/xq",
                 OrganisationIds.canonical("https://www.muster.de/xq/#organization", "muster.de"));
         assertEquals("the scheme stays: http and https are two ids", "http://www.muster.de/",
@@ -55,6 +63,8 @@ public class OrganisationIdsTest {
         assertFalse("a company profile below the root", OrganisationIds.root("https://www.muster.de/firmen/alpha/#organization", "muster.de"));
         assertFalse(OrganisationIds.root("https://www.muster.de/?firma=alpha#organization", "muster.de"));
         assertFalse("another domain", OrganisationIds.root("https://www.beispiel.de/#organization", "muster.de"));
+        assertFalse("a partner's node at the root", OrganisationIds.root("https://www.muster.de/#beispiel-ag", "muster.de"));
+        assertFalse("a brand's node", OrganisationIds.root("https://www.muster.de/#brand", "muster.de"));
     }
 
     @Test

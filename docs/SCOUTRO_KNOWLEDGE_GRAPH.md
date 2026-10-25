@@ -3989,19 +3989,27 @@ month ago.
 `extract/PlaceEvidence.check` decides about a proposed facility or site with the page's text (`PLACE`, `UNCLEAR`, `REFUSED` and a
 reason):
 
-- **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort") or the name of an activity or a
+- **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort"; not with its number: "Haus 3" is
+  a name, though no proof of a place by itself, "Halle 7" may be a fair's) or the name of an activity or a
   field of work without a place word, unless the name is an address ("Hochbau", "Logistikbau", "Gebäudetechnik", but not
   "Burgstraße 30, 12345 Musterungen"; `entity_facility_not_a_place`); a sentence of the page as a name (four words or more, two
   words of four letters or more in lower case, ending with ".", "!" or "?", without an address in the name or the quote: not
-  "Geschäftsstelle des Muster e.V."; the same reason); a name that stands only in a site's menu (a short segment among at least two short neighbours,
-  one of the two segments before or after it the label of a section: "Leistungen | Sonnenhof | Kontakt") without a sign of a
-  place, or nowhere on the page (the same reason);
+  "Geschäftsstelle des Muster e.V."; the same reason); an entry that stands only in a site's menu (a short segment among at least
+  two short neighbours, one of the two segments before or after it the label of a section: "Leistungen | Newsletter | Kontakt")
+  and is no name (neither a place word nor a proper name), or a name nowhere on the page (the same reason);
   on a project or reference page (by its address) the building of a project, unless a passage names who runs it ("betreibt",
-  "unser", a named organisation that plans or opens it; `entity_facility_project_object`; a site with its address stays a
-  site); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
-- **A place:** a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
+  "unser", a named organisation that plans or opens it), the name is an establishment of the operator ("Niederlassung
+  Rostock", "Hauptsitz", "Filiale", "Geschäftsstelle": a project is never one) or a place word with the name of the page's
+  domain ("Muster Smart Factory" on muster.de; `entity_facility_project_object`; a site with its address stays a site); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
+- **A place:** a quote that gives the place's full address, a street with its number and a postal code, outside a menu line
+  ("Suchtberatung. Obstmarkt 28. 90403 Nürnberg.", "Verwaltung. Boschstraße 9. 63768 Musterstadt."), also of an activity's
+  name and on a project page, where the operator's own places are given with their address while a reference names a building
+  with its town; a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
   "Seniorenzentrum Am Park", "Hauptsitz Kassel", "Niederlassung Kassel", "Seniorentagesstätte Musterstadt"; the first word ending
-  with a place word is the place word, a later one a proper name: "Seniorenzentrum Musterheim"), also in a list of a site's places; an occurrence outside
+  with a place word is the place word, a later one a proper name: "Seniorenzentrum Musterheim"; a person's name joined to a place
+  word is a proper name: "Paul-Gerhardt-Haus"; the place words include care's places by their kind: "Wohngruppe", "WG",
+  "Pflegedienst", "Beratungsstelle", "Spital", "Centrum", "Apotheke", "Treff"), also in a list of a site's places and in a menu;
+  an occurrence outside
   a menu, or the model's quote outside a menu line, with an address (a street with its number, a postal code with a place) or a
   verb of a place ("betreibt", "befindet sich", "liegt", "eröffnet"; "unser Werk in …"); an imprint's line with bullets is no menu
   line when it holds a postal code ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"); an entry of a list on a page of the site's
@@ -4014,7 +4022,12 @@ reason):
   "Musterstadt.", an imprint's line) are read as running text: a proper name there without a sign of a place is unclear, not
   refused. (Gate A4 of 0.13.0, third run: lists of a site's branches and imprint lines read as menus held about half of the
   places the check refused in the care collection.)
-- **Unclear:** a proper name outside a menu without any of these. It is kept as published and marked (40.5).
+- **A menu lists places too.** A name that stands only in a site's menu ("Unsere Häuser | Haus Lindenhof | Kontakt") is a place
+  by its own words (above), else kept unclear and marked: never confirmed by the menu, never refused for it. (Gate A4 of 0.13.0,
+  sixth run: of the refused facilities of the care collection only about two in three were artefacts; most of the rest were a
+  care operator's homes, group homes and services listed in its menus, and places given with their full address.)
+- **Unclear:** a proper name outside a menu without any of these, and a name only a menu lists. It is kept as published and
+  marked (40.5).
 
 The validator of fresh answers refuses what the check refuses (the reasons are codes of the LLM tier's counters and samples; the
 mark of 40.4 is the validator's, so the model quality check rates no such statement);
@@ -4078,7 +4091,8 @@ source first), with `extractor` (`name/version`) and `model` of that evidence (n
 ### 40.7 Tests
 
 `PlaceEvidenceTest` (the check: menu items, page labels, generic nouns, activities, project pages, service names, addresses,
-verbs, unclear names), `LlmExtractorInvalidReasonTest` (one case per code), `LlmReplayTest` (test 26: a version in `REPLAYS`
+verbs, unclear names; `refusedPlacesOfTheSixthRun`: a menu's places by their kind or a person's name, a quote with the full
+address, a numbered house, the operator's establishment and its named place on a project page), `LlmExtractorInvalidReasonTest` (one case per code), `LlmReplayTest` (test 26: a version in `REPLAYS`
 asks nothing and keeps the mark, a version outside examines again; test 22: a replay twice and a cached answer with the artifact
 bring nothing back; test 23: the menu facility is gone, the place and its service stay, the unclear name is marked; the quotes
 read back), `CurrentListsTest` (test 23 lists and review, test 24 current lists and `include_stale`, test 25 the two times).
@@ -4109,15 +4123,19 @@ repository; nothing is merged there).
   `@id` lies on the page's own registrable domain and whose path holds language segments only (`/`, `/en/`, `/de-at/`), is the
   site's own organisation: as an organisation whose `url` is the site, it is the declared operator with a legal name
   (`site_operator`), else the domain's operator (`domain_operator`). Only if it is the one organisation of a root `@id` the
-  page's blocks describe: two of them (the site's `#organization` and a partner's `#beispiel-ag`) leave both apart. An `@id`
+  page's blocks describe: two of them (the site's `#organization` and `#/schema/Organization`) leave both apart; a partner's
+  node under a fragment of its own (`#beispiel-ag`) is no root `@id` (below). An `@id`
   below the root (a company's profile on a portal, `/firmen/alpha/#organization`) is not; a node under `brand` or `manufacturer`
   never is (35).
 - **One organisation of two `@id`s** (`OrganisationIds.canonical`): two `@id`s of one host that differ only by language segments
-  of the path (ISO 639-1, with or without an ISO 3166-1 region: `en`, `de-at`, `en_US`) or by the fragment
-  (`#organization`, `#organization/`) name one organisation; scheme, host, the rest of the path and the query must be equal.
+  of the path (ISO 639-1, with or without an ISO 3166-1 region: `en`, `de-at`, `en_US`) or by a fragment that names the
+  organisation's node (`#organization`, `#organization/`, `#Organization`, `#identity`, `#/schema/Organization/base`, none) name
+  one organisation; scheme, host, the rest of the path and the query must be equal. A fragment of another node names another
+  (`#brand`, a contact record `#/schema/com_contact/contact/1`, a partner's `#beispiel-ag`, a client's `#kunde-muster`).
   They are no discriminator against each other (`IdentityResolver.compatible`, `.mergeable`) only if `OrganisationIds.apart`
   finds them one:
-  - a name or alias in common (`Normalizers.key`), else `names_differ`;
+  - a name in common (`Normalizers.key`; a legal name or an alias in common is not enough: the national companies of a group
+    share them, "Muster Balkone Schweiz" with the legal name of "Muster Balkone GmbH"), else `names_differ`;
   - no two legal names that differ (`site_operator`, `operator_name`), else `legal_name_differs`;
   - no two legal forms that differ, else `legal_form_differs`;
   - no other discriminator that differs (a register entry, a VAT number, an LEI, a full address …), else its scheme.
@@ -4140,6 +4158,7 @@ request.
 `OrganisationIdsTest` (the organisation of an `@id`: language segments, fragment, scheme, another domain, the root; when two are
 one, and every reason to keep them apart), `OperatorIdentityTest` (invented sites: a language version with a second `@id` is one
 organisation, never one of another domain; a provider split before is joined at the next reading of its page; the root `@id`
-without `url` is the domain's operator, in either order of the pages; two organisations of root `@id`s on one page are neither;
-two companies of one name on a portal stay two and are not its operator; a contradicting VAT number or legal name blocks the
-merge).
+without `url` is the domain's operator, in either order of the pages; a partner's node under its own fragment is no root `@id`,
+two organisations of the site's node on one page are neither operator; two companies of one name on a portal stay two and are
+not its operator; a contradicting VAT number or legal name blocks the merge; a country page that shares only the legal name, and
+a brand's node of the same name, stay apart).
