@@ -27,7 +27,8 @@ of the knowledge graph before the update is mandatory.** Each step after the mer
 2. **The replay of the LLM tier** (`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 40.3): the stored answers of `llm/4` are rebuilt from their
    evidence, validated with the page's text and published as `llm/5` with the model and prompt hash of the answer, page by page
    after its re-extraction. **No model request.** A refused place (a menu item, a page label, an activity, a project's building)
-   loses its evidence; a proper name without a place is kept and marked `type_unconfirmed`. Status: `llm.validation`; events
+   loses its evidence; a proper name without a place is kept and marked `type_unconfirmed` (the mark takes none of the page's
+   limit of statements, so no item the page held before is cut). Status: `llm.validation`; events
    `llm_validation_queued`, `llm_validation_done`.
 3. The pages the LLM tier skipped as no candidate are decided once more by `rule/9` (the existing mechanism, no request: the
    candidate rule is unchanged). New and changed pages are asked with the new prompt (the definition of a facility, the products'

@@ -86,7 +86,18 @@ public class PlaceEvidenceTest {
         return out;
     }
 
-    private static final String[][] MENU_FACILITIES = {{"facility", "Hochbau"}, {"facility", "Fertigteilbau"}, {"facility", "Logistikbau"},
+    /** The names the tier states (a mention whose name the limit cut has none). */
+    private static Set<String> stated(final Extraction ex) {
+        final Set<String> out = new TreeSet<>();
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.NAME.equals(c.predicate) && c.tier == LlmExtractor.TIER) {
+                out.add(c.value);
+            }
+        }
+        return out;
+    }
+
+    private static final String[][] MENU_FACILITIES ={{"facility", "Hochbau"}, {"facility", "Fertigteilbau"}, {"facility", "Logistikbau"},
         {"facility", "Baustatische Prüfung"}, {"facility", "Referenzen"}, {"facility", "Über uns"}, {"facility", "Jobs"}, {"facility", "Kontakt"}};
 
     /** Test 15: the stored answer of the menu is replayed with the page's text: no facility for the eight menu items, nor the building. */
@@ -304,5 +315,27 @@ public class PlaceEvidenceTest {
         LlmExtractor.apply(accepted(plain, new String[][] {{"facility", "Gärtnerei Muster"}}), List.of(service("k1", "Gärtnerei Muster")), s,
                 ctx(plain, "https://www.muster.de/"));
         assertTrue(named(s, Vocabulary.FACILITY).isEmpty());
+    }
+
+    /**
+     * Gate A4 (0.13.0): the mark of an unclear place takes none of the page's limit of statements. On a full page the marks never
+     * displace a place that a release before published; an item the limit cuts carries no mark.
+     */
+    @Test
+    public void aMarkTakesNoPlaceOfThePagesLimit() {
+        final String text = "Die Gärtnerei Muster gehört seit 1990 zu uns und beliefert viele Kunden mit Pflanzen.\n\n"
+                + "Die Gärtnerei Beispiel gehört seit 2001 zu uns und pflegt die Gärten vieler Kunden.\n\nHaus Linde\nLindenweg 3\n34117 Kassel\n";
+        final String[][] places = {{"facility", "Gärtnerei Muster"}, {"facility", "Gärtnerei Beispiel"}, {"facility", "Haus Linde"}};
+        final Extraction full = new Extraction(3);
+        LlmExtractor.apply(accepted(text, places), List.of(), full, ctx(text, "https://www.muster-pflege.de/").withReplay());
+        assertEquals("three names within a limit of three", Set.of("Gärtnerei Muster", "Gärtnerei Beispiel", "Haus Linde"), stated(full));
+        assertEquals(Set.of("Gärtnerei Muster", "Gärtnerei Beispiel"), unconfirmed(full));
+        assertEquals(0, full.droppedClaims());
+        // a limit of two cuts the third name; the cut one is no unclear place of the page
+        final String[][] reversed = {{"facility", "Haus Linde"}, {"facility", "Gärtnerei Muster"}, {"facility", "Gärtnerei Beispiel"}};
+        final Extraction cut = new Extraction(2);
+        LlmExtractor.apply(accepted(text, reversed), List.of(), cut, ctx(text, "https://www.muster-pflege.de/").withReplay());
+        assertEquals(Set.of("Haus Linde", "Gärtnerei Muster"), stated(cut));
+        assertEquals(Set.of("Gärtnerei Muster"), unconfirmed(cut));
     }
 }

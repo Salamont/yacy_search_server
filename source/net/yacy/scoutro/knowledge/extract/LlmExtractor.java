@@ -1235,10 +1235,12 @@ public final class LlmExtractor {
                 }
             }
             if (named.add(ref)) {
-                out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
+                final boolean added = out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
                         structural.contains(ref) ? BusinessRules.STRUCTURAL_CONFIDENCE : null));
-                if (unconfirmed) {
-                    out.add(new Claim(ref, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
+                if (added && unconfirmed) {
+                    // the mark of the name takes none of the page's limit of statements: on a full page it displaces no item
+                    // that a release before 0.13.0 published, and an item the limit cuts carries none (0.13.0)
+                    out.mark(new Claim(ref, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
                 }
             }
         }

@@ -2351,8 +2351,10 @@ public final class LlmService {
 
     /** Statements of the LLM tier the page holds evidence for (the per-document limit counts over all its readings). */
     static long tier3Statements(final java.sql.Connection c, final String docId) throws java.sql.SQLException {
+        // a mark (type_unconfirmed) takes none of the limit (Extraction.mark, 0.13.0)
         try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
-                + " WHERE d.doc_id = ? AND e.tier = " + LlmExtractor.TIER)) {
+                + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid WHERE d.doc_id = ? AND e.tier = " + LlmExtractor.TIER
+                + " AND s.pred IS NOT (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = '" + Vocabulary.TYPE_UNCONFIRMED + "')")) {
             ps.setString(1, docId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getLong(1) : 0L;

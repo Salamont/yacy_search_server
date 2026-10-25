@@ -4055,7 +4055,9 @@ validator, not the prompt, decides.
 ### 40.4 Places whose type is unconfirmed
 
 An unclear place (40.2) gets a hedged statement `type_unconfirmed` (its type as the value) beside its name: quality uncertain.
-A facility or site no source confirms (the mark is current, and no current name of it comes from another tier or from a page
+The mark qualifies its name and takes none of the page's limit of statements (`scoutro.kg.extract.maxStatementsPerDoc`, also
+over the continuations of a long page): on a full page it displaces no item an earlier release published, and a name the
+limit cuts carries none (found by the replay of gate A4). A facility or site no source confirms (the mark is current, and no current name of it comes from another tier or from a page
 without the mark) is left out of the filter by its type and of its count (`include_unconfirmed=true` shows it). The review list
 is `GET kg/entities?review=type_unconfirmed`, with `review`: the numbers per collection and model. Quality metrics:
 `facilities_type_unconfirmed`, `sites_type_unconfirmed`. A judged rule correction, never a hand edit, resolves them.
