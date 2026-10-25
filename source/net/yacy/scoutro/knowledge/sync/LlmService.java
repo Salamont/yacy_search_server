@@ -835,7 +835,7 @@ public final class LlmService {
         final LlmReading reading = LlmReading.of(this.cfg, d, row.collections, base);
         final LlmReplay.Answer answer = this.store.read(c -> LlmReplay.rebuild(c, rowid, stored, reading.known));
         final Extraction ex = new Extraction((int) Math.max(0L, this.cfg.extractMaxStatementsPerDoc));
-        LlmExtractor.apply(answer.accepted, reading.known, ex, LlmReading.context(this.cfg, d, stored, base));
+        LlmExtractor.apply(answer.accepted, reading.known, ex, LlmReading.context(this.cfg, d, stored, base).withReplay());
         ex.ranTier(LlmExtractor.TIER);
         int places = 0;
         int unconfirmed = 0;

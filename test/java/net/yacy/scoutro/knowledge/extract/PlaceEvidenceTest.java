@@ -195,6 +195,50 @@ public class PlaceEvidenceTest {
         assertTrue(named(o, Vocabulary.FACILITY).toString(), named(o, Vocabulary.FACILITY).isEmpty());
     }
 
+    /**
+     * Gate A4 (0.13.0, the replay on production text): an address the model writes on one line is found where the page writes it on
+     * two; a place word with a proper name in a list of a site's places is a place; the quote's address proves a name without one;
+     * a sentence of the page is no name.
+     */
+    @Test
+    public void placesAsThePageWritesThem() {
+        final String text = "Startseite\nEinrichtungen\nKontakt\n\nUnsere Einrichtungen\nSeniorenhaus Am Park\nPflegeheim St. Anna\nKontakt\n\n"
+                + "Muster Pflege gGmbH\nMusterweg 5\n34117 Kassel\n\nHaus Muster. Lindenweg 3. 34119 Kassel.\n\n"
+                + "Die Halle ist vollständig aus Holz errichtet.";
+        final String[][] places = {{"site", "Musterweg 5, 34117 Kassel", "Musterweg 5. 34117 Kassel."}, {"facility", "Seniorenhaus Am Park"},
+            {"facility", "Pflegeheim St. Anna"}, {"facility", "Haus Muster", "Haus Muster. Lindenweg 3. 34119 Kassel."},
+            {"facility", "Die Halle ist vollständig aus Holz errichtet."}};
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(accepted(text, places), List.of(), ex, ctx(text, "https://www.pflege-muster.de/einrichtungen/").withReplay());
+        assertEquals(Set.of("Seniorenhaus Am Park", "Pflegeheim St. Anna", "Haus Muster"), named(ex, Vocabulary.FACILITY));
+        assertEquals(Set.of("Musterweg 5, 34117 Kassel"), named(ex, Vocabulary.SITE));
+        assertTrue(unconfirmed(ex).toString(), unconfirmed(ex).isEmpty());
+    }
+
+    /**
+     * Gate A4 (0.13.0): the replay keeps a service and its offer as they were published (the rules of their reading), and applies
+     * the checks of the new version only: the name of a section is no service. A fresh answer passes the offer proof as before.
+     */
+    @Test
+    public void theReplayKeepsServicesAsPublished() {
+        final String text = "Startseite | Pflasterarbeiten | Kontakt\n\nMuster Garten GmbH\nMusterweg 5\n34117 Kassel";
+        final JSONObject a = accepted(text, new String[][] {{"organization", "Muster Garten GmbH"}, {"service", "Pflasterarbeiten"},
+            {"service", "Kontakt"}});
+        KgJson.put(a, "claims", new JSONArray().put(KgJson.obj("subject", "e1", "predicate", "offers", "object", "e2", "hedged", false,
+                "quote", "Pflasterarbeiten", "at", text.indexOf("Pflasterarbeiten"))));
+        final Extraction fresh = new Extraction(100);
+        LlmExtractor.apply(a, List.of(), fresh, ctx(text, "https://www.muster-garten.de/kontakt/"));
+        assertTrue(named(fresh, Vocabulary.SERVICE).toString(), named(fresh, Vocabulary.SERVICE).isEmpty());
+        final Extraction replay = new Extraction(100);
+        LlmExtractor.apply(a, List.of(), replay, ctx(text, "https://www.muster-garten.de/kontakt/").withReplay());
+        assertEquals(Set.of("Pflasterarbeiten"), named(replay, Vocabulary.SERVICE));
+        boolean offer = false;
+        for (final Claim c : replay.claims()) {
+            offer |= Vocabulary.OFFERS.equals(c.predicate);
+        }
+        assertTrue(replay.claims().toString(), offer);
+    }
+
     /** Test 21: a facility and a service of similar names are two objects: no merge, no conversion; an unclear one is marked. */
     @Test
     public void aFacilityAndAServiceOfOneHostStayTwoAndAnUnclearOneIsMarked() {

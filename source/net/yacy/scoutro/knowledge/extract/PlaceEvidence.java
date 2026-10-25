@@ -59,6 +59,11 @@ public final class PlaceEvidence {
 
     /** A word of a name (before the word sets, which are folded with it). */
     private static final Pattern WORD = Pattern.compile("\\p{L}[\\p{L}\\p{N}'’-]*");
+    /** A token of a name for its occurrences: letters or digits ("Musterweg", "5", "12345"). */
+    private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{N}]+");
+    private static final int MAX_TOKENS = 16;
+    /** The end of a sentence: a name that ends so (and has four words or more) is a sentence of the page. */
+    private static final Pattern SENTENCE = Pattern.compile("[.!?]$");
     /** The words of a website's sections, folded: a facility of such a name is a page label. */
     static final Set<String> PAGE_LABELS = folded("kontakt", "kontaktformular", "uber uns", "ueber uns", "wir uber uns", "team", "jobs", "job",
             "karriere", "stellenangebote", "referenzen", "referenz", "projekte", "projekt", "aktuelles", "news", "neuigkeiten", "blog",
@@ -87,8 +92,8 @@ public final class PlaceEvidence {
      * "Pflegeheim", "Tagespflege", "Niederlassung").
      */
     static final List<String> PLACE_WORDS = List.of("heim", "pflegeheim", "zentrum", "residenz", "stift", "tagespflege", "nachtpflege",
-            "kurzzeitpflege", "wohngemeinschaft", "wohnpark", "wohnanlage", "hospiz", "klinik", "klinikum", "krankenhaus", "praxis",
-            "kita", "kindergarten", "schule", "akademie", "campus", "werk", "werkstatt", "niederlassung", "filiale", "standort", "zentrale",
+            "kurzzeitpflege", "wohngemeinschaft", "wohnpark", "wohnanlage", "hospiz", "klinik", "kliniken", "klinikum", "krankenhaus", "praxis",
+            "kita", "kindergarten", "schule", "akademie", "campus", "werk", "werkstatt", "niederlassung", "zweigstelle", "filiale", "standort", "zentrale",
             "büro", "geschäftsstelle", "lager", "halle", "hotel", "restaurant", "café", "laden", "showroom", "ausstellung", "studio",
             "haus", "hof", "station", "sozialstation", "home", "clinic", "hospital", "practice", "office", "branch", "plant", "factory",
             "warehouse", "center", "centre", "store", "shop", "school");
@@ -149,11 +154,20 @@ public final class PlaceEvidence {
         if (!placeWord && ACTIVITY.matcher(key.replace(" ", "")).find()) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
+        if (SENTENCE.matcher(name.trim()).find() && words(name) >= 4) {
+            return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // a sentence of the page, not a name ("Die Gebäude sind … errichtet.")
+        }
         final String text = raw == null || raw.isEmpty() ? quote : raw;
         String proof = null, address = null;
         boolean running = false;
         boolean own = false;
-        for (final int[] at : occurrences(text, name)) {
+        // the name as the page writes it (its words, whatever stands between them: "Musterweg 5, 12345 Ort" is "Musterweg 5\n12345
+        // Ort" there), else the model's quote, which is grounded in the page
+        List<int[]> found = occurrences(text, name);
+        if (found.isEmpty() && quote != null && !quote.isBlank()) {
+            found = occurrences(text, quote);
+        }
+        for (final int[] at : found) {
             if (navigation(text, at[0], at[1])) {
                 continue;
             }
@@ -169,11 +183,32 @@ public final class PlaceEvidence {
                 proof = passage.trim();
             }
         }
+        // the quote's own sign of a place, outside a menu line ("Haus Linde. Lindenweg 3. 34117 Kassel."; "Haus Linde | Kontakt |
+        // Lindenweg 3" is a menu with the footer's address)
+        if (quote != null && !found.isEmpty() && quote.indexOf('|') < 0 && quote.indexOf('•') < 0) {
+            own |= OWN.matcher(quote).find();
+            final boolean located = ADDRESS.matcher(quote).find();
+            if (located && address == null) {
+                address = quote.trim();
+            }
+            if (proof == null && (located || PLACE_VERB.matcher(quote).find())) {
+                proof = quote.trim();
+            }
+        }
+        // a name that is an address is a place by itself ("Musterstraße 5, 34117 Kassel"); so is a place word with a proper name
+        // ("Pflegeheim St. Anna"), in a list of a site's places too
+        final boolean addressName = ADDRESS.matcher(name).find();
+        if (addressName && address == null) {
+            address = name.trim();
+        }
         if (url != null && PROJECT_PAGE.matcher(path(url)).find() && !own) {
             // the building of a project reference is the object of a project, not a place of the page's operator, unless a passage
             // names who runs it; a site with its address stays a site
             return Vocabulary.SITE.equals(type) && address != null ? new Result(Verdict.PLACE, null, address)
                     : new Result(Verdict.REFUSED, PROJECT_OBJECT, null);
+        }
+        if (proof == null && (addressName || placeWord && properName(name))) {
+            proof = quote != null && !quote.isBlank() ? quote.trim() : name.trim();
         }
         if (proof != null) {
             return new Result(Verdict.PLACE, null, proof);
@@ -217,13 +252,25 @@ public final class PlaceEvidence {
         return words >= 2 && proper >= 1;
     }
 
-    /** The occurrences of the name in the text, case-insensitive, as words. */
+    /**
+     * The occurrences of the name in the text, case-insensitive, as words: its words in order with any separators between (at most
+     * six characters: a comma, a line, a period, Markdown), so that the model's "Musterweg 5, 12345 Ort" is found where the page
+     * writes "Musterweg 5" and "12345 Ort" on two lines. At most {@link #MAX_TOKENS} words of it are matched.
+     */
     private static List<int[]> occurrences(final String text, final String name) {
         final List<int[]> out = new ArrayList<>();
         if (text == null || name == null || name.isBlank()) {
             return out;
         }
-        final Matcher m = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])" + Pattern.quote(name.trim()) + "(?![\\p{L}\\p{N}])").matcher(text);
+        final List<String> tokens = new ArrayList<>();
+        for (final Matcher t = TOKEN.matcher(name); t.find() && tokens.size() < MAX_TOKENS;) {
+            tokens.add(Pattern.quote(t.group()));
+        }
+        if (tokens.isEmpty()) {
+            return out;
+        }
+        final Matcher m = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])" + String.join("[^\\p{L}\\p{N}]{1,6}", tokens) + "(?![\\p{L}\\p{N}])")
+                .matcher(text);
         while (m.find() && out.size() < 50) {
             out.add(new int[] {m.start(), m.end()});
         }

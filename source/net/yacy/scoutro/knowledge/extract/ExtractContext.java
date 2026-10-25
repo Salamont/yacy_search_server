@@ -61,6 +61,11 @@ public final class ExtractContext {
     public final Mention serviceOperator;
     /** 0.13.0: the page's address, for the role of a place on it ({@link PlaceEvidence}: a project page's building); null if unknown. */
     public final String pageUrl;
+    /**
+     * 0.13.0: an answer of the replay ({@code LlmReplay}): its services and offers were published with their evidence under the rules
+     * of their reading and keep it; only the checks of the replaying version apply (places, the names of sections).
+     */
+    public final boolean replay;
 
     /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
@@ -89,6 +94,7 @@ public final class ExtractContext {
         this.serviceTitle = null;
         this.serviceOperator = null;
         this.pageUrl = null;
+        this.replay = false;
     }
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText) {
@@ -102,6 +108,11 @@ public final class ExtractContext {
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
             final String serviceTitle, final Mention serviceOperator, final String pageUrl) {
+        this(c, postingTitles, otherTitles, serviceText, serviceTitle, serviceOperator, pageUrl, c.replay);
+    }
+
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
+            final String serviceTitle, final Mention serviceOperator, final String pageUrl, final boolean replay) {
         this.categories = c.categories;
         this.nace = c.nace;
         this.vocabularies = c.vocabularies;
@@ -114,6 +125,13 @@ public final class ExtractContext {
         this.serviceTitle = serviceTitle;
         this.serviceOperator = serviceOperator;
         this.pageUrl = pageUrl;
+        this.replay = replay;
+    }
+
+    /** 0.13.0: this context for an answer of the replay ({@link #replay}). */
+    public ExtractContext withReplay() {
+        return new ExtractContext(this, this.postingTitles, this.otherTitles, this.serviceText, this.serviceTitle, this.serviceOperator, this.pageUrl,
+                true);
     }
 
     /** 0.13.0: this context with the page's address ({@link #pageUrl}). */

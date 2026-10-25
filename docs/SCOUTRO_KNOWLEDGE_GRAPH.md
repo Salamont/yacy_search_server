@@ -3990,14 +3990,20 @@ month ago.
 reason):
 
 - **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort") or the name of an activity or a
-  field of work without a place word ("Hochbau", "Logistikbau", "Gebäudetechnik"; `entity_facility_not_a_place`); a name that
-  stands only in a navigation (a short segment among at least two short neighbours) or nowhere on the page (the same reason);
+  field of work without a place word ("Hochbau", "Logistikbau", "Gebäudetechnik"; `entity_facility_not_a_place`); a sentence of
+  the page as a name (four words or more, ending with ".", "!" or "?"; the same reason); a name that stands only in a navigation
+  (a short segment among at least two short neighbours) without a sign of a place, or nowhere on the page (the same reason);
   on a project or reference page (by its address) the building of a project, unless a passage names who runs it ("betreibt",
   "unser", a named organisation that plans or opens it; `entity_facility_project_object`; a site with its address stays a
   site); the name of a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
-- **A place:** an occurrence outside the navigation with a place word and a proper name ("Haus Lindenhof",
-  "Seniorenzentrum Am Park"), an address (a street with its number, a postal code with a place) or a verb of a place
-  ("betreibt", "befindet sich", "liegt", "eröffnet"; "unser Werk in …").
+- **A place:** a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
+  "Seniorenzentrum Am Park"), also in a list of a site's places; an occurrence outside the navigation, or the model's quote outside
+  a menu line, with an address (a street with its number, a postal code with a place) or a verb of a place ("betreibt",
+  "befindet sich", "liegt", "eröffnet"; "unser Werk in …").
+- **Where the name stands:** its words in order with any separators between (a comma, a line, a period, Markdown): the model's
+  "Musterweg 5, 34117 Kassel" is found where the page writes the street and the place on two lines; a name not found so is looked
+  for by the model's quote, which is grounded in the page. (Gate A4 of 0.13.0: with literal matching, most addresses of the
+  production pages counted as "not on the page" and were refused.)
 - **Unclear:** a proper name outside the navigation without any of these. It is kept as published and marked (40.5).
 
 The validator of fresh answers refuses what the check refuses (the reasons are codes of the LLM tier's counters and samples; the
@@ -4021,8 +4027,12 @@ validator, not the prompt, decides.
   page's text at its position where the text agrees with the excerpt. What `apply` derives itself (evidence by the page's title,
   industries of services, the marks of 40.5) is not rebuilt: it is derived again. A relation or value about an entity that is
   neither an entity of the answer nor a known entity of the page any more is dropped and counted.
-- The answer is applied with the page's text, address and known entities as a reading of the page applies an answer now, and
-  published by `Publisher.applyLlmReplay`: the page's tier-3 evidence is replaced, its mark (status, reason) stays, the cache is
+- The answer is applied with the page's text, address and known entities as a reading of the page applies an answer now, in a
+  replay's context (`ExtractContext.replay`): the checks of `llm/5` apply (places, the names of sections), a service and an offer
+  keep the evidence they were published with under the rules of their reading, and every item keeps the locator of its evidence
+  (a service by its page's title gives the operator's offer again). The replay is a change of the validation of places, not a
+  stricter reading of older rules (gate A4: the offer proof of 0.12.0 applied to answers published before it would have dropped
+  three in four services of the LLM tier, most of them real). It is then published by `Publisher.applyLlmReplay`: the page's tier-3 evidence is replaced, its mark (status, reason) stays, the cache is
   not written. The evidence names `llm/5` with the model and the prompt hash of the answer: the provenance stays.
 - **Order:** a page whose rules have not read it under the current rule version (its input hash) waits for a later pass, so the
   rules' entities of `rule/9` are the known ones. The replay asks no model; neither the circuit breaker nor the schedule holds

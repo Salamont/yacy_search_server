@@ -42,9 +42,11 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * 0.13.0: the replay of the LLM tier's stored answers (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40). A new {@link LlmExtractor#VERSION}
  * whose change is the validation only ({@link LlmExtractor#REPLAYS}) asks the model nothing: the answer a page's tier-3
  * evidence was published from is rebuilt from that evidence (each entity with its type, name and quote, each relation and value
- * with its quote and position), {@link LlmExtractor#apply} validates it with the page's text as Solr holds it, as it validates
- * every answer, and {@link net.yacy.scoutro.knowledge.publish.Publisher#applyLlmReplay} publishes the result under the new
- * version with the model and the prompt hash of the evidence. The cache is not needed: its keys contain the known entities,
+ * with its quote, position and locator), {@link LlmExtractor#apply} validates it with the page's text as Solr holds it, in a
+ * replay's context ({@link net.yacy.scoutro.knowledge.extract.ExtractContext#replay}: the checks of the new version apply, the
+ * places and the names of sections; a service and an offer keep the evidence they were published with under the rules of their
+ * reading), and {@link net.yacy.scoutro.knowledge.publish.Publisher#applyLlmReplay} publishes the result under the new version
+ * with the model and the prompt hash of the evidence. The cache is not needed: its keys contain the known entities,
  * which a new rule version changes, and its entries may be evicted.
  * <p>
  * What {@link LlmExtractor#apply} derives itself is never rebuilt: the evidence by a page's title ({@code title:}), the
@@ -199,7 +201,8 @@ public final class LlmReplay {
             ids.putIfAbsent(r.subj, id);
             final int[] at = position(r.locator);
             entities.put(KgJson.obj("id", id, "type", r.subjType, "name", r.objVal, "kind",
-                    Vocabulary.FACILITY.equals(r.subjType) ? r.subkind : null, "quote", quote(raw, at, r.excerpt, a), "at", at == null ? 0 : at[0]));
+                    Vocabulary.FACILITY.equals(r.subjType) ? r.subkind : null, "quote", quote(raw, at, r.excerpt, a), "at", at == null ? 0 : at[0],
+                    "locator", r.locator));
             if (Vocabulary.FACILITY.equals(r.subjType) || Vocabulary.SITE.equals(r.subjType)) {
                 a.places++;
             }
@@ -222,7 +225,7 @@ public final class LlmReplay {
                     continue;
                 }
                 claims.put(KgJson.obj("subject", subject, "predicate", r.predicate, "object", object, "hedged", r.hedged, "quote",
-                        quote(raw, at, r.excerpt, a), "at", at[0]));
+                        quote(raw, at, r.excerpt, a), "at", at[0], "locator", r.locator));
             } else {
                 // a price the quote shows as another amount is published as monetary_amount; the model pointed at a price
                 final String predicate = Vocabulary.MONETARY_AMOUNT.equals(r.predicate) ? Vocabulary.PRICE : r.predicate;
@@ -236,7 +239,7 @@ public final class LlmReplay {
                 final String quote = quote(raw, at, r.excerpt, a);
                 // one value item of the answer may state several values: it is rebuilt once
                 if (seenValues.add(subject + "\u0000" + predicate + "\u0000" + at[0] + "\u0000" + quote)) {
-                    values.put(KgJson.obj("subject", subject, "predicate", predicate, "quote", quote, "at", at[0]));
+                    values.put(KgJson.obj("subject", subject, "predicate", predicate, "quote", quote, "at", at[0], "locator", r.locator));
                 }
             }
         }

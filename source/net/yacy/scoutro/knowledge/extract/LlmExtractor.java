@@ -1169,7 +1169,13 @@ public final class LlmExtractor {
             final String ref = same != null ? same : "llm:" + type + ":" + key;
             String quote = e.optString("quote");
             String location = locator(e);
-            if (Vocabulary.SERVICE.equals(type) && same == null) {
+            if (Vocabulary.SERVICE.equals(type) && same == null && ctx != null && ctx.replay) {
+                // 0.13.0: a replayed service was published with its evidence under the rules of its reading and keeps it; its
+                // title's evidence derives the operator's offer again; only the name of a section is refused (below)
+                if (location.startsWith("title:")) {
+                    structural.add(ref);
+                }
+            } else if (Vocabulary.SERVICE.equals(type) && same == null) {
                 final String raw = ctx == null || ctx.serviceText == null ? quote : ctx.serviceText;
                 String proof = serviceProof(e.optString("id"), name, quote, normal(raw), raw, context);
                 if (proof == null && (ctx == null || ctx.serviceText == null)) {
@@ -1251,8 +1257,9 @@ public final class LlmExtractor {
                             && Mention.providerKey(operatorOfPage).equals(Mention.providerKey(out.mention(s))));
             if (Vocabulary.OFFERS.equals(c.optString("predicate"))) {
                 final String raw = ctx == null ? null : ctx.serviceText;
-                if (raw != null && !quoteInText(raw, c.optString("quote")) || !structuralOffer && ServiceEvidence.evidence(
-                        raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null) {
+                // a replayed offer keeps the evidence it was published with (0.13.0)
+                if (!(ctx != null && ctx.replay) && (raw != null && !quoteInText(raw, c.optString("quote")) || !structuralOffer
+                        && ServiceEvidence.evidence(raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null)) {
                     continue;
                 }
                 final Mention service = out.mention(o);
@@ -1388,6 +1395,10 @@ public final class LlmExtractor {
     }
 
     private static String locator(final JSONObject item) {
+        final String stored = item.optString("locator", null);
+        if (stored != null && !stored.isEmpty()) {
+            return stored; // a replayed item keeps the locator of its evidence (0.13.0)
+        }
         return "text:" + item.optInt("at") + "+" + item.optString("quote").length();
     }
 
