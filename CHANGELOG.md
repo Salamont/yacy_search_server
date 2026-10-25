@@ -4,8 +4,8 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## 0.13.0 / 1.942-scoutro.46 — declared audiences, clients, places of the LLM tier and its replay
 
-On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `Vocabulary.VERSION` 5, vocabulary package 7); the
-LLM tier's stored answers are replayed without a model request (`LlmExtractor.VERSION` 5, `REPLAYS` = {4});
+On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `jsonld/7`, `Vocabulary.VERSION` 5, vocabulary package
+7); the LLM tier's stored answers are replayed without a model request (`LlmExtractor.VERSION` 5, `REPLAYS` = {4});
 `BusinessSignals.VERSION` 5; `MatchingRules.VERSION` stays 1. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.13.0.md).
 
 - **Declared audience** (`Audiences`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 39): only a phrase that names organisations
@@ -17,6 +17,10 @@ LLM tier's stored answers are replayed without a model request (`LlmExtractor.VE
   below the matching, and hidden when their basis is stale or unconfirmed.
 - **Clients:** one client per provider site (`client_name`), the names of project profiles written on one line, `& Co. KG` in a
   legal form, anonymised clients are none.
+- **Providers** (section 41, `OrganisationIds`): the organisation of the structured data known by the root `@id` of its own domain,
+  without a `url`, is the domain's operator (if it is the page's only organisation of a root `@id`); two `@id`s of one organisation on one host (language segments, fragment) are one if
+  the names agree and no legal name, legal form or strong identifier differs. A provider split in two before is joined at the
+  next reading of its page. In doubt two; an `@id` below the root (a portal's company profile) is no operator.
 - **Signals:** a planned migration in the clause of its verb (the correction of the 0.12.2 notes); the product tree (vendor →
   product → module) and the kinds of service.
 - **Offers:** an item of an offer list without a category is a service *without a category* (hedged; the matching ignores it;
@@ -31,8 +35,8 @@ LLM tier's stored answers are replayed without a model request (`LlmExtractor.VE
   extractor and model); repeated text counts once ("1 piece of evidence on 7 pages").
 - **Rollback** to 0.12.2 on the updated graph would extract every page again (about 6 hours) and examine every document again
   by the model (a version outside its own): set `scoutro.kg.llm.maxRequestsPerDay` to a small value before 0.12.2 starts (note
-  the old one), then restore the backup taken before the update in 0.12.2 (recommended); see
-  `docs/SCOUTRO_RELEASE_0.13.0.md`.
+  the old one), then restore the backup taken before the update in 0.12.2 (mandatory before the update: only the restore undoes
+  its merges); see `docs/SCOUTRO_RELEASE_0.13.0.md`.
 
 ## 0.12.2 / 1.942-scoutro.45 — own use in the clause of its verb
 

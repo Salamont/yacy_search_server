@@ -65,7 +65,11 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * Name and postal code, phone, e-mail and homepage are never keys. A merge
  * happens only if no discriminator conflicts: different values of the same
  * strong scheme, different {@code @id}s on the same host, different facility
- * kinds, different full addresses. A blocked merge is recorded as an
+ * kinds, different full addresses. 0.13.0 (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 41):
+ * two {@code @id}s of an organisation on one host that differ only by language
+ * segments or the fragment do not conflict if the names agree and no legal name,
+ * legal form or other discriminator differs ({@link OrganisationIds}); an
+ * {@code @id} finds no other by itself. A blocked merge is recorded as an
  * {@code identity_conflict} event; the entities stay separate, duplicates are
  * preferred to wrong merges. The older entity survives a merge; the other
  * becomes a redirect.
@@ -362,19 +366,21 @@ public final class IdentityResolver {
         }
     }
 
-    /** The mention's own discriminators against an entity: strong values, @id per host, kind, full address. */
+    /**
+     * The mention's own discriminators against an entity: strong values, @id per host, kind, full address. 0.13.0: two
+     * {@code @id}s of one organisation (language segments, fragment) do not conflict where {@link OrganisationIds#apart} finds
+     * them one.
+     */
     private boolean compatible(final Connection tx, final long ent, final Mention m, final List<Key> keys) throws SQLException {
         final Map<String, List<String>> have = keysOf(tx, ent);
+        final Map<String, List<String>> mine = new HashMap<>();
         for (final Key k : keys) {
-            if (Vocabulary.DOC_LOCAL.equals(k.scheme) || Vocabulary.SITE_OPERATOR.equals(k.scheme)
-                    || Vocabulary.OPERATOR_NAME.equals(k.scheme) || Vocabulary.DOMAIN_OPERATOR.equals(k.scheme)
-                    || Vocabulary.CLIENT_NAME.equals(k.scheme)) {
-                continue;
-            }
-            final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
-            if (existing != null && !existing.contains(k.value)) {
-                return false;
-            }
+            mine.computeIfAbsent(k.scheme + "\u0000" + k.scope, x -> new ArrayList<>()).add(k.value);
+        }
+        final String block = OrganisationIds.blocking(mine, have, false);
+        if (block != null && !(Vocabulary.LD_ID.equals(block) && Vocabulary.ORGANIZATION.equals(m.type)
+                && OrganisationIds.apart(mine, names(m), forms(m), have, names(tx, ent), legalForms(tx, ent)) == null)) {
+            return false;
         }
         // 0.13.0: a client of one name with another legal form is another company ("Muster GmbH", "Muster AG")
         final String form = m.client ? Normalizers.legalForm(m.name) : null;
@@ -441,18 +447,51 @@ public final class IdentityResolver {
         }
         final Map<String, List<String>> va = keysOf(tx, a);
         final Map<String, List<String>> vb = keysOf(tx, b);
-        for (final Map.Entry<String, List<String>> e : va.entrySet()) {
-            final String scheme = e.getKey().substring(0, e.getKey().indexOf('\u0000'));
-            if (Vocabulary.DOC_LOCAL.equals(scheme) || Vocabulary.SITE_OPERATOR.equals(scheme) || Vocabulary.OPERATOR_NAME.equals(scheme)
-                    || Vocabulary.DOMAIN_OPERATOR.equals(scheme) || Vocabulary.CLIENT_NAME.equals(scheme)) {
-                continue;
-            }
-            final List<String> other = vb.get(e.getKey());
-            if (other != null && java.util.Collections.disjoint(other, e.getValue())) {
-                return false;
+        final String block = OrganisationIds.blocking(va, vb, false);
+        // 0.13.0: two @ids of one organisation, with a name in common and no legal name, form or other discriminator that differs
+        return block == null || Vocabulary.LD_ID.equals(block) && Objects.equals(type(tx, a), this.terms.type(Vocabulary.ORGANIZATION))
+                && OrganisationIds.apart(va, names(tx, a), legalForms(tx, a), vb, names(tx, b), legalForms(tx, b)) == null;
+    }
+
+    /** The comparison forms ({@link Normalizers#key}) of a mention's name and legal name. */
+    private static java.util.Set<String> names(final Mention m) {
+        final java.util.Set<String> out = new java.util.TreeSet<>();
+        for (final String n : new String[] {m.name, m.legalName}) {
+            if (Normalizers.key(n) != null) {
+                out.add(Normalizers.key(n));
             }
         }
-        return true;
+        return out;
+    }
+
+    /** The legal forms of a mention's name and legal name. */
+    private static java.util.Set<String> forms(final Mention m) {
+        final java.util.Set<String> out = new java.util.TreeSet<>();
+        for (final String n : new String[] {m.name, m.legalName}) {
+            if (Normalizers.legalForm(n) != null) {
+                out.add(Normalizers.legalForm(n));
+            }
+        }
+        return out;
+    }
+
+    /** The comparison forms of the entity's names and aliases. */
+    private java.util.Set<String> names(final Connection tx, final long ent) throws SQLException {
+        final java.util.Set<String> out = new java.util.TreeSet<>();
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred IN (?, ?) AND obj_val IS NOT NULL")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.predicate(Vocabulary.NAME));
+            ps.setInt(3, this.terms.predicate(Vocabulary.ALIAS));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    final String k = Normalizers.key(rs.getString(1));
+                    if (k != null) {
+                        out.add(k);
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /** Keys of an entity, grouped by scheme and scope. */

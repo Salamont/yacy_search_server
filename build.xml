@@ -603,6 +603,8 @@
       <arg value="net.yacy.scoutro.knowledge.extract.AudiencesTest"/>
       <arg value="net.yacy.scoutro.knowledge.derive.DeclaredAudienceTest"/>
       <arg value="net.yacy.scoutro.knowledge.resolve.ClientIdentityTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.OrganisationIdsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.OperatorIdentityTest"/>
     </java>
   </target>
 

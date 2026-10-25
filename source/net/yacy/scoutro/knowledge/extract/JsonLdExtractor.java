@@ -28,6 +28,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
+import net.yacy.scoutro.knowledge.resolve.OrganisationIds;
 
 /**
  * Tier 1, structured data: schema.org JSON-LD blocks of a page
@@ -42,7 +43,12 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * {@code url} or {@code sameAs} on the page's own registrable domain, and its
  * name carries a legal form; on its own domain without a legal form (a short
  * name) it is the domain's operator ({@code domain_operator} key, 0.10.6),
- * joined to the domain's one declared operator.
+ * joined to the domain's one declared operator. Version 7 (0.13.0): an
+ * organisation without a {@code url} whose {@code @id} is the root of the page's
+ * own registrable domain ({@code https://www.muster.de/#organization}, language
+ * segments aside) describes itself on its own domain as well, if it is the only
+ * organisation of a root {@code @id} on the page; an {@code @id} below the root (a
+ * company's profile on a portal) does not (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 41).
  * <p>
  * Version 3 (vocabulary 2) adds: offers and prices ({@code Offer},
  * {@code price}, {@code priceCurrency}, {@code priceSpecification},
@@ -60,11 +66,11 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class JsonLdExtractor {
 
     public static final String NAME = "jsonld";
-    public static final String VERSION = "6"; // 6: money roles, product roles, own-shop offers (WP-F)
+    public static final String VERSION = "7"; // 7: the root @id of the own domain without url (0.13.0); 6: money and product roles (WP-F)
     /**
      * Prefix of the synthetic {@code ld_id} of a brand or maker without an {@code @id} (0.11.5): its name, scoped to the host.
-     * Deliberately no version 7: the version is part of every page's extractor key, a new one would read 177,853 pages again;
-     * pages read before 0.11.5 keep their stored facts until their next regular crawl.
+     * No version of its own in 0.11.5 (the version is part of every page's extractor key, a new one reads every page again);
+     * version 7 comes with the re-extraction of {@code rule/9}, which reads every page once anyway.
      */
     public static final String BRAND_ID = "brand:";
 
@@ -91,6 +97,11 @@ public final class JsonLdExtractor {
         final Set<String> names = new HashSet<>();
         /** Products and services a seller of the page offers (WP-F): no own-shop offer of the operator. */
         final Set<String> sold = new HashSet<>();
+        /**
+         * The {@code @id}s of the organisations the blocks describe at the root of the page's own registrable domain (0.13.0): the
+         * site's own organisation by its {@code @id} only if there is exactly one ({@code ownRoot}).
+         */
+        final Set<String> rootIds = new HashSet<>();
         /** The key of the domain's label ("drolshagens" of drolshagens.de), or null. */
         final String domainLabel;
         /**
@@ -190,6 +201,9 @@ public final class JsonLdExtractor {
                 run.byId.computeIfAbsent(id, k -> new ArrayList<>()).add(o);
             }
             final String kind = graphType(JsonLdBlocks.types(o));
+            if (id != null && Vocabulary.ORGANIZATION.equals(kind) && OrganisationIds.root(id, run.domain)) {
+                run.rootIds.add(id);
+            }
             boolean site = false;
             for (final String t : JsonLdBlocks.types(o)) {
                 site |= "website".equals(bare(t));
@@ -362,9 +376,10 @@ public final class JsonLdExtractor {
         }
         business(run, m, o, p, schemaType, depth);
 
-        // the organisation that describes itself on its own domain ({@code url} or {@code sameAs}), or a declared publisher, is the
-        // site operator; without a legal form it is the domain's operator by the name it uses, a short name (0.10.6)
-        if (Vocabulary.ORGANIZATION.equals(type) && !brandNode && ownDomain(run, o)) {
+        // the organisation that describes itself on its own domain ({@code url} or {@code sameAs}, or without a url the root @id of
+        // the domain, 0.13.0), or a declared publisher, is the site operator; without a legal form it is the domain's operator by the
+        // name it uses, a short name (0.10.6)
+        if (Vocabulary.ORGANIZATION.equals(type) && !brandNode && (ownDomain(run, o) || ownRoot(run, o, id))) {
             if (legal != null) {
                 m.siteOperator = true;
             } else if (m.name != null) {
@@ -403,6 +418,15 @@ public final class JsonLdExtractor {
             }
         }
         return false;
+    }
+
+    /**
+     * 0.13.0: the node without a {@code url} is the site's own organisation by its {@code @id}: the root of the page's own registrable
+     * domain, and the only organisation the page's blocks describe there (two organisations of root {@code @id}s, the site's and a
+     * partner's {@code #beispiel-ag}, leave both apart).
+     */
+    private static boolean ownRoot(final Run run, final JSONObject o, final String id) {
+        return id != null && strings(o.opt("url")).isEmpty() && run.rootIds.size() == 1 && run.rootIds.contains(id);
     }
 
     /** The node links the page's own registrable domain with its {@code url} or its {@code sameAs}. */

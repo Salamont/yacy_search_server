@@ -4070,3 +4070,64 @@ verbs, unclear names), `LlmExtractorInvalidReasonTest` (one case per code), `Llm
 asks nothing and keeps the mark, a version outside examines again; test 22: a replay twice and a cached answer with the artifact
 bring nothing back; test 23: the menu facility is gone, the place and its service stay, the unclear name is marked; the quotes
 read back), `CurrentListsTest` (test 23 lists and review, test 24 current lists and `include_stale`, test 25 the two times).
+
+## 41. A provider is one organisation by its `@id` on its own domain (0.13.0, `jsonld/7`)
+
+### 41.1 Finding
+
+Read-only diagnosis on production data (gate A3): providers existed twice, their offers split between the two, for two general
+causes.
+
+1. **The site's own organisation without `url`.** The JSON-LD `Organization` of a site is often known only by an `@id` at the
+   root of the site's domain (`https://www.muster-beratung.de/#organization`, the WebSite's `publisher`), with no `url` or
+   `sameAs`. `JsonLdExtractor` read the site's own organisation from `url` and `sameAs` only (6.1), so it was not the domain's
+   operator: the rules' unnamed operator of the services pages (`domain_operator`) and the structured data's organisation were
+   two organisations.
+2. **Two `@id`s of one organisation.** A site's language version names its organisation by a second `@id`
+   (`https://www.muster-software.de/#organization` and `https://www.muster-software.de/en/#organization/`). Two values of
+   `ld_id` on one host are a discriminator (4.3), so the second one never joined the first, nor took its keys.
+
+Merging organisations can hardly be undone in production; both rules are therefore general, narrow, and in doubt keep two
+organisations apart. The update's merges are listed per collection before the release by a read-only gate (the private package
+repository; nothing is merged there).
+
+### 41.2 Rules (`OrganisationIds`, shared by the resolver and the gate)
+
+- **The root `@id` of the own domain** (`OrganisationIds.root`): an organisation of the structured data without a `url` whose
+  `@id` lies on the page's own registrable domain and whose path holds language segments only (`/`, `/en/`, `/de-at/`), is the
+  site's own organisation: as an organisation whose `url` is the site, it is the declared operator with a legal name
+  (`site_operator`), else the domain's operator (`domain_operator`). Only if it is the one organisation of a root `@id` the
+  page's blocks describe: two of them (the site's `#organization` and a partner's `#beispiel-ag`) leave both apart. An `@id`
+  below the root (a company's profile on a portal, `/firmen/alpha/#organization`) is not; a node under `brand` or `manufacturer`
+  never is (35).
+- **One organisation of two `@id`s** (`OrganisationIds.canonical`): two `@id`s of one host that differ only by language segments
+  of the path (ISO 639-1, with or without an ISO 3166-1 region: `en`, `de-at`, `en_US`) or by the fragment
+  (`#organization`, `#organization/`) name one organisation; scheme, host, the rest of the path and the query must be equal.
+  They are no discriminator against each other (`IdentityResolver.compatible`, `.mergeable`) only if `OrganisationIds.apart`
+  finds them one:
+  - a name or alias in common (`Normalizers.key`), else `names_differ`;
+  - no two legal names that differ (`site_operator`, `operator_name`), else `legal_name_differs`;
+  - no two legal forms that differ, else `legal_form_differs`;
+  - no other discriminator that differs (a register entry, a VAT number, an LEI, a full address …), else its scheme.
+- **An `@id` finds no other by itself.** Two `@id`s of one organisation meet only through another key of the mention (the
+  domain's operator, a legal name, a strong identifier); the `@id` itself is looked up as written. Two companies of one name
+  on one portal, each by its own `@id`, stay two.
+- Unchanged: different registrable domains never meet (every key but the strong identifiers is scoped by the domain or the host);
+  strong identifiers stay global and at most one value per entity; a blocked merge is an `identity_conflict` event.
+
+### 41.3 The update
+
+`JsonLdExtractor.VERSION` 7 comes with the re-extraction of `rule/9` (39), which reads every tracked page once anyway: no
+second pass. A provider split before (its language version or its structured data's organisation apart from the domain's
+operator) is joined when one of its pages is read again: the older entity survives (4.3), the other one redirects to it, its
+offers, clients and evidence move with it, and the matching and the derivation recompute in their hourly cycles. No model
+request.
+
+### 41.4 Tests
+
+`OrganisationIdsTest` (the organisation of an `@id`: language segments, fragment, scheme, another domain, the root; when two are
+one, and every reason to keep them apart), `OperatorIdentityTest` (invented sites: a language version with a second `@id` is one
+organisation, never one of another domain; a provider split before is joined at the next reading of its page; the root `@id`
+without `url` is the domain's operator, in either order of the pages; two organisations of root `@id`s on one page are neither;
+two companies of one name on a portal stay two and are not its operator; a contradicting VAT number or legal name blocks the
+merge).
