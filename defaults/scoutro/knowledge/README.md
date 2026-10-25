@@ -32,10 +32,10 @@ the facility kinds the LLM tier may assign on the collection's pages
 (`llm_kinds`; `scoutro.kg.llm.kinds.<collection>` replaces them, a file may
 fix them for one collection with `collection_llm_kinds`). A vocabulary may
 state that the providers of its field run the places their pages name
-(`"operates_places": true`, care: homes, day care, residential groups): on
-a project page of such a provider a place with a sign of a place (a place
-word with its name, an address, a place verb) is its own, not the object of
-a project; like the kinds, it is not versioned and re-extracts nothing. An installation
+(`"operates_places": true`, care: homes, day care, residential groups): a
+project page of such a provider is no sign of the object of a project (it
+lists the provider's own homes), its places are decided as on any page; like
+the kinds, it is not versioned and re-extracts nothing. An installation
 that used the collection map earlier versions shipped here keeps it as
 `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`, written
 once at the upgrade.

@@ -52,14 +52,15 @@ before the merge), and per collection the suggestions, clients, providers and pl
 | Gate | Result |
 |---|---|
 | Part 1 (A0, A1, A3, A4, A5) | run and judged (25 October 2026) |
-| Part 2 (A2, the replay of A4) | A2 passed in every run; the replay (with the page texts) passed its checks in runs 6 and 8 (no place that passes the check cut, no kind of item keeps fewer than before); the owner's criterion for refused facilities (nine in ten artefacts, samples of 30) met by the construction and coaching collections in run 8, not by the care collection: corrected (40.2), **to run again** (run 9) |
+| Part 2 (A2, the replay of A4) | A2 passed in every run; the replay (with the page texts) passed its checks in runs 6 and 8 (no place that passes the check cut, no kind of item keeps fewer than before); the owner's criterion for refused facilities (nine in ten artefacts, samples of 30) met by the construction and coaching collections in runs 8 and 9, borderline in software, not by the care collection: corrected (40.2) after both runs, **to run again** (run 10) |
 | Part 3 (A6, the merges) | run 8: 181 merges, none across registrable domains or against a differing strong identifier, every merge of two `@id`s with a name in common; the owner judges the list before the merge |
 | M0 / M1 | M0 taken (25 October 2026); M1 after the update |
 
 The judgement of A2 changed the reader in two general forms (section 39.2): a goal that names whom the provider serves, and an
 organisation's word before the field it is from. The judgement of the replay corrected the check of places (a name as the page
 writes it; an address or a place word with a proper name is a place; a menu's names kept unclear; care's providers' own homes on
-their project pages, by the vocabulary's `operates_places`) and the replay itself (services and offers keep the evidence they
+their project pages, by the vocabulary's `operates_places`; an address on the lines after the name; the page's soft hyphens; the
+operator's branches on its reference pages) and the replay itself (services and offers keep the evidence they
 were published with). The providers split into two organisations (A3) are item 7 of this release, by the owner's
 decision of 25 October 2026 (section 41 of the knowledge graph, with the gate A6 and the measurement of their offers and
 suggestions in M1).

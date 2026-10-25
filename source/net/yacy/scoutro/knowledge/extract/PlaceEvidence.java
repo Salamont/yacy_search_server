@@ -27,16 +27,18 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * <li>it is read outside a run of short labels (a navigation) for its proof; a name the model quoted from the menu is searched on
  * the page, where its own page or a sentence may state it;</li>
  * <li>the context states a place: a place word bound to the name ("Pflegeheim St. Anna", "Seniorenzentrum Haus Linde", "Werk
- * Kassel"), an address in the name's segment ("…, Hauptstraße 5, 34117 Kassel"), or a place verb in its clause ("unsere
- * Niederlassung in Leipzig", "wir betreiben … in", "befindet sich in").</li>
+ * Kassel"), an address in the name's segment ("…, Hauptstraße 5, 34117 Kassel") or in the lines that follow the name (a street
+ * with its number, a postal code), or a place verb in its clause ("unsere Niederlassung in Leipzig", "wir betreiben … in",
+ * "befindet sich in").</li>
  * </ul>
+ * The text is read without the characters of format a word may hold (a soft hyphen), as the model's quote was checked.
  * A proper name read outside a navigation without such a sign is {@link Verdict#UNCLEAR}: kept as published and marked; so is a
  * name only a navigation lists (a site's menu lists its places too), while anything else there is refused. A quote that gives
  * the place's full address (a street with its number and a postal code) states a place by itself. On a project or reference
  * page a named building is the object of a project, not a place of the page's operator, unless the operator states that it
- * runs it or the name is one of its establishments; in a field whose providers run the places they name (the vocabulary's
- * {@code operates_places}: care), a place with its sign is the provider's own there too. A name of a service of the page needs
- * the place's sign too; nothing is converted or merged.
+ * runs it, the name is one of its establishments or begins with the operator's name ("Muster Hamburg" on muster.de); in a field
+ * whose providers run the places they name (the vocabulary's {@code operates_places}: care), a project page is no sign of a
+ * project at all. A name of a service of the page needs the place's sign too; nothing is converted or merged.
  * This is knowledge of the language and of websites; what a field's providers do is its vocabulary's.
  */
 public final class PlaceEvidence {
@@ -131,6 +133,13 @@ public final class PlaceEvidence {
     /** A word written as a name ("Paul", "Gerhardt"; not "IT"). */
     private static final Pattern TITLE = Pattern.compile("\\p{Lu}\\p{Ll}[\\p{L}’']*");
     private static final Pattern NUMBER = Pattern.compile("(?<![\\p{L}\\p{N}])\\d+[a-z]?(?![\\p{L}\\p{N}])");
+    /** A word written as a name with its number ("Mustersonne 3", "Beispielgleis 51"): a name, also where only a menu lists it. */
+    private static final Pattern NUMBERED = Pattern.compile("\\p{Lu}\\p{Ll}[\\p{L}’'-]*\\s+\\d+[a-z]?");
+    /**
+     * Characters of control and format a page's text may hold inside its words (a soft hyphen, a zero-width space): the model's
+     * quote is validated against the text without them ({@code Normalizers.text}), so the place is searched without them too.
+     */
+    private static final Pattern FORMAT = Pattern.compile("[\\p{Cc}\\p{Cf}&&[^\\n\\r\\t]]");
     /**
      * An establishment of the page's operator ("Niederlassung Rostock", "Hauptsitz Schöneberg", "Prüfsitz in Kassel mit
      * Zweitniederlassung in Göttingen"): a project is never one.
@@ -185,8 +194,8 @@ public final class PlaceEvidence {
 
     /**
      * {@link #check(String, String, String, String, String, boolean)} on a page whose field's providers may run the places they
-     * name ({@link ExtractContext#operatesPlaces}): a place of a project page with its sign is the provider's own; without one it
-     * stays the object of a project.
+     * name ({@link ExtractContext#operatesPlaces}): its project pages are no sign of the object of a project, as its own homes
+     * stand there; the name is decided as on any other page.
      */
     public static Result check(final String raw, final String name, final String quote, final String url, final String type,
             final boolean serviceOfPage, final boolean operatesPlaces) {
@@ -198,7 +207,9 @@ public final class PlaceEvidence {
         if (!NUMBER.matcher(name).find() && GENERIC.contains(key.replaceFirst("^(?:das|die|der|unser|unsere|the|our)\\s+", ""))) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
-        final String text = raw == null || raw.isEmpty() ? quote : raw;
+        final String given = raw == null || raw.isEmpty() ? quote : raw;
+        // 0.13.0 (gate A4, run 9): without the characters of format a word may hold ("Muster\u00adstadt"), as the quote was checked
+        final String text = given == null ? null : FORMAT.matcher(given).replaceAll("");
         // the name as the page writes it (its words, whatever stands between them: "Musterweg 5, 12345 Ort" is "Musterweg 5\n12345
         // Ort" there), else the model's quote, which is grounded in the page
         List<int[]> found = occurrences(text, name);
@@ -214,13 +225,13 @@ public final class PlaceEvidence {
             return new Result(Verdict.PLACE, null, quote.trim());
         }
         final boolean placeWord = placeWord(name);
-        // 0.13.0 (gate A4, run 8): a street with its number after the name in its own segment, outside a menu, states a place, also
-        // of an activity's name ("Muster-Erziehungsberatung Beispielweg 15. 12345 Musterstadt.")
+        // 0.13.0 (gate A4, runs 8 and 9): a street with its number after the name, outside a menu, in its own segment or as the next
+        // line of an address ("Muster-Erziehungsberatung\nBeispielweg 15\n12345 Musterstadt"), states a place, also of an activity's
+        // name
         boolean addressed = false;
         for (final int[] at : found) {
             if (!(navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1]))) {
-                final int[] seg = segment(text, at[0], at[1]);
-                addressed |= STREET_NUMBER.matcher(text.substring(seg[0], seg[1])).find();
+                addressed |= addressAfter(text, at, segment(text, at[0], at[1])) != null;
             }
         }
         if (!placeWord && !addressed && !ADDRESS.matcher(name).find() && ACTIVITY.matcher(key.replace(" ", "")).find()) {
@@ -233,9 +244,10 @@ public final class PlaceEvidence {
         String proof = null, address = null;
         boolean running = false;
         boolean listed = false;
-        // an establishment of the operator ("Niederlassung Rostock"), or a place word with the operator's name ("Muster Smart
-        // Factory" on muster.de): the operator's own, never the object of a project
-        boolean own = ESTABLISHMENT.matcher(name).find() || placeWord && operatorsName(name, url);
+        // an establishment of the operator ("Niederlassung Rostock"), or the operator's name with a place word or a proper name
+        // ("Muster Smart Factory", "Muster Hamburg" on muster.de; 0.13.0, gate A4, run 9: the branches a reference names): the
+        // operator's own, never the object of a project
+        boolean own = ESTABLISHMENT.matcher(name).find() || (placeWord || properName(name)) && operatorsName(name, url);
         for (final int[] at : found) {
             final boolean shortLabels = navigation(text, at[0], at[1]);
             if (shortLabels && labelNear(text, at[0], at[1])) {
@@ -247,9 +259,10 @@ public final class PlaceEvidence {
             final int[] seg = segment(text, at[0], at[1]);
             final String passage = text.substring(seg[0], seg[1]);
             own |= OWN.matcher(passage).find();
-            final boolean located = ADDRESS.matcher(passage).find();
+            final String block = addressAfter(text, at, seg);
+            final boolean located = block != null || ADDRESS.matcher(passage).find();
             if (located && address == null) {
-                address = passage.trim();
+                address = block != null ? block : passage.trim();
             }
             if (proof == null && (placeWord && properName(name) || located || PLACE_VERB.matcher(passage).find())) {
                 proof = passage.trim();
@@ -273,11 +286,13 @@ public final class PlaceEvidence {
         if (addressName && address == null) {
             address = name.trim();
         }
-        final boolean projectObject = url != null && PROJECT_PAGE.matcher(path(url)).find() && !own;
-        if (projectObject && !operatesPlaces) {
+        // 0.13.0 (gate A4, runs 8 and 9): a provider that runs the places it names lists its own homes on its project pages
+        // ("Projekte": "Pflegeheim Musterstadt „Am See“ seit 01.01.2025 als neuer Standort"), so they are no sign of a project there
+        if (url != null && PROJECT_PAGE.matcher(path(url)).find() && !own && !operatesPlaces) {
             // the building of a project reference is the object of a project, not a place of the page's operator, unless a passage
             // names who runs it; a site with its address stays a site
-            return projectObject(type, address);
+            return Vocabulary.SITE.equals(type) && address != null ? new Result(Verdict.PLACE, null, address)
+                    : new Result(Verdict.REFUSED, PROJECT_OBJECT, null);
         }
         if (proof == null && (addressName || placeWord && properName(name))) {
             proof = quote != null && !quote.isBlank() ? quote.trim() : name.trim();
@@ -289,18 +304,13 @@ public final class PlaceEvidence {
         if (proof != null) {
             return new Result(Verdict.PLACE, null, proof);
         }
-        if (projectObject) {
-            // 0.13.0 (gate A4, run 8): a provider that runs the places it names lists its own homes on its project pages
-            // ("Projekte": "Pflegeheim Musterstadt „Am See“ seit 01.01.2025 als neuer Standort"); a name without a sign of a place
-            // there (a town, a course) stays the object of a project
-            return projectObject(type, address);
-        }
         if (found.isEmpty()) {
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null); // not on the page at all
         }
-        if (!running && !placeWord && !properName(name)) {
+        if (!running && !placeWord && !properName(name) && !NUMBERED.matcher(name.trim()).matches()) {
             // only in a navigation, and no name there ("Leistungen | Newsletter | Kontakt"); a name a menu lists is kept unclear
-            // below: a site's menu lists its places too ("Unsere Häuser | Haus Lindenhof | Kontakt", 0.13.0, gate A4, run 6)
+            // below: a site's menu lists its places too ("Unsere Häuser | Haus Lindenhof | Kontakt", 0.13.0, gate A4, run 6; "Mustersonne
+            // 3", run 9)
             return new Result(Verdict.REFUSED, NOT_A_PLACE, null);
         }
         if (serviceOfPage) {
@@ -309,10 +319,47 @@ public final class PlaceEvidence {
         return new Result(Verdict.UNCLEAR, null, null);
     }
 
-    /** The object of a project: refused, unless it is a site with its address. */
-    private static Result projectObject(final String type, final String address) {
-        return Vocabulary.SITE.equals(type) && address != null ? new Result(Verdict.PLACE, null, address)
-                : new Result(Verdict.REFUSED, PROJECT_OBJECT, null);
+    /**
+     * The address of the name at {@code at} (in its segment {@code seg}) if the name heads it: a street with its number right after
+     * the name in its segment, or the name alone in its segment and a short next segment with a street and its number and a postal
+     * code there or in the segment after ("Muster Beratung\nBeispielweg 15\n12345 Musterstadt"); null if there is none. A name
+     * inside a longer one heads nothing ("Hochbau" of "Muster Hochbau GmbH\nMusterstraße 5\n34117 Kassel").
+     */
+    static String addressAfter(final String text, final int[] at, final int[] seg) {
+        if (words(text.substring(seg[0], at[0])) > 0) {
+            return null;
+        }
+        final String own = text.substring(seg[0], seg[1]);
+        final Matcher street = STREET_NUMBER.matcher(text.substring(at[1], seg[1]));
+        if (street.find()) {
+            return words(text.substring(at[1], at[1] + street.start())) <= 1 ? own.trim() : null; // the street's own word only
+        }
+        if (words(text.substring(at[1], seg[1])) > 0) {
+            return null;
+        }
+        final int n = nextContent(text, seg[1]);
+        if (n >= text.length()) {
+            return null;
+        }
+        final int[] next = segment(text, n, n + 1);
+        final String line = text.substring(next[0], next[1]);
+        if (words(line) > 6 || !STREET_NUMBER.matcher(line).find()) {
+            return null;
+        }
+        String block = own.trim() + ", " + line.trim();
+        if (!POSTAL.matcher(line).find()) {
+            final int m = nextContent(text, next[1]);
+            if (m >= text.length()) {
+                return null;
+            }
+            final int[] after = segment(text, m, m + 1);
+            final String place = text.substring(after[0], after[1]);
+            if (!POSTAL.matcher(place).find()) {
+                return null;
+            }
+            block = block + ", " + place.trim();
+        }
+        return block;
     }
 
     /** True if the name begins with the name of the page's registrable domain ("Muster Smart Factory" on www.muster.de). */

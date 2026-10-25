@@ -186,8 +186,8 @@ public final class ExtractContext {
 
     /**
      * 0.13.0: true if every vocabulary of the document's collections, and at least one, states that the providers of its field run
-     * the places their pages name ({@code operates_places}: care): a place on a project page there is the provider's own, not the
-     * object of a project ({@link PlaceEvidence}).
+     * the places their pages name ({@code operates_places}: care): a project page there is no sign of the object of a project
+     * ({@link PlaceEvidence}).
      */
     public boolean operatesPlaces() {
         for (final Categories.Vocab v : this.vocabularies) {

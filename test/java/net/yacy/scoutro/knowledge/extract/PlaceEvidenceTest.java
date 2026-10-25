@@ -315,9 +315,9 @@ public class PlaceEvidenceTest {
     }
 
     /**
-     * Gate A4 (0.13.0, run 8): a provider of care lists its own homes on its project page (a builder's project page names the
-     * homes it built); a name the page writes across a heading's marks is found; a street with its number after an activity's name
-     * in its segment states a place; a day group is a place by its kind.
+     * Gate A4 (0.13.0, runs 8 and 9): a provider of care lists its own homes on its project page, which is no sign of a project there
+     * (a builder's project page names the homes it built); a name the page writes across a heading's marks is found; a street with
+     * its number after an activity's name in its segment states a place; a day group is a place by its kind.
      */
     @Test
     public void refusedPlacesOfTheEighthRun() {
@@ -328,9 +328,8 @@ public class PlaceEvidenceTest {
         final String url = "https://www.muster-pflege.de/projekte";
         final Extraction care = new Extraction(100);
         LlmExtractor.apply(accepted(projects, homes), List.of(), care, ctx(projects, url, "care").withReplay());
-        assertEquals("a name without a sign of a place stays the object of a project",
-                Set.of("Pflegeheim Musterstadt „Am See“", "Kurzzeitpflege in Beispielstadt"), named(care, Vocabulary.FACILITY));
-        assertTrue(unconfirmed(care).toString(), unconfirmed(care).isEmpty());
+        assertEquals(Set.of("Pflegeheim Musterstadt „Am See“", "Kurzzeitpflege in Beispielstadt", "Beispielstadt"), named(care, Vocabulary.FACILITY));
+        assertEquals("a name without a sign of a place is unclear there, not the object of a project", Set.of("Beispielstadt"), unconfirmed(care));
         final Extraction built = new Extraction(100);
         LlmExtractor.apply(accepted(projects, homes), List.of(), built, ctx(projects, url, "construction").withReplay());
         assertTrue(named(built, Vocabulary.FACILITY).toString(), named(built, Vocabulary.FACILITY).isEmpty());
@@ -352,6 +351,47 @@ public class PlaceEvidenceTest {
                 "facility", false).verdict);
         assertEquals(PlaceEvidence.Verdict.PLACE, PlaceEvidence.check("Die Tagesgruppe Musterstadt betreut zwölf Kinder.", "Tagesgruppe Musterstadt",
                 "Die Tagesgruppe Musterstadt betreut zwölf Kinder.", "https://www.muster-jugendhilfe.de/", "facility", false).verdict);
+    }
+
+    /**
+     * Gate A4 (0.13.0, run 9): a name whose words the page writes with a soft hyphen; an address in the lines after the name (a menu
+     * with the footer's address below is none); the operator's branches a reference page names; a name with its number only a menu
+     * lists.
+     */
+    @Test
+    public void refusedPlacesOfTheNinthRun() {
+        final String parcs = "Unsere Häuser im Norden.\n\nMuster parc.\n\n#### Beispiel\u00adstadt.\n\nMuster parc.\n\n#### Muster\u00addorf.\n";
+        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(parcs, "Muster parc Beispielstadt", "Muster parc. #### Beispielstadt.",
+                "https://www.muster-care.de/", "facility", false).verdict);
+        final String block = "Kinder im Alter bis drei Jahren.\n## Muster Kurzzeit-Kinderbetreuung\nBeispielweg 19\n12345 Musterstadt\nMehr lesen\n"
+                + "##### Muster Zentralverwaltung\nMusterstraße 106\n12345 Musterstadt\nTelefon 0123 456\n";
+        for (final String name : List.of("Muster Kurzzeit-Kinderbetreuung", "Muster Zentralverwaltung")) {
+            assertEquals(name, PlaceEvidence.Verdict.PLACE, PlaceEvidence.check(block, name, name, "https://www.muster-kinder.de/kontakt/",
+                    "facility", false).verdict);
+        }
+        final String menu = "Startseite\nLeistungen\nHochbau\nKontakt\nMusterstraße 5\n12345 Musterstadt\n";
+        assertEquals("a menu's entry with the footer's address below stays an activity", PlaceEvidence.Verdict.REFUSED,
+                PlaceEvidence.check(menu, "Hochbau", "Hochbau", "https://www.muster-bau.de/", "facility", false).verdict);
+        final String company = "Gute Arbeit seit vielen Jahren.\nMuster Hochbau\nMusterstraße 5\n12345 Musterstadt\n";
+        assertEquals("the address of a longer name is none of a word of it", PlaceEvidence.Verdict.REFUSED,
+                PlaceEvidence.check(company, "Hochbau", "Hochbau", "https://www.muster-bau.de/", "facility", false).verdict);
+        final String sentence = "Hochbau\nWir bauen seit 1990 von der Musterstraße 5 in 12345 Musterstadt aus Häuser für unsere Kunden.\n";
+        assertEquals("a sentence with an address after the name is no address of it", PlaceEvidence.Verdict.REFUSED,
+                PlaceEvidence.check(sentence, "Hochbau", "Hochbau", "https://www.muster-bau.de/", "facility", false).verdict);
+        final String references = "### Beispiel AG. Muster Hamburg. Modern Workplace.\n### Beispiel Klinik. Muster Kassel. Rechenzentrum.\n";
+        final String url = "https://www.muster-it.de/referenzen";
+        assertEquals("the operator's branch", PlaceEvidence.Verdict.UNCLEAR,
+                PlaceEvidence.check(references, "Muster Hamburg", "Muster Hamburg.", url, "facility", false).verdict);
+        assertEquals("a client", PlaceEvidence.Verdict.REFUSED,
+                PlaceEvidence.check(references, "Beispiel Klinik", "Beispiel Klinik.", url, "facility", false).verdict);
+        final String homes = "Unsere Häuser | Mustersonne 1 | Mustersonne 3 | Kontakt";
+        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(homes, "Mustersonne 3", "Mustersonne 3", "https://www.muster-pflege.de/",
+                "facility", false).verdict);
+        final String careProjects = "Projekte | Unsere Häuser | St. Muster | Haus Beispiel | Kontakt";
+        assertEquals("a care provider's home in the menu of its project page", PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(careProjects,
+                "St. Muster", "St. Muster", "https://www.muster-pflege.de/projekte/", "facility", false, true).verdict);
+        assertEquals(PlaceEvidence.Verdict.REFUSED, PlaceEvidence.check(careProjects, "St. Muster", "St. Muster",
+                "https://www.muster-pflege.de/projekte/", "facility", false, false).verdict);
     }
 
     /**

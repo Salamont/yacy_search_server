@@ -125,8 +125,8 @@ public final class Categories {
          */
         public final Map<String, Entry> organisations;
         /**
-         * 0.13.0: the providers of the field run the places their pages name ({@code operates_places}: care): a place on a project
-         * page of such a provider is its own, not the object of a project ({@link net.yacy.scoutro.knowledge.extract.PlaceEvidence}).
+         * 0.13.0: the providers of the field run the places their pages name ({@code operates_places}: care): a project page of such
+         * a provider is no sign of the object of a project ({@link net.yacy.scoutro.knowledge.extract.PlaceEvidence}).
          */
         public final boolean operatesPlaces;
         final TermMatcher<Entry> categoryMatcher;
