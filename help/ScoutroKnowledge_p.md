@@ -232,8 +232,15 @@ all collections and the page says so.
   is a requirement, never a proof of own use or of a purchase. Shown whether
   or not job objects are shown; the job itself is never named here.
 - **Audiences** in three layers that never mix: the declared audience
-  (customer types, segments, sizes, target industries, sought services,
-  service area), published customers and references, and **suggestions**.
+  (customer types, segments, sizes, target categories and industries, sought
+  services, service area), published customers and references, and
+  **suggestions**. Since 0.13.0 a declared audience is read only in the clause
+  of its address and only from a phrase that names organisations ("Wir
+  unterstützen Pflegeeinrichtungen", "Lösungen für WordPress-Agenturen"); a
+  service or product word alone ("Netzwerk", "Cloud", "WordPress") is none.
+  It is shown only while the current reader confirms one of its sources;
+  repeated text of a site counts once (**evidence**: "1 piece of evidence on 7
+  pages", `evidence_count` beside `sources`).
 - **Suggested matches** combine what one company offers with what another
   seeks (or a shared audience for partners). They are always labelled as a
   suggestion or possible customer, never as a customer relation, and only
@@ -247,7 +254,12 @@ all collections and the page says so.
   possible competitor and still a possible customer for another need; only a
   posting for the company's own offer (its consultants) is no customer need.
   The provider that documents the purchase gets no suggestion for its own
-  client.
+  client. A suggestion of the older path, **audience fit** (the declared
+  audience of A meets the industry of B, `evidence_kind`
+  `declared_audience`, `rule_version` `legacy-2`), proves no need: it is
+  labelled so and ranked below every matching reason of the same pair; it is
+  hidden as soon as its basis is gone, stale or no longer confirmed by the
+  reader.
 
 The selected collection filters the origin organization and its ordinary facts,
 sources and graph relations. Existing **customer and partner suggestions** may

@@ -93,7 +93,9 @@ public final class Suggestions {
             for(int i=0;i<reasons.length();i++) {
                 JSONObject reason=reasons.optJSONObject(i);
                 if(!reason.optBoolean("evidence_complete"))continue;
-                KgJson.put(reason,"rule","legacy_industry_or_partner");KgJson.put(reason,"rule_version","legacy-1");
+                // 0.13.0: the declared audience of A meets B's industry (no evidence of B's need); rows of an earlier pass are legacy-1
+                KgJson.put(reason,"rule","legacy_industry_or_partner");KgJson.put(reason,"rule_version",reason.optString("rule_version","legacy-1"));
+                KgJson.put(reason,"evidence_kind","declared_audience");
                 KgJson.put(reason,"evidence_strength","qualified");KgJson.put(reason,"temporal_status","legacy_not_reconfirmed");
                 g.contributions.add(reason);g.score=Math.max(g.score,reason.optDouble("score"));
             }
@@ -190,10 +192,11 @@ public final class Suggestions {
                     final boolean completeA = references(c, basis == null ? null : basis.optJSONArray("a"), av, rs.getString(10), evidence);
                     final boolean completeB = references(c, basis == null ? null : basis.optJSONArray("b"), bv, rs.getString(11), evidence);
                     final String reason = completeA && completeB ? saved.optString("reason") : "Supporting statements are no longer fully available.";
+                    final JSONObject match = basis == null ? null : basis.optJSONObject("match");
                     final JSONObject contribution = KgJson.obj("id", rs.getString(1),"reason_id",saved.optString("id"), "direction", mine ? "out" : "in", "collection_a", rs.getString(10), "collection_b",
                             rs.getString(11), "origin_collection", originName, "target_collection", targetName, "reason", reason,
                             "score", BusinessView.round(saved.optDouble("score")), "computed_at", KgReader.iso(rs.getLong(9)), "evidence", evidence,
-                            "evidence_complete", completeA && completeB);
+                            "evidence_complete", completeA && completeB, "rule_version", match == null ? "legacy-1" : match.optString("version", "legacy-1"));
                     contributions.put(contribution);
                     if (item == null) {
                         final JSONObject other = BusinessView.entityRef(c, group.other, mine ? bv : av);
@@ -217,9 +220,16 @@ public final class Suggestions {
         return item;
     }
 
+    /**
+     * The order of a pair's contributions: 0.13.0, a declared audience (the legacy path) below every matching contribution of the
+     * same pair, since it proves no need; then by score.
+     */
+    static final java.util.Comparator<JSONObject> ORDER=java.util.Comparator.comparingInt((JSONObject x)->x.optString("rule").startsWith("legacy")?1:0)
+            .thenComparing(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed()).thenComparing(x->x.optString("id"));
+
     JSONObject item(Connection c,long ent,Group group,Viewer origin,Viewer permitted)throws SQLException {
         List<JSONObject> reasons=new ArrayList<>(group.contributions);
-        reasons.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed().thenComparing(x->x.optString("id")));
+        reasons.sort(ORDER);
         JSONObject otherRef=group.reads!=null&&group.reads.light(group.otherReason)?group.reads.expand(c,group.otherReason).optJSONObject("other"):group.otherRef;
         JSONObject best=reasons.get(0);JSONObject other=Values.json(otherRef.toString());
         Set<String> external=new TreeSet<>(),origins=new TreeSet<>();
@@ -266,7 +276,7 @@ public final class Suggestions {
     }
 
     private static JSONObject contributionPage(Connection c,MatchingProjection.Reads reads,List<JSONObject> reasons,int offset,int limit)throws SQLException {
-        List<JSONObject> all=new ArrayList<>(reasons);all.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed().thenComparing(x->x.optString("id")));
+        List<JSONObject> all=new ArrayList<>(reasons);all.sort(ORDER);
         int end=Math.min(all.size(),offset+limit);
         return KgJson.obj("schema",BusinessView.SCHEMA,"items",new JSONArray(expand(c,reads,all.subList(Math.min(offset,all.size()),end))),
                 "total",all.size(),"offset",offset,"limit",limit,"next_offset",end<all.size()?end:null);
@@ -292,6 +302,9 @@ public final class Suggestions {
             }
             if (!seen.add(s.rowid)) continue;
             this.reader.compute(c, List.of(s), v, this.reader.now());
+            // 0.13.0: a basis that is stale (no current source) or whose audience the reader no longer confirms is not available
+            // either, also while no complete pass has deleted the suggestion yet (a capped pass deletes nothing)
+            if ("stale".equals(s.quality) || AudienceEvidence.confirmed(c, List.of(s.rowid)).isEmpty()) complete = false;
             final JSONObject statement = this.reader.statementJson(c, s, v);
             if (s.publicId == null) KgJson.put(statement, "id", KgReader.statementPublicId(c, s.rowid));
             KgJson.put(statement, "collection", collection);

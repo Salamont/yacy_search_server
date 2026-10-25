@@ -6137,6 +6137,9 @@ The selected collection filters the origin and its facts. Customer and partner s
 >External procurement and execution phase are not confirmed.<==>Externer Einkauf und Ausführungsphase nicht bestätigt.<
 >Reasons and supporting facts<==>Gründe und zugrunde liegende Fakten<
 >Supporting statements are no longer fully available.<==>Die zugrunde liegenden Aussagen sind nicht mehr vollständig verfügbar.<
+>declared audience<==>erklärte Zielgruppe<
+>%1 piece(s) of evidence on %2 pages<==>%1 Beleg(e) (auf %2 Seiten)<
+>Audience fit: the declared audience of A meets the industry of B (no evidence of a need)<==>Zielgruppen-Passung: erklärte Zielgruppe von A trifft die Branche von B (kein Bedarfsbeleg)<
 >Suggested customers and partners<==>Vorgeschlagene Kunden und Partner<
 >%1 suggestions<==>%1 Vorschläge<
 Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in==Optional. Aussagen, die nur die LLM-Stufe belegt, werden als unsicher gezeigt; jede trägt ein Zitat aus der Seite. Das Modell wird gewählt in

@@ -942,7 +942,9 @@
     if (item.kinds?.length === 1 && item.kinds[0] === 'llm') meta.append(badge(t('llm_only'), 'llm'));
     for (const k of item.kinds || []) meta.append(badge(k, 'kind'));
     meta.append(node('span', [item.confidence != null ? t('confidence') + ': ' + pct(item.confidence) : null,
-      item.sources != null ? t('sources') + ': ' + fmt(item.sources) : null,
+      // 0.13.0: text a site repeats on many pages is one piece of evidence ("1 piece of evidence on 7 pages")
+      item.sources != null ? (item.evidence_count != null && item.evidence_count < item.sources
+        ? t('evidence_on_pages').replace('%1', fmt(item.evidence_count)).replace('%2', fmt(item.sources)) : t('sources') + ': ' + fmt(item.sources)) : null,
       item.last_confirmed ? t('last_confirmed') + ': ' + date(item.last_confirmed) : null].filter(Boolean).join(' · '), 'sseo-note'));
     return meta;
   }
@@ -1054,7 +1056,12 @@
           t('matching_fit') + ': ' + t('fit_' + c.fit), t('matching_time') + ': ' + t('time_' + c.temporal_status),
           c.rule + '/' + c.rule_version].join(' · '), 'sseo-note'));
         for (const key of c.uncertainties || []) part.append(node('p', t('uncertainty_' + key), 'sseo-note'));
-      } else part.append(node('p', c.evidence_complete ? c.reason : t('basis_unavailable'), 'skg-reason'));
+      } else {
+        // 0.13.0: the legacy path names itself: A's declared audience meets B's industry, no evidence of B's need (below the matching)
+        part.dataset.evidenceKind = 'declared_audience';
+        part.append(node('p', t('legacy_declared_audience'), 'skg-reason'));
+        part.append(node('p', c.evidence_complete ? c.reason : t('basis_unavailable'), 'sseo-note'));
+      }
       for (const s of c.evidence || []) {
         if (s.id?.startsWith('kgo_')) { part.append(observationItem(s)); continue; }
         const evidence = node('div'); evidence.append(predicate(s.predicate) + ': ' + (s.object?.value ?? shown(s.object)) + ' · ' + s.collection + ' ');

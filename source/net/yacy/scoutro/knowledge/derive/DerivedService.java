@@ -41,9 +41,11 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgIds;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
+import net.yacy.scoutro.knowledge.extract.Audiences;
 import net.yacy.scoutro.knowledge.extract.Values;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.extract.Values;
+import net.yacy.scoutro.knowledge.read.AudienceEvidence;
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.store.KgChangeLog;
 import net.yacy.scoutro.knowledge.store.KgSchema;
@@ -486,6 +488,12 @@ public final class DerivedService {
 
     // --------------------------------------------------------- suggestions
 
+    /**
+     * 0.13.0: the version of the legacy derivation whose audiences the shared reader confirmed ({@link Audiences}); a row of an
+     * earlier pass carries none and reads as {@code legacy-1}. The rule stays {@code legacy_industry_or_partner} (API contract).
+     */
+    public static final String LEGACY_VERSION = "legacy-2";
+
     /** B could be a customer of A: A's declared target meets B's industry or services, in A's declared area. */
     private void suggestedCustomers(final Graph g, final Nace nace, final Map<String, Row> out) {
         int total = count(out, KIND_SUGGESTED_CUSTOMER) + count(out, KIND_SUGGESTED_PARTNER);
@@ -522,7 +530,7 @@ public final class DerivedService {
                         bIds.put(area.bFact);
                     }
                     row.basis = KgJson.obj("a", aIds, "b", bIds, "match", KgJson.obj("rule", target.predicate, "target", target.value,
-                            "found", bf.value, "area", area.what, "area_confirmed", area.confirmed, "b2b", b2b));
+                            "found", bf.value, "area", area.what, "area_confirmed", area.confirmed, "b2b", b2b, "version", LEGACY_VERSION));
                     row.reason = target.predicate + " " + target.value + " meets " + bf.predicate + " " + bf.value
                             + (area.confirmed ? "; area " + area.what : area.declared ? "; area not confirmed" : "; no area declared");
                     mine.add(row);
@@ -579,7 +587,7 @@ public final class DerivedService {
                     row.confidence = 0.45;
                     row.basis = KgJson.obj("a", new JSONArray().put(x.publicId), "b", new JSONArray().put(y.publicId), "match",
                             KgJson.obj("rule", x.predicate, "audience", e.getKey().substring(e.getKey().indexOf('|') + 1), "area", area.what,
-                                    "area_confirmed", true));
+                                    "area_confirmed", true, "version", LEGACY_VERSION));
                     row.reason = "both address " + x.value + " in " + area.what + " with different services";
                     perEntity.computeIfAbsent(a.rowid, k -> new ArrayList<>()).add(row);
                     total++;
@@ -891,37 +899,52 @@ public final class DerivedService {
                     types.put(rs.getLong(1), rs.getString(2));
                 }
             }
-            final String literal = "SELECT s.subj, v.name, s.obj_val, s.public_id, ss.coll_id FROM kg_statement s JOIN kg_vocab v"
+            final String literal = "SELECT s.subj, v.name, s.obj_val, s.public_id, ss.coll_id, s.stmt_rowid FROM kg_statement s JOIN kg_vocab v"
                     + " ON v.term_id = s.pred JOIN kg_statement_scope ss ON ss.stmt_rowid = s.stmt_rowid WHERE v.kind = 2 AND s.quality <> 4"
                     + " AND v.name IN ('target_industry', 'target_category', 'industry', 'service_area', 'audience_segment', 'customer_type')"
                     + " LIMIT " + MAX_ROWS;
+            final List<Object[]> rows = new ArrayList<>(); // {subj, predicate, value, public id, collection, statement row}
             try (PreparedStatement ps = c.prepareStatement(literal); ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    final String type = types.get(rs.getLong(1));
-                    if (type == null || rs.getString(3) == null) {
-                        continue;
+                    if (types.get(rs.getLong(1)) != null && rs.getString(3) != null) {
+                        rows.add(new Object[] {rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5), rs.getLong(6)});
                     }
-                    final Ent e = g.ents.computeIfAbsent(rs.getLong(1), k -> new Ent(k, type));
-                    final Fact f = new Fact(e, rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5));
-                    switch (f.predicate) {
-                        case Vocabulary.TARGET_INDUSTRY:
-                        case Vocabulary.TARGET_CATEGORY:
-                            e.targets.add(f);
-                            break;
-                        case Vocabulary.INDUSTRY:
-                            e.industries.add(f);
-                            break;
-                        case Vocabulary.SERVICE_AREA:
-                            e.areas.add(f);
-                            break;
-                        case Vocabulary.AUDIENCE_SEGMENT:
-                            e.audiences.add(f);
-                            break;
-                        default:
-                            if ("b2b".equals(f.value)) {
-                                e.b2b.add(f.coll);
-                            }
-                    }
+                }
+            }
+            // 0.13.0: a declared audience takes effect only while the shared reader confirms one of its pieces of evidence
+            // (Audiences); a target read from a window across a footer, or the LLM tier's quote of a service term, has none
+            final Set<Long> audience = new HashSet<>();
+            for (final Object[] r : rows) {
+                if (Audiences.audiencePredicate((String) r[1])) {
+                    audience.add((Long) r[5]);
+                }
+            }
+            final Set<Long> confirmed = AudienceEvidence.confirmed(c, audience);
+            for (final Object[] r : rows) {
+                if (audience.contains(r[5]) && !confirmed.contains(r[5])) {
+                    continue;
+                }
+                final String type = types.get((Long) r[0]);
+                final Ent e = g.ents.computeIfAbsent((Long) r[0], k -> new Ent(k, type));
+                final Fact f = new Fact(e, (String) r[1], (String) r[2], (String) r[3], (Integer) r[4]);
+                switch (f.predicate) {
+                    case Vocabulary.TARGET_INDUSTRY:
+                    case Vocabulary.TARGET_CATEGORY:
+                        e.targets.add(f);
+                        break;
+                    case Vocabulary.INDUSTRY:
+                        e.industries.add(f);
+                        break;
+                    case Vocabulary.SERVICE_AREA:
+                        e.areas.add(f);
+                        break;
+                    case Vocabulary.AUDIENCE_SEGMENT:
+                        e.audiences.add(f);
+                        break;
+                    default:
+                        if ("b2b".equals(f.value)) {
+                            e.b2b.add(f.coll);
+                        }
                 }
             }
             // places: in_place (own) and serves_place, with the place's key, per collection of the statement
