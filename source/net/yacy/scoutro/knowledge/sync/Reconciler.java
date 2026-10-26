@@ -92,6 +92,12 @@ public final class Reconciler {
     public static final String META_JOB_RECHECK = "job_recheck";
     /** Set with new extractor versions, removed when the re-extraction of every page completed: survives a restart before. */
     public static final String META_REEXTRACT = "reextract_pending";
+    /**
+     * kg_meta (0.13.1): the extractor identity under which a run last read every tracked page (a completed backfill, or a
+     * re-extraction that lost no page to a full queue). A start under another identity, without a re-extraction ordered,
+     * checks every page once (SyncService.init): what an earlier re-extraction left out is read again.
+     */
+    public static final String META_REEXTRACTED = "reextracted_extractors";
     public static final String REASON_QUERY_DELETE = "query_delete";
     public static final String REASON_OVERFLOW = "overflow";
     public static final String REASON_QUEUE_FULL = "queue_full";
@@ -137,6 +143,8 @@ public final class Reconciler {
         long solrSeen;
         long tracked;
         long dropped;
+        /** Pages to re-extract that the full queue dropped: the re-extraction stays ordered (0.13.1). */
+        long reextractDropped;
         String detail;
 
         JSONObject json() {
@@ -144,7 +152,7 @@ public final class Reconciler {
                     "state", stateName(this.state), "phase", phaseName(this.phase), "reason", this.reason,
                     "startedAt", this.startedAt, "cursor", this.cursor, "scanned", this.scanned, "enqueued", this.enqueued,
                     "deleteCandidates", this.candidates, "confirmedAbsent", this.confirmed, "deleted", this.deleted,
-                    "solrSeen", this.solrSeen, "tracked", this.tracked, "enqueueDropped", this.dropped, "detail", this.detail);
+                    "solrSeen", this.solrSeen, "tracked", this.tracked, "enqueueDropped", this.dropped, "reextractDropped", this.reextractDropped, "detail", this.detail);
         }
     }
 
@@ -166,6 +174,8 @@ public final class Reconciler {
     private long dueAt;
     private boolean debounced;
     private boolean reextract;
+    /** The scan waits for room in the queue for pages to re-extract (0.13.1). */
+    private volatile boolean scanWaits;
     /** Collections of a pending job reading check (guarded by {@code lock}); empty: none. */
     private java.util.Set<String> jobRecheck = java.util.Set.of();
     private long dailyRequestedFor;
@@ -396,8 +406,7 @@ public final class Reconciler {
         }
         switch (r.phase) {
             case PHASE_SCAN:
-                scan(r, now);
-                return true;
+                return scan(r, now);
             case PHASE_VERIFY:
                 verify(r, now);
                 return true;
@@ -485,23 +494,24 @@ public final class Reconciler {
         }
     }
 
-    private void scan(final Run r, final long now) throws KgException {
+    /** One page of the scan; false if it waits for room in the queue (nothing done). */
+    private boolean scan(final Run r, final long now) throws KgException {
         final SolrSource.Page page;
         try {
             page = this.solr.scan(r.cursor, this.page, this.cfg.scanCollections(), 0L);
         } catch (final IOException e) {
             abort(r, "solr_error: " + e.getMessage(), now);
-            return;
+            return true;
         }
         if (page.partial) {
             abort(r, "partial_results", now);
-            return;
+            return true;
         }
         String prev = r.cursor;
         for (final SolrDoc d : page.docs) {
             if (d.id == null || (prev != null && d.id.compareTo(prev) <= 0)) {
                 abort(r, "order: " + d.id + " after " + prev, now);
-                return;
+                return true;
             }
             prev = d.id;
         }
@@ -523,8 +533,14 @@ public final class Reconciler {
         }
         if (upper != null && !KgIds.isDocId(upper)) {
             abort(r, "foreign_id: " + upper, now);
-            return;
+            return true;
         }
+        // 0.13.1: a page to re-extract (new extractor versions, a changed job reading) that the queue cannot hold is not dropped:
+        // dropped, it would be lost, since the next run reads only changed pages. The scan ends the page before it and goes on
+        // once the worker made room.
+        final boolean rereads = REASON_EXTRACTORS.equals(r.reason) || !r.jobs.isEmpty();
+        final long room = rereads ? this.store.read(c -> this.queueMax - WorkQueue.size(c)) : Long.MAX_VALUE;
+        String handled = r.cursor;
         final List<String> enqueue = new ArrayList<>();
         final List<String> reextract = new ArrayList<>();
         final Map<String, Long> candidates = new LinkedHashMap<>();
@@ -534,6 +550,18 @@ public final class Reconciler {
             if (upper != null && d.id.compareTo(upper) > 0) {
                 break;
             }
+            final Tracked t = graph.get(d.id);
+            if (t != null && enqueue.size() + reextract.size() >= room && KgIds.isDocId(d.id) && !d.heldOnly(this.cfg)
+                    && d.version <= t.version && Arrays.equals(d.token(), t.token) && (REASON_EXTRACTORS.equals(r.reason)
+                    || !r.jobs.isEmpty() && !java.util.Collections.disjoint(d.collections, r.jobs))) {
+                if (handled == null || handled.equals(r.cursor)) {
+                    this.scanWaits = true;
+                    return false; // not even this page's first one fits: wait for the worker
+                }
+                upper = handled; // the page ends before it
+                break;
+            }
+            handled = d.id;
             seen++;
             inSolr.add(d.id);
             if (!KgIds.isDocId(d.id)) {
@@ -542,7 +570,6 @@ public final class Reconciler {
             if (d.heldOnly(this.cfg)) {
                 continue; // a collection switched off (package 6.2): seen, so kept; not enqueued
             }
-            final Tracked t = graph.get(d.id);
             if (t == null) {
                 // never-active documents (fail documents of new URLs) are not tracked
                 if (d.state() == net.yacy.scoutro.knowledge.publish.Aggregates.STATE_ACTIVE) {
@@ -564,6 +591,7 @@ public final class Reconciler {
                 candidates.put(e.getKey(), e.getValue().generation);
             }
         }
+        this.scanWaits = false;
         final boolean end = upper == null;
         final long scanned = seen;
         final String next = upper;
@@ -586,6 +614,7 @@ public final class Reconciler {
             r.solrSeen += scanned;
             r.enqueued += a.inserted + b.inserted;
             r.dropped += a.dropped + b.dropped;
+            r.reextractDropped += b.dropped;
             r.candidates += candidates.size();
             if (end) {
                 r.tracked = KgStore.queryLong(tx, "SELECT count(*) FROM kg_doc");
@@ -596,6 +625,7 @@ public final class Reconciler {
             saveCounts(tx, r);
             return null;
         });
+        return true;
     }
 
     private static LinkedHashMap<String, Tracked> tracked(final Connection c, final String after, final int limit) throws SQLException {
@@ -735,6 +765,8 @@ public final class Reconciler {
     }
 
     private void complete(final Run r, final long now) throws KgException {
+        // a page to re-extract that the full queue dropped keeps the re-extraction ordered (0.13.1): the next run reads again
+        final boolean reread = r.reextractDropped == 0L;
         this.store.write(WriteClass.MAINTENANCE, ESTIMATE, tx -> {
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_scan_candidate WHERE run_id = ?")) {
                 ps.setLong(1, r.id);
@@ -750,11 +782,15 @@ public final class Reconciler {
             }
             KgStore.putMeta(tx, KgSchema.META_RECONCILE_LAST_COMPLETED, Long.toString(now));
             KgStore.putMeta(tx, KgSchema.META_RECONCILE_REQUIRED, "0");
-            if (!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) {
+            if ((!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) && reread) {
                 KgStore.deleteMeta(tx, META_JOB_RECHECK);
             }
-            if (REASON_EXTRACTORS.equals(r.reason)) {
+            if (REASON_EXTRACTORS.equals(r.reason) && reread) {
                 KgStore.deleteMeta(tx, META_REEXTRACT);
+            }
+            if (r.kind == KIND_BACKFILL || REASON_EXTRACTORS.equals(r.reason) && reread) {
+                // every tracked page was read under this identity (a page the backfill dropped is new to the graph: the next run)
+                KgStore.putMeta(tx, META_REEXTRACTED, SolrDoc.extractors());
             }
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_scan WHERE run_id NOT IN"
                     + " (SELECT run_id FROM kg_scan ORDER BY run_id DESC LIMIT " + KEEP_RUNS + ")")) {
@@ -773,10 +809,10 @@ public final class Reconciler {
             if (this.pending && this.requestedAt <= r.startedAt) {
                 this.pending = false;
             }
-            if (REASON_EXTRACTORS.equals(r.reason)) {
+            if (REASON_EXTRACTORS.equals(r.reason) && reread) {
                 this.reextract = false;
             }
-            if (!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) {
+            if ((!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) && reread) {
                 final java.util.Set<String> left = new java.util.TreeSet<>(this.jobRecheck);
                 left.removeAll(r.jobs);
                 this.jobRecheck = REASON_EXTRACTORS.equals(r.reason) ? java.util.Set.of() : java.util.Collections.unmodifiableSet(left);
@@ -1021,6 +1057,7 @@ public final class Reconciler {
             jobs = this.jobRecheck;
         }
         return KgJson.obj("pending", p, "reason", p ? reason : null, "dueAt", p ? due : null, "reextract", all,
+                "scanWaitsForQueueRoom", this.scanWaits,
                 "jobRecheck", new org.json.JSONArray(jobs),
                 "current", r == null ? null : r.json(), "retryAt", r != null && r.state == STATE_ABORTED ? this.retryAt : null,
                 "awaitingConfirmation", r != null && r.state == STATE_SUSPECT,

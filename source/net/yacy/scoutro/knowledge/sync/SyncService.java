@@ -626,6 +626,15 @@ public final class SyncService {
                     KgStore.putMeta(tx, Reconciler.META_REEXTRACT, "1");
                 }
                 KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
+                // 0.13.1: no run recorded that it read every page under this identity (an earlier re-extraction lost pages to a
+                // full queue, or ran before the record existed): every page is checked once, the input hash decides what is read
+                if (KgStore.getMeta(tx, Reconciler.META_REEXTRACT) == null
+                        && !SolrDoc.extractors().equals(KgStore.getMeta(tx, Reconciler.META_REEXTRACTED))
+                        && KgStore.queryLong(tx, "SELECT count(*) FROM kg_doc") > 0L) {
+                    KgStore.putMeta(tx, Reconciler.META_REEXTRACT, "1");
+                    KgStore.event(tx, 1, "reextract_check", "every page is checked once: no run recorded that it read every page"
+                            + " under the current extractors", now);
+                }
             } // an upgrade without its copy: the old identity stays, so the re-extraction runs once the hold is released
             this.reconciler.onStart(tx, now);
             final String jobs = jobReading(tx, now);

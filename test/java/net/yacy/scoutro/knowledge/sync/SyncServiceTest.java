@@ -986,6 +986,92 @@ public class SyncServiceTest {
         assertEquals(Reconciler.REASON_START, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
     }
 
+    // ------------------------------------- a re-extraction larger than the queue (0.13.1)
+
+    private static final String OLDER_INPUT = "X'00000000000000000000000000000000'";
+
+    /** Pages as an older rule version read them: another stored input hash. */
+    private void asReadByOlderExtractors(final List<String> ids) throws Exception {
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                for (final String id : ids) {
+                    st.executeUpdate("UPDATE kg_doc SET input_hash = " + OLDER_INPUT + " WHERE doc_id = '" + id + "'");
+                }
+            }
+            return null;
+        });
+    }
+
+    private List<String> pages(final int n) throws Exception {
+        final List<String> ids = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            final String id = "AAAAA" + i + "host0" + i;
+            ids.add(id);
+            add(id, "https://www.muster" + i + ".de/", org("Firma " + i + " GmbH", "030 100000" + i));
+        }
+        commit();
+        settle();
+        return ids;
+    }
+
+    /**
+     * 0.13.0: on a graph that tracks more pages than the work queue holds, the re-extraction of every page enqueued until the
+     * queue was full; the scan dropped the pages that did not fit, the run ended the re-extraction anyway and the next one read
+     * only changed pages, so the dropped pages kept the older rules and the replay of the LLM tier waited for them. Now the scan
+     * waits for room instead.
+     */
+    @Test
+    public void aReextractionLargerThanTheQueueReadsEveryPage() throws Exception {
+        final List<String> ids = pages(7);
+        asReadByOlderExtractors(ids);
+        // new extractor versions at the next start: the identity recorded is an older one
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, "1:jsonld:1");
+            return null;
+        });
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        this.sync.queueMax(2); // seven pages to read again, room for two
+        settle();
+        assertEquals("every page is read under the current extractors, none dropped", 0L,
+                count("SELECT count(*) FROM kg_doc WHERE input_hash = " + OLDER_INPUT));
+        assertEquals(7L, this.sync.counters.published.get());
+        assertEquals(0L, this.sync.counters.queueDropped.get());
+        assertEquals("the re-extraction is done", 0L, count("SELECT count(*) FROM kg_meta WHERE key = '" + Reconciler.META_REEXTRACT + "'"));
+        assertEquals(SolrDoc.extractors(), strings("SELECT value FROM kg_meta WHERE key = '" + Reconciler.META_REEXTRACTED + "'").get(0));
+        assertFalse(this.sync.reconciler().status().optBoolean("reextract"));
+        assertFalse(this.sync.reconciler().status().optBoolean("scanWaitsForQueueRoom"));
+    }
+
+    /**
+     * The state 0.13.0 left on such a graph: its re-extraction had lost pages and ended, and no run had recorded that it read every
+     * page under the current extractors. The next start checks every page once: the pages left out are extracted again, the others
+     * only checked (their input is unchanged); a later start checks nothing again.
+     */
+    @Test
+    public void pagesAnEarlierReextractionLeftOutAreReadOnceAtTheNextStart() throws Exception {
+        final List<String> ids = pages(4);
+        assertEquals("the backfill read every page", SolrDoc.extractors(),
+                strings("SELECT value FROM kg_meta WHERE key = '" + Reconciler.META_REEXTRACTED + "'").get(0));
+        asReadByOlderExtractors(List.of(ids.get(1), ids.get(3)));
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.deleteMeta(tx, Reconciler.META_REEXTRACTED);
+            return null;
+        });
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertEquals(0L, count("SELECT count(*) FROM kg_doc WHERE input_hash = " + OLDER_INPUT));
+        assertEquals("only the two pages left out are extracted again", 2L, this.sync.counters.published.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'reextract_check'"));
+        assertEquals(Reconciler.REASON_EXTRACTORS, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
+        assertEquals(SolrDoc.extractors(), strings("SELECT value FROM kg_meta WHERE key = '" + Reconciler.META_REEXTRACTED + "'").get(0));
+        // a restart with the record in place checks nothing again
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'reextract_check'"));
+        assertEquals(Reconciler.REASON_START, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
+        assertEquals(0L, this.sync.counters.published.get());
+    }
+
     /**
      * 0.10.3: a consent banner made purposes partner organisations. Pages processed before the corrected rules that carry a relation
      * of the rule tier are extracted again once, at low priority, and no other page; a restart does not repeat it.
