@@ -1015,9 +1015,10 @@ public class SyncServiceTest {
     }
 
     /**
-     * Production 0.13.0: the re-extraction of every page enqueued 219 771 pages into a queue of 200 000; the scan dropped those
-     * that did not fit, the run ended the re-extraction anyway and the next one read only changed pages, so about 7 200 pages
-     * kept the older rules and the replay of the LLM tier waited for them. Now the scan waits for room instead.
+     * 0.13.0: on a graph that tracks more pages than the work queue holds, the re-extraction of every page enqueued until the
+     * queue was full; the scan dropped the pages that did not fit, the run ended the re-extraction anyway and the next one read
+     * only changed pages, so the dropped pages kept the older rules and the replay of the LLM tier waited for them. Now the scan
+     * waits for room instead.
      */
     @Test
     public void aReextractionLargerThanTheQueueReadsEveryPage() throws Exception {
@@ -1042,7 +1043,7 @@ public class SyncServiceTest {
     }
 
     /**
-     * The state 0.13.0 left in production: its re-extraction had lost pages and ended, and no run had recorded that it read every
+     * The state 0.13.0 left on such a graph: its re-extraction had lost pages and ended, and no run had recorded that it read every
      * page under the current extractors. The next start checks every page once: the pages left out are extracted again, the others
      * only checked (their input is unchanged); a later start checks nothing again.
      */
