@@ -71,7 +71,23 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class LlmExtractor {
 
     public static final String NAME = "llm";
-    public static final String VERSION = "4";
+    /**
+     * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no place; the
+     * change is what is kept of an answer, not the question.
+     */
+    public static final String VERSION = "5";
+    /**
+     * The versions whose stored answers this version reads again without a model request (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40):
+     * their change to this one is the validation only, so their tier-3 evidence is rebuilt into the answer, validated with the
+     * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
+     */
+    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4");
+    /**
+     * The version of the question (prompt, schema and the requests' form): part of the prompt hash and of the cache key. A version
+     * in {@link #REPLAYS} changes what is kept of an answer, not the question, so it keeps the question's version: a cached answer
+     * is used, and validated again by {@link #apply} as every answer is.
+     */
+    public static final String QUESTION_VERSION = "4";
     public static final int TIER = 3;
     public static final int CHUNK_CHARS = 4000;
     public static final int MAX_ANSWER_BYTES = 64 * 1024;
@@ -96,6 +112,11 @@ public final class LlmExtractor {
     static final List<String> VALUE_PREDICATES = List.of(Vocabulary.PRICE, Vocabulary.SALARY, Vocabulary.CATEGORY, Vocabulary.INDUSTRY,
             Vocabulary.CUSTOMER_TYPE, Vocabulary.AUDIENCE_SEGMENT, Vocabulary.TARGET_CATEGORY, Vocabulary.COMPANY_SIZE,
             Vocabulary.EMPLOYMENT_TYPE,Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS);
+
+    /** True for a value the model may only point at ({@link #VALUE_PREDICATES}); the replay rebuilds those of an answer. */
+    public static boolean valuePredicate(final String predicate) {
+        return VALUE_PREDICATES.contains(predicate);
+    }
 
     /** Subject and object types each relation accepts. */
     private static final Map<String, Set<String>[]> RELATION_TYPES = new LinkedHashMap<>();
@@ -151,7 +172,7 @@ public final class LlmExtractor {
             + "3. Every entity and every claim needs \"quote\": a passage copied character for character from the page text"
             + " (at most 200 characters) that contains the names involved.\n"
             + "4. Do not extract persons or private individuals, and no e-mail addresses or phone numbers.\n"
-            + "5. Types: organization, facility (a physical place of business or care with its own name), site (a building or"
+            + "5. Types: organization, facility (a named place of business or care, never a menu item), site (a building or"
             + " location), service (a service or product the organisation offers, stated as offered: in its list of services, an offer"
             + " or a price; not a tool of the web page such as print or spell check, not a team or a role), job (a job posting with its"
             + " title, advertised as a vacancy; not the role of a team member). Relations: operates"
@@ -239,9 +260,9 @@ public final class LlmExtractor {
         PROMPT_HASH = promptHash(SYSTEM_PROMPT);
     }
 
-    /** The hash of a system prompt together with the schema and the version: the prompt part of the extractor identity. */
+    /** The hash of a system prompt together with the schema and the question's version: the prompt part of the extractor identity. */
     public static String promptHash(final String systemPrompt) {
-        return sha256Hex(VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()+"\u0000"
+        return sha256Hex(QUESTION_VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()+"\u0000"
                 +net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().signals.version).substring(0, 16);
     }
 
@@ -359,6 +380,11 @@ public final class LlmExtractor {
             "entity_service_team_or_role", // a "service" named as a team, a department or staff ("Service team", "Vertriebsteam")
             "entity_service_not_offered", // no independent, bounded source offer or named price evidence for this service
             "entity_job_not_advertised", // a "job" no advertisement states: no vacancy, no gender marker, no hiring statement
+            // 0.13.0: a place needs a place in its context (PlaceEvidence); a section of the site is no place. The building of a
+            // project page (entity_facility_project_object) is refused where the page's address is known, when it is published
+            "entity_page_label", // "Kontakt", "Referenzen", "Über uns": a label of the site's pages as a place, a section's name as a service
+            "entity_facility_not_a_place", // a generic noun, an activity, or a name the text never shows as a place (only in a menu)
+            "entity_facility_service_name", // the name of a service the rules found on the page, without a sign of a place
             // claims
             "claim_not_object",
             "claim_extra_field", // a field other than subject, predicate, object, hedged, quote
@@ -542,7 +568,7 @@ public final class LlmExtractor {
     public static byte[] cacheKey(final String promptHash, final String model, final Chunk chunk, final String title, final String domain,
             final String language, final List<Known> known, final Collection<String> kinds, final String extra) {
         final StringBuilder sb = new StringBuilder();
-        sb.append(NAME).append('\u0000').append(VERSION).append('\u0000').append(promptHash).append('\u0000').append(model)
+        sb.append(NAME).append('\u0000').append(QUESTION_VERSION).append('\u0000').append(promptHash).append('\u0000').append(model)
                 .append('\u0000').append(domain).append('\u0000').append(language).append('\u0000')
                 .append(title == null ? "" : Normalizers.clip(title, MAX_STRING)).append('\u0000');
         for (final Known k : known) {
@@ -683,7 +709,7 @@ public final class LlmExtractor {
                 }
             }
             // a known entity has its type from another tier; a new service or job needs the context that states its type
-            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context, serviceTitle);
+            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context, serviceTitle, known);
             if (untyped != null) {
                 r.invalid(untyped);
                 r.sample(untyped, "entity", null, type, null, null, null, quote);
@@ -866,13 +892,24 @@ public final class LlmExtractor {
      * <li>a service named as a team, a department or staff is none. An independent offer cue must name it in a bounded
      * source passage ({@link ServiceEvidence}); answer claims and values cannot supply missing source context;</li>
      * <li>a job needs an advertisement: a vacancy or a gender marker in its name, its quote or the heading its quote stands
-     * under, or a hiring statement about it that advertises it. The role of a team member is no job.</li>
+     * under, or a hiring statement about it that advertises it. The role of a team member is no job;</li>
+     * <li>0.13.0: a facility or a site needs a place in its context ({@link PlaceEvidence}): never a page label, a generic noun or
+     * an activity, never only a menu item; a service is never the name of a section ("Kontakt", "Über uns", "Referenzen", "Jobs";
+     * a label that may name an offer, "News", keeps the proof of its offer, 0.12.0).</li>
      * </ul>
      * Other types are not checked here.
      */
     private static String unstatedType(final String type, final String id, final String name, final String quote, final String text,
-            final String raw, final Map<String, List<String>> context, final String serviceTitle) {
+            final String raw, final Map<String, List<String>> context, final String serviceTitle, final List<Known> known) {
+        if (Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) {
+            // 0.13.0: a place needs a place in its context (PlaceEvidence); an unclear one is decided when it is published
+            final PlaceEvidence.Result place = PlaceEvidence.check(raw, name, quote, null, type, serviceOfPage(known, name));
+            return place.verdict == PlaceEvidence.Verdict.REFUSED ? place.reason : null;
+        }
         if (Vocabulary.SERVICE.equals(type)) {
+            if (PlaceEvidence.sectionLabel(name)) {
+                return PlaceEvidence.PAGE_LABEL; // 0.13.0: "Kontakt", "Über uns", "Referenzen", "Jobs" name sections of the site
+            }
             if (TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
                 return "entity_service_team_or_role";
             }
@@ -890,6 +927,17 @@ public final class LlmExtractor {
             return "entity_job_not_advertised";
         }
         return null;
+    }
+
+    /** 0.13.0: true if the rules found a service of this name on the page (a known entity): a place of that name needs a place's sign. */
+    static boolean serviceOfPage(final List<Known> known, final String name) {
+        final String key = Normalizers.key(name);
+        for (final Known k : known) {
+            if (Vocabulary.SERVICE.equals(k.mention.type) && key != null && key.equals(Normalizers.key(k.mention.name))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 0.12.0: the title of a page that shows the site's offers names the service: a structural offer (no team or role). */
@@ -1121,7 +1169,13 @@ public final class LlmExtractor {
             final String ref = same != null ? same : "llm:" + type + ":" + key;
             String quote = e.optString("quote");
             String location = locator(e);
-            if (Vocabulary.SERVICE.equals(type) && same == null) {
+            if (Vocabulary.SERVICE.equals(type) && same == null && ctx != null && ctx.replay) {
+                // 0.13.0: a replayed service was published with its evidence under the rules of its reading and keeps it; its
+                // title's evidence derives the operator's offer again; only the name of a section is refused (below)
+                if (location.startsWith("title:")) {
+                    structural.add(ref);
+                }
+            } else if (Vocabulary.SERVICE.equals(type) && same == null) {
                 final String raw = ctx == null || ctx.serviceText == null ? quote : ctx.serviceText;
                 String proof = serviceProof(e.optString("id"), name, quote, normal(raw), raw, context);
                 if (proof == null && (ctx == null || ctx.serviceText == null)) {
@@ -1149,6 +1203,20 @@ public final class LlmExtractor {
                     quote = normal(proof);
                 }
             }
+            if (Vocabulary.SERVICE.equals(type) && same == null && PlaceEvidence.sectionLabel(name)) {
+                continue; // 0.13.0: a section of the site is no service, also of an old accepted or cached answer
+            }
+            boolean unconfirmed = false;
+            if ((Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) && same == null) {
+                // 0.13.0: every accepted answer (fresh, cached or replayed) is checked again with the page's text: a place needs a
+                // place in its context; a proper name without one is kept and marked
+                final PlaceEvidence.Result place = PlaceEvidence.check(ctx == null || ctx.serviceText == null ? quote : ctx.serviceText, name,
+                        quote, ctx == null ? null : ctx.pageUrl, type, serviceOfPage(known, name), ctx != null && ctx.operatesPlaces());
+                if (place.verdict == PlaceEvidence.Verdict.REFUSED) {
+                    continue;
+                }
+                unconfirmed = place.verdict == PlaceEvidence.Verdict.UNCLEAR;
+            }
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection
             }
@@ -1167,8 +1235,13 @@ public final class LlmExtractor {
                 }
             }
             if (named.add(ref)) {
-                out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
+                final boolean added = out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
                         structural.contains(ref) ? BusinessRules.STRUCTURAL_CONFIDENCE : null));
+                if (added && unconfirmed) {
+                    // the mark of the name takes none of the page's limit of statements: on a full page it displaces no item
+                    // that a release before 0.13.0 published, and an item the limit cuts carries none (0.13.0)
+                    out.mark(new Claim(ref, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
+                }
             }
         }
         final JSONArray claims = accepted.optJSONArray("claims");
@@ -1186,8 +1259,9 @@ public final class LlmExtractor {
                             && Mention.providerKey(operatorOfPage).equals(Mention.providerKey(out.mention(s))));
             if (Vocabulary.OFFERS.equals(c.optString("predicate"))) {
                 final String raw = ctx == null ? null : ctx.serviceText;
-                if (raw != null && !quoteInText(raw, c.optString("quote")) || !structuralOffer && ServiceEvidence.evidence(
-                        raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null) {
+                // a replayed offer keeps the evidence it was published with (0.13.0)
+                if (!(ctx != null && ctx.replay) && (raw != null && !quoteInText(raw, c.optString("quote")) || !structuralOffer
+                        && ServiceEvidence.evidence(raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null)) {
                     continue;
                 }
                 final Mention service = out.mention(o);
@@ -1286,12 +1360,11 @@ public final class LlmExtractor {
                 }
                 break;
             case Vocabulary.TARGET_CATEGORY:
-                for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : c.allVocabularies()) {
-                    for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
-                            : v.categories(quote, 0, quote.length())) {
-                        if (!out.contains(h.entry.id)) {
-                            out.add(h.entry.id);
-                        }
+                // 0.13.0: only a phrase of the quote that names organisations of the field ("Pflegedienste", "WordPress-Agenturen"),
+                // read by the shared reader; a service or product term alone ("Cloud-Migrationen", "Netzwerk") is no audience
+                for (final Audiences.Audience a : Audiences.named(quote, c)) {
+                    if (Vocabulary.TARGET_CATEGORY.equals(a.predicate) && !out.contains(a.value)) {
+                        out.add(a.value);
                     }
                 }
                 break;
@@ -1324,6 +1397,10 @@ public final class LlmExtractor {
     }
 
     private static String locator(final JSONObject item) {
+        final String stored = item.optString("locator", null);
+        if (stored != null && !stored.isEmpty()) {
+            return stored; // a replayed item keeps the locator of its evidence (0.13.0)
+        }
         return "text:" + item.optInt("at") + "+" + item.optString("quote").length();
     }
 

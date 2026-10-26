@@ -179,6 +179,28 @@ public class CollectionProfilesTest {
         assertTrue(p.list.toString(), p.list.toString().contains("Nursing-Home"));
     }
 
+    /** 0.13.0: care's providers run the places they name ({@code operates_places}); the statement never changes the vocabulary version. */
+    @Test
+    public void aFieldWhoseProvidersRunPlacesNeverReextracts() throws Exception {
+        assertTrue(categories().vocabulary("care").operatesPlaces);
+        for (final String v : List.of("coaching", "software", "construction")) {
+            assertFalse(v, categories().vocabulary(v).operatesPlaces);
+        }
+        final JSONObject shipped = new JSONObject(new String(Files.readAllBytes(new File(KgVocabularies.DEFAULTS,
+                KgVocabularies.CATEGORIES_FILE).toPath()), StandardCharsets.UTF_8));
+        final JSONObject without = new JSONObject(shipped.toString());
+        without.getJSONObject("vocabularies").getJSONObject("care").remove("operates_places");
+        assertEquals(read(shipped).version, read(without).version);
+        assertFalse(read(without).vocabulary("care").operatesPlaces);
+        // a value other than true or false is left out and reported
+        final JSONObject bad = new JSONObject(shipped.toString());
+        bad.getJSONObject("vocabularies").getJSONObject("care").put("operates_places", "yes");
+        final Categories.Problems p = new Categories.Problems();
+        final Categories c = Categories.read(List.of(bad), List.of("bad.json"), KgVocabularies.get().nace, p);
+        assertFalse(c.vocabulary("care").operatesPlaces);
+        assertTrue(p.list.toString(), p.list.toString().contains("operates_places"));
+    }
+
     private static Categories read(final JSONObject file) {
         final Categories.Problems p = new Categories.Problems();
         final Categories c = Categories.read(List.of(file), List.of("categories.json"), KgVocabularies.get().nace, p);

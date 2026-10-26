@@ -59,6 +59,13 @@ public final class ExtractContext {
     public final String serviceTitle;
     /** 0.12.0: the page's subject by the rules ({@link BusinessRules#pageSubject}), the provider of what its title shows. */
     public final Mention serviceOperator;
+    /** 0.13.0: the page's address, for the role of a place on it ({@link PlaceEvidence}: a project page's building); null if unknown. */
+    public final String pageUrl;
+    /**
+     * 0.13.0: an answer of the replay ({@code LlmReplay}): its services and offers were published with their evidence under the rules
+     * of their reading and keep it; only the checks of the replaying version apply (places, the names of sections).
+     */
+    public final boolean replay;
 
     /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
@@ -86,6 +93,8 @@ public final class ExtractContext {
         this.serviceText = null;
         this.serviceTitle = null;
         this.serviceOperator = null;
+        this.pageUrl = null;
+        this.replay = false;
     }
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText) {
@@ -94,6 +103,16 @@ public final class ExtractContext {
 
     private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
             final String serviceTitle, final Mention serviceOperator) {
+        this(c, postingTitles, otherTitles, serviceText, serviceTitle, serviceOperator, c.pageUrl);
+    }
+
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
+            final String serviceTitle, final Mention serviceOperator, final String pageUrl) {
+        this(c, postingTitles, otherTitles, serviceText, serviceTitle, serviceOperator, pageUrl, c.replay);
+    }
+
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText,
+            final String serviceTitle, final Mention serviceOperator, final String pageUrl, final boolean replay) {
         this.categories = c.categories;
         this.nace = c.nace;
         this.vocabularies = c.vocabularies;
@@ -105,6 +124,19 @@ public final class ExtractContext {
         this.serviceText = serviceText;
         this.serviceTitle = serviceTitle;
         this.serviceOperator = serviceOperator;
+        this.pageUrl = pageUrl;
+        this.replay = replay;
+    }
+
+    /** 0.13.0: this context for an answer of the replay ({@link #replay}). */
+    public ExtractContext withReplay() {
+        return new ExtractContext(this, this.postingTitles, this.otherTitles, this.serviceText, this.serviceTitle, this.serviceOperator, this.pageUrl,
+                true);
+    }
+
+    /** 0.13.0: this context with the page's address ({@link #pageUrl}). */
+    public ExtractContext withPage(final String url) {
+        return new ExtractContext(this, this.postingTitles, this.otherTitles, this.serviceText, this.serviceTitle, this.serviceOperator, url);
     }
 
     /** This context with the job titles of the page: {postings, others} of {@link BusinessRules#jobTitleKeys}. */
@@ -150,6 +182,20 @@ public final class ExtractContext {
             }
         }
         return false;
+    }
+
+    /**
+     * 0.13.0: true if every vocabulary of the document's collections, and at least one, states that the providers of its field run
+     * the places their pages name ({@code operates_places}: care): a project page there is no sign of the object of a project
+     * ({@link PlaceEvidence}).
+     */
+    public boolean operatesPlaces() {
+        for (final Categories.Vocab v : this.vocabularies) {
+            if (!v.operatesPlaces) {
+                return false;
+            }
+        }
+        return !this.vocabularies.isEmpty();
     }
 
     /** A context without vocabularies and without jobs (version 1 behaviour, and tests of the base extractors). */

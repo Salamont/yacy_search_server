@@ -149,6 +149,32 @@ all collections and the page says so.
 - **Evidence:** the page (opens externally), its collections (only visible
   ones), state, load date, extractor (for the LLM tier with model and prompt
   version) and the excerpt; links to the source view and the Index Browser.
+- **Two times (0.13.0):** *Source read* is the newest crawl of a current page
+  behind the fact (`source_loaded_at`; `last_confirmed` in the API is the same
+  time), *Evaluated* when its newest evidence was extracted, with the
+  extractor and, for the LLM tier, the model (`extracted_at`, `extractor`,
+  `model`): "Source read: 30.09.2026 · Evaluated: 24.10.2026 (llm/5, model …)".
+  A reading of today never makes an old page look freshly confirmed.
+- **Current lists (0.13.0):** lists, the host list, the type filter, the name
+  search and their counts hold the objects with a current fact, as the
+  object's own view shows them; an object whose pages left the index is shown
+  with `include_stale=true` (or the quality filter *stale*).
+- **Places whose type is unconfirmed (0.13.0):** a facility or site the LLM
+  tier names without a place in its context (a proper name, but no place
+  word, address or verb of a place) is kept, marked *Type unconfirmed*
+  (`type_unconfirmed`, quality uncertain) and left out of the facility and
+  site filter and its count (`include_unconfirmed=true` shows it). The review
+  list is `GET kg/entities?review=type_unconfirmed`, with the numbers per
+  collection and model (`review`). A menu item, a page label ("Kontakt",
+  "Referenzen"), a generic noun, an activity ("Logistikbau"), the building of
+  a project page or the name of a service of the page is no place: it is
+  dropped and counted. The name of a section ("Kontakt", "Über uns",
+  "Referenzen", "Jobs") is no service either.
+- **Services without a category (0.13.0):** an item of an offer list under
+  an offer heading ("Leistungen") that matches no category is listed as a
+  service *without a category* (uncertain); matching ignores it. The quality
+  metric `uncategorized_service_names` lists their names per collection, the
+  input of the vocabularies.
 - **Possible duplicates** are objects of the same type with the same name.
   They are never merged automatically.
 - **Names:** an object is shown with its stated name. Without one the page
@@ -232,8 +258,15 @@ all collections and the page says so.
   is a requirement, never a proof of own use or of a purchase. Shown whether
   or not job objects are shown; the job itself is never named here.
 - **Audiences** in three layers that never mix: the declared audience
-  (customer types, segments, sizes, target industries, sought services,
-  service area), published customers and references, and **suggestions**.
+  (customer types, segments, sizes, target categories and industries, sought
+  services, service area), published customers and references, and
+  **suggestions**. Since 0.13.0 a declared audience is read only in the clause
+  of its address and only from a phrase that names organisations ("Wir
+  unterstützen Pflegeeinrichtungen", "Lösungen für WordPress-Agenturen"); a
+  service or product word alone ("Netzwerk", "Cloud", "WordPress") is none.
+  It is shown only while the current reader confirms one of its sources;
+  repeated text of a site counts once (**evidence**: "1 piece of evidence on 7
+  pages", `evidence_count` beside `sources`).
 - **Suggested matches** combine what one company offers with what another
   seeks (or a shared audience for partners). They are always labelled as a
   suggestion or possible customer, never as a customer relation, and only
@@ -247,7 +280,12 @@ all collections and the page says so.
   possible competitor and still a possible customer for another need; only a
   posting for the company's own offer (its consultants) is no customer need.
   The provider that documents the purchase gets no suggestion for its own
-  client.
+  client. A suggestion of the older path, **audience fit** (the declared
+  audience of A meets the industry of B, `evidence_kind`
+  `declared_audience`, `rule_version` `legacy-2`), proves no need: it is
+  labelled so and ranked below every matching reason of the same pair; it is
+  hidden as soon as its basis is gone, stale or no longer confirmed by the
+  reader.
 
 The selected collection filters the origin organization and its ordinary facts,
 sources and graph relations. Existing **customer and partner suggestions** may
@@ -681,6 +719,17 @@ retention. A graph that fails the check is not touched and the graph stays off
 (`upgrade_blocked`). If there is no room for the copy, a banner says so: the
 new extraction of every page waits until a backup succeeds.
 
+**Replay of the LLM tier (0.13.0).** A new version of the LLM tier whose
+change is only what it keeps of an answer (from `llm/4` to `llm/5`: a place
+needs a place in its context) asks the model nothing again. Each page's
+stored answer is rebuilt from its evidence, checked with the page's text as
+the index holds it and published again as `llm/5`, with the model and the
+prompt of the answer; nothing is crawled and no model is asked. It runs after
+the new reading of the rules (a page waits until the rules have read it) and
+is shown in the status of the LLM tier (`llm.validation`: pages left,
+replayed, places refused, marked *type unconfirmed*); the events
+`llm_validation_queued` and `llm_validation_done` mark its start and end.
+
 ## Re-resolve identities
 
 **Rebuild identities** builds the whole graph anew from the Solr index with the
@@ -754,7 +803,7 @@ text; links to crawled pages open in a new tab without a referrer.
 | `/scoutro/api/v1/kg/identity-preview` | POST | Identity change preview for one `domain` (`productUrl`, `providerServiceKey`, `limit` ≤ 200): baseline and preview counts, `documentsChanged`, `merges`, `conflicts`, `llm` estimate; writes nothing, calls no model; 503 `sync_unavailable` without the Solr synchronisation |
 | `/scoutro/api/v1/kg/assessments` | GET, POST | Assessments: list (`status` active, revoked, all; `limit`); without `token` a preview, with the preview's `token` stored and applied (actions `withdraw`, `reclassify`, `assert` with `quote`); 409 `assessment_preview_stale`, `assessment_too_large`, `assessment_source_unavailable`, 422 `assessment_quote_not_in_source` |
 | `/scoutro/api/v1/kg/assessments/{id}/revoke` | POST | Revokes an assessment; 404 unknown, 409 revoked already |
-| `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
+| `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`; 0.13.0: `include_stale`, `include_unconfirmed`, `review=type_unconfirmed`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count`, and the times `source_loaded_at` and `extracted_at` with `extractor` and `model` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |
 | `/scoutro/api/v1/kg/services` | GET | Services of the same name across providers, read-only groups (`q`, `category`, `offset`, `limit` ≤ 50) |

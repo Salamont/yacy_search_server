@@ -583,6 +583,8 @@
       <arg value="net.yacy.scoutro.knowledge.quality.QualityDiagnosisTest"/>
       <arg value="net.yacy.scoutro.knowledge.quality.ModelQualityCheckTest"/>
       <arg value="net.yacy.scoutro.knowledge.quality.QualityCheckIsolationTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.PlaceEvidenceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmReplayTest"/>
     </java>
   </target>
 
@@ -598,6 +600,11 @@
       <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.BusinessSignalsTest"/>
       <arg value="net.yacy.scoutro.knowledge.store.ObservationStoreTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.AudiencesTest"/>
+      <arg value="net.yacy.scoutro.knowledge.derive.DeclaredAudienceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.ClientIdentityTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.OrganisationIdsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.OperatorIdentityTest"/>
     </java>
   </target>
 
@@ -685,6 +692,7 @@
       <include name="net/yacy/scoutro/knowledge/read/BusinessViewTest.java"/>
       <include name="net/yacy/scoutro/knowledge/read/SuggestionsLazyTest.java"/>
       <include name="net/yacy/scoutro/knowledge/read/KgReaderTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/read/CurrentListsTest.java"/>
       <include name="net/yacy/scoutro/knowledge/read/KgExportTest.java"/>
       <include name="net/yacy/scoutro/knowledge/derive/DerivedServiceTest.java"/>
       <include name="net/yacy/scoutro/knowledge/store/KgChangeLogTest.java"/>
@@ -699,6 +707,7 @@
       <arg value="net.yacy.scoutro.knowledge.read.BusinessViewTest"/>
       <arg value="net.yacy.scoutro.knowledge.read.SuggestionsLazyTest"/>
       <arg value="net.yacy.scoutro.knowledge.read.KgReaderTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.CurrentListsTest"/>
       <arg value="net.yacy.scoutro.knowledge.read.KgExportTest"/>
       <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
       <arg value="net.yacy.scoutro.knowledge.store.KgChangeLogTest"/>

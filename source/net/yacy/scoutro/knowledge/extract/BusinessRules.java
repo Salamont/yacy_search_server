@@ -60,8 +60,10 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * a gender marker, employment types, the published salary with its unit,
  * deadline, start, application route; no recruiter;</li>
  * <li>the declared audience after markers ("Für wen", "Zielgruppe", "Wir
- * unterstützen", "Unsere Kunden sind"): customer types, segments, company
- * sizes, target industries, need, and the service area.</li>
+ * unterstützen", "Unsere Kunden sind"), read by {@link Audiences} in the
+ * marker's clause (0.13.0): customer types, segments, company sizes, target
+ * categories and industries of a phrase naming organisations; need and the
+ * service area up to the sentence's end.</li>
  * </ul>
  * Every claim quotes its span ({@code text:offset+length}); excerpts are
  * redacted by the publisher.
@@ -435,7 +437,77 @@ public final class BusinessRules {
             s.at.add(h.start);
             positions.add(new int[] {h.start, h.end, list.indexOf(s)});
         }
+        uncategorized(run, hits, services.size());
         prices(run, positions, list);
+    }
+
+    /** 0.13.0: a heading of the site's offers on a line of its own ("Leistungen", "## Unsere Leistungen", "Our services:"). */
+    private static final Pattern OFFER_HEADING = Pattern.compile("(?imu)^[ \\t]*(?:#{1,4}[ \\t]*)?[*_]*(?:unsere[ \\t]+)?(?:leistungen"
+            + "|leistungsspektrum|leistungsbereiche|angebote?|kompetenzen|our[ \\t]+services|services|what[ \\t]+we[ \\t]+do|was[ \\t]+wir[ \\t]+tun)"
+            + "[*_]*[ \\t]*[:.]?[ \\t]*$");
+    private static final Pattern ITEM_LINE = Pattern.compile("(?mu)^[ \\t]*(?:[-*\u2022\u00b7][ \\t]+)?[*_]*([^\\n]{2,60}?)[*_]*[ \\t.]*$");
+    private static final int MAX_UNCATEGORIZED = 12;
+
+    /**
+     * 0.13.0 (rule/9): the items of an offer list under an offer heading that match no category of the vocabulary ("Leistungen /
+     * Hochbau / Logistikbau"): a service with its name, without a category, flagged {@code uncategorized}, structural and hedged
+     * (confidence 0.4, uncertain); never a page label ("Referenzen" ends the list), a date, a question or more than four words. No
+     * fuzzy mapping: an item is never given a category it does not name. The matching reads no product or need from it; the view
+     * lists it, and a report of such names is the input for the vocabulary's upkeep.
+     */
+    private void uncategorized(final Run run, final List<TermMatcher.Hit<Categories.Entry>> hits, final int already) {
+        int n = 0;
+        final Set<String> seen = new LinkedHashSet<>();
+        final Matcher heading = OFFER_HEADING.matcher(run.text);
+        while (heading.find() && n < MAX_UNCATEGORIZED && already + n < MAX_SERVICES) {
+            int at = heading.end();
+            for (int items = 0; items < 20 && at < run.text.length(); items++) {
+                while (at < run.text.length() && (run.text.charAt(at) == '\n' || run.text.charAt(at) == '\r')) {
+                    at++;
+                }
+                final Matcher line = ITEM_LINE.matcher(run.text).region(at, run.text.length());
+                if (!line.lookingAt()) {
+                    break;
+                }
+                final String item = line.group(1).trim().replaceAll("[\\s.:;,]+$", "");
+                final int start = line.start(1), end = start + item.length();
+                at = line.end();
+                final int words = item.split("\\s+").length;
+                if (item.isEmpty() || words > 4 || PlaceEvidence.pageLabel(item) || OFFER_HEADING.matcher(item).matches()) {
+                    break; // the next section of the menu or the page: the list has ended
+                }
+                if (item.endsWith("?") || GENDER_MARK.matcher(item).find() || item.matches(".*\\d.*") || NOT_A_NAME.matcher(item).find()
+                        || ServiceEvidence.useOrRecruiting(item) || ServiceEvidence.negated(item)) {
+                    continue;
+                }
+                boolean categorized = false;
+                for (final TermMatcher.Hit<Categories.Entry> h : hits) {
+                    categorized |= h.start < end && h.end > start;
+                }
+                final String key = Normalizers.key(item);
+                if (categorized || key == null || !seen.add(key) || n >= MAX_UNCATEGORIZED) {
+                    continue;
+                }
+                final Mention m = run.out.add(new Mention(BusinessFacts.SERVICE_REF + "item:" + key, Vocabulary.SERVICE, 2));
+                if (m.name == null) {
+                    m.name = Normalizers.clip(item, 120);
+                    final String provider = Mention.providerKey(run.subject);
+                    m.serviceKey = provider == null ? null : provider + "|item:" + key;
+                }
+                hedged(run, m, Vocabulary.NAME, m.name, start, end);
+                hedged(run, m, Vocabulary.UNCATEGORIZED, "offer_item", start, end);
+                final int a = Math.max(0, heading.start()), b = Math.min(run.text.length(), end + 30);
+                run.out.add(new Claim(run.subject.ref, Vocabulary.OFFERS, m.ref, null, 2, Claim.KIND_RULE, true, loc(start, end),
+                        Normalizers.clip(Normalizers.excerpt(run.text, a, b), Math.max(this.maxExcerpt, 200)), STRUCTURAL_CONFIDENCE));
+                n++;
+            }
+        }
+    }
+
+    private void hedged(final Run run, final Mention m, final String predicate, final String value, final int start, final int end) {
+        final int a = Math.max(0, start - 30), b = Math.min(run.text.length(), end + 30);
+        run.out.add(new Claim(m.ref, predicate, null, value, 2, Claim.KIND_RULE, true, loc(start, end),
+                Normalizers.clip(Normalizers.excerpt(run.text, a, b), this.maxExcerpt), STRUCTURAL_CONFIDENCE));
     }
 
     /** An entry of a menu that heads a group of its items. */
@@ -894,7 +966,26 @@ public final class BusinessRules {
     private static final Pattern PROJECT_DONE = Pattern.compile("(?iu)\\b(?:abgeschlossen|erfolgreich|realisiert|umgesetzt|go-live|live\\s+gegangen"
             + "|eingeführt|completed|delivered)\\b");
     private static final Pattern PROJECT_RUNNING = Pattern.compile("(?iu)\\b(?:laufend|läuft|in\\s+arbeit|in\\s+umsetzung|seit|ongoing|in\\s+progress)\\b");
-    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&|;|(?<!-)\\s+und\\s+|(?<!-)\\s+and\\s+)\\s*");
+    /** Several clients of one profile or heading ("Energie Muster AG & Stadtwerke Beispiel"); "& Co. KG" is part of a legal form, never a split (0.13.0). */
+    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&(?!\\s*Co\\b)|;|(?<!-)\\s+und\\s+(?!Co\\b)|(?<!-)\\s+and\\s+)\\s*");
+    /**
+     * 0.13.0: a field label after a sentence end in a project profile written on one line ("Kunde: Beispiel AG. Systemgröße: ca. 350
+     * User. Gesamtaufwand: 20 Personentage."): the client's name ends before it.
+     */
+    private static final Pattern NEXT_FIELD = Pattern.compile("(?u)\\.[ \\t]+(?:\\*\\*)?\\p{Lu}[\\p{L}\\- ]{1,40}(?:\\*\\*)?[ \\t]*:");
+    /**
+     * 0.13.0: an anonymised client ("Städtisches Versorgungsunternehmen", "Internationaler Online-Modeversandhändler", "Führender
+     * deutscher IT-Dienstleister"): no legal form, its last word a general word for an organisation, every word before it an
+     * adjective; it names no company, and its project stays a reference of the provider without a client.
+     */
+    private static final Pattern ANONYMOUS_HEAD = Pattern.compile("(?iu)(?:unternehmen|händler|haendler|dienstleister|versorger|gruppe|konzern"
+            + "|hersteller|mittelständler|mittelstaendler|anbieter|betreiber|kunde|company|retailer|provider|group|manufacturer|operator)$");
+    /**
+     * An adjective of such a description: a word in lower case ("deutscher") or a capitalised adjective by its ending ("Städtisches",
+     * "Internationaler", "Führender", "Großer"); a name such as "Muster" or "Schneider" is none.
+     */
+    private static final Pattern ADJECTIVE = Pattern.compile("(?u)^(?:\\p{Ll}[\\p{L}-]*|\\p{Lu}\\p{Ll}*(?:isch|lich|ig|al|iv|ar|end|ell|ös|oes|ern)"
+            + "(?:e|er|es|en|em)?|(?:Groß|Gross|Klein|Bekannt|Namhaft|Renommiert|Neu|Mittelgroß|Mittelgross)(?:e|er|es|en|em))$");
     /** The reader or a phrase, never a client ("für Ihr Unternehmen", "bei uns", "für mehr Effizienz"). */
     private static final Pattern NOT_A_CLIENT = Pattern.compile("(?iu)^(?:Ihr|Ihre|Ihren|Ihrem|Sie|uns|unsere?[nmrs]?|our|your|you|mehr|alle|jede[nmrs]?"
             + "|viele|Kunden|Unternehmen|Firmen|Projekte?|ein|eine[nmrs]?|diverse|verschiedene|privat\\w*|Familie|Herr|Frau|Eheleute"
@@ -947,6 +1038,11 @@ public final class BusinessRules {
                 while (to < run.text.length() && to - from < 160 && run.text.charAt(to) != '\n' && !run.text.startsWith("**", to)) {
                     to++;
                 }
+            }
+            // 0.13.0: "Kunde: Beispiel AG. Systemgröße: …": the name ends before the next field of a profile written on one line
+            final Matcher nextField = NEXT_FIELD.matcher(run.text).region(from, to);
+            if (nextField.find()) {
+                to = nextField.start();
             }
             // "ARGE Brienzersee (Bauherr: …)": a remark in brackets; "SBB AG, Infrastruktur – Ausbau …": the company before its unit
             String value = run.text.substring(from, to).replace('\n', ' ').replaceAll("\\([^()]*:[^()]*\\)", " ").split("\\s+[–—]\\s+")[0]
@@ -1088,7 +1184,7 @@ public final class BusinessRules {
 
     /** The client named {@code name} near {@code at}, as {@code client customer_of operator}; null if it is none or named before. */
     private Mention client(final Run run, final String name, final int at, final Set<String> seen) {
-        if (!clientName(name) || ownName(run, name) || !seen.add(Normalizers.key(name))) {
+        if (!clientName(name) || anonymised(name) || ownName(run, name) || !seen.add(Normalizers.key(name))) {
             return null;
         }
         final int start = Math.max(0, run.text.indexOf(name, Math.max(0, at - 5)));
@@ -1096,6 +1192,8 @@ public final class BusinessRules {
         if (client == null || client.ref.equals(run.subject.ref)) {
             return null;
         }
+        // 0.13.0: one client per provider site (the client_name key within the provider's registrable domain)
+        client.client = true;
         relation(run, client, Vocabulary.CUSTOMER_OF, run.subject, start, start + name.length(), 0.65);
         return client;
     }
@@ -1149,6 +1247,23 @@ public final class BusinessRules {
         final String company = parts[parts.length - 1].trim();
         final boolean afterRole = parts.length > 2 && ROLE.matcher(String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length - 1))).find();
         return (LEGAL_FORM_ANY_CASE.matcher(company).find() || afterRole) && clientName(company) ? company : null;
+    }
+
+    /** 0.13.0: true for an anonymised client ({@link #ANONYMOUS_HEAD}): no legal form, a general organisation word after adjectives. */
+    public static boolean anonymised(final String name) {
+        if (name == null || LEGAL_FORM_ANY_CASE.matcher(name).find()) {
+            return false;
+        }
+        final String[] words = name.trim().replaceAll("[.,;:]+$", "").split("\\s+");
+        if (words.length == 0 || !ANONYMOUS_HEAD.matcher(words[words.length - 1].replace("-", "")).find()) {
+            return false;
+        }
+        for (int i = 0; i < words.length - 1; i++) {
+            if (!ADJECTIVE.matcher(words[i]).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** True if {@code name} is the operator's own (its name or the site's address, "white duck GmbH" on whiteduck.de). */
@@ -2589,57 +2704,40 @@ public final class BusinessRules {
 
     // ------------------------------------------------------------ audiences
 
-    private static final Pattern AUDIENCE = Pattern.compile("(?iu)\\b(?:für\\s+wen|fuer\\s+wen|zielgruppen?|wir\\s+unterstützen|wir\\s+unterstuetzen"
-            + "|wir\\s+beraten|wir\\s+begleiten|wir\\s+helfen|unser\\s+angebot\\s+richtet\\s+sich\\s+an|richtet\\s+sich\\s+an|unsere\\s+kunden\\s+sind"
-            + "|wir\\s+arbeiten\\s+für|speziell\\s+für|our\\s+clients\\s+are|we\\s+help|we\\s+support|designed\\s+for|who\\s+we\\s+serve)\\b\\s*:?\\s*");
     private static final Pattern NEED = Pattern.compile("(?iu)\\b(?:wenn\\s+sie|falls\\s+sie|bei\\s+fragen\\s+(?:rund\\s+)?(?:um|zu)|when\\s+you)\\s+"
             + "([^.!?;\\n]{8,120})");
 
+    /**
+     * 0.13.0 (rule/9): the declared audience by the shared reader ({@link Audiences}): in the clause of each marker, a phrase that
+     * names organisations or people of a role; target categories and industries of every vocabulary, the page's own too. A need
+     * and a service area are read up to the end of the marker's sentence, no longer over a window across sentences and footers.
+     */
     private void audiences(final Run run) {
-        final Matcher m = AUDIENCE.matcher(run.text);
-        int windows = 0;
-        while (m.find() && windows < 6) {
-            windows++;
-            final int from = m.end();
-            final int to = Math.min(run.text.length(), from + 320);
-            final Set<String> done = new LinkedHashSet<>();
-            for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.customerTypes(run.text, from, to)) {
-                if (done.add("ct:" + h.entry.id)) {
-                    claimAround(run, run.subject, Vocabulary.CUSTOMER_TYPE, h.entry.id, m.start(), h.end, 0.6);
+        final Set<String> done = new LinkedHashSet<>();
+        for (final Audiences.Address a : Audiences.read(run.text, run.ctx)) {
+            for (final Audiences.Audience x : a.audiences) {
+                if (done.add(x.predicate + ":" + x.value)) {
+                    addressed(run, x.predicate, x.value, a.markerStart, x.end,
+                            Vocabulary.TARGET_CATEGORY.equals(x.predicate) || Vocabulary.TARGET_INDUSTRY.equals(x.predicate) ? 0.55 : 0.6);
                 }
             }
-            for (final Categories.Vocab v : run.ctx.vocabularies) {
-                for (final TermMatcher.Hit<Categories.Entry> h : v.segments(run.text, from, to)) {
-                    if (done.add("seg:" + h.entry.id)) {
-                        claimAround(run, run.subject, Vocabulary.AUDIENCE_SEGMENT, h.entry.id, m.start(), h.end, 0.6);
-                    }
-                }
-            }
-            for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.companySizes(run.text, from, to)) {
-                if (done.add("size:" + h.entry.id)) {
-                    claimAround(run, run.subject, Vocabulary.COMPANY_SIZE, h.entry.id, m.start(), h.end, 0.6);
-                }
-            }
-            // target industries: the categories of every vocabulary ("für Pflegeeinrichtungen" on a software page)
-            for (final Categories.Vocab v : run.ctx.allVocabularies()) {
-                if (run.ctx.vocabularies.contains(v)) {
-                    continue; // the page's own field names its services, not its customers
-                }
-                for (final TermMatcher.Hit<Categories.Entry> h : v.categories(run.text, from, to)) {
-                    if (done.add("cat:" + h.entry.id)) {
-                        claimAround(run, run.subject, Vocabulary.TARGET_CATEGORY, h.entry.id, m.start(), h.end, 0.55);
-                        if (h.entry.nace != null && run.ctx.nace.valid(h.entry.nace) && done.add("nace:" + h.entry.nace)) {
-                            claimAround(run, run.subject, Vocabulary.TARGET_INDUSTRY, h.entry.nace, m.start(), h.end, 0.55);
-                        }
-                    }
-                }
-            }
-            final Matcher need = NEED.matcher(run.text).region(from, to);
+            final Matcher need = NEED.matcher(run.text).region(a.from, a.sentenceEnd);
             if (need.find() && !personBetween(run.text, need.start(), need.end())) {
                 claim(run, run.subject, Vocabulary.NEED, Normalizers.clip(need.group(1).trim(), 120), need.start(), need.end(), 0.55);
             }
-            areas(run, from, to, run.subject, true);
+            areas(run, a.from, a.sentenceEnd, run.subject, true);
         }
+    }
+
+    /**
+     * A claim of the page's audience whose excerpt starts at its marker and ends shortly after the phrase, so that the stored
+     * excerpt (at most 200 characters) holds both and {@link Audiences#confirms} reads it again as it was read.
+     */
+    private void addressed(final Run run, final String predicate, final String value, final int markerStart, final int end,
+            final double confidence) {
+        final int b = Math.min(run.text.length(), end + 10);
+        run.out.add(new Claim(run.subject.ref, predicate, null, value, 2, Claim.KIND_RULE, false, loc(markerStart, end),
+                Normalizers.clip(Normalizers.excerpt(run.text, markerStart, b), Math.max(this.maxExcerpt, 200)), confidence));
     }
 
     // ----------------------------------------------------------------- areas

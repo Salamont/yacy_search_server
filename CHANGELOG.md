@@ -2,6 +2,45 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.13.0 / 1.942-scoutro.46 — declared audiences, clients, places of the LLM tier and its replay
+
+On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `jsonld/7`, `Vocabulary.VERSION` 5, vocabulary package
+7); the LLM tier's stored answers are replayed without a model request (`LlmExtractor.VERSION` 5, `REPLAYS` = {4});
+`BusinessSignals.VERSION` 5; `MatchingRules.VERSION` stays 1. [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.13.0.md).
+
+- **Declared audience** (`Audiences`, docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 39): only a phrase that names organisations
+  ("Pflegeeinrichtungen", "WordPress-Agenturen", "Softwareunternehmen", "Unternehmen aus dem E-Commerce"), in the clause of the
+  address or of a goal that names whom the provider serves ("Zufriedene Eigentümer sind unser Anliegen"); the reader's address
+  ("wir beraten Sie gern"), service words (Netzwerk, Cloud, Sanierung) and a footer are no audience; every vocabulary is read, the
+  page's own too; the vocabularies' optional `organisations` give a target industry. Stored audience facts take effect only while
+  the reader confirms their quote. The older suggestions are labelled *audience fit* (`legacy-2`, `declared_audience`), ranked
+  below the matching, and hidden when their basis is stale or unconfirmed.
+- **Clients:** one client per provider site (`client_name`), the names of project profiles written on one line, `& Co. KG` in a
+  legal form, anonymised clients are none.
+- **Providers** (section 41, `OrganisationIds`): the organisation of the structured data known by the root `@id` of its own domain,
+  without a `url`, is the domain's operator (if it is the page's only organisation of a root `@id`); two `@id`s of one organisation on one host (language segments, a fragment of the organisation's node) are one if
+  a name agrees (a legal name or alias in common is not enough) and no legal name, legal form or strong identifier differs; a
+  fragment of another node (`#brand`, a partner's, a contact record) names another. A provider split in two before is joined at the
+  next reading of its page. In doubt two; an `@id` below the root (a portal's company profile) is no operator.
+- **Signals:** a planned migration in the clause of its verb (the correction of the 0.12.2 notes); the product tree (vendor →
+  product → module) and the kinds of service.
+- **Offers:** an item of an offer list without a category is a service *without a category* (hedged; the matching ignores it;
+  quality metric `uncategorized_service_names`). The name of a section (Kontakt, Über uns, Referenzen, Jobs) is no service.
+- **LLM tier** (section 40): a facility or site needs a place in its context (`PlaceEvidence`): no menu item, page label, generic
+  noun, activity or project building; an unclear proper name is kept and marked `type_unconfirmed` (left out of the type filter
+  and its count; `review=type_unconfirmed`; the mark takes none of the page's limit of statements); a name only a menu lists is kept unclear, a quote with the place's full address is a place, as are care's places by their kind (Wohngruppe, WG, Pflegedienst, Beratungsstelle, Tagesgruppe), a person's name joined to a place word and an activity's name with its street and number; on a project page the operator's establishments and the names beginning with the operator's name (its branches) stay its own, and in a field whose providers run the places they name (the vocabulary's `operates_places`: care) a project page is no sign of a project; a name is found across a heading's marks and without the soft hyphens of the page; a name heading an address on the next lines is a place; a name with its number in a menu is kept unclear. Every accepted answer is checked again, cached ones too; the stored answers of
+  `llm/4` are replayed from their evidence, with the model and prompt hash of the answer, without a request; the replay checks
+  the places and the names of sections, services and offers keep the evidence they were published with. A name that is an
+  address, or a place word with a proper name, is a place; a name is found as the page writes it (lines, commas); a list of a
+  site's places or an imprint's line is no menu (only short labels beside a section's label are); an entry of a list on a page of
+  the site's places is a place.
+- **Reading:** lists and counts hold the current entities (`include_stale`); every fact shows *Source read* and *Evaluated* (with
+  extractor and model); repeated text counts once ("1 piece of evidence on 7 pages").
+- **Rollback** to 0.12.2 on the updated graph would extract every page again (about 6 hours) and examine every document again
+  by the model (a version outside its own): set `scoutro.kg.llm.maxRequestsPerDay` to a small value before 0.12.2 starts (note
+  the old one), then restore the backup taken before the update in 0.12.2 (mandatory before the update: only the restore undoes
+  its merges); see `docs/SCOUTRO_RELEASE_0.13.0.md`.
+
 ## 0.12.2 / 1.942-scoutro.45 — own use in the clause of its verb
 
 On 0.12.1: no schema change, no re-extraction; `BusinessSignals.VERSION` 4 (no extractor identity), `MatchingRules.VERSION`

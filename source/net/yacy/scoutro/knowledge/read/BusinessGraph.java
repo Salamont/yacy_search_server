@@ -70,7 +70,7 @@ public final class BusinessGraph {
     public static final int MAX_DEPTH = 2;
     /** The edge types a filter may name. */
     public static final Set<String> VALUE_EDGES = Set.of(Vocabulary.INDUSTRY, Vocabulary.TARGET_INDUSTRY, Vocabulary.AUDIENCE_SEGMENT,
-            Vocabulary.CUSTOMER_TYPE);
+            Vocabulary.CUSTOMER_TYPE, Vocabulary.TARGET_CATEGORY);
 
     private final KgReader reader;
     private final BusinessView view;
@@ -319,8 +319,9 @@ public final class BusinessGraph {
                             BusinessView.round(f.confidence), "evidence", f.stat.docs.size(), "fact", true, "_row", other);
                     out.add(new Edge(e, otherId, strength(status, f.confidence, f.stat.docs.size())));
                 } else if (withValues && q.values && !incoming && VALUE_EDGES.contains(p) && f.stat.objVal != null) {
+                    // 0.13.0: the target category beside the target industry, so the reason of a target industry can be seen
                     final String node = (Vocabulary.INDUSTRY.equals(p) || Vocabulary.TARGET_INDUSTRY.equals(p) ? "nace:" : Vocabulary.CUSTOMER_TYPE
-                            .equals(p) ? "customer_type:" : "segment:") + f.stat.objVal;
+                            .equals(p) ? "customer_type:" : Vocabulary.TARGET_CATEGORY.equals(p) ? "category:" : "segment:") + f.stat.objVal;
                     final String status = "stale".equals(f.stat.quality) ? "stale" : "current".equals(f.status()) ? "confirmed" : "uncertain";
                     final JSONObject e = KgJson.obj("id", f.stat.publicId, "from", self, "to", node, "type", p, "business", false, "status", status,
                             "confidence", BusinessView.round(f.confidence), "evidence", f.stat.docs.size(), "fact", true);
@@ -458,8 +459,9 @@ public final class BusinessGraph {
             return KgJson.obj("id", id, "type", "industry", "code", code, "label", nace.label(code), "depth", depth, "value", true);
         }
         final boolean segment = id.startsWith("segment:");
+        final boolean category = id.startsWith("category:");
         final String code = id.substring(id.indexOf(':') + 1);
-        final Categories.Entry e = cats.code(segment ? Vocabulary.AUDIENCE_SEGMENT : Vocabulary.CUSTOMER_TYPE, code);
+        final Categories.Entry e = cats.code(segment ? Vocabulary.AUDIENCE_SEGMENT : category ? Vocabulary.TARGET_CATEGORY : Vocabulary.CUSTOMER_TYPE, code);
         return KgJson.obj("id", id, "type", "audience", "code", code, "label", e == null ? code : e.en, "label_de", e == null ? code : e.de,
                 "label_en", e == null ? code : e.en, "depth", depth, "value", true);
     }

@@ -96,7 +96,11 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         }
         read("AAAAAAoff001", menu, ServiceOfferEvidenceTest.answer(entities, claims, values));
         assertEquals("no tier-3 name, offers relation or value may remain", List.of(), statements("AAAAAAoff001"));
-        assertEquals("no orphan service entity was resolved", 0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type WHERE v.name='service'"));
+        assertEquals("no orphan service entity was resolved", 0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type WHERE v.name='service'"
+                + " AND NOT EXISTS (SELECT 1 FROM kg_statement u JOIN kg_vocab uv ON uv.term_id=u.pred WHERE u.subj=e.ent_rowid AND uv.name='uncategorized')"));
+        // 0.13.0 (rule/9): the item of the list under "Leistungen" is the rules' offer item without a category (hedged), no entity of the model
+        assertEquals(List.of("Tagespflege"), strings("SELECT n.obj_val FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type JOIN kg_statement n"
+                + " ON n.subj=e.ent_rowid JOIN kg_vocab nv ON nv.term_id=n.pred WHERE v.name='service' AND nv.name='name'"));
         assertTrue(this.llm.refusals("entity_service_not_offered", 100).getJSONArray("samples").length() > 0);
     }
 

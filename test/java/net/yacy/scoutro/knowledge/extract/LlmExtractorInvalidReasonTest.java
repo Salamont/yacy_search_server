@@ -29,14 +29,17 @@ public class LlmExtractorInvalidReasonTest {
      */
     static final String TEXT = LlmExtractorTest.TEXT + "\nWir suchen im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die"
             + " Muster Pflege gGmbH. Die Muster Pflege gGmbH und SAP werden genannt.\nUnser Pflegeteam erreicht Sie werktags. Die"
-            + " Software Musterplan nutzen wir intern. Die Verwaltungsleitung sitzt in Berlin.";
+            + " Software Musterplan nutzen wir intern. Die Verwaltungsleitung sitzt in Berlin. Unser Musterkurs beginnt montags.";
 
-    /** k1 is the known "Muster Pflege gGmbH" ({@link LlmExtractorTest#known()}), kj the known posting. */
+    /** k1 is the known "Muster Pflege gGmbH" ({@link LlmExtractorTest#known()}), kj the known posting, ks a service of the rules. */
     static List<LlmExtractor.Known> known() {
         final Mention job = new Mention("jsonld:1", Vocabulary.JOB, 1);
         job.name = "Pflegefachkraft (m/w/d)";
+        final Mention service = new Mention("rule:2", Vocabulary.SERVICE, 2);
+        service.name = "Musterkurs";
         final List<LlmExtractor.Known> known = new java.util.ArrayList<>(LlmExtractorTest.known());
         known.add(new LlmExtractor.Known("kj", job));
+        known.add(new LlmExtractor.Known("ks", service));
         return known;
     }
 
@@ -114,6 +117,13 @@ public class LlmExtractorInvalidReasonTest {
                 + "\"quote\":\"Die Software Musterplan nutzen wir intern\"}", C1, V1));
         m.put("entity_job_not_advertised", answer(e + "{\"id\":\"e3\",\"type\":\"job\",\"name\":\"Verwaltungsleitung\","
                 + "\"quote\":\"Die Verwaltungsleitung sitzt in Berlin\"}", C1, V1));
+        // a place needs a place in its context (0.13.0)
+        m.put("entity_page_label", answer(e + "{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Impressum\","
+                + "\"quote\":\"Impressum. Die Muster Pflege gGmbH betreibt\"}", C1, V1));
+        m.put("entity_facility_not_a_place", answer(e + "{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Verwaltungsleitung\","
+                + "\"quote\":\"Die Verwaltungsleitung sitzt in Berlin\"}", C1, V1));
+        m.put("entity_facility_service_name", answer(e + "{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Musterkurs\","
+                + "\"quote\":\"Unser Musterkurs beginnt montags\"}", C1, V1));
         // claims
         final String c = C1 + ",";
         m.put("claim_not_object", answer(E1 + "," + E2, c + "[\"e1\",\"offers\",\"e2\"]", V1));

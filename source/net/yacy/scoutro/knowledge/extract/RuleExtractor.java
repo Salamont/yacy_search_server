@@ -69,7 +69,8 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "8"; // 7: money roles, offer cue for services (WP-F); 8: structural and consulting offer evidence, service pages (0.12.0)
+    public static final String VERSION = "9"; // 7: money roles, offer cue for services (WP-F); 8: structural and consulting offer evidence, service pages (0.12.0);
+    // 9: audiences in the clause of the address, one client per provider site, names of project profiles, uncategorized offer items (0.13.0)
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;

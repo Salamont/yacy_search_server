@@ -89,7 +89,7 @@
 <button class="btn btn-primary" type="submit">Search</button>
 </form>
 <div id="skg-groups" class="skg-groups" hidden></div>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Quality</th><th>Sources</th><th>Source read</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
 <div class="sseo-controls"><button class="btn btn-default" id="skg-prev" type="button">Previous</button><span id="skg-range" role="status"></span><button class="btn btn-default" id="skg-next" type="button">Next</button></div>
 </section>
 
@@ -183,7 +183,7 @@
 <p><a class="btn btn-default btn-sm" id="skg-svc-network" href="ScoutroKnowledge_p.html?view=services">Network of all providers</a></p>
 <h3 id="skg-svc-group-title"></h3>
 <dl id="skg-svc-group" class="sseo-stats"></dl>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Source read</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
 </div>
 <div class="sseo-controls"><button class="btn btn-default" id="skg-svc-prev" type="button">Previous</button><span id="skg-svc-range" role="status"></span><button class="btn btn-default" id="skg-svc-next" type="button">Next</button></div>
 </section>
@@ -726,7 +726,9 @@
 <span data-skg-label="hosts">Hosts</span>
 <span data-skg-label="duplicates">Possible duplicates</span>
 <span data-skg-label="first_seen">First seen</span>
-<span data-skg-label="last_confirmed">Last confirmed</span>
+<span data-skg-label="last_confirmed">Source read</span>
+<span data-skg-label="evaluated">Evaluated</span>
+<span data-skg-label="model_named">model %1</span>
 <span data-skg-label="sources">Sources</span>
 <span data-skg-label="statements">Statements</span>
 <span data-skg-label="evidence">Show evidence</span>
@@ -890,6 +892,9 @@
 <span data-skg-label="ekind_use">use</span>
 <span data-skg-label="ekind_job_requirement">job requirement</span>
 <span data-skg-label="ekind_reference">documented purchase</span>
+<span data-skg-label="ekind_declared_audience">declared audience</span>
+<span data-skg-label="evidence_on_pages">%1 piece(s) of evidence on %2 pages</span>
+<span data-skg-label="legacy_declared_audience">Audience fit: the declared audience of A meets the industry of B (no evidence of a need)</span>
 <span data-skg-label="matching_fit">Fit</span>
 <span data-skg-label="matching_time">Time qualification</span>
 <span data-skg-label="project_phase">Project phase</span>
@@ -979,6 +984,44 @@
 <span data-skg-label="prod_microsoft-azure">Microsoft Azure</span>
 <span data-skg-label="prod_revit">Revit</span>
 <span data-skg-label="prod_archicad">Archicad</span>
+<span data-skg-label="prod_sap-fi">SAP FI (Finance)</span>
+<span data-skg-label="prod_sap-co">SAP CO (Controlling)</span>
+<span data-skg-label="prod_sap-fi-aa">SAP FI-AA (asset accounting)</span>
+<span data-skg-label="prod_sap-cash-management">SAP Cash Management</span>
+<span data-skg-label="prod_sap-drc">SAP Document and Reporting Compliance</span>
+<span data-skg-label="prod_sap-ilm">SAP Information Lifecycle Management</span>
+<span data-skg-label="prod_sap-fiori">SAP Fiori</span>
+<span data-skg-label="prod_sap-successfactors">SAP SuccessFactors</span>
+<span data-skg-label="prod_sap-ariba">SAP Ariba</span>
+<span data-skg-label="prod_microsoft">Microsoft family (specific product unknown)</span>
+<span data-skg-label="prod_microsoft-dynamics-bc">Microsoft Dynamics 365 Business Central</span>
+<span data-skg-label="prod_microsoft-dynamics-fo">Microsoft Dynamics 365 Finance & Operations</span>
+<span data-skg-label="prod_microsoft-dynamics-ce">Microsoft Dynamics 365 Customer Engagement</span>
+<span data-skg-label="prod_microsoft-power-bi">Microsoft Power BI</span>
+<span data-skg-label="prod_microsoft-power-platform">Microsoft Power Platform</span>
+<span data-skg-label="prod_microsoft-365">Microsoft 365</span>
+<span data-skg-label="prod_salesforce-sales-cloud">Salesforce Sales Cloud</span>
+<span data-skg-label="prod_salesforce-service-cloud">Salesforce Service Cloud</span>
+<span data-skg-label="prod_salesforce-marketing-cloud">Salesforce Marketing Cloud</span>
+<span data-skg-label="prod_tableau">Tableau</span>
+<span data-skg-label="prod_mulesoft">MuleSoft</span>
+<span data-skg-label="prod_proalpha">proALPHA</span>
+<span data-skg-label="prod_abas">abas ERP</span>
+<span data-skg-label="prod_infor">Infor</span>
+<span data-skg-label="prod_oracle-netsuite">Oracle NetSuite</span>
+<span data-skg-label="prod_sage">Sage</span>
+<span data-skg-label="prod_datev">DATEV</span>
+<span data-skg-label="prod_odoo">Odoo</span>
+<span data-skg-label="prod_weclapp">weclapp</span>
+<span data-skg-label="prod_ifs">IFS</span>
+<span data-skg-label="stype_consulting">consulting</span>
+<span data-skg-label="stype_implementation">implementation</span>
+<span data-skg-label="stype_migration">migration or upgrade</span>
+<span data-skg-label="stype_integration">integration</span>
+<span data-skg-label="stype_development">development</span>
+<span data-skg-label="stype_operation">operation and support</span>
+<span data-skg-label="stype_training">training</span>
+<span data-skg-label="stype_licence">licence sales</span>
 <span data-skg-label="need_new-build">Own new construction</span>
 <span data-skg-label="need_rebuild">Own conversion</span>
 <span data-skg-label="need_site-expansion">Own site expansion</span>
@@ -1049,6 +1092,7 @@
 <span data-skg-label="website_topics_note">Subjects the site names without offering them: no price, no offer wording, not on a services page. A topic is no proof of an offer and never feeds customer or partner suggestions. A subject a shown service already carries is not repeated here.</span>
 <span data-skg-label="topic_no_offer">no proof of an offer</span>
 <span data-skg-label="offer_structural">structural evidence: the page's title, a list or the service's own page</span>
+<span data-skg-label="uncategorized_service">without a category: an item of an offer list</span>
 <span data-skg-label="sec_website_technologies">Website technologies</span>
 <span data-skg-label="website_technologies_note">Technologies the site's pages integrate, read from their technical markup (generator, scripts, stylesheets, plugin comments). A website observation: no proof of the company's internal software, of an offer or of a customer project. A technology a later crawl no longer finds is not observed again, which is not the same as removed.</span>
 <span data-skg-label="techcat_cms">content management system</span>
@@ -1070,6 +1114,8 @@
 <span data-skg-label="assertion_corrected">corrected; original statement retained</span>
 <span data-skg-label="assertion_withdrawn">withdrawn; original statement retained</span>
 <span data-skg-label="p_system_signal">System or competence signal</span>
+<span data-skg-label="p_type_unconfirmed">Type unconfirmed (no place in its context)</span>
+<span data-skg-label="p_uncategorized">Without a category (offer item)</span>
 <span data-skg-label="p_business_need_signal">Organizational need signal</span>
 <span data-skg-label="p_business_role_evidence">Own offered services and role</span>
 <span data-skg-label="p_job_status">Evidenced vacancy status</span>

@@ -90,7 +90,16 @@ public final class Normalizers {
 
     /** Canonical legal forms and their spellings; longer forms first. */
     private static final String[][] LEGAL_FORMS = {
+        {"GmbH & Co. KGaA", "gmbh\\s*&\\s*co\\.?\\s*kgaa"},
         {"GmbH & Co. KG", "gmbh\\s*&\\s*co\\.?\\s*kg"},
+        // 0.13.0: "& Co. KG" belongs to the legal form after other forms too ("Beispiel Biotec B.V. & Co. KG"), never a name of its own
+        {"AG & Co. KGaA", "ag\\s*&\\s*co\\.?\\s*kgaa"},
+        {"AG & Co. KG", "ag\\s*&\\s*co\\.?\\s*kg"},
+        {"SE & Co. KGaA", "se\\s*&\\s*co\\.?\\s*kgaa"},
+        {"SE & Co. KG", "se\\s*&\\s*co\\.?\\s*kg"},
+        {"B.V. & Co. KG", "b\\.\\s*v\\.\\s*&\\s*co\\.?\\s*kg"},
+        {"Ltd. & Co. KG", "ltd\\.?\\s*&\\s*co\\.?\\s*kg"},
+        {"Stiftung & Co. KG", "stiftung\\s*&\\s*co\\.?\\s*kg"},
         {"UG (haftungsbeschränkt) & Co. KG", "ug\\s*\\(haftungsbeschr(?:ä|ae|a)nkt\\)\\s*&\\s*co\\.?\\s*kg"},
         {"UG (haftungsbeschränkt)", "ug\\s*\\(haftungsbeschr(?:ä|ae|a)nkt\\)"},
         {"gGmbH", "ggmbh"},
@@ -153,6 +162,18 @@ public final class Normalizers {
             }
         }
         return null;
+    }
+
+    /**
+     * 0.13.0: the comparison form of a client's name without its legal form ("Schloss Beispielstein AG" and "Schloss Beispielstein"
+     * give "schloss beispielstein"); the key of {@code client_name}. Abbreviations are not guessed ("regio Muster" stays apart from its long
+     * name). Null for no name.
+     */
+    public static String clientKey(final String name) {
+        final String legal = legalName(name);
+        final String form = legalForm(name);
+        final String base = legal == null || form == null ? text(name) : legal.substring(0, Math.max(0, legal.length() - form.length())).trim();
+        return base == null || base.isEmpty() ? key(name) : key(base);
     }
 
     /** Comparison form of a legal name, null if the name has no legal form. */

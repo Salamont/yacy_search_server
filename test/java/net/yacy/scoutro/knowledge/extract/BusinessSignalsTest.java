@@ -5,6 +5,7 @@ import java.util.*;
 import org.json.*;
 import org.junit.Test;
 import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
+import net.yacy.scoutro.knowledge.vocab.Signals;
 
 public class BusinessSignalsTest {
     @Test(timeout=5000) public void longParagraphsAreSkippedWithoutRecursionOrLosingFollowingEvidence() throws Exception {
@@ -55,6 +56,36 @@ public class BusinessSignalsTest {
         context("Wir planen eine Migration zu Microsoft Azure.","microsoft-azure","planned_migration");
         context("Wir haben SAP BW vollständig abgeschaltet.","sap-bw","shutdown");
         context("Unsere Migration zu S/4HANA ist abgeschlossen.","sap-s4hana","completed_migration");
+    }
+    /**
+     * 0.13.0 (test 14 of the plan, BusinessSignals.VERSION 5): a planned migration in the clause of its verb; advice to the reader,
+     * a plan of something else beside another party's migration and a product of another clause are none.
+     */
+    @Test public void aPlannedMigrationInTheClauseOfItsVerb() throws Exception {
+        assertEquals("planned_migration",companyContext("Wir planen die Migration auf S/4HANA.","text"));
+        assertEquals("planned_migration",companyContext("Wir planen, im kommenden Jahr auf SAP S/4HANA zu migrieren.","text"));
+        for(String text:List.of("Wir empfehlen, die Umstellung auf SAP S/4HANA rechtzeitig zu planen.",
+                "Wir planen Workshops zur Prozessaufnahme; die Migration auf SAP S/4HANA übernimmt ein Partner.",
+                "Wir planen unser Sommerfest – die Migration auf SAP S/4HANA ist Thema eines Vortrags."))
+            for(String v:company(text,"text"))assertFalse(text,"planned_migration".equals(new JSONObject(v).getString("context")));
+        List<String> one=company("Wir planen die Migration auf SAP S/4HANA – SAP BW bleibt unverändert im Einsatz.","text");
+        Set<String> planned=new TreeSet<>();
+        for(String v:one)if("planned_migration".equals(new JSONObject(v).getString("context")))planned.add(new JSONObject(v).getString("product"));
+        assertEquals(one.toString(),Set.of("sap-s4hana"),planned);
+    }
+    /** 0.13.0 (item 1): the product tree; a text names every product it states, the general vendor nothing beside one of its products. */
+    @Test public void theProductTree() {
+        Signals v=KgVocabularies.get().signals;
+        assertEquals(Set.of("sap-s4hana","sap-fi"),v.products("SAP S/4HANA FI"));
+        assertEquals(Set.of("sap-s4hana"),v.products("SAP S/4HANA"));
+        assertEquals(Set.of("sap-fi-aa"),v.products("SAP FI-AA"));
+        assertEquals("an alias inside another product's longer one",Set.of("sap-bw4"),v.products("SAP BW/4HANA"));
+        assertEquals(Set.of("sap-bw","sap-bw4"),v.products("SAP BW und SAP BW/4HANA"));
+        assertEquals("a vendor that is no general product keeps its name",Set.of("salesforce","salesforce-sales-cloud"),v.products("Salesforce Sales Cloud"));
+        assertEquals(Set.of("microsoft-dynamics-bc","microsoft-power-bi"),v.products("Dynamics 365 Business Central und Power BI"));
+        assertEquals("sap-s4hana",v.parent("sap-fi"));assertEquals("sap",v.parent("sap-s4hana"));
+        assertTrue(v.ancestor("sap","sap-fi"));assertFalse(v.ancestor("sap-fi","sap-s4hana"));
+        assertEquals(List.of("consulting","implementation","training"),new ArrayList<>(v.serviceTypes("Beratung, Einführung und Schulung zu SAP FI")));
     }
     @Test public void productMentionAndAmbiguousAcronymsAreNotEnough() {
         assertTrue(system("SAP S/4HANA").isEmpty());assertTrue(system("SAPV Kenntnisse erwünscht").isEmpty());

@@ -39,8 +39,10 @@ import org.json.JSONObject;
 import net.yacy.scoutro.knowledge.KgConfig;
 import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
+import net.yacy.scoutro.knowledge.extract.Audiences;
 import net.yacy.scoutro.knowledge.extract.Values;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
+import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
 import net.yacy.scoutro.knowledge.vocab.Categories;
 import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
@@ -99,6 +101,11 @@ public final class BusinessView {
         double confidence;
         final Set<Integer> collections = new TreeSet<>();
         final List<String[]> sources = new ArrayList<>(); // {doc_id, url}
+        /**
+         * 0.13.0: the distinct pieces of evidence, one per (registrable domain, normalised excerpt): a footer or a customer's voice a
+         * site repeats on seven pages is one piece of evidence ("1 Beleg (auf 7 Seiten)"); confidence and quality never grow by it.
+         */
+        final Set<String> evidence = new java.util.HashSet<>();
 
         Fact(final KgReader.Stat stat) {
             this.stat = stat;
@@ -181,8 +188,16 @@ public final class BusinessView {
         this.reader.compute(c, stats, v, now);
         final List<Fact> out = new ArrayList<>();
         final Map<Long, Fact> byRow = new HashMap<>();
+        // 0.13.0: a declared audience is shown only while the shared reader confirms one of its pieces of evidence (Audiences)
+        final List<Long> audience = new ArrayList<>();
         for (final KgReader.Stat s : stats) {
-            if (s.visible) {
+            if (s.visible && Audiences.audiencePredicate(s.predicate)) {
+                audience.add(s.rowid);
+            }
+        }
+        final Set<Long> confirmed = audience.isEmpty() ? Set.of() : AudienceEvidence.confirmed(c, audience);
+        for (final KgReader.Stat s : stats) {
+            if (s.visible && (!audience.contains(s.rowid) || confirmed.contains(s.rowid))) {
                 final Fact f = new Fact(s);
                 out.add(f);
                 byRow.put(s.rowid, f);
@@ -204,7 +219,7 @@ public final class BusinessView {
                 in.append(in.length() == 0 ? "" : ",").append(r.longValue());
             }
             try (PreparedStatement ps = c.prepareStatement("SELECT e.stmt_rowid, coalesce(e.confidence, CASE e.kind WHEN 1 THEN 0.9 WHEN 2 THEN 0.8"
-                    + " WHEN 3 THEN 0.7 ELSE 0.5 END * CASE e.certainty WHEN 2 THEN 0.5 ELSE 1 END), d.doc_id, d.url, dc.coll_id"
+                    + " WHEN 3 THEN 0.7 ELSE 0.5 END * CASE e.certainty WHEN 2 THEN 0.5 ELSE 1 END), d.doc_id, d.url, dc.coll_id, e.excerpt"
                     + " FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid JOIN kg_doc_collection dc ON dc.doc_rowid = d.doc_rowid"
                     + " WHERE e.stmt_rowid IN (" + in + ") AND " + KgReader.visibleDoc(v, "d")
                     + (v.all() ? "" : " AND dc.coll_id IN (" + ids(v) + ")"));
@@ -213,12 +228,26 @@ public final class BusinessView {
                     final Fact f = byRow.get(rs.getLong(1));
                     f.confidence = Math.max(f.confidence, rs.getDouble(2));
                     f.collections.add(rs.getInt(5));
+                    f.evidence.add(evidenceKey(rs.getString(4), rs.getString(6)));
                     if (f.sources.size() < 10 && f.sources.stream().noneMatch(x -> x[0].equals(safe(rs, 3)))) {
                         f.sources.add(new String[] {rs.getString(3), rs.getString(4)});
                     }
                 }
             }
         }
+    }
+
+    /** The registrable domain of a page and the comparison form of an excerpt: one piece of evidence ({@link Fact#evidence}). */
+    static String evidenceKey(final String url, final String excerpt) {
+        String host = null;
+        try {
+            host = url == null ? null : java.net.URI.create(url).getHost();
+        } catch (final IllegalArgumentException e) {
+            host = null;
+        }
+        final String domain = host == null ? "" : Normalizers.registrableDomain(host.toLowerCase(java.util.Locale.ROOT));
+        final String key = Normalizers.key(excerpt);
+        return (domain == null ? "" : domain) + "\u0000" + (key == null ? "" : key);
     }
 
     private static String safe(final ResultSet rs, final int i) {
@@ -532,8 +561,9 @@ public final class BusinessView {
             final JSONArray amounts, final Set<String> docs) throws SQLException {
         final long s = offer.stat.objEnt;
         final List<Fact> facts = facts(c, s, false, List.of(Vocabulary.NAME, Vocabulary.CATEGORY, Vocabulary.DESCRIPTION, Vocabulary.PRICE,
-                Vocabulary.MONETARY_AMOUNT), v, now, 200);
+                Vocabulary.MONETARY_AMOUNT, Vocabulary.UNCATEGORIZED), v, now, 200);
         String name = null;
+        boolean uncategorized = false;
         final List<Fact> categories = new ArrayList<>();
         final List<Fact> descriptions = new ArrayList<>();
         final List<Fact> p = new ArrayList<>();
@@ -554,6 +584,9 @@ public final class BusinessView {
                 case Vocabulary.MONETARY_AMOUNT:
                     money.add(f);
                     break;
+                case Vocabulary.UNCATEGORIZED:
+                    uncategorized = !"stale".equals(f.stat.quality);
+                    break;
                 default:
                     p.add(f);
             }
@@ -568,6 +601,10 @@ public final class BusinessView {
         }
         collect(offer, docs);
         KgJson.put(o, "categories", codes(categories, cats, KgVocabularies.get().nace, docs));
+        if (uncategorized && categories.isEmpty()) {
+            // 0.13.0: an item of an offer list that matches no category: listed, never matched (the vocabulary's input)
+            KgJson.put(o, "uncategorized", true);
+        }
         if (!descriptions.isEmpty()) {
             KgJson.put(o, "description", descriptions.get(0).stat.objVal);
         }
@@ -1099,7 +1136,10 @@ public final class BusinessView {
         KgJson.put(o, "confidence", round(f.confidence));
         KgJson.put(o, "kinds", new JSONArray(f.stat.kinds));
         KgJson.put(o, "last_confirmed", KgReader.iso(f.stat.lastConfirmed));
+        // 0.13.0: when the source was read and when (by what) it was evaluated
+        KgReader.times(o, f.stat.lastConfirmed, f.stat);
         KgJson.put(o, "sources", f.stat.docs.size());
+        KgJson.put(o, "evidence_count", f.evidence.size());
         final JSONArray src = new JSONArray();
         for (final String[] s : f.sources) {
             src.put(KgJson.obj("doc_id", s[0], "url", s[1]));

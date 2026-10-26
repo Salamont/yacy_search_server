@@ -3862,3 +3862,327 @@ their context as history; pages extracted after the update get the new contexts.
 
 `BusinessSignalsTest.ownUseOfTheProductionReadings`: every current reading of own use and planned migration of stackfinder-web of
 24 October 2026 (15 own use, 26 none, the client's voice of dab), plus the existing reader, matching and documented-relation tests.
+
+**Correction (0.13.0).** In 0.12.2 only own use was bound to the clause of its verb; a planned migration was still read on the
+whole quote (the migration verb, the plan and the products anywhere in it). 0.13.0 binds it as well (section 39.6).
+
+## 39. The declared audience in the clause of its address, one client per site, offer items (0.13.0, `rule/9`)
+
+One re-extraction of every tracked page carries the rule changes of 0.13.0 (`RuleExtractor.VERSION` 9, `Vocabulary.VERSION` 5,
+vocabulary package 7: the categories' `organisations`, the products' tree). The LLM tier is not asked again (section 40).
+
+### 39.1 Finding
+
+A declared audience (`target_category`, `target_industry`) was read from a window of 320 characters after a marker ("wir
+beraten", "wir helfen", "designed for"), across sentence, section and footer ends, with the category terms of every other
+vocabulary. Those terms name what a provider offers or uses, not a kind of customer. A building company's contact page,
+"Rufen Sie uns an, wir beraten Sie gern: … Powered by WordPress", became a target of CMS providers, and the older derivation
+of suggestions (`DerivedService.suggestedCustomers`) offered it to them as a customer. The skip of the page's own
+vocabularies depended on the configuration and lost the valid case ("Wir beraten Softwareunternehmen" on a software
+provider's page).
+
+### 39.2 The shared reader `Audiences`
+
+`extract/Audiences.java`, used by the rules, by the mapping of the LLM tier's values and at reading:
+
+- **The clause of the address:** after a marker of an address ("wir unterstützen", "wir beraten", "Lösungen für", "designed
+  for", a heading "Für wen", "Zielgruppe") the audience is read up to the clause's end (at most 150 characters; a sentence's
+  end, a list's end, a footer). "wir beraten Sie gern" addresses the reader: no audience unless the clause names
+  organisations ("Sie als Pflegedienst"). A negated clause is none ("nicht nur … sondern auch" is no negation). A goal that
+  names whom the provider serves is an address too ("Zufriedene Eigentümer sind unser wichtigstes Anliegen", "happy patients are
+  our priority"): its group is read, and the excerpt ends with the goal so that it is confirmed again (gate A2: an owners'
+  audience of the finding was written so).
+- **An organisation's word as its head:** a phrase is an audience if it ends with a general word for organisations or for
+  people of a role (Unternehmen, Betriebe, Einrichtungen, Dienste, Büros, Praxen, Kanzleien, Agenturen, Händler, Hersteller,
+  Anbieter, Dienstleister, Träger, Kommunen, Vereine; companies, firms, providers, agencies, practices, manufacturers,
+  organisations), a term of `customer_types` or a vocabulary's `segments`, or a category term that itself names organisations
+  ("pflegedienst"). This is language knowledge in the code, not industry knowledge.
+- **The field from the vocabulary:** the category comes from vocabulary terms inside that phrase, also as the modifier of a
+  compound ("WordPress-Agenturen" → `software/cms`), or after the organisation's word and "aus" ("Unternehmen aus dem
+  E-Commerce", "Kunden aus dem Bereich Entsorgung", "clients from the energy sector"; at most three words between,
+  none a preposition: "Unternehmen aus der Region bei Cloud-Projekten" names no field). Where no category term names a field's organisations, a vocabulary's
+  optional `organisations` give a `target_industry` without a category ("Softwareunternehmen" → 62, "Bauunternehmen" → F).
+- **Every vocabulary is read**, the page's own too; what decides is the named relation. A service or product term without an
+  organisation's head (Netzwerk, Cloud, Sanierung) and a website's technology are no audience.
+
+`customer_type`, `audience_segment` and `company_size` keep their reading inside the reader's clause.
+
+### 39.3 What an existing graph does
+
+- **Rule tier:** the re-extraction replaces every page's rule evidence; a target statement whose only evidence was such a window
+  is deleted with its last evidence. A statement with valid evidence elsewhere keeps it.
+- **LLM tier:** the derivation (`DerivedService.Graph.read`), the business view and the reasons of the older suggestions use a
+  stored audience fact only while one of its current pieces of evidence, read again with `Audiences`
+  (`read/AudienceEvidence.confirmed`), still gives that value. Evidence that fails stays stored as history and has no effect.
+- **Stored suggestions of the older path:** a contribution whose basis statement is stale or no longer confirmed by the reader
+  counts as unavailable ("supporting statements are no longer fully available"), also when the older pass is capped.
+
+### 39.4 The older path: audience fit
+
+`DerivedService.suggestedCustomers` and `suggestedPartners` answer another question than the matching: A declares an audience,
+B belongs to it. They stay (they are the only suggestions where no system or need signal exists) and say what they are: the
+`rule` stays `legacy_industry_or_partner` (contract), `rule_version` is `legacy-2` for rows of 0.13.0, the `evidence_kind`
+`declared_audience`; the UI calls such a contribution *audience fit* ("the declared audience of A meets the industry of B;
+no evidence of a need") with the audience's quote, and ranks it below every contribution of the matching of the same pair.
+The business view shows the target category beside the target industry (an edge of the network, too).
+
+### 39.5 One client per provider site
+
+- A client named by a provider's project profile, reference heading or customer's voice (`BusinessRules.references`) gets the
+  resolver key `client_name`: its name without the legal form (`Normalizers.clientKey`), scoped to the registrable domain of
+  the provider's page. The same customer's voice on five product pages of one provider is one client; the key never spans two
+  providers. It is no discriminator: a different legal form of the same name ("Muster GmbH", "Muster AG") is another company.
+- The name of a client in a profile written on one line ends before the next field (`. <Label>:`, "Kunde: Beispiel AG.
+  Systemgröße: ca. 350 User."); `& Co. KG`, `& Co. KGaA`, `GmbH & Co. KGaA`, `B.V. & Co. KG` and their kin are legal forms and
+  never split a name.
+- An anonymised client is no client: a phrase without a legal form whose last word is a general word for an organisation and
+  that names no proper name ("Städtisches Versorgungsunternehmen", "Führender deutscher IT-Dienstleister"). Its project stays a
+  reference of the provider without a client.
+
+### 39.6 Planned migration in the clause of its verb (`BusinessSignals.VERSION` 5)
+
+As own use since 0.12.2 (section 38): the migration verb, the plan (or the support sought) and "wir"/"unser" or the company's
+name stand in one clause (`plannedMigrationProducts`), and only that clause's products are the migration's. A relative clause
+of the company's own ("…, die wir 2027 ablösen wollen") belongs to its antecedent.
+
+### 39.7 Offer items without a category; page labels
+
+- An item of an offer list under an offer heading on a line of its own ("Leistungen", "## Unsere Leistungen", "Our services:";
+  one to four words, at most twelve per page) that matches no category is a service with its name, without a category, flagged
+  `uncategorized` (`offer_item`), structural and hedged (confidence 0.4, uncertain). A page label ("Kontakt", "Referenzen")
+  ends the list; a date, a question and a posting are no item. No fuzzy mapping gives it a category; the matching ignores it,
+  the business view lists it as *without a category*, and the quality metric `uncategorized_service_names` lists such names per
+  collection as the input of the vocabularies.
+- A label of the site's pages ("Kontakt", "Über uns", "Referenzen", `PlaceEvidence.PAGE_LABELS`) ends an offer list and is never
+  such an item. The name of a section that never names an offer (Kontakt, Über uns, Impressum, Datenschutz, Referenzen, Jobs,
+  Karriere, `PlaceEvidence.SECTION_LABELS`) is no service of the LLM tier either (`entity_page_label`); a label that may name an
+  offer ("News", "Downloads", "Service") keeps the rule of 0.12.0: a name the content offers stays a service even if the menu
+  shows it too.
+
+### 39.8 Repeated text counts once
+
+A text a site repeats on many pages (a footer, a customer's voice) is one piece of evidence: the business view counts evidence
+per registrable domain and normalised excerpt ("1 piece of evidence on 7 pages", `evidence_count` beside `sources`). No
+confidence, quality or score grows with repetitions.
+
+### 39.9 Tests
+
+`AudiencesTest` (the reader: clauses, the reader's address, heads, compounds, `organisations`, roles and lists, every
+vocabulary), `DeclaredAudienceTest` (the derivation, the reading and the older suggestions with unconfirmed or stale bases,
+`legacy-2`, `declared_audience`, the order of contributions), `ClientIdentityTest` (one client per site, two providers and two
+legal forms, profiles on one line, anonymised clients, the key), `BusinessSignalsTest.aPlannedMigrationInTheClauseOfItsVerb`,
+`BusinessSignalsTest.theProductTree`, `MatchingTest.theProductTreeKeepsProductMatchesAndAddsModuleMatches`,
+`MatchingTest.aProductProvesNoModule`, `BusinessViewTest` (evidence counted once per domain and excerpt).
+
+## 40. A place needs a place in its context; the replay of stored answers; current lists and two times (0.13.0, `llm/5`)
+
+### 40.1 Finding
+
+The LLM tier published menu items of a building company's navigation ("Hochbau", "Logistikbau", "Referenzen") as facilities:
+the validator checked that the name stood in its quote, and a navigation line contains every name of it. Such entities stayed
+in the host's list, the type filter and the counts; an entity whose only page had left the index was listed by its host too.
+The UI showed "last confirmed" for the time of the source's crawl, so a reading of today could not be told from a crawl of a
+month ago.
+
+### 40.2 `PlaceEvidence`: the check of a facility or a site
+
+`extract/PlaceEvidence.check` decides about a proposed facility or site with the page's text (`PLACE`, `UNCLEAR`, `REFUSED` and a
+reason):
+
+- **Refused:** a page label (`entity_page_label`); a generic noun alone ("Gebäude", "Standort"; not with its number: "Haus 3" is
+  a name, though no proof of a place by itself, "Halle 7" may be a fair's) or the name of an activity or a
+  field of work without a place word, unless the name is an address or heads an address outside a menu: a street with its
+  number right after it in its segment, or the name alone in its segment and the next lines a street with its number and a
+  postal code ("Hochbau", "Logistikbau", "Gebäudetechnik", but not "Burgstraße 30, 12345 Musterungen", "Muster-Erziehungsberatung
+  Beispielweg 15. 12345 Musterstadt." or "Muster Zentralverwaltung\nMusterstraße 106\n12345 Musterstadt"; a word of a longer
+  name heads nothing: "Hochbau" of "Muster Hochbau GmbH" above the company's address; `entity_facility_not_a_place`); a sentence
+  of the page as a name (four words or more, two words of four letters or more in lower case, ending with ".", "!" or "?",
+  without an address in the name or the quote and heading none: not "Geschäftsstelle des Muster e.V."; the same reason); an entry that stands only in a site's menu (a short segment among at least
+  two short neighbours, one of the two segments before or after it the label of a section: "Leistungen | Newsletter | Kontakt")
+  and is no name (neither a place word nor a proper name), or a name nowhere on the page (the same reason);
+  on a project or reference page (by its address) the building of a project, unless a passage names who runs it ("betreibt",
+  "unser", a named organisation that plans or opens it), the name is an establishment of the operator ("Niederlassung
+  Rostock", "Hauptsitz", "Filiale", "Geschäftsstelle": a project is never one) or begins with the name of the page's domain,
+  with a place word or a proper name ("Muster Smart Factory", "Muster Hamburg" on muster.de: the operator's branch a reference
+  names; `entity_facility_project_object`; a site with its address stays a site); in a field whose providers run the places they
+  name (the vocabulary's `"operates_places": true`, care; every vocabulary of the page's collections must say so) a project page
+  is no sign of a project at all: a care provider lists its own homes there ("Projekte": "Pflegeheim Musterstadt „Am See“ … als
+  neuer Standort"), and its names are decided as on any page (a proper name without a sign of a place is unclear); the name of
+  a service the rules found on the page without a sign of a place (`entity_facility_service_name`).
+- **A place:** a quote that gives the place's full address, a street with its number and a postal code, outside a menu line
+  ("Suchtberatung. Musterweg 28. 12345 Musterstadt.", "Verwaltung. Musterstraße 9. 12345 Musterstadt."), also of an activity's
+  name and on a project page, where the operator's own places are given with their address while a reference names a building
+  with its town; a name that is an address ("Musterweg 5, 34117 Kassel"); a place word with a proper name ("Haus Lindenhof",
+  "Seniorenzentrum Am Park", "Hauptsitz Kassel", "Niederlassung Kassel", "Seniorentagesstätte Musterstadt"; the first word ending
+  with a place word is the place word, a later one a proper name: "Seniorenzentrum Musterheim"; a person's name joined to a place
+  word is a proper name: "Paul-Gerhardt-Haus"; the place words include care's places by their kind: "Wohngruppe", "WG",
+  "Pflegedienst", "Beratungsstelle", "Spital", "Centrum", "Apotheke", "Treff", "Tagesgruppe"), also in a list of a site's places
+  and in a menu;
+  an occurrence outside
+  a menu, or the model's quote outside a menu line, with an address (a street with its number, a postal code with a place) or a
+  verb of a place ("betreibt", "befindet sich", "liegt", "eröffnet"; "unser Werk in …"); an imprint's line with bullets is no menu
+  line when it holds a postal code ("Muster GmbH • Musterkamp 33 • 22607 Hamburg"); an entry of a list on a page of the site's
+  places by its address (`/standorte/`, `/einrichtungen/`, `/filialen/`, `/locations/`, …).
+- **Where the name stands:** in the page's text without the characters of format a word may hold (a soft hyphen, a zero-width
+  space: the model's quote was checked without them; gate A4 of 0.13.0, run 9: a care operator's homes whose town the page
+  hyphenates softly), its words in order with any separators between (at most eight characters: a comma, a line, a
+  period, Markdown's marks of a heading): the model's "Musterweg 5, 34117 Kassel" is found where the page writes the street and
+  the place on two lines, "Muster parc Musterstadt" where it writes "Muster parc.\n\n#### Musterstadt."; a name not found so is
+  looked for by the model's quote, which is grounded in the page. (Gate A4 of 0.13.0: with literal matching, most addresses of
+  the production pages counted as "not on the page" and were refused; in the eighth run, a care operator's homes written as a
+  heading over their town.)
+- **A list is no menu.** Short entries without a section's label beside them (a site's places, "- Muster Pflege Altstadt",
+  "Musterstadt.", an imprint's line) are read as running text: a proper name there without a sign of a place is unclear, not
+  refused. (Gate A4 of 0.13.0, third run: lists of a site's branches and imprint lines read as menus held about half of the
+  places the check refused in the care collection.)
+- **A menu lists places too.** A name that stands only in a site's menu ("Unsere Häuser | Haus Lindenhof | Kontakt",
+  "Mustersonne 3": a word written as a name with its number) is a place by its own words (above), else kept unclear and marked:
+  never confirmed by the menu, never refused for it. (Gate A4 of 0.13.0,
+  sixth run: of the refused facilities of the care collection only about two in three were artefacts; most of the rest were a
+  care operator's homes, group homes and services listed in its menus, and places given with their full address. Eighth run:
+  still about two in three in the care collection, most of the rest a care operator's own homes on its project pages, names
+  written across a heading's marks and offices of counselling with their address; corrected above. Ninth run: about three in
+  four; the rest a care provider's homes in the menus of its project pages without a sign of a place, places whose address
+  follows on the next lines, names with a soft hyphen, numbered houses of a menu; in the software collection the operator's
+  branches its reference pages name; corrected above.)
+- **Unclear:** a proper name outside a menu without any of these, and a name only a menu lists. It is kept as published and
+  marked (40.5).
+
+The validator of fresh answers refuses what the check refuses (the reasons are codes of the LLM tier's counters and samples; the
+mark of 40.4 is the validator's, so the model quality check rates no such statement);
+`LlmExtractor.apply` checks every accepted answer again with the page's text and address, the fresh ones, the cached ones and
+the replayed ones, so an old cache entry can never bring a refused place back. The compiled-in prompt defines a facility as "a
+named place of business or care, never a menu item" (a new prompt hash: new and changed pages are asked with it); the
+validator, not the prompt, decides.
+
+### 40.3 The replay of the stored answers (`llm/4` → `llm/5`)
+
+- `LlmExtractor.VERSION` is 5, `LlmExtractor.REPLAYS` = {4}: a version whose change is the validation only. The prompt hash and
+  the cache key carry the version of the question (`LlmExtractor.QUESTION_VERSION` 4), which such a version keeps: a cached answer
+  is used and validated again by `apply`. (0.13.0 changes the prompt's definition of a facility and the products' vocabulary, which
+  are part of the prompt hash: new and changed pages are asked with the new prompt.) `reexamineIfChanged`
+  no longer makes the documents to do again for it (a version outside `REPLAYS` still does); it sets `kg_meta`
+  `llm_validation` to `pending` and records `llm_validation_queued`.
+- `LlmReplay` walks the pages with tier-3 evidence of a replayed version (active, marked) in row order. For each, the answer is
+  rebuilt from that evidence: every entity with its type, name, kind and quote, every relation and value with its quote and
+  position (`text:<at>+<length>`); a quote clipped or with a person's name redacted for the evidence is read back from the
+  page's text at its position where the text agrees with the excerpt. What `apply` derives itself (evidence by the page's title,
+  industries of services, the marks of 40.5) is not rebuilt: it is derived again. A relation or value about an entity that is
+  neither an entity of the answer nor a known entity of the page any more is dropped and counted.
+- The answer is applied with the page's text, address and known entities as a reading of the page applies an answer now, in a
+  replay's context (`ExtractContext.replay`): the checks of `llm/5` apply (places, the names of sections), a service and an offer
+  keep the evidence they were published with under the rules of their reading, and every item keeps the locator of its evidence
+  (a service by its page's title gives the operator's offer again). The replay is a change of the validation of places, not a
+  stricter reading of older rules (gate A4: the offer proof of 0.12.0 applied to answers published before it would have dropped
+  three in four services of the LLM tier, most of them real). It is then published by `Publisher.applyLlmReplay`: the page's tier-3 evidence is replaced, its mark (status, reason) stays, the cache is
+  not written. The evidence names `llm/5` with the model and the prompt hash of the answer: the provenance stays.
+- **Order:** a page whose rules have not read it under the current rule version (its input hash) waits for a later pass, so the
+  rules' entities of `rule/9` are the known ones. The replay asks no model; neither the circuit breaker nor the schedule holds
+  it. It ends when a pass leaves no page (`llm_validation` = 5, `llm_validation_done` with the counts).
+- **Effect:** a refused place loses its tier-3 evidence; statements without evidence are deleted, entities without statements
+  too. The `llm/4` observations stay as history and are no longer current.
+- **Status:** `llm.validation` (state, pages left, replayed, statements, `placesRefused`, `typeUnconfirmed`, `unmapped`,
+  `quotesRestored`, `deferred`). Model requests: none.
+
+### 40.4 Places whose type is unconfirmed
+
+An unclear place (40.2) gets a hedged statement `type_unconfirmed` (its type as the value) beside its name: quality uncertain.
+The mark qualifies its name and takes none of the page's limit of statements (`scoutro.kg.extract.maxStatementsPerDoc`, also
+over the continuations of a long page): on a full page it displaces no item an earlier release published, and a name the
+limit cuts carries none (found by the replay of gate A4). A facility or site no source confirms (the mark is current, and no current name of it comes from another tier or from a page
+without the mark) is left out of the filter by its type and of its count (`include_unconfirmed=true` shows it). The review list
+is `GET kg/entities?review=type_unconfirmed`, with `review`: the numbers per collection and model. Quality metrics:
+`facilities_type_unconfirmed`, `sites_type_unconfirmed`. A judged rule correction, never a hand edit, resolves them.
+
+### 40.5 Current lists
+
+`KgReader.entities` (lists, the host list, the type filter, the name search and their counts) holds by default only entities
+with a current statement (`currentStatement`), so a list agrees with the status of the entity's own view; the host filter reads
+the host's current pages. `include_stale=true` (or the quality filter `stale`) shows the others.
+
+### 40.6 Two times
+
+Every entity, statement and fact carries `source_loaded_at`, the newest crawl of a current source (`last_confirmed` is the same
+time, kept for the contract), and `extracted_at`, when its newest evidence was extracted (`kg_evidence.observed_at`, of a current
+source first), with `extractor` (`name/version`) and `model` of that evidence (no model for agents). The UI shows "Source read:
+30.09.2026 · Evaluated: 24.10.2026 (llm/5, model …)".
+
+### 40.7 Tests
+
+`PlaceEvidenceTest` (the check: menu items, page labels, generic nouns, activities, project pages, service names, addresses,
+verbs, unclear names; `refusedPlacesOfTheSixthRun`: a menu's places by their kind or a person's name, a quote with the full
+address, a numbered house, the operator's establishment and its named place on a project page; `refusedPlacesOfTheEighthRun`:
+a care provider's own homes on its project page and a builder's built ones, `ExtractContext.operatesPlaces`, a name across a
+heading's marks, an activity's name with its street and number, a day group; `refusedPlacesOfTheNinthRun`: a soft hyphen, an
+address on the next lines and a longer name's word or a menu above an address, the operator's branch and a client on a
+reference page, a numbered house of a menu, a care provider's home in the menu of its project page), `CollectionProfilesTest`
+(`operates_places` read, reported when invalid, never part of the vocabulary version), `LlmExtractorInvalidReasonTest` (one case per code), `LlmReplayTest` (test 26: a version in `REPLAYS`
+asks nothing and keeps the mark, a version outside examines again; test 22: a replay twice and a cached answer with the artifact
+bring nothing back; test 23: the menu facility is gone, the place and its service stay, the unclear name is marked; the quotes
+read back), `CurrentListsTest` (test 23 lists and review, test 24 current lists and `include_stale`, test 25 the two times).
+
+## 41. A provider is one organisation by its `@id` on its own domain (0.13.0, `jsonld/7`)
+
+### 41.1 Finding
+
+Read-only diagnosis on production data (gate A3): providers existed twice, their offers split between the two, for two general
+causes.
+
+1. **The site's own organisation without `url`.** The JSON-LD `Organization` of a site is often known only by an `@id` at the
+   root of the site's domain (`https://www.muster-beratung.de/#organization`, the WebSite's `publisher`), with no `url` or
+   `sameAs`. `JsonLdExtractor` read the site's own organisation from `url` and `sameAs` only (6.1), so it was not the domain's
+   operator: the rules' unnamed operator of the services pages (`domain_operator`) and the structured data's organisation were
+   two organisations.
+2. **Two `@id`s of one organisation.** A site's language version names its organisation by a second `@id`
+   (`https://www.muster-software.de/#organization` and `https://www.muster-software.de/en/#organization/`). Two values of
+   `ld_id` on one host are a discriminator (4.3), so the second one never joined the first, nor took its keys.
+
+Merging organisations can hardly be undone in production; both rules are therefore general, narrow, and in doubt keep two
+organisations apart. The update's merges are listed per collection before the release by a read-only gate (the private package
+repository; nothing is merged there).
+
+### 41.2 Rules (`OrganisationIds`, shared by the resolver and the gate)
+
+- **The root `@id` of the own domain** (`OrganisationIds.root`): an organisation of the structured data without a `url` whose
+  `@id` lies on the page's own registrable domain and whose path holds language segments only (`/`, `/en/`, `/de-at/`), is the
+  site's own organisation: as an organisation whose `url` is the site, it is the declared operator with a legal name
+  (`site_operator`), else the domain's operator (`domain_operator`). Only if it is the one organisation of a root `@id` the
+  page's blocks describe: two of them (the site's `#organization` and `#/schema/Organization`) leave both apart; a partner's
+  node under a fragment of its own (`#beispiel-ag`) is no root `@id` (below). An `@id`
+  below the root (a company's profile on a portal, `/firmen/alpha/#organization`) is not; a node under `brand` or `manufacturer`
+  never is (35).
+- **One organisation of two `@id`s** (`OrganisationIds.canonical`): two `@id`s of one host that differ only by language segments
+  of the path (ISO 639-1, with or without an ISO 3166-1 region: `en`, `de-at`, `en_US`) or by a fragment that names the
+  organisation's node (`#organization`, `#organization/`, `#Organization`, `#identity`, `#/schema/Organization/base`, none) name
+  one organisation; scheme, host, the rest of the path and the query must be equal. A fragment of another node names another
+  (`#brand`, a contact record `#/schema/com_contact/contact/1`, a partner's `#beispiel-ag`, a client's `#kunde-muster`).
+  They are no discriminator against each other (`IdentityResolver.compatible`, `.mergeable`) only if `OrganisationIds.apart`
+  finds them one:
+  - a name in common (`Normalizers.key`; a legal name or an alias in common is not enough: the national companies of a group
+    share them, "Muster Balkone Schweiz" with the legal name of "Muster Balkone GmbH"), else `names_differ`;
+  - no two legal names that differ (`site_operator`, `operator_name`), else `legal_name_differs`;
+  - no two legal forms that differ, else `legal_form_differs`;
+  - no other discriminator that differs (a register entry, a VAT number, an LEI, a full address …), else its scheme.
+- **An `@id` finds no other by itself.** Two `@id`s of one organisation meet only through another key of the mention (the
+  domain's operator, a legal name, a strong identifier); the `@id` itself is looked up as written. Two companies of one name
+  on one portal, each by its own `@id`, stay two.
+- Unchanged: different registrable domains never meet (every key but the strong identifiers is scoped by the domain or the host);
+  strong identifiers stay global and at most one value per entity; a blocked merge is an `identity_conflict` event.
+
+### 41.3 The update
+
+`JsonLdExtractor.VERSION` 7 comes with the re-extraction of `rule/9` (39), which reads every tracked page once anyway: no
+second pass. A provider split before (its language version or its structured data's organisation apart from the domain's
+operator) is joined when one of its pages is read again: the older entity survives (4.3), the other one redirects to it, its
+offers, clients and evidence move with it, and the matching and the derivation recompute in their hourly cycles. No model
+request.
+
+### 41.4 Tests
+
+`OrganisationIdsTest` (the organisation of an `@id`: language segments, fragment, scheme, another domain, the root; when two are
+one, and every reason to keep them apart), `OperatorIdentityTest` (invented sites: a language version with a second `@id` is one
+organisation, never one of another domain; a provider split before is joined at the next reading of its page; the root `@id`
+without `url` is the domain's operator, in either order of the pages; a partner's node under its own fragment is no root `@id`,
+two organisations of the site's node on one page are neither operator; two companies of one name on a portal stay two and are
+not its operator; a contradicting VAT number or legal name blocks the merge; a country page that shares only the legal name, and
+a brand's node of the same name, stay apart).

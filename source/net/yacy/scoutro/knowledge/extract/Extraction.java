@@ -27,7 +27,8 @@ import java.util.Set;
 /**
  * Raw, unresolved result of the extraction tiers for one document: mentions
  * and claims. Bounded: at most {@code maxClaims} claims are kept; duplicates
- * (same subject, predicate and object in the same tier) are dropped.
+ * (same subject, predicate and object in the same tier) are dropped. A mark
+ * of a claim ({@link #mark}) is not counted.
  */
 public final class Extraction {
 
@@ -35,6 +36,7 @@ public final class Extraction {
     private final Map<String, Mention> mentions = new LinkedHashMap<>();
     private final List<Claim> claims = new ArrayList<>();
     private final Set<String> seen = new HashSet<>();
+    private int counted;
     private int tiers;
     private int dropped;
     private int invalidBlocks;
@@ -54,6 +56,19 @@ public final class Extraction {
 
     /** Adds a claim if its subject (and object) are known mentions and the limit is not reached. */
     public boolean add(final Claim c) {
+        return this.add(c, true);
+    }
+
+    /**
+     * Adds the mark of a claim added before (0.13.0: {@code type_unconfirmed} beside the name of an unclear place): it qualifies
+     * that claim, is no statement of the page of its own and takes none of the limit, so that on a full page it never displaces
+     * another claim. The caller adds it only after its claim was added.
+     */
+    public boolean mark(final Claim c) {
+        return this.add(c, false);
+    }
+
+    private boolean add(final Claim c, final boolean limited) {
         if (c == null || !this.mentions.containsKey(c.subject) || (c.object != null && !this.mentions.containsKey(c.object))) {
             return false;
         }
@@ -64,9 +79,12 @@ public final class Extraction {
         if (!this.seen.add(key)) {
             return false;
         }
-        if (this.claims.size() >= this.maxClaims) {
+        if (limited && this.counted >= this.maxClaims) {
             this.dropped++;
             return false;
+        }
+        if (limited) {
+            this.counted++;
         }
         this.claims.add(c);
         return true;

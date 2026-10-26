@@ -140,6 +140,25 @@ public class MatchingTest {
         signal("Wir nutzen SAP S/4HANA intern.","job");run();
         assertEquals("general SAP does not prove S/4HANA (docs/SCOUTRO_MATCHING.md)",0,count());
     }
+    /**
+     * 0.13.0 (item 1, the product tree): a module states its product too, so an offer of the product keeps its match; an offer of
+     * the module fits it finer (a second reason); a product proves no module; the reason names the kind of the service.
+     */
+    @Test public void theProductTreeKeepsProductMatchesAndAddsModuleMatches()throws Exception {
+        offer("SAP S/4HANA Beratung");signal("Wir nutzen SAP S/4HANA FI intern.","job");run();
+        assertEquals("the product's offer fits a module of it",1,page("a","b").getInt("total"));
+        offer("SAP S/4HANA FI Einführung");run();
+        JSONArray reasons=reasons("a","b");Set<String> products=new java.util.TreeSet<>();
+        for(int i=0;i<reasons.length();i++)products.add(reasons.getJSONObject(i).getString("product"));
+        assertTrue(reasons.toString(),products.containsAll(Set.of("sap-s4hana","sap-fi")));
+        boolean implementation=false;
+        for(int i=0;i<reasons.length();i++)implementation|=reasons.getJSONObject(i).getJSONArray("service_types").toString().contains("implementation");
+        assertTrue(reasons.toString(),implementation);
+    }
+    @Test public void aProductProvesNoModule()throws Exception {
+        offer("SAP FI Beratung");signal("Wir nutzen SAP S/4HANA intern.","job");run();
+        assertEquals("S/4HANA proves no FI",0,count());
+    }
     /** 0.12.1: offers written with verbs. */
     @Test public void offersWrittenWithVerbsAreOffers()throws Exception {
         for(String text:List.of("Unsere Experten führen SAP DRC in Ihrem S/4HANA-System ein.","Wir beraten Sie bei SAP S/4HANA.",

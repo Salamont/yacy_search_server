@@ -44,6 +44,7 @@ import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
 import net.yacy.scoutro.knowledge.extract.RequestBudget;
 import net.yacy.scoutro.knowledge.extract.RuleExtractor;
+import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.publish.Publisher;
 import net.yacy.scoutro.knowledge.publish.Terms;
 import net.yacy.scoutro.knowledge.store.KgSchema;
@@ -546,6 +547,23 @@ public final class LlmService {
     private volatile long queueSize;
     private volatile long queueClaimed;
     private volatile Long queueOldest;
+    /** 0.13.0: while kg_meta {@code llm_validation} is {@link #VALIDATION_PENDING}, the stored answers are replayed ({@link LlmReplay}). */
+    static final String VALIDATION_PENDING = "pending";
+    /** A pass of the replay that left pages to a later pass (not yet re-extracted by the rules) starts again after this pause. */
+    static final long REPLAY_PAUSE_MILLIS = 60_000L;
+    private volatile boolean validationPending;
+    private final java.util.concurrent.locks.ReentrantLock replayLock = new java.util.concurrent.locks.ReentrantLock();
+    private long replayAfter;
+    private long replayLeftInPass;
+    private volatile long replayPausedUntil;
+    private volatile long validationLeft = -1L;
+    final AtomicLong replayedDocs = new AtomicLong();
+    final AtomicLong replayStatements = new AtomicLong();
+    final AtomicLong replayPlacesRefused = new AtomicLong();
+    final AtomicLong replayUnconfirmed = new AtomicLong();
+    final AtomicLong replayUnmapped = new AtomicLong();
+    final AtomicLong replayRestored = new AtomicLong();
+    final AtomicLong replayDeferred = new AtomicLong();
     private volatile long cacheBytes = -1L;
     private volatile long cacheEntries;
     private volatile long evictAt;
@@ -635,14 +653,22 @@ public final class LlmService {
      * without this record (Scoutro 0.7) counts as changed. A new prompt (a
      * new compiled-in default or an activated one, {@link KnowledgePrompt})
      * changes the prompt hash, the extractor identity and the cache key, but
-     * reads no document again: new and changed pages are asked with it.
+     * reads no document again: new and changed pages are asked with it. A
+     * version whose change is the validation only ({@link LlmExtractor#REPLAYS},
+     * 0.13.0) asks nothing again either: the stored answers are replayed
+     * ({@link LlmReplay}).
      */
     private void reexamineIfChanged(final java.sql.Connection tx) throws java.sql.SQLException {
         final String version = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/";
         final String extractor = version + this.prompt.hash;
         final String lastExtractor = KgStore.getMeta(tx, KgSchema.META_LLM_EXTRACTOR);
         final boolean upgraded = lastExtractor == null && KgStore.getMeta(tx, KgSchema.META_UPGRADE) != null;
-        if (upgraded || lastExtractor != null && !lastExtractor.startsWith(version)) {
+        if (!upgraded && lastExtractor != null && !lastExtractor.startsWith(version) && LlmExtractor.REPLAYS.contains(versionOf(lastExtractor))) {
+            // 0.13.0: the change of the version is the validation only; the stored answers are replayed, nothing is asked again
+            KgStore.putMeta(tx, KgSchema.META_LLM_VALIDATION, VALIDATION_PENDING);
+            KgStore.event(tx, 1, "llm_validation_queued", LlmReplay.pending(tx) + " pages with answers of " + lastExtractor
+                    + " are validated again by " + version + " from their evidence, without a model request", this.clock.getAsLong());
+        } else if (upgraded || lastExtractor != null && !lastExtractor.startsWith(version)) {
             final int n = LlmQueue.reexamine(tx, LlmQueue.STATUS_DONE) + LlmQueue.reexamine(tx, LlmQueue.STATUS_FAILED);
             if (n > 0) {
                 LlmQueue.resetCursors(tx);
@@ -654,6 +680,7 @@ public final class LlmService {
                     + "; documents already done are not read again", this.clock.getAsLong());
         }
         KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, extractor);
+        this.validationPending = VALIDATION_PENDING.equals(KgStore.getMeta(tx, KgSchema.META_LLM_VALIDATION));
         // 0.12.0: a new candidate rule (rule/8 reads the pages of single services) decides once more about the pages it skipped;
         // a page that is still no candidate is skipped again without a request
         final String rules = KgStore.getMeta(tx, KgSchema.META_LLM_CANDIDATE_RULES);
@@ -694,6 +721,12 @@ public final class LlmService {
         }
     }
 
+    /** The version of an extractor identity {@code llm/<version>/<prompt hash>}. */
+    static String versionOf(final String extractor) {
+        final String[] parts = extractor.split("/", 3);
+        return parts.length < 2 ? "" : parts[1];
+    }
+
     /** Uses an activated prompt from the next document on (KgRuntime.promptActivate has stored it). */
     public void usePrompt(final KnowledgePrompt p) {
         if (p != null) {
@@ -716,6 +749,143 @@ public final class LlmService {
             return null;
         });
         wake();
+    }
+
+    // ---------------------------------------------------------------- replay
+
+    /** True while stored answers are to be replayed and no pause holds the replay. */
+    private boolean replayDue(final long now) {
+        return this.validationPending && now >= this.replayPausedUntil && !this.stopping;
+    }
+
+    /**
+     * One step of the replay (0.13.0, {@link LlmReplay}): the next page with tier-3 evidence of a replayed version, validated and
+     * published again without a model request. A page the rules have not read under the current rule version yet waits for a
+     * later pass (the replay follows the rule re-extraction, so the rules' entities are the known ones); the replay is done once a
+     * pass leaves no page behind.
+     *
+     * @return true if more work is due at once
+     */
+    private boolean replay(final long now) throws KgException {
+        final List<String[]> todo = this.store.read(c -> LlmReplay.todo(c, this.replayAfter, 1));
+        if (todo.isEmpty()) {
+            if (this.replayLeftInPass > 0L) {
+                // pages the current rules have not read yet: the next pass after a pause
+                this.replayAfter = 0L;
+                this.replayLeftInPass = 0L;
+                this.replayPausedUntil = now + REPLAY_PAUSE_MILLIS;
+                return false;
+            }
+            this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+                KgStore.putMeta(tx, KgSchema.META_LLM_VALIDATION, LlmExtractor.VERSION);
+                KgStore.event(tx, 1, "llm_validation_done", this.replayedDocs.get() + " pages replayed by " + LlmExtractor.NAME + "/"
+                        + LlmExtractor.VERSION + " without a model request: " + this.replayPlacesRefused.get() + " places refused, "
+                        + this.replayUnconfirmed.get() + " marked " + Vocabulary.TYPE_UNCONFIRMED + ", " + this.replayUnmapped.get()
+                        + " items without their entity", now);
+                return null;
+            });
+            this.validationPending = false;
+            this.validationLeft = -1L;
+            return false;
+        }
+        this.state = "running";
+        this.reason = "llm_validation";
+        final long rowid = Long.parseLong(todo.get(0)[0]);
+        this.replayAfter = rowid;
+        if (!replayPage(rowid, todo.get(0)[1], now)) {
+            this.replayLeftInPass++;
+            this.replayDeferred.incrementAndGet();
+        }
+        this.countsAt = 0L;
+        return !this.stopping;
+    }
+
+    /**
+     * Replays one page: its tier-3 evidence rebuilt into the answer ({@link LlmReplay#rebuild}), applied with the page's text and
+     * known entities as a reading of the page now applies an answer, and published with the evidence's model and prompt hash
+     * ({@link Publisher#applyLlmReplay}); the mark and the cache stay as they are.
+     *
+     * @return false if the page waits for a later pass: Solr lacks it or holds another input, or the rules have not read it yet
+     */
+    private boolean replayPage(final long rowid, final String docId, final long now) throws KgException {
+        final DocRow row = row(docId);
+        if (row == null || row.state != 1 || row.llmStatus == null) {
+            return true; // gone, or to do: the tier reads it, which replaces its evidence
+        }
+        final SolrDoc d;
+        try {
+            d = this.solr.get(Collections.singletonList(docId), SolrDoc.PROCESS_FIELDS).get(docId);
+        } catch (final IOException e) {
+            this.lastError = "solr: " + e.getMessage();
+            return false;
+        }
+        if (d == null || !row.sameInput(d) || !Arrays.equals(d.inputHash(), row.inputHash)) {
+            return false;
+        }
+        final BaseTiers.Text page = new BaseTiers.Text(this.solr, docId);
+        final Extraction base;
+        final String stored;
+        try {
+            base = this.tiers.extract(d, page);
+            stored = page.get();
+        } catch (final IOException e) {
+            this.lastError = "solr: " + e.getMessage();
+            return false;
+        }
+        final LlmReading reading = LlmReading.of(this.cfg, d, row.collections, base);
+        final LlmReplay.Answer answer = this.store.read(c -> LlmReplay.rebuild(c, rowid, stored, reading.known));
+        final Extraction ex = new Extraction((int) Math.max(0L, this.cfg.extractMaxStatementsPerDoc));
+        LlmExtractor.apply(answer.accepted, reading.known, ex, LlmReading.context(this.cfg, d, stored, base).withReplay());
+        ex.ranTier(LlmExtractor.TIER);
+        int places = 0;
+        int unconfirmed = 0;
+        for (final net.yacy.scoutro.knowledge.extract.Claim c : ex.claims()) {
+            final net.yacy.scoutro.knowledge.extract.Mention m = ex.mention(c.subject);
+            if (Vocabulary.NAME.equals(c.predicate) && c.tier == LlmExtractor.TIER && m != null
+                    && (Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type))) {
+                places++;
+            } else if (Vocabulary.TYPE_UNCONFIRMED.equals(c.predicate)) {
+                unconfirmed++;
+            }
+        }
+        final Publisher.Doc doc = new Publisher.Doc();
+        doc.docId = d.id;
+        doc.url = d.url;
+        doc.host = BaseTiers.host(d);
+        doc.hostId = d.hostId;
+        doc.language = d.language;
+        doc.loadedAt = d.loadDate;
+        doc.contentHash = d.contentHash();
+        doc.accessCollections = d.collections;
+        final Publisher.Result[] result = new Publisher.Result[1];
+        try {
+            this.store.write(WriteClass.GROWTH, PUBLISH_ESTIMATE, tx -> {
+                if (!"1".equals(KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS))) {
+                    result[0] = this.publisher.applyLlmReplay(tx, doc, row.llmInput(), ex,
+                            this.terms.llmExtractor(tx, answer.model, answer.promptHash), now);
+                }
+                return null;
+            });
+        } catch (final KgException e) {
+            this.terms.forgetCollections();
+            if (KgException.WRITE_REFUSED.equals(e.code())) {
+                this.counters.growthRefused.incrementAndGet();
+                this.replayAfter = rowid - 1L; // the same page again, after the pause
+                this.replayPausedUntil = now + REFUSED_MILLIS;
+                return true;
+            }
+            throw e;
+        }
+        if (result[0] == null || result[0].outcome != Publisher.Outcome.PUBLISHED) {
+            return false; // a reset, or the page changed meanwhile: a later pass decides again
+        }
+        this.replayedDocs.incrementAndGet();
+        this.replayStatements.addAndGet(result[0].statements);
+        this.replayPlacesRefused.addAndGet(Math.max(0, answer.places - places));
+        this.replayUnconfirmed.addAndGet(unconfirmed);
+        this.replayUnmapped.addAndGet(answer.unmapped);
+        this.replayRestored.addAndGet(answer.restored);
+        return true;
     }
 
     // ------------------------------------------------------------------ step
@@ -746,7 +916,7 @@ public final class LlmService {
                 init();
             }
             refreshCounts(now);
-            if (this.breaker.open()) {
+            if (this.breaker.open() && !replayDue(now)) {
                 return idle("paused", "circuit_breaker", GATE_MILLIS);
             }
             final String gate = this.gates.closed(false);
@@ -766,6 +936,14 @@ public final class LlmService {
                 this.store.write(WriteClass.MAINTENANCE,SMALL,tx->{LlmProgress.prune(tx);LlmQueue.pruneLayouts(tx);return null;});
             }
             if(!flushProgress())return idle("waiting","checkpoint_storage",GATE_MILLIS);
+            // 0.13.0: the replay of stored answers asks no model: neither the breaker nor the schedule holds it
+            if (replayDue(now) && this.replayLock.tryLock()) {
+                try {
+                    return replay(now);
+                } finally {
+                    this.replayLock.unlock();
+                }
+            }
             final String temporal=this.timing.workReason();
             if (temporal != null)
                 return idle(
@@ -2173,8 +2351,10 @@ public final class LlmService {
 
     /** Statements of the LLM tier the page holds evidence for (the per-document limit counts over all its readings). */
     static long tier3Statements(final java.sql.Connection c, final String docId) throws java.sql.SQLException {
+        // a mark (type_unconfirmed) takes none of the limit (Extraction.mark, 0.13.0)
         try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
-                + " WHERE d.doc_id = ? AND e.tier = " + LlmExtractor.TIER)) {
+                + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid WHERE d.doc_id = ? AND e.tier = " + LlmExtractor.TIER
+                + " AND s.pred IS NOT (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = '" + Vocabulary.TYPE_UNCONFIRMED + "')")) {
             ps.setString(1, docId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getLong(1) : 0L;
@@ -2298,6 +2478,7 @@ public final class LlmService {
                 this.cacheBytes = ExtractionCache.bytes(c);
                 this.progressRows = LlmQueue.metaRows(c, LlmQueue.LAYOUT_PREFIX);
                 this.checkpointRows = LlmQueue.metaRows(c, LlmProgress.PREFIX);
+                this.validationLeft = this.validationPending ? LlmReplay.pending(c) : -1L;
                 return null;
             });
             synchronized (this.backlogSamples) {
@@ -2379,6 +2560,14 @@ public final class LlmService {
                 this.breaker.status(),
                 "processed",
                 this.counters.json(),
+                // 0.13.0: the replay of stored answers for a version whose change is the validation only (no model request)
+                "validation",
+                KgJson.obj("state", this.validationPending ? VALIDATION_PENDING : "idle", "version", LlmExtractor.NAME + "/" + LlmExtractor.VERSION,
+                        "replays", new org.json.JSONArray(new java.util.TreeSet<>(LlmExtractor.REPLAYS)), "pagesLeft",
+                        this.validationLeft < 0L ? null : this.validationLeft, "replayed", this.replayedDocs.get(), "statements",
+                        this.replayStatements.get(), "placesRefused", this.replayPlacesRefused.get(), "typeUnconfirmed",
+                        this.replayUnconfirmed.get(), "unmapped", this.replayUnmapped.get(), "quotesRestored", this.replayRestored.get(),
+                        "deferred", this.replayDeferred.get()),
                 "dailyRequests",
                 // WP-D: the verifiable consumption limit (0: no cap); a status read never fails because of it
                 KgJson.obj("cap", this.cfg.llmMaxRequestsPerDay, "today", safeRequestsToday(), "day", utcDay(this.clock.getAsLong())),
