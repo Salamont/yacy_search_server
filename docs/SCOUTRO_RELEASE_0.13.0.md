@@ -8,9 +8,9 @@ of the knowledge graph before the update is mandatory.** Each step after the mer
 | What | Value |
 |---|---|
 | Release | the declared audience only from a phrase that names organisations, in the clause of its address; one client per provider site; a provider is one organisation by its `@id` on its own domain; planned migration in the clause of its verb; the product tree and the kinds of service; offer items without a category; a facility or site of the LLM tier needs a place in its context; the replay of the stored answers; current lists and the two times of a fact |
-| Source commit on `main` | **open** (on 0.12.2, `1100927`) |
+| Source commit on `main` | `b5f0a0dd0f70` (merge of #97, head `476eb84`, on 0.12.2 `1100927`) |
 | Image | `ghcr.io/salamont/scoutro:1.942-scoutro.46`, alias `0.13.0`, linux/amd64 |
-| Registry digest | **open** until publication |
+| Registry digest | `sha256:969b21405281ccf7c781b3d2442426fdb3265dd00b569dd3128f8b3f240be003` (both tags) |
 | Knowledge graph schema | **9, unchanged** |
 | Extractors | `rule/9` (was 8), `Vocabulary.VERSION` 5, vocabulary package 7 (`categories.json` with `organisations`, `products.json` version 2 with the tree and `service_types`); `jsonld/7` (was 6: the root `@id` of the own domain without `url`, section 41), in the same re-extraction; `LlmExtractor.VERSION` 5 with `REPLAYS` = {4} (the question's version stays 4); `BusinessSignals.VERSION` 5 (no extractor identity); `MatchingRules.VERSION` stays 1 |
 | Upgrade from | 0.12.2 / `1.942-scoutro.45`, installed in production |
@@ -52,9 +52,9 @@ before the merge), and per collection the suggestions, clients, providers and pl
 | Gate | Result |
 |---|---|
 | Part 1 (A0, A1, A3, A4, A5) | run and judged (25 October 2026) |
-| Part 2 (A2, the replay of A4) | A2 passed in every run; the replay (with the page texts) passed its checks in runs 6 and 8 (no place that passes the check cut, no kind of item keeps fewer than before); the owner's criterion for refused facilities (nine in ten artefacts, samples of 30) met by the construction and coaching collections in runs 8 and 9, borderline in software, not by the care collection: corrected (40.2) after both runs, **to run again** (run 10) |
-| Part 3 (A6, the merges) | run 8: 181 merges, none across registrable domains or against a differing strong identifier, every merge of two `@id`s with a name in common; the owner judges the list before the merge |
-| M0 / M1 | M0 taken (25 October 2026); M1 after the update |
+| Part 2 (A2, the replay of A4) | A2 passed in every run; the replay (with the page texts) passed its checks in runs 6 and 8 (no place that passes the check cut, no kind of item keeps fewer than before); the owner's criterion for refused facilities (nine in ten artefacts, samples of 30) met by the construction and coaching collections in runs 8 and 9, borderline in software, not by the care collection: corrected (40.2) after both runs; run 10 passed A2 and the replay and met the criterion in every collection: **released as measured** (the owner's decision of 26 October 2026) |
+| Part 3 (A6, the merges) | run 8: 181 merges, none across registrable domains or against a differing strong identifier, every merge of two `@id`s with a name in common; accepted by the owner. The gate covered the domains where an organisation has an `@id` on its own domain; the clients of one provider (`client_name`) are merged on every domain, so the merges since the update's backup are listed again afterwards, on every domain (`merges_since_backup.py` of the package repository, with M1) |
+| M0 / M1 | M0 taken (25 October 2026, again on the day of the update); M1 once the update's one-time work is done (after 0.13.1, [its notes](SCOUTRO_RELEASE_0.13.1.md)) |
 
 The judgement of A2 changed the reader in two general forms (section 39.2): a goal that names whom the provider serves, and an
 organisation's word before the field it is from. The judgement of the replay corrected the check of places (a name as the page
@@ -64,6 +64,16 @@ operator's branches on its reference pages) and the replay itself (services and 
 were published with). The providers split into two organisations (A3) are item 7 of this release, by the owner's
 decision of 25 October 2026 (section 41 of the knowledge graph, with the gate A6 and the measurement of their offers and
 suggestions in M1).
+
+## Known limitations
+
+- A facility whose name a page splits into two blocks separated by blank lines (a card's title and its heading below it), with
+  no place word in the name and no street after it, stays refused.
+- A name's words are found across up to eight characters of separators, a sentence's end and a heading's marks (`####`)
+  included; the owner's rule for a follow-up version is narrower: only white space joins a name's words.
+- The re-extraction of every page lost the pages a full work queue dropped (a graph with more tracked pages than
+  `queue.maxItems`): they kept the former rules, and the replay of the LLM tier waited for them without end. Corrected in
+  [0.13.1](SCOUTRO_RELEASE_0.13.1.md).
 
 ## The owner's decisions (25 October 2026)
 

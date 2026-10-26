@@ -565,7 +565,7 @@ Found on livaid.com (October 2026): the imprint of an architect named the operat
 - **An operator without a legal form** is named only on clear evidence: a unit of its own among the six units above the first postal address of the operator's sections (after an optional "Betreiber:", "Anbieter:", "Herausgeber:"; a tagline, a role and a person may stand between them, as on livaid.com), confirmed by the site's registrable domain (letters and digits equal: "LIVAID" on livaid.com) or by the single structured organisation of the page (tier 1). A unit that may be a person's name (a person marker, a salutation, two or more capitalised words such as "Tânia Ferreira" or "Erika Musterfrau", also on erika-musterfrau.de, or any unit right after a role such as "Geschäftsführerin", "Inhaberin" or "Vertreten durch") is no organisation. Text that runs the name into the street without a line or sentence break, another domain, or no confirmation: nothing is named, the site's operator stays unnamed. Without a legal name such a name cannot key a declared operator (`site_operator` needs the legal form); it goes to the site's unnamed operator (`domain_operator`), so the name, the imprint's contacts and the home page's services meet on one organisation, and a declared operator of the domain found later takes it in as before.
 - **What is proven and what is not.** The tests run the real layout of the LIVAID operator block as reported (08.10.2026) as plain lines and through YaCy's own HTML parser (with `<br>`, with the insurer inline, with `<div>`s); the chamber and insurer sections after it are assumed. The production page and its Solr `text_t` were not readable from the development environment; the synthetic texts are no proof for the production page, which is to be checked after a rollout.
 
-**What the new version does to an existing graph.** `RuleExtractor.VERSION` is part of the extractor identity (`SolrDoc.extractors()`); a changed identity makes the next start re-extract every tracked page at low priority behind new pages (`Reconciler.reextractAll`, paused like every enrichment; held while an upgrade waits for its copy). The order is stored with the new identity (`kg_meta.reextract_pending`) and removed only by the completed re-extraction, so a stop before it completed repeats it at the next start (`KgSyncRuntimeTest.aReextractionOrderSurvivesARestartBeforeItCompleted`). Each page's tier 1 and 2 evidence (JSON-LD, metadata, rules) is replaced; a statement without evidence is deleted. The LLM tier is not asked again (its mark is the content hash): **its evidence (tier 3) stays as it is and is not corrected by the new version**; it is renewed only when the page's content or the LLM extractor's own version changes. A statement that also has LLM evidence therefore survives the re-extraction even if the rules no longer find it (for livaid.com the analysis found no LLM evidence). That corrects the facts of tiers 1 and 2, not the LLM evidence and not the identities: an earlier merge stays, so does the merged entity's ID and its `site_operator` key with the insurer's legal name (`ImprintOperatorIdentityTest.reExtractionReplacesTheEvidenceButDoesNotSplitTheEarlierMerge`). For livaid.com after re-extraction: the insurer's name and address are gone, "LIVAID" with its own contacts and the services are on the one entity, but a page of the domain that names "Markel Insurance SE" in running text would still join it, and the redirect of the merged ID stays. Only the administrator action "re-resolve identities" (`KgRebuild`, section 22) builds the graph again from Solr with the current rules and splits wrong merges (`KgRebuildTest.aRebuildSplitsAWrongMergeAndKeepsThePreviousGraph`); it needs about 1.2 × the graph's size of free space and runs as its own operation. Neither runs by itself for this change. The old LIVAID/Markel merges therefore need a separately planned rebuild after the rollout.
+**What the new version does to an existing graph.** `RuleExtractor.VERSION` is part of the extractor identity (`SolrDoc.extractors()`); a changed identity makes the next start re-extract every tracked page at low priority behind new pages (`Reconciler.reextractAll`, paused like every enrichment; held while an upgrade waits for its copy). The order is stored with the new identity (`kg_meta.reextract_pending`) and removed only by the completed re-extraction, so a stop before it completed repeats it at the next start (`KgSyncRuntimeTest.aReextractionOrderSurvivesARestartBeforeItCompleted`); since 0.13.1 also a page the full work queue could not take is read (section 42). Each page's tier 1 and 2 evidence (JSON-LD, metadata, rules) is replaced; a statement without evidence is deleted. The LLM tier is not asked again (its mark is the content hash): **its evidence (tier 3) stays as it is and is not corrected by the new version**; it is renewed only when the page's content or the LLM extractor's own version changes. A statement that also has LLM evidence therefore survives the re-extraction even if the rules no longer find it (for livaid.com the analysis found no LLM evidence). That corrects the facts of tiers 1 and 2, not the LLM evidence and not the identities: an earlier merge stays, so does the merged entity's ID and its `site_operator` key with the insurer's legal name (`ImprintOperatorIdentityTest.reExtractionReplacesTheEvidenceButDoesNotSplitTheEarlierMerge`). For livaid.com after re-extraction: the insurer's name and address are gone, "LIVAID" with its own contacts and the services are on the one entity, but a page of the domain that names "Markel Insurance SE" in running text would still join it, and the redirect of the merged ID stays. Only the administrator action "re-resolve identities" (`KgRebuild`, section 22) builds the graph again from Solr with the current rules and splits wrong merges (`KgRebuildTest.aRebuildSplitsAWrongMergeAndKeepsThePreviousGraph`); it needs about 1.2 × the graph's size of free space and runs as its own operation. Neither runs by itself for this change. The old LIVAID/Markel merges therefore need a separately planned rebuild after the rollout.
 
 ### 6.2 JSON-LD capture (the only YaCy core change)
 
@@ -4186,3 +4186,41 @@ without `url` is the domain's operator, in either order of the pages; a partner'
 two organisations of the site's node on one page are neither operator; two companies of one name on a portal stay two and are
 not its operator; a contradicting VAT number or legal name blocks the merge; a country page that shares only the legal name, and
 a brand's node of the same name, stay apart).
+
+## 42. A re-extraction reads every page, also beyond the work queue (0.13.1)
+
+### 42.1 Finding
+
+A new extractor identity makes the next start re-extract every tracked page (the paragraph on new versions in section 6): the
+reconcile run enqueues each unchanged page for it (`PRIO_REEXTRACT`, behind new pages). `WorkQueue.scanned` drops what does not
+fit `queue.maxItems`, and on a graph that tracked more pages than that the scan dropped the last pages of the ID order. The run
+completed anyway: it removed `reextract_pending`, and the run that followed for the full queue (`queue_full`) enqueues only pages
+whose Solr document changed. The dropped pages kept the former rules until their page changes. The replay of the LLM tier
+(40.3) waits for a page's re-extraction under the current rules and therefore never ended on such a graph (`llm.validation`
+`pending`, `pagesLeft` still, `deferred` growing every pass), and while it is due the normal work of the LLM tier runs only in
+the pause between two passes.
+
+### 42.2 Rules
+
+- **The scan waits for room** (`Reconciler.scan`): in a run that reads unchanged pages again (`extractor_changed`, a job recheck),
+  a page of that kind that the queue cannot hold ends the scan's page before it; the cursor stays there and the scan goes on once
+  the worker made room. If not even the first such page fits, the step waits (`reconcile.scanWaitsForQueueRoom`). New and changed
+  pages are enqueued as before (a dropped one comes with the `queue_full` run, which sees it changed).
+- **A re-extraction that lost a page stays ordered** (`Reconciler.complete`): a run that still dropped a page to re-extract keeps
+  `reextract_pending` and the job recheck; the next run reads again (`reextractDropped` in the run's status).
+- **The record of the full reading** (`kg_meta.reextracted_extractors`): a completed backfill, or a re-extraction that dropped no
+  page, records the extractor identity under which every tracked page was read. A start under an identity without that record
+  and without a re-extraction ordered checks every page once (`SyncService.init`, event `reextract_check`): the input hash
+  decides, so a page whose input is unchanged is only read from Solr, a page left out is extracted again.
+
+### 42.3 The update
+
+The first start of 0.13.1 on a graph of 0.13.0 finds no record and checks every page once. No new extractor version, no model
+request; the replay ends once the pages it waited for are read.
+
+### 42.4 Tests
+
+`SyncServiceTest.aReextractionLargerThanTheQueueReadsEveryPage` (seven pages to read again and room for two in the queue: every
+page is read, none dropped) and `SyncServiceTest.pagesAnEarlierReextractionLeftOutAreReadOnceAtTheNextStart` (a graph without the
+record: the two pages left out are extracted again, the others only checked, the next start checks nothing); without the change
+the first leaves five pages with the former input, the second both.

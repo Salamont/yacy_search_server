@@ -2,6 +2,20 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.13.1 / 1.942-scoutro.47 — a re-extraction reads every page, also beyond the work queue
+
+On 0.13.0: no schema change, no new extractor version (`rule/9`, `jsonld/7`, `llm/5`). [Release, upgrade and
+rollback](docs/SCOUTRO_RELEASE_0.13.1.md).
+
+- **The re-extraction of every page lost pages on a large graph** (docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 42): with more tracked
+  pages than `queue.maxItems`, the scan dropped the pages that did not fit the work queue and the run ended the re-extraction
+  anyway; those pages kept the former rules, and the replay of the LLM tier waited for them without end. Now the scan waits for
+  room instead of dropping a page to re-extract, a run that still lost one keeps the re-extraction ordered, and a completed full
+  reading is recorded (`kg_meta.reextracted_extractors`).
+- **The update checks every page once:** a graph without that record (a graph of 0.13.0) checks every page at the first start;
+  a page whose input is unchanged is only read from Solr, a page left out is extracted again, and the replay ends.
+- The notes of 0.13.0 give its final gate status, its image digest and its known limitations.
+
 ## 0.13.0 / 1.942-scoutro.46 — declared audiences, clients, places of the LLM tier and its replay
 
 On 0.12.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/9`, `jsonld/7`, `Vocabulary.VERSION` 5, vocabulary package
