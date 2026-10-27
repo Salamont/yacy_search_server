@@ -60,14 +60,14 @@ public final class BusinessSignals {
             +"|develop|modernize|modernise|implement|plan|migrate|build|design|operate|deliver)\\b");
     /** 0.12.2: advice to the reader ("Wir empfehlen die Umstellung … einzuplanen"): no plan or use of the company. */
     /**
-     * 0.14.0 (item A2): the provider's work for others in a relative clause or with the reader as object ("Microsoft 365 & Cloud,
-     * die wir migrieren, betreuen und absichern", "migrieren wir Ihre Daten", "wir migrieren Ihre Systeme"); "die wir migrieren
+     * 0.14.0 (item A2): the provider's work for others in a relative clause or with the reader as object ("Systeme, die wir
+     * migrieren, betreuen und absichern", "migrieren wir Ihre Daten", "wir migrieren Ihre Systeme"); "die wir migrieren
      * werden" is an own plan.
      */
     private static final Pattern MIGRATES_FOR_OTHERS=p("\\b(?:die|welche|das|den)\\s+wir\\s+(?:[\\p{L}-]+\\s+){0,3}(?:migrieren|betreuen|einführen|einfuehren"
             +"|implementieren|absichern)\\b(?!\\s+(?:werden|wollen|möchten|moechten))|\\bmigrieren\\s+wir\\b|\\bwir\\s+migrieren\\s+(?:Ihre?[nmrs]?|ihre?[nmrs]?|Kunden)\\b"
             +"|\\b(?:which|that)\\s+we\\s+(?:migrate|implement|manage)\\b|\\bwe\\s+migrate\\s+(?:your|clients?|customers?)\\b");
-    /** 0.14.0 (item A2): the provider choosing products for the reader ("wir nutzen die passenden DATEV-Lösungen"): its offer, no use. */
+    /** 0.14.0 (item A2): the provider choosing products for the reader ("wir nutzen die passenden Muster-Lösungen"): its offer, no use. */
     private static final Pattern CHOOSES_FOR_READER=p("\\b(?:wir|we)\\s+(?:nutzen|verwenden|setzen|wählen|waehlen|use|choose)\\s+(?:die|den|das|the)\\s+"
             +"(?:passenden|geeigneten|richtigen|optimalen|besten|right|best|appropriate)\\b");
     /** 0.14.0 (item A2): a product named as what an offer replaces ("Alternative zu …", "statt …", "anstelle von …", "instead of …"). */

@@ -71,7 +71,7 @@ public class GenericNamesTest {
         assertEquals(List.of(), objects(rules("construction", url, "Wir sind Mitglied im Netzwerk. Mehr erfahren."), Vocabulary.ASSOCIATION_MEMBER));
         assertEquals(List.of(), subjects(rules("construction", url, "Referenzen: Neubau.\n\nKontakt"), Vocabulary.REFERENCE_FOR));
         // a list of trades: kinds, not firms, also the one word no vocabulary knows
-        assertEquals(List.of(), objects(rules("construction", url, "Wir bauen in Zusammenarbeit mit Fliesenleger, Maler und Möbelschreiner."),
+        assertEquals(List.of(), objects(rules("construction", url, "Wir arbeiten in Zusammenarbeit mit Maler, Fliesenleger und Möbeltischler."),
                 Vocabulary.COOPERATION_WITH));
         // brands stay names
         assertEquals(List.of("Muster GmbH", "Shopware", "AWS"), objects(rules("software", "https://www.muster-shop.de/partner/",
@@ -83,8 +83,8 @@ public class GenericNamesTest {
     @Test
     public void aListIsNotSplitInsideOneName() {
         final String url = "https://www.muster-bau.de/ueber-uns/";
-        assertEquals(List.of("Fachverband Garten- und Landschaftsbau"), objects(rules("construction", url,
-                "Wir sind Mitglied im Fachverband Garten- und Landschaftsbau. Mit mehr als 10 Mitarbeitern."), Vocabulary.ASSOCIATION_MEMBER));
+        assertEquals(List.of("Fachverband Muster- und Beispielbau"), objects(rules("construction", url,
+                "Wir sind Mitglied im Fachverband Muster- und Beispielbau. Mit mehr als 10 Mitarbeitern."), Vocabulary.ASSOCIATION_MEMBER));
         assertEquals(List.of("Landesministerium für Muster, Beispiel, Probe und Test"), objects(rules("care", "https://www.muster-pflege.de/projekte/",
                 "Das Projekt wird gefördert vom Landesministerium für Muster, Beispiel, Probe und Test. Viele Projekte."), Vocabulary.FUNDED_BY));
         assertEquals(List.of("Innung Sanitär, Heizung und Klima"), objects(rules("construction", url,

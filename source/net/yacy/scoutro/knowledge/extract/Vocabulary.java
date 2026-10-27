@@ -175,7 +175,7 @@ public final class Vocabulary {
     public static final String JOB_STATUS="job_status";
     /**
      * 0.14.0 (item A1, variant a of the owner's decision of 26 October 2026): a client a provider documents by a description, not
-     * by a name ("Dienstleister für Tankabrechnungen", "Energieversorgungskonzern in NRW"), as a value of the provider
+     * by a name ("Dienstleister für Musterabrechnungen", "Energieversorgungskonzern in Musterland"), as a value of the provider
      * ({@link #T_JSON}: the description, the project, its state and products): never an organisation, never merged, never a
      * candidate of the matching.
      */

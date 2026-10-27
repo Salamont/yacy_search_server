@@ -176,8 +176,8 @@ public class DocumentedRelationsTest {
                         + "### Dachsanierung bei der Muster Collection in Musterstadt.\n\nText.\n\n"
                         + "### Penetrationstest bei der musto Consulting Group Weiterlesen ».\n\nText.\n\n"
                         + "### Beispiel Leaps setzt bei Machine Learning auf Muster.\n\nText.\n\n"
-                        + "### Schnelle Hilfe bei defektem Ölkessel.\n\nText.\n\n"
-                        + "### Beschwerderecht bei der zuständigen Aufsichtsbehörde.\n\nText.\n\n"
+                        + "### Rasche Hilfe bei kaputtem Musterkessel.\n\nText.\n\n"
+                        + "### Widerspruchsrecht bei der zuständigen Musterbehörde.\n\nText.\n\n"
                         + "### Musterdorf bei Musterstadt: Villa mit 2 Wohneinheiten.\n\nText.\n\n"
                         + "### Wurzelschutz bei der Erweiterung einer Bushaltestelle in Musterdorf.\n\nText.\n\n"
                         + "### Wo können wir bei Ihnen ansetzen?\n\nText.\n\n"
@@ -274,9 +274,9 @@ public class DocumentedRelationsTest {
         assertEquals(Set.of("Senatsverwaltung für Musterentwicklung"), clients(ex).keySet());
         assertEquals(Set.of("Dienstleister für Musterabrechnungen|Wechsel auf SAP S/4HANA|sap-s4hana|completed|true",
                 "Stadtverwaltung in Musterland|Berichte mit Power BI|microsoft-power-bi|unknown|true"), descriptions(ex));
-        for (final String d : List.of("Energieversorgungskonzern in Musterland", "Europäische Container-Terminal- und Logistik-Gruppe",
-                "Global agierendes Biotechnologie- und Biomedizin-Unternehmen", "Internationaler Anbieter von Textil-Management",
-                "Papier- und Kartonfabrik", "Technisch-wissenschaftlicher Verein", "Weltweit führender Hersteller von Beschlägen für Fenster")) {
+        for (final String d : List.of("Energieversorgungskonzern in Musterland", "Europäische Muster-Terminal- und Beispiel-Gruppe",
+                "Global agierendes Muster- und Beispiel-Unternehmen", "Internationaler Anbieter von Muster-Management",
+                "Muster- und Beispielfabrik", "Wissenschaftlich-technischer Musterverein", "Weltweit führender Hersteller von Musterteilen für Fenster")) {
             assertTrue(d, BusinessRules.described(d));
         }
         for (final String n : List.of("Institut für Musterkunde", "Verein für Musterforschung", "Bayerische Muster- und Beispielverwaltung",

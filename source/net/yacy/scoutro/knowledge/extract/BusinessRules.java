@@ -895,7 +895,7 @@ public final class BusinessRules {
                 final int to = Math.min(run.text.length(), from + (mk.list ? 600 : 160));
                 final List<int[]> names = mk.list ? names(run.text, from, to) : first(run.text, from, to);
                 // 0.14.0: a list mostly of words of the vocabularies, its other items single plain words, names no organisation
-                // ("in Zusammenarbeit mit Fliesenleger, Maler und Möbelschreiner": trades, not firms)
+                // ("in Zusammenarbeit mit Maler, Fliesenleger und Möbeltischler": trades, not firms)
                 if (mk.list && kindsOnly(run.text, names)) {
                     continue;
                 }
@@ -1597,7 +1597,7 @@ public final class BusinessRules {
     /**
      * 0.14.0: a head that public bodies and associations carry in their names ("Senatsverwaltung für Stadtentwicklung", "Verein für
      * Muster", "Betrieb für Bau und Liegenschaften"): a description only with its place ("Stadtverwaltung in Musterland") or after
-     * common adjectives ("Technisch-wissenschaftlicher Verein"), never after a state's adjective ("Bayerische …verwaltung").
+     * common adjectives ("Wissenschaftlich-technischer Musterverein"), never after a state's adjective ("Bayerische …verwaltung").
      */
     private static final Pattern BODY_HEAD = Pattern.compile("(?iu)(?:verwaltung|verein|betrieb|träger|traeger|verbund)$");
     private static final Pattern PLACE_LINK = Pattern.compile("(?iu)^(?:in|im|aus|from)$");
@@ -1610,9 +1610,9 @@ public final class BusinessRules {
     /**
      * 0.14.0 (item A1, variant a of the owner's decision of 26 October 2026): true for a client named by a description, not by a
      * name: no legal form, an organisation's word as its head ({@link #DESCRIPTION_HEAD}) after adjectives or the first halves of
-     * compounds ("Europäische Container-Terminal- und Logistik-Gruppe", "Technisch-wissenschaftlicher Verein", "Global agierendes
-     * …-Unternehmen"), at its end or before a preposition and the rest ("Dienstleister für Tankabrechnungen", "Internationaler
-     * Anbieter von Textil-Management", "Landkreisverwaltung in Musterland"); the head alone is a description only as a compound
+     * compounds ("Europäische Muster-Terminal- und Beispiel-Gruppe", "Wissenschaftlich-technischer Musterverein", "Global agierendes
+     * …-Unternehmen"), at its end or before a preposition and the rest ("Dienstleister für Musterabrechnungen", "Internationaler
+     * Anbieter von Muster-Management", "Landkreisverwaltung in Musterland"); the head alone is a description only as a compound
      * ("Energieversorgungskonzern"). The anonymised form of 0.13.0 ({@link #anonymised}) is one.
      */
     public static boolean described(final String name) {
@@ -1781,8 +1781,8 @@ public final class BusinessRules {
             final boolean fullStop;
             final boolean lineBreak;
             boolean found = sp.find();
-            // 0.14.0: no split inside one name ("Fachverband Garten- und Landschaftsbau", "Bundesministerium für Familie, Senioren,
-            // Frauen und Jugend", "Innung Sanitär, Heizung und Klima")
+            // 0.14.0: no split inside one name ("Fachverband Muster- und Beispielbau", "Ministerium für Muster, Beispiel, Probe und
+            // Test", "Innung Sanitär, Heizung und Klima")
             boolean chain = false;
             for (int join; found && (join = joinsName(text, start, sp, to, chain)) > 0; found = sp.find()) {
                 chain |= join == 2;
@@ -1858,7 +1858,7 @@ public final class BusinessRules {
     /**
      * 0.14.0: whether the separator {@code sep} of a list joins two parts of one name: after the first half of a compound ("Garten-
      * und Landschaftsbau", "Heizungs-, Lüftungs- und Klimatechnik"), and before a single capitalised word without a legal form or
-     * an institution's word that continues the list of a name's phrase ("Bundesministerium für Bildung, Familie, Senioren …": a
+     * an institution's word that continues the list of a name's phrase ("Ministerium für Muster, Beispiel, Probe …": a
      * preposition or an article near the end of the part before, or a part joined so already, {@code chain}) or the trades of an
      * association ("Innung Sanitär, Heizung und Klima": a word of the vocabularies after an institution's word). Never at a line
      * break, a full stop or ";", and never after an article at the start ("der Stadt Musterstadt, Musterdorf und …" are three).

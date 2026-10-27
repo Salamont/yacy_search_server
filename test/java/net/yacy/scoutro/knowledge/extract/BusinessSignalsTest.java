@@ -416,7 +416,7 @@ public class BusinessSignalsTest {
      */
     @Test public void anOwnOfferAnAlternativeAndTheReadersLineAreNoUse() throws Exception {
         for(String quote:List.of("Wir betreiben Microsoft 365 und Azure, die wir migrieren, betreuen und absichern.",
-                "Wir nutzen die passenden DATEV-Lösungen für Ihre Buchhaltung.", "Wir nutzen eine Alternative zu Microsoft 365.",
+                "Wir setzen die passenden DATEV-Module für Ihre Buchhaltung ein.", "Wir nutzen eine Alternative zu Microsoft 365.",
                 "Unsere Plattform ist die Alternative zu Salesforce, die wir intern nutzen.")) {
             assertTrue(quote,ownContexts(quote,"microsoft-365",quote.contains("DATEV")?"":"").isEmpty()&&ownContexts(quote,"datev","").isEmpty()
                     &&ownContexts(quote,"salesforce","").isEmpty());
@@ -431,7 +431,7 @@ public class BusinessSignalsTest {
         // the reader's line below an FAQ heading
         Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);actor.name="Muster IT GmbH";
         Extraction e=new Extraction(30);e.add(actor);
-        BusinessSignals.extract("## Häufige Fragen\n\nWir nutzen bereits Office 365.\n\nDann migrieren wir Ihre Postfächer.\n\n## Über uns\n\n"
+        BusinessSignals.extract("## Häufige Fragen\n\nWir arbeiten schon mit Office 365.\n\nDann migrieren wir Ihre Postfächer.\n\n## Über uns\n\n"
                 + "Wir nutzen SAP S/4HANA intern.",actor,e,2,Claim.KIND_RULE,"text","text");
         Set<String> found=new TreeSet<>();
         for(Claim c:e.claims())found.add(new JSONObject(c.value).getString("product")+":"+new JSONObject(c.value).getString("context"));

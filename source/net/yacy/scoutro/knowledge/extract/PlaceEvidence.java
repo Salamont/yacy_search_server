@@ -404,8 +404,8 @@ public final class PlaceEvidence {
     }
 
     /**
-     * A street with its number, the postal code and the town after it if the page gives them: "Musterstraße 5", "Medenbacher Straße
-     * 17", "Am Mühlbach 1. 63863 Eschau", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt").
+     * A street with its number, the postal code and the town after it if the page gives them: "Musterstraße 5", "Beispieler Straße
+     * 17", "Am Musterbach 1. 12345 Musterstadt", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt").
      */
     private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}])((?:\\p{Lu}[\\p{L}.'-]*\\s+)?\\p{Lu}[\\p{L}'-]*"
             + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:\\p{Lu}[\\p{L}.'-]*\\s+)?(?:Straße|Strasse|Weg|Gasse"
