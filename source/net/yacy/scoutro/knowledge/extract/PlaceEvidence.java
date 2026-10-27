@@ -210,10 +210,11 @@ public final class PlaceEvidence {
         final String given = raw == null || raw.isEmpty() ? quote : raw;
         // 0.13.0 (gate A4, run 9): without the characters of format a word may hold ("Muster\u00adstadt"), as the quote was checked
         final String text = given == null ? null : FORMAT.matcher(given).replaceAll("");
-        // the name as the page writes it (its words, whatever stands between them: "Musterweg 5, 12345 Ort" is "Musterweg 5\n12345
-        // Ort" there), else the model's quote, which is grounded in the page
+        // the name as the page writes it (its words with white space between, or the name's own marks: "Musterweg 5, 12345 Ort"
+        // is "Musterweg 5\n12345 Ort" there), else the model's quote, which is grounded in the page, if the name stands in it so
+        // (0.14.0: two blocks of the page never become one name)
         List<int[]> found = occurrences(text, name);
-        if (found.isEmpty() && quote != null && !quote.isBlank()) {
+        if (found.isEmpty() && quote != null && !quote.isBlank() && !occurrences(FORMAT.matcher(quote).replaceAll(""), name).isEmpty()) {
             found = occurrences(text, quote);
         }
         // the quote's own address, outside a menu line (an imprint's line with bullets is no menu: it holds a postal code)
@@ -428,25 +429,42 @@ public final class PlaceEvidence {
     }
 
     /**
-     * The occurrences of the name in the text, case-insensitive, as words: its words in order with any separators between (at most
-     * eight characters: a comma, a line, a period, Markdown's marks of a heading), so that the model's "Musterweg 5, 12345 Ort" is
-     * found where the page writes "Musterweg 5" and "12345 Ort" on two lines, and "Muster parc Ort" where it writes "Muster parc.
-     * #### Ort." (0.13.0, gate A4, run 8). At most {@link #MAX_TOKENS} words of it are matched.
+     * The occurrences of the name in the text, case-insensitive, as words: its words in order, with white space between them
+     * (spaces, line breaks, blank lines) or the marks the name itself writes there, so that the model's "Musterweg 5, 12345 Ort" is
+     * found where the page writes "Musterweg 5" and "12345 Ort" on two lines (0.13.0, gate A4, run 8). 0.14.0 (the owner's rule of
+     * 26 October 2026): only white space joins a name's words; other text, a heading's mark or a sentence's end ends the name, so
+     * "Muster parc Ort" is not found where the page writes "Muster parc." and "#### Ort." as two blocks. At most {@link
+     * #MAX_TOKENS} words of it are matched.
      */
-    private static List<int[]> occurrences(final String text, final String name) {
+    static List<int[]> occurrences(final String text, final String name) {
         final List<int[]> out = new ArrayList<>();
         if (text == null || name == null || name.isBlank()) {
             return out;
         }
-        final List<String> tokens = new ArrayList<>();
-        for (final Matcher t = TOKEN.matcher(name); t.find() && tokens.size() < MAX_TOKENS;) {
-            tokens.add(Pattern.quote(t.group()));
+        final StringBuilder p = new StringBuilder("(?iu)(?<![\\p{L}\\p{N}])");
+        int tokens = 0;
+        int last = -1;
+        for (final Matcher t = TOKEN.matcher(name); t.find() && tokens < MAX_TOKENS; tokens++) {
+            if (last >= 0) {
+                final String marks = name.substring(last, t.start()).trim();
+                if (marks.isEmpty()) {
+                    p.append("\\s+");
+                } else {
+                    // the name's own marks, with any white space around them, or white space alone
+                    final StringBuilder own = new StringBuilder();
+                    for (final String run : marks.split("\\s+")) {
+                        own.append(own.length() == 0 ? "" : "\\s*").append(Pattern.quote(run));
+                    }
+                    p.append("(?:\\s*").append(own).append("\\s*|\\s+)");
+                }
+            }
+            p.append(Pattern.quote(t.group()));
+            last = t.end();
         }
-        if (tokens.isEmpty()) {
+        if (tokens == 0) {
             return out;
         }
-        final Matcher m = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])" + String.join("[^\\p{L}\\p{N}]{1,8}", tokens) + "(?![\\p{L}\\p{N}])")
-                .matcher(text);
+        final Matcher m = Pattern.compile(p.append("(?![\\p{L}\\p{N}])").toString()).matcher(text);
         while (m.find() && out.size() < 50) {
             out.add(new int[] {m.start(), m.end()});
         }

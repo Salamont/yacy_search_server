@@ -885,12 +885,20 @@ public final class BusinessRules {
                 final int from = m.end();
                 final int to = Math.min(run.text.length(), from + (mk.list ? 600 : 160));
                 final List<int[]> names = mk.list ? names(run.text, from, to) : first(run.text, from, to);
+                // 0.14.0: a list mostly of words of the vocabularies, its other items single plain words, names no organisation
+                // ("in Zusammenarbeit mit Fliesenleger, Maler und Möbelschreiner": trades, not firms)
+                if (mk.list && kindsOnly(run.text, names)) {
+                    continue;
+                }
                 for (final int[] span : names) {
                     String name = run.text.substring(span[0], span[1]).trim();
                     name = STOP_WORDS.matcher(name).replaceFirst("");
                     if (name.length() < 2 || BusinessFacts.personLike(name)
                             || bareOnLines && !LEGAL_FORM_ANY_CASE.matcher(name).find() && !INSTITUTION.matcher(name).find()) {
                         continue;
+                    }
+                    if (KgVocabularies.get().vocabularyWord(name)) {
+                        continue; // 0.14.0: a word of the vocabularies alone names no organisation ("Netzwerk", "Landschaftsbau")
                     }
                     String predicate = mk.predicate;
                     if (Vocabulary.MEMBER_OF.equals(predicate) && ASSOCIATION.matcher(name).find()) {
@@ -917,6 +925,28 @@ public final class BusinessRules {
             final String standard = (c.group(1) != null ? c.group(1) : c.group(2)).replaceAll("\\s+", " ").trim();
             claim(run, run.subject, Vocabulary.CERTIFICATION, standard, c.start(), c.end(), 0.7);
         }
+    }
+
+    /**
+     * 0.14.0: the items of a list are kinds, not names: more than half of them are words of the vocabularies ({@link
+     * KgVocabularies.Snapshot#vocabularyWord}) and the others single words without a legal form, an institution's word or the
+     * marks of a brand.
+     */
+    private static boolean kindsOnly(final String text, final List<int[]> spans) {
+        if (spans.size() < 2) {
+            return false;
+        }
+        int words = 0;
+        for (final int[] span : spans) {
+            final String name = STOP_WORDS.matcher(text.substring(span[0], span[1]).trim()).replaceFirst("");
+            if (KgVocabularies.get().vocabularyWord(name)) {
+                words++;
+            } else if (name.indexOf(' ') >= 0 || LEGAL_FORM_ANY_CASE.matcher(name).find() || INSTITUTION.matcher(name).find()
+                    || BRAND_MARK.matcher(name).matches()) {
+                return false;
+            }
+        }
+        return words * 2 > spans.size();
     }
 
     // ------------------------------------------------ documented business relations (0.12.0, gate T6, round 2)
@@ -1475,7 +1505,8 @@ public final class BusinessRules {
 
     /** The client named {@code name} near {@code at}, as {@code client customer_of operator}; null if it is none or named before. */
     private Mention client(final Run run, final String name, final int at, final Set<String> seen) {
-        if (!clientName(name) || anonymised(name) || ownName(run, name) || !seen.add(Normalizers.key(name))) {
+        if (!clientName(name) || anonymised(name) || ownName(run, name) || KgVocabularies.get().vocabularyWord(name)
+                || !seen.add(Normalizers.key(name))) {
             return null;
         }
         final int start = Math.max(0, run.text.indexOf(name, Math.max(0, at - 5)));
@@ -1643,7 +1674,14 @@ public final class BusinessRules {
             final boolean sentence;
             final boolean fullStop;
             final boolean lineBreak;
-            if (sp.find()) {
+            boolean found = sp.find();
+            // 0.14.0: no split inside one name ("Fachverband Garten- und Landschaftsbau", "Bundesministerium für Familie, Senioren,
+            // Frauen und Jugend", "Innung Sanitär, Heizung und Klima")
+            boolean chain = false;
+            for (int join; found && (join = joinsName(text, start, sp, to, chain)) > 0; found = sp.find()) {
+                chain |= join == 2;
+            }
+            if (found) {
                 stop = sp.start();
                 next = sp.end();
                 final String sep = sp.group().trim();
@@ -1711,6 +1749,36 @@ public final class BusinessRules {
         return out;
     }
 
+    /**
+     * 0.14.0: whether the separator {@code sep} of a list joins two parts of one name: after the first half of a compound ("Garten-
+     * und Landschaftsbau", "Heizungs-, Lüftungs- und Klimatechnik"), and before a single capitalised word without a legal form or
+     * an institution's word that continues the list of a name's phrase ("Bundesministerium für Bildung, Familie, Senioren …": a
+     * preposition or an article near the end of the part before, or a part joined so already, {@code chain}) or the trades of an
+     * association ("Innung Sanitär, Heizung und Klima": a word of the vocabularies after an institution's word). Never at a line
+     * break, a full stop or ";", and never after an article at the start ("der Stadt Musterstadt, Musterdorf und …" are three).
+     * 0 if it splits, 1 inside a compound, 2 in a name's list.
+     */
+    private static int joinsName(final String text, final int start, final Matcher sep, final int to, final boolean chain) {
+        final String s = sep.group().trim();
+        if (sep.group().indexOf('\n') >= 0 || s.startsWith(".") || s.matches("[;•|·]")) {
+            return 0;
+        }
+        final String before = STOP_WORDS.matcher(LEADING_JOIN.matcher(text.substring(start, sep.start()).trim()).replaceFirst("")).replaceFirst("");
+        if (before.length() > 1 && before.endsWith("-")) {
+            return 1;
+        }
+        if (LEGAL_FORM_ANY_CASE.matcher(before).find()) {
+            return 0;
+        }
+        final Matcher next = ITEM_SPLIT.matcher(text).region(sep.end(), to);
+        final String part = text.substring(sep.end(), next.find() ? next.start() : to).trim().replaceAll("[.!?]+$", "");
+        if (!part.matches("(?u)\\p{Lu}[\\p{L}-]+") || LEGAL_FORM_ANY_CASE.matcher(part).find() || INSTITUTION.matcher(part).find()) {
+            return 0;
+        }
+        return chain || OPEN_PHRASE.matcher(before).find() || INSTITUTION.matcher(before).find() && KgVocabularies.get().vocabularyWord(part)
+                ? 2 : 0;
+    }
+
     /** "und Gamma GmbH" after "Beta Ltd.": the joining word is no part of the name. */
     private static final Pattern LEADING_JOIN = Pattern.compile("^(?:und|sowie|and|&)\\s+");
 
@@ -1774,6 +1842,9 @@ public final class BusinessRules {
     private static final Pattern SENTENCE_START = Pattern.compile("^(?:Die|Der|Das|Den|Dem|Des|Ein|Eine|Wir|Sie|Es|Er|Ihr|Ihre|Unser|Unsere"
             + "|Seit|Mit|Als|In|Auf|Für|Bei|Durch|Zu|Zur|Zum|Nach|Von|Vom|Im|Am|Hier|Damit|Dabei|Auch|So|Und|The|We|Our|With|In)\\s");
 
+    /** 0.14.0: a word of an organisation with its name in quotes ("Netzwerk „Muster sicher“", "Initiative \"Beispiel\""). */
+    private static final Pattern QUOTED_NAME = Pattern.compile("(?u)\\p{Lu}[\\p{L}-]+\\s+[„“\"»«][^„“”\"»«]{2,60}[“”\"«»]");
+
     /** An organisation name: a legal form, an institution word, or (in a list) a one-word brand; never two plain capitalised words. */
     static boolean qualifies(final String item, final boolean list) {
         if (item.length() < 2 || item.length() > 100 || BusinessFacts.personLike(item) || NOT_A_NAME.matcher(item).find()) {
@@ -1800,6 +1871,9 @@ public final class BusinessRules {
         }
         if (INSTITUTION.matcher(item).find()) {
             return true;
+        }
+        if (QUOTED_NAME.matcher(item).matches()) {
+            return true; // 0.14.0: a word with the name in quotes ("Netzwerk „Muster sicher“")
         }
         // a brand in a customer or partner list: one word ("Siemens", "DHL", "SAP"); "Max Mustermann" is no organisation, nor a
         // common word ("Werbung", "Analysen")
@@ -3100,8 +3174,9 @@ public final class BusinessRules {
         int regions = 0;
         while (m.find() && regions < 5) {
             final String name = m.group(1) != null ? m.group(1) : m.group(2);
-            if (BusinessFacts.state(name) != null || BusinessFacts.personLike(name) || NOT_PLACE.matcher(name).find()) {
-                continue;
+            if (BusinessFacts.state(name) != null || BusinessFacts.personLike(name) || NOT_PLACE.matcher(name).find()
+                    || KgVocabularies.get().vocabularyWord(name)) {
+                continue; // 0.14.0: also a word of the vocabularies ("Türen und Umgebung") is no place
             }
             final Map<String, Object> f = new TreeMap<>();
             f.put("kind", "region");

@@ -467,8 +467,8 @@ public class BusinessExtractionTest {
             assertEquals(text, List.of(), relations(ex, Vocabulary.MEMBER_OF));
             assertEquals(text, List.of(), relations(ex, Vocabulary.ASSOCIATION_MEMBER));
         }
-        // a shortened compound is no partner either, its full partner stays
-        assertEquals(List.of("null -> Marketinggemeinschaft Muster eG"), relations(rules("Mitglied der Einkaufs- und Marketinggemeinschaft"
+        // a shortened compound is no partner either; 0.14.0 (item C2): it is the first half of the full name, which stays whole
+        assertEquals(List.of("null -> Einkaufs- und Marketinggemeinschaft Muster eG"), relations(rules("Mitglied der Einkaufs- und Marketinggemeinschaft"
                 + " Muster eG.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.MEMBER_OF));
         assertEquals(List.of("null -> IHK Berlin"), relations(rules("Wir sind Mitglied der IHK Berlin.", url,
                 vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.MEMBER_OF));

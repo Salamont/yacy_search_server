@@ -318,7 +318,8 @@ public class CollectionMigrationTest {
                 .replace("<categories 9192e239c049>", "4da033928d9e").replace("<categories ffe3a2e79047>", "b539fe6c90fc")
                 .replace("<categories 44c7a4bdf84d>", "43bb064bd2ae").replace("<categories 77a395381244>", "a7a52087ef45")
                 .replace("<categories 21fb237d6efd>", "cc036dde7de8")
-                .replace("signals-222778f8d6a129fa06a550b3", "signals-ecea6c239b4d816e2155ed07");
+                // 0.14.0 changed the products on purpose (the brands and the vendors, version 3), within the one re-read of rule/10
+                .replace("signals-222778f8d6a129fa06a550b3", "signals-0f9ea2791d8d6ba7c7cd2dae");
     }
 
     /** The report of {@link #FORMER} for the vocabularies in force and these settings. */

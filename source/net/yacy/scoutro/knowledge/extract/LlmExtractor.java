@@ -37,6 +37,7 @@ import org.json.JSONObject;
 
 import net.yacy.ai.PromptGuard;
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 /**
  * Tier 3: entities and relations a language model reads from a page's text
@@ -73,15 +74,17 @@ public final class LlmExtractor {
     public static final String NAME = "llm";
     /**
      * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no place; the
-     * change is what is kept of an answer, not the question.
+     * change is what is kept of an answer, not the question. 6 (0.14.0): a word of the vocabularies names no organisation, only
+     * white space joins a place's words, a facility named by its kind is the provider's at its address; again what is kept of
+     * an answer, not the question.
      */
-    public static final String VERSION = "5";
+    public static final String VERSION = "6";
     /**
      * The versions whose stored answers this version reads again without a model request (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40):
      * their change to this one is the validation only, so their tier-3 evidence is rebuilt into the answer, validated with the
      * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
      */
-    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4");
+    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4", "5");
     /**
      * The version of the question (prompt, schema and the requests' form): part of the prompt hash and of the cache key. A version
      * in {@link #REPLAYS} changes what is kept of an answer, not the question, so it keeps the question's version: a cached answer
@@ -385,6 +388,9 @@ public final class LlmExtractor {
             "entity_page_label", // "Kontakt", "Referenzen", "Über uns": a label of the site's pages as a place, a section's name as a service
             "entity_facility_not_a_place", // a generic noun, an activity, or a name the text never shows as a place (only in a menu)
             "entity_facility_service_name", // the name of a service the rules found on the page, without a sign of a place
+            // 0.14.0: a word of the vocabularies alone names no organisation ("Pflegedienst", "Mittelstand"); a product's or vendor's
+            // name is a name
+            "entity_organisation_vocabulary_word",
             // claims
             "claim_not_object",
             "claim_extra_field", // a field other than subject, predicate, object, hedged, quote
@@ -915,6 +921,9 @@ public final class LlmExtractor {
             }
             return serviceProof(id, name, quote, text, raw, context) == null && !titled(serviceTitle, name) ? "entity_service_not_offered" : null;
         }
+        if (Vocabulary.ORGANIZATION.equals(type) && KgVocabularies.get().vocabularyWord(name)) {
+            return "entity_organisation_vocabulary_word";
+        }
         if (Vocabulary.JOB.equals(type)) {
             if (POSTING.matcher(name).find() || POSTING.matcher(quote).find() || underHeading(raw, quote, POSTING)) {
                 return null;
@@ -1216,6 +1225,9 @@ public final class LlmExtractor {
                     continue;
                 }
                 unconfirmed = place.verdict == PlaceEvidence.Verdict.UNCLEAR;
+            }
+            if (Vocabulary.ORGANIZATION.equals(type) && same == null && KgVocabularies.get().vocabularyWord(name)) {
+                continue; // 0.14.0: a word of the vocabularies names no organisation, also of a cached or replayed answer
             }
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection

@@ -24,54 +24,73 @@ import org.json.*;
  * it (general SAP proves no S/4HANA, as before). An alias inside the match of another product's alias is that product's
  * ("SAP BW" in "SAP BW/4HANA"). {@code service_types} name the kind of a service (consulting, implementation, migration,
  * integration, development, operation, training, licence), the second axis of an offer ("SAP FI – implementation").
+ * <p>
+ * 0.14.0 (version 3): {@code vendors} names the organisations behind a node of the tree ("SAP" for {@code sap}, "Amazon Web
+ * Services" for {@code aws}); a vendor is never a client of its own products. The names of the products and of their vendors
+ * are names, never generic words ({@link KgVocabularies.Snapshot#vocabularyWord}).
  */
 public final class Signals {
     public final String version;
     private final Map<String,List<Pattern>> products,needs,serviceTypes;
     private final Map<String,String> parents;
     private final Set<String> general;
+    /** 0.14.0: the written names of the products, the needs and the vendors (raw, as the files list them). */
+    private final Map<String,List<String>> productNames,needNames,vendors;
     private Signals(Map<String,List<Pattern>> products,Map<String,List<Pattern>> needs,Map<String,List<Pattern>> serviceTypes,
-            Map<String,String> parents,Set<String> general,String version) {
-        this.products=products;this.needs=needs;this.serviceTypes=serviceTypes;this.parents=parents;this.general=general;this.version=version;
+            Map<String,String> parents,Set<String> general,Map<String,List<String>> productNames,Map<String,List<String>> needNames,
+            Map<String,List<String>> vendors,String version) {
+        this.products=products;this.needs=needs;this.serviceTypes=serviceTypes;this.parents=parents;this.general=general;
+        this.productNames=productNames;this.needNames=needNames;this.vendors=vendors;this.version=version;
     }
     public static Signals load(File defaults,File overrides,List<String> problems) {
         Map<String,List<Pattern>> products=new LinkedHashMap<>(),needs=new LinkedHashMap<>(),types=new LinkedHashMap<>();
         Map<String,String> parents=new LinkedHashMap<>();Set<String> general=new LinkedHashSet<>();
+        Map<String,List<String>> productNames=new LinkedHashMap<>(),needNames=new LinkedHashMap<>(),vendors=new LinkedHashMap<>();
         try {
             MessageDigest hash=MessageDigest.getInstance("SHA-256");
-            JSONObject root=read(defaults,overrides,"products.json","products",products,hash,problems,2);
+            JSONObject root=read(defaults,overrides,"products.json","products",products,productNames,hash,problems,3);
             if(root!=null&&!products.isEmpty()) {
                 try {
                     tree(root,products,parents,general);
                     JSONObject st=root.optJSONObject("service_types");
-                    if(st!=null)aliases(st,types);
-                } catch(Exception e) {products.clear();parents.clear();general.clear();types.clear();problems.add("products.json: "+e.getClass().getSimpleName());}
+                    if(st!=null)aliases(st,types,null);
+                    JSONObject vs=root.optJSONObject("vendors");
+                    if(vs!=null)for(String id:new TreeSet<>(vs.keySet())) {
+                        if(!products.containsKey(id)) throw new IllegalArgumentException("invalid vendor product");
+                        List<String> names=new ArrayList<>();JSONArray a=vs.getJSONArray(id);
+                        for(int i=0;i<a.length();i++){String n=a.getString(i);if(n.isBlank()||n.length()>100) throw new IllegalArgumentException("invalid vendor");names.add(n);}
+                        vendors.put(id,Collections.unmodifiableList(names));
+                    }
+                } catch(Exception e) {products.clear();parents.clear();general.clear();types.clear();productNames.clear();vendors.clear();
+                    problems.add("products.json: "+e.getClass().getSimpleName());}
             }
-            read(defaults,overrides,"needs.json","needs",needs,hash,problems,1);
-            return new Signals(products,needs,types,parents,general,java.util.HexFormat.of().formatHex(hash.digest()).substring(0,24));
+            read(defaults,overrides,"needs.json","needs",needs,needNames,hash,problems,1);
+            return new Signals(products,needs,types,parents,general,productNames,needNames,vendors,
+                    java.util.HexFormat.of().formatHex(hash.digest()).substring(0,24));
         } catch(java.security.NoSuchAlgorithmException e) {throw new IllegalStateException(e);}
     }
     private static JSONObject read(File defaults,File overrides,String filename,String field,Map<String,List<Pattern>> out,
-            MessageDigest hash,List<String> problems,int maxVersion) {
+            Map<String,List<String>> names,MessageDigest hash,List<String> problems,int maxVersion) {
         File f=overrides!=null && new File(overrides,filename).isFile() ? new File(overrides,filename) : new File(defaults,filename);
         try {
             if(f.length()>KgVocabularies.MAX_FILE_BYTES) throw new IllegalArgumentException("too large");
             byte[] bytes=Files.readAllBytes(f.toPath());hash.update(filename.getBytes(StandardCharsets.UTF_8));hash.update(bytes);
             JSONObject root=new JSONObject(new String(bytes,StandardCharsets.UTF_8));
             int v=root.optInt("version",0);if(v<1||v>maxVersion) throw new IllegalArgumentException("unsupported version");
-            aliases(root.getJSONObject(field),out);
+            aliases(root.getJSONObject(field),out,names);
             return root;
-        } catch(Exception e) {out.clear();problems.add(filename+": "+e.getClass().getSimpleName());return null;}
+        } catch(Exception e) {out.clear();names.clear();problems.add(filename+": "+e.getClass().getSimpleName());return null;}
     }
-    private static void aliases(JSONObject entries,Map<String,List<Pattern>> out) throws JSONException {
+    private static void aliases(JSONObject entries,Map<String,List<Pattern>> out,Map<String,List<String>> names) throws JSONException {
         for(String id:new TreeSet<>(entries.keySet())) {
             if(!id.matches("[a-z][a-z0-9-]{1,63}")) throw new IllegalArgumentException("invalid code");
-            JSONArray aliases=entries.getJSONArray(id);List<Pattern> patterns=new ArrayList<>();
+            JSONArray aliases=entries.getJSONArray(id);List<Pattern> patterns=new ArrayList<>();List<String> raw=new ArrayList<>();
             for(int i=0;i<aliases.length();i++) {
                 String alias=aliases.getString(i);if(alias.isBlank()||alias.length()>100) throw new IllegalArgumentException("invalid alias");
-                patterns.add(Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])"+Pattern.quote(alias)+"(?![\\p{L}\\p{N}])"));
+                patterns.add(Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])"+Pattern.quote(alias)+"(?![\\p{L}\\p{N}])"));raw.add(alias);
             }
             out.put(id,Collections.unmodifiableList(patterns));
+            if(names!=null)names.put(id,Collections.unmodifiableList(raw));
         }
     }
     /** The tree of version 2: every parent a known product, no cycle; {@code general} only products of the tree. */
@@ -137,6 +156,25 @@ public final class Signals {
     private boolean descendantIn(String id,Set<String> set) {
         for(String x:set)if(!x.equals(id)&&ancestor(id,x))return true;
         return false;
+    }
+    /** 0.14.0: every written name of a product, a need and a vendor of the vocabularies (for {@link KgVocabularies.Snapshot#vocabularyWord}). */
+    public List<String> names() {
+        List<String> out=new ArrayList<>();
+        for(List<String> l:productNames.values())out.addAll(l);
+        for(List<String> l:vendors.values())out.addAll(l);
+        return out;
+    }
+    /** 0.14.0: the written phrases of the needs (words of the vocabulary, no names). */
+    public List<String> needPhrases() {
+        List<String> out=new ArrayList<>();
+        for(List<String> l:needNames.values())out.addAll(l);
+        return out;
+    }
+    /** 0.14.0: the names of the vendors of a product: its own node's and its ancestors' ({@code vendors} of version 3). */
+    public List<String> vendors(String product) {
+        List<String> out=new ArrayList<>();
+        for(String x=product;x!=null;x=parents.get(x))out.addAll(vendors.getOrDefault(x,List.of()));
+        return out;
     }
     /** The parent of a product in the tree (its product or its vendor), or null. */
     public String parent(String product) {return parents.get(product);}
