@@ -43,7 +43,7 @@ import java.util.TreeSet;
  */
 public final class Vocabulary {
 
-    public static final String VERSION = "5"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0)
+    public static final String VERSION = "6"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0); 6: facility_kind (0.14.0)
 
     // entity types (kg_vocab kind 1)
     public static final String ORGANIZATION = "organization";
@@ -229,6 +229,13 @@ public final class Vocabulary {
      * provider is one organisation; never across two providers' domains; no discriminator by itself.
      */
     public static final String CLIENT_NAME = "client_name";
+    /**
+     * 0.14.0 (item C6, the owner's decision of 27 October 2026): a facility or site named only by its kind ("Tagespflege") by its
+     * kind and its place (the address, else the street, else the town) within the registrable domain of its provider: one per
+     * provider, kind and address, so the same day care on five pages is one and three at three addresses stay three. A
+     * discriminator: another place is another facility.
+     */
+    public static final String FACILITY_KIND = "facility_kind";
 
     // literal datatypes
     public static final String T_STRING = "string";
@@ -250,7 +257,7 @@ public final class Vocabulary {
     public static final Set<String> STRONG_SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK);
 
     public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, OPERATOR_NAME, FACILITY_ADDRESS,
-            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL, CLIENT_NAME);
+            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL, CLIENT_NAME, FACILITY_KIND);
 
     /** Relations between organisations (version 2, part D). */
     public static final Set<String> BUSINESS_RELATIONS = set(PARENT_OF, SUBSIDIARY_OF, CARRIER_OF, MEMBER_OF, ASSOCIATION_MEMBER,

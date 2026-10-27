@@ -53,6 +53,8 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * registrable domain of that page: one organisation for the same client on every page of the provider; mentions with different
  * legal forms never join ("Muster GmbH" and "Muster AG");</li>
  * <li>{@code facility_address}: name and <em>full</em> address, within the registrable domain;</li>
+ * <li>{@code facility_kind} (0.14.0): a facility named only by its kind by its kind and place (address, street or town), within
+ * the registrable domain: one per provider, kind and address;</li>
  * <li>{@code job_posting} (version 2): employer, title and location of a job, within the registrable domain;</li>
  * <li>{@code place_name} (version 2): a place by country, level and name, global (a state, a country, a locality);</li>
  * <li>{@code service_name} (version 2): a service by its provider and its category or name, within the registrable domain;</li>
@@ -166,6 +168,10 @@ public final class IdentityResolver {
             // the facility kind is part of the key: a day care and a residential home at one address are two facilities
             out.add(new Key(Vocabulary.FACILITY_ADDRESS, m.type + "@" + domain,
                     (m.subkind == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
+        }
+        if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.kindKey != null && domain != null) {
+            // 0.14.0: a facility named only by its kind, by its kind and place: one per provider, kind and address
+            out.add(new Key(Vocabulary.FACILITY_KIND, m.type + "@" + domain, Normalizers.clip(m.kindKey, 480)));
         }
         if (Vocabulary.PLACE.equals(m.type) && m.placeKey != null) {
             out.add(new Key(Vocabulary.PLACE_NAME, m.type, Normalizers.clip(m.placeKey, 300)));
@@ -578,7 +584,7 @@ public final class IdentityResolver {
                 if (Vocabulary.STRONG_SCHEMES.contains(k.scheme) || Vocabulary.LD_ID.equals(k.scheme)
                         || Vocabulary.FACILITY_ADDRESS.equals(k.scheme) || Vocabulary.JOB_POSTING.equals(k.scheme)
                         || Vocabulary.PLACE_NAME.equals(k.scheme) || Vocabulary.SERVICE_NAME.equals(k.scheme)
-                        || Vocabulary.PRODUCT_URL.equals(k.scheme)) {
+                        || Vocabulary.PRODUCT_URL.equals(k.scheme) || Vocabulary.FACILITY_KIND.equals(k.scheme)) {
                     final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
                     if (existing != null && !existing.contains(k.value)) {
                         continue; // a second value of a discriminating scheme is never attached

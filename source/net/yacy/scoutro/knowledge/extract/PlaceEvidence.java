@@ -14,6 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 import net.yacy.scoutro.knowledge.vocab.TermMatcher;
 
 /**
@@ -382,6 +383,136 @@ public final class PlaceEvidence {
         final String first = label.indexOf(' ') < 0 ? label : label.substring(0, label.indexOf(' '));
         final Matcher w = WORD.matcher(name);
         return first.length() >= 3 && w.find() && fold(w.group().split("-")[0]).equals(first);
+    }
+
+    /**
+     * 0.14.0 (item C6): a name that names only a kind of facility, no facility of its own: a word of the vocabularies
+     * ("Tagespflege", "Betreutes Wohnen", "Rechenzentrum") or a place word itself ("Wohngemeinschaft"; a name ending with one,
+     * "Sonnenhof", is a name). Such a facility is one only at its place ({@link #placeOf}).
+     */
+    public static boolean kindOnly(final String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        final String f = TermMatcher.fold(name.trim().replace("-", ""));
+        for (final String p : PLACE_WORDS) {
+            if (f.equals(TermMatcher.fold(p))) {
+                return true;
+            }
+        }
+        return KgVocabularies.get().vocabularyWord(name);
+    }
+
+    /**
+     * A street with its number, the postal code and the town after it if the page gives them: "Musterstraße 5", "Medenbacher Straße
+     * 17", "Am Mühlbach 1. 63863 Eschau", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt").
+     */
+    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}])((?:\\p{Lu}[\\p{L}.'-]*\\s+)?\\p{Lu}[\\p{L}'-]*"
+            + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:\\p{Lu}[\\p{L}.'-]*\\s+)?(?:Straße|Strasse|Weg|Gasse"
+            + "|Platz|Allee|Ring|Damm|Ufer|Chaussee|Markt)|(?i:am|an\\s+der|an\\s+den|im|in\\s+der|auf\\s+dem|auf\\s+der|zum|zur)\\s+\\p{Lu}"
+            + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+(?:\\s+(?:am|an\\s+der|im|ob\\s+der)"
+            + "\\s+\\p{Lu}[\\p{L}-]+)?))?|(?<!\\d)(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+))");
+    /** A town after the kind in its clause: "… an unserem Standort Musterstadt", "… in Musterstadt", "… im Musterdorf". */
+    private static final Pattern KIND_TOWN = Pattern.compile("(?u)^[\\s,]*(?:(?i:an\\s+unserem|am|unseres|unserem)\\s+Standort\\s+(?:in\\s+)?"
+            + "|(?i:in|im)\\s+)(\\p{Lu}[\\p{L}-]+(?:[ -](?:am|an\\s+der|im)\\s+\\p{Lu}[\\p{L}-]+|-\\p{Lu}[\\p{L}-]+)?)(?![\\p{L}\\p{N}])");
+    /** A word after "in" that is no town: the reader ("in Ihrer Nähe"), a common noun ("in Planung", "in Vorbereitung"). */
+    private static final Pattern NOT_TOWN = Pattern.compile("(?iu)^(?:ihr|ihre[mnrs]?|unser|unsere[mnrs]?|der|die|das|dem|den|des|einer?"
+            + "|deutschland|germany|europa|ganz)$|(?:ung|ungen|heit|keit|schaft|tion|nähe|naehe|umgebung|region|kürze|kuerze)$");
+    /** The provider describing itself ("Wir sind ein ambulanter Pflegedienst in …", "als Tagespflege …"): no facility of its kind. */
+    private static final Pattern SELF = Pattern.compile("(?iu)\\b(?:wir\\s+sind|we\\s+are|ist\\s+ein|is\\s+an?|als)\\b[^.!?\\n]{0,40}$");
+
+    /**
+     * 0.14.0 (item C6, the owner's decision of 27 October 2026): the place of a facility named only by its kind ({@link #kindOnly}):
+     * an address after an occurrence of the name outside a menu (a street with its number, with the postal code and the town if
+     * the next lines give them; or a postal code with its town), in its segment or the next two; else a town after it in its
+     * clause ("an unserem Standort Musterstadt", "in Musterstadt"). Null if the page gives none, or the provider describes itself
+     * ("Wir sind ein ambulanter Pflegedienst in …"): then the kind is no facility.
+     */
+    public static Address placeOf(final String raw, final String name) {
+        return placeOf(raw, name, null);
+    }
+
+    /**
+     * {@link #placeOf(String, String)} for the entity of the model's {@code quote}: the place the quote gives after the name, else
+     * the place after the name where the page writes the quote, else after any occurrence. Three day care facilities of one
+     * page, each quoted with its address, have three places.
+     */
+    public static Address placeOf(final String raw, final String name, final String quote) {
+        final String text = raw == null ? null : FORMAT.matcher(raw).replaceAll("");
+        if (text == null) {
+            return null;
+        }
+        final List<int[]> first = new ArrayList<>();
+        if (quote != null && !quote.isBlank()) {
+            final String q = FORMAT.matcher(quote).replaceAll("");
+            final Address own = placeAfter(q, occurrences(q, name));
+            if (own != null) {
+                return own;
+            }
+            for (final int[] span : occurrences(text, q)) {
+                for (final int[] at : occurrences(text.substring(span[0], span[1]), name)) {
+                    first.add(new int[] {span[0] + at[0], span[0] + at[1]});
+                }
+            }
+        }
+        final Address quoted = placeAfter(text, first);
+        return quoted != null ? quoted : placeAfter(text, occurrences(text, name));
+    }
+
+    private static Address placeAfter(final String text, final List<int[]> occurrences) {
+        for (final int[] at : occurrences) {
+            if (navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1])) {
+                continue;
+            }
+            final int[] seg = segment(text, at[0], at[1]);
+            if (SELF.matcher(text.substring(seg[0], at[0])).find()) {
+                continue;
+            }
+            // the window: the rest of the name's segment and the next two segments
+            int end = seg[1];
+            for (int k = 0; k < 2 && end < text.length(); k++) {
+                final int n = nextContent(text, end);
+                if (n >= text.length() || n - end > 4) {
+                    break; // a blank line or more ends the name's block
+                }
+                end = segment(text, n, n + 1)[1];
+            }
+            final Matcher a = KIND_ADDRESS.matcher(text).region(at[1], Math.min(end, at[1] + 200));
+            if (a.find() && words(text.substring(at[1], a.start())) <= 3) {
+                if (a.group(5) != null) {
+                    return new Address(null, null, a.group(5), a.group(6), null);
+                }
+                return Address.of(a.group(1).replaceFirst("^(?:im|in\\s+der)\\s+", "").trim() + " " + a.group(2), a.group(3), a.group(4), null);
+            }
+            final Matcher town = KIND_TOWN.matcher(text).region(at[1], seg[1]);
+            if (town.lookingAt() && !NOT_TOWN.matcher(town.group(1)).find() && !KgVocabularies.get().vocabularyWord(town.group(1))) {
+                return new Address(null, null, null, town.group(1), null);
+            }
+        }
+        return null;
+    }
+
+    /** 0.14.0: the key of a facility's place ({@link #placeOf}): its full address, else its street and number, else its town. */
+    public static String placeKey(final Address a) {
+        if (a == null) {
+            return null;
+        }
+        if (a.complete()) {
+            return a.key();
+        }
+        if (a.street != null && a.number != null) {
+            return Normalizers.streetKey(a.street) + " " + a.number.replaceAll("\\s+", "").toLowerCase(Locale.ROOT)
+                    + (a.postalCode == null ? "" : "|" + a.postalCode);
+        }
+        return a.postalCode != null ? a.postalCode + "|" + Normalizers.key(a.locality) : a.locality == null ? null : Normalizers.key(a.locality);
+    }
+
+    /** 0.14.0: the place as it is shown with the kind: the town, else the street with its number. */
+    public static String placeLabel(final Address a) {
+        if (a == null) {
+            return null;
+        }
+        return a.locality != null ? a.locality : a.street != null ? a.street + (a.number == null ? "" : " " + a.number) : null;
     }
 
     /** True if a word of the name is a place word ("Seniorenzentrum", "Pflegeheim", "Werk"). */
