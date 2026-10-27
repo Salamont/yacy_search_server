@@ -4404,6 +4404,9 @@ repository):
 - After the second run: the key of a facility's place is its street and number (else its town), so a page that writes the full
   address and one that writes only the street name one facility; a town of two words after a place by a place is no client
   ("Muster GmbH, Musterdorf bei Bad Beispiel").
+- After the third run: the key of a facility named by its kind is its kind's name and its place only; the model's guess of its
+  kind ("adultdaycare" on one page, none on the next) and its shown name (with or without the provider) are none of it, and they
+  do not keep two such facilities apart.
 
 ### 44.3 The update
 

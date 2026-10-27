@@ -98,7 +98,7 @@ public class KindFacilityTest {
         final JSONArray es = new JSONArray();
         int i = 0;
         for (final String[] f : facilities) {
-            es.put(KgJson.obj("id", "e" + ++i, "type", Vocabulary.FACILITY, "name", f[0], "kind", null, "quote", f[1], "at",
+            es.put(KgJson.obj("id", "e" + ++i, "type", Vocabulary.FACILITY, "name", f[0], "kind", f.length > 2 ? f[2] : null, "quote", f[1], "at",
                     Math.max(0, text.indexOf(f[1]))));
         }
         return KgJson.obj("entities", es, "claims", new JSONArray(), "values", new JSONArray());
@@ -215,6 +215,26 @@ public class KindFacilityTest {
         assertEquals(PlaceEvidence.placeKey(bold), PlaceEvidence.placeKey(PlaceEvidence.placeOf("**Tagespflege. ** Musterstraße 9.", "Tagespflege")));
         // a blank line still ends the block
         assertNull(PlaceEvidence.placeOf("Tagespflege.\n\n\n**Kontakt** Musterstraße 9. 12345 Musterdorf.", "Tagespflege"));
+    }
+
+    /**
+     * The gates of 0.14.0, run 3: the same day care on several pages, answered with another guess of its kind on each and once
+     * with its street only, is one facility.
+     */
+    @Test
+    public void theModelsGuessOfTheKindAndAShorterAddressNameOneFacility() throws Exception {
+        final String[] kinds = {"adultdaycare", null, "outpatientcare", null};
+        for (int i = 0; i < kinds.length; i++) {
+            publish("CCCCCChost0" + i, "https://www.muster-pflege.de/angebot-" + i + "/", "Text " + i + ".\n\nTagespflege. Am Musterbach 1."
+                    + " 12345 Musterstadt.\n", new String[] {"Tagespflege", "Tagespflege. Am Musterbach 1. 12345 Musterstadt.", kinds[i]});
+        }
+        publish("CCCCCChost09", "https://www.muster-pflege.de/kontakt/", "Kontakt.\n\n**Tagespflege. ** Am Musterbach 1.\n",
+                new String[] {"Tagespflege", "**Tagespflege. ** Am Musterbach 1.", "adultdaycare"});
+        final Set<String> ids = new TreeSet<>();
+        for (final String s : stored()) {
+            ids.add(s.substring(0, s.indexOf('|')));
+        }
+        assertEquals(stored().toString(), 1, ids.size());
     }
 
     @Test

@@ -1254,8 +1254,8 @@ public final class LlmExtractor {
             if (Vocabulary.JOB.equals(type) && same == null && ctx.noPosting(name)) {
                 continue; // a menu entry or teaser link of the page (0.10.5): its claims go with it
             }
-            final String kindKey = kindPlace == null ? null
-                    : (e.isNull("kind") ? "" : e.optString("kind", "")) + "|" + key + "|" + PlaceEvidence.placeKey(kindPlace);
+            // the kind is the name ("tagespflege"), not the model's guess of its kind ("adultdaycare" on one page, none on the next)
+            final String kindKey = kindPlace == null ? null : key + "|" + PlaceEvidence.placeKey(kindPlace);
             final String mentionRef = kindKey == null ? ref : "llm:" + type + ":" + key + "@" + PlaceEvidence.placeKey(kindPlace);
             final String shown = kindPlace == null ? name : kindName(name, ctx, kindPlace);
             refs.put(e.optString("id"), mentionRef);

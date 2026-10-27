@@ -164,13 +164,14 @@ public final class IdentityResolver {
             }
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.address != null && m.address.complete()
-                && m.name != null && domain != null) {
+                && m.name != null && domain != null && m.kindKey == null) {
             // the facility kind is part of the key: a day care and a residential home at one address are two facilities
             out.add(new Key(Vocabulary.FACILITY_ADDRESS, m.type + "@" + domain,
                     (m.subkind == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.kindKey != null && domain != null) {
-            // 0.14.0: a facility named only by its kind, by its kind and place: one per provider, kind and address
+            // 0.14.0: a facility named only by its kind, by its kind and place: one per provider, kind and address (its shown name
+            // and the model's guess of its kind vary from page to page, so the address key of a named facility is none of its keys)
             out.add(new Key(Vocabulary.FACILITY_KIND, m.type + "@" + domain, Normalizers.clip(m.kindKey, 480)));
         }
         if (Vocabulary.PLACE.equals(m.type) && m.placeKey != null) {
@@ -398,7 +399,8 @@ public final class IdentityResolver {
             }
         }
         final String kind = subkind(tx, ent);
-        return kind == null || m.subkind == null || kind.equals(m.subkind);
+        // 0.14.0: a facility named only by its kind is decided by its kind and place, not by the model's guess of its kind
+        return kind == null || m.subkind == null || m.kindKey != null || kind.equals(m.subkind);
     }
 
     /** The legal forms of the entity's names and aliases (0.13.0, the clients of a provider's pages). */
