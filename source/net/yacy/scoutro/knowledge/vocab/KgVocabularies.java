@@ -78,7 +78,7 @@ public final class KgVocabularies {
          * 0.14.0: whether {@code name} is nothing but a word of the vocabularies, a term or a label of a service category, a group, an
          * audience segment, a kind of organisation, a customer type, a company size, an employment type or a need ("Netzwerk",
          * "Senioren", "Managed Services"): such a word names no organisation, client, partner, supplier or place. Compared with the
-         * umlauts ({@link #wordKey}: "Schuler" is no "Schüler"); a name of the product vocabulary, a product or its vendor ("AWS",
+         * umlauts ({@link #wordKey}: "Turen" is no "Türen"); a name of the product vocabulary, a product or its vendor ("AWS",
          * "Shopware", "Google Cloud"), is a name, never a word.
          */
         public boolean vocabularyWord(final String name) {
@@ -129,7 +129,7 @@ public final class KgVocabularies {
 
     /**
      * 0.14.0: the key a name is compared by with the words of the vocabularies: lower case, the umlauts written out ("ü" as "ue",
-     * "ß" as "ss", so "Schüler" and "Schueler" are one word and "Schuler" another), every run of other characters one space.
+     * "ß" as "ss", so "Türen" and "Tueren" are one word and "Turen" another), every run of other characters one space.
      */
     public static String wordKey(final String s) {
         if (s == null) {

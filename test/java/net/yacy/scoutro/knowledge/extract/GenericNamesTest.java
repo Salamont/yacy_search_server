@@ -50,17 +50,17 @@ public class GenericNamesTest {
     @Test
     public void aWordOfTheVocabulariesIsNoNameButABrandIs() {
         final KgVocabularies.Snapshot v = KgVocabularies.get();
-        for (final String word : List.of("Netzwerk", "Senioren", "Managed Services", "Landschaftsbau", "Pflegedienst", "Schüler", "Schueler")) {
+        for (final String word : List.of("Netzwerk", "Senioren", "Managed Services", "Landschaftsbau", "Pflegedienst", "Türen", "Tueren")) {
             assertTrue(word, v.vocabularyWord(word));
         }
         // the brands of the product vocabulary (0.14.0) and their vendors are names, though categories name them too
         for (final String brand : List.of("AWS", "Shopware", "Google Cloud", "Shopify", "KNX", "WordPress", "TYPO3", "Kubernetes")) {
             assertFalse(brand, v.vocabularyWord(brand));
         }
-        // with the umlauts: a firm named "Schuler" is no "Schüler"
-        assertFalse(v.vocabularyWord("Schuler"));
+        // with the umlauts: a firm named "Turen" is no "Türen"
+        assertFalse(v.vocabularyWord("Turen"));
         assertFalse(v.vocabularyWord("Muster GmbH"));
-        assertEquals("schueler", KgVocabularies.wordKey("Schüler"));
+        assertEquals("tueren", KgVocabularies.wordKey("Türen"));
         assertFalse(v.signals.vendors("aws").isEmpty());
         assertTrue(v.signals.products("Wir betreiben Shops mit Shopware und Hosting auf AWS.").containsAll(Set.of("shopware", "aws")));
     }

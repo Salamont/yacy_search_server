@@ -1,0 +1,107 @@
+# Scoutro 0.14.0: names, clients, facilities by their kind, the matching's follow-ups and the clean-up
+
+Prepared versions: **0.14.0 / 1.942-scoutro.49**. Numeric YaCy peer version **1.942** stays unchanged. No schema change; one
+re-extraction of tiers 1 and 2 (`rule/10`, `jsonld/8`, vocabulary package 8); the LLM tier's stored answers are replayed without
+a model request (`llm/6`). The update merges the facilities named by their kind on several pages of one provider at one place:
+**a backup of the knowledge graph before the update is mandatory.** Each step after the merge is a separate decision of the
+operator.
+
+| What | Value |
+|---|---|
+| Release | a word of the vocabularies names no organisation (the brands of the products are names); one name is never split; a client field ends with its name; "… bei X" names a client only as a name, on a reference page or below a heading of references; a client named by a description is a value of the provider; only white space joins a place's words; a facility named only by its kind is the provider's at its place, one per provider, kind and address; the provider's work for others is its offer, the vendor no client, an FAQ no use; an audience phrase gives no category, the provider in the third person is no target, words of another sense are no hit; rows on merged entities are removed in every pass |
+| Source commit on `main` | **open** (on 0.13.2, `d7fdf60a6842`) |
+| Image | `ghcr.io/salamont/scoutro:1.942-scoutro.49`, alias `0.14.0`, linux/amd64 |
+| Registry digest | **open** until publication |
+| Knowledge graph schema | **9, unchanged** |
+| Extractors | `rule/10` (was 9), `Vocabulary.VERSION` 6 (`facility_kind`, `client_description`), vocabulary package 8 (`products.json` version 3 with the brands and `vendors`, `categories.json` with `exclude`); `jsonld/8` (was 7: a word of the vocabularies names no organisation), in the same re-extraction; `LlmExtractor.VERSION` 6 with `REPLAYS` = {4, 5} (the question's version stays 4); `BusinessSignals.VERSION` 6 and `Audiences.VERSION` 3 (no extractor identity); `MatchingRules.VERSION` stays 1 |
+| Upgrade from | 0.13.2 / `1.942-scoutro.48`, installed in production |
+
+## What 0.14.0 changes (`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 44)
+
+1. **Names.** A name that is nothing but a word of the vocabularies (a category's term, a group, a segment, a kind of
+   organisation, a customer type, a size, an employment type, a need: "Netzwerk", "Senioren", "Pflegedienst") names no
+   organisation, client, partner, supplier or region, in the rules, in JSON-LD (other than the own domain's operator) and in the
+   LLM tier. The brands of the product vocabulary (AWS, Google Cloud, Shopify, Shopware, KNX, WordPress, TYPO3, Kubernetes) and
+   the products' vendors are names; the comparison keeps the umlauts ("Turen" is no "Türen"). A list is not split inside one
+   name ("Garten- und Landschaftsbau", "Ministerium für Muster, Beispiel und Test"); a client field ends before an address, a
+   representative, the next field's label or a sentence end; placeholders ("auf Anfrage", "N.N.") are no client; a project's
+   name keeps no markdown marks.
+2. **"… bei X"** (the owner's decision of 27 October 2026): narrowed, not removed. A heading names a client after "bei" only on
+   a reference page or below a heading of references, and only as a name with a legal form or a proper name, cut before the
+   words after it; a phrase, a common noun, the reader, a question, a place or an infinitive is none.
+3. **Clients named by a description** ("Dienstleister für Musterabrechnungen", "Energieversorgungskonzern in Musterland"): a
+   value of the provider (`client_description`: the description, the project with its state and products), never an
+   organisation or a candidate of the matching; public bodies and associations stay clients. Shown in the knowledge view under
+   *Clients named by a description* (`audiences.client_descriptions`).
+4. **Facilities named only by their kind** (the owner's decision of 27 October 2026): kept only with their place in the page
+   (an address after the name, or "in X", "an unserem Standort X") and shown as "kind (provider, place)", e.g. "Tagespflege
+   (Muster Pflege, Musterstadt)"; one per provider, kind and address (scheme `facility_kind`): three day care facilities of one
+   provider at three addresses stay three, the same one on five pages is one. Without a place the kind stays an offer. Only
+   white space joins the words of a place's name.
+5. **Matching:** the provider's work for others ("Systeme, die wir migrieren") and its choice for the reader are its offers; a
+   product named as what an offer replaces is neither used nor offered; the source of a planned migration is no need of it;
+   the vendor of a product is no client of it; the lines below an FAQ heading state no use, plan or need.
+6. **Audiences:** an audience phrase ("Software für Architekten") gives the provider no category, offer or topic; a provider
+   naming itself in the third person ("Der Pflegedienst Muster unterstützt Sie", "Ihr Pflegedienst in Musterstadt") is no
+   target (the known limitation of 0.13.2); a category's `exclude` lists words of another sense ("IT-Architekturen").
+7. **Clean-up:** rows of the derivation and contributions of the matching that name a merged entity are removed in every pass,
+   also in an incomplete one.
+
+## What the update does
+
+1. **One re-extraction** of every tracked page by `rule/10` and `jsonld/8` (as every change of the extractor identity; 0.13.1
+   reads every page, also beyond the work queue). A statement whose only evidence was the former reading is deleted with it:
+   the organisations named by a vocabulary word, the clients read from a phrase after "bei", the clients named by a
+   description (now values of their provider).
+2. **The replay of the LLM tier** (section 40.3): the stored answers of `llm/4` and `llm/5` are rebuilt from their evidence,
+   validated with the page's text and published as `llm/6`, page by page after its re-extraction. **No model request.** An
+   organisation named by a vocabulary word loses its evidence (`entity_organisation_vocabulary_word`); a facility named only by
+   its kind keeps it only with its place (`entity_facility_kind_without_place`). **Merges:** the facilities of one provider,
+   kind and place named on several pages are joined; the older entity survives, the other redirects to it. A merge is not
+   undone by a later version: the backup taken before the update is the way back.
+3. The first passes of the derivation and the matching remove the rows naming merged entities (the matching up to 2 000 per
+   run, `removed_merged`).
+4. Reading: the third person of B6 and the matching's vetoes take effect at once on stored evidence.
+
+The work of 1 and 2 is CPU only, about one rule extraction per page; the LLM schedule does not hold the replay.
+
+## Gates (production data, read only)
+
+The gates run on production data, read only and without a model, in the private package repository
+(`docs/OPENCODE-GATES-0.14.0.md`; M0 before and M1 after the update by `docs/OPENCODE-MEASURE-0.13.0.md`), in all four
+collections: G1 every entity of the count of generic names on the pages that named it, read by the staged classes (stays, shown
+as a kind, a client description or goes; the owner's criterion: at least nine in ten of those that go are wrong); G2 the
+clients after "bei" and in client fields (how many of the real clients stay); G3 the declared audiences with the former and
+the new reader, and the categories and topics of a sample of pages; G4 the 98 pairs of M1 with the former and the new read path,
+and their candidates as descriptions or vendors; G5 the facilities named by their kind (distinct providers, kinds and places).
+No collection may get worse.
+
+| Gate | Result |
+|---|---|
+| G1–G5 | **open** |
+| M0 / M1 | **open** |
+
+## Known limitations
+
+- A brand written in lower case and ending in "-er" after "bei" reads as an adjective and is not taken as a client.
+- A client named only in a heading that asks ("Was macht … bei Muster?") is no client.
+
+## Rollback to 0.13.2
+
+The graph keeps schema 9; 0.13.2 sees a new rule and LLM version in `kg_meta`, extracts every page again with `rule/9` and
+examines every document again by `llm/5` (`llm/6` is a version outside its own), with model requests. In this order:
+
+1. Note the value of `scoutro.kg.llm.maxRequestsPerDay` (unset: 0, no cap) and set it to a small value while 0.14.0 runs
+   (Advanced Properties, `ConfigProperties_p.html`). It is written to `yacy.conf` at once and holds from the graph's next start.
+2. Start the 0.13.2 image by digest on the same DATA; its status shows the small cap in `llm.dailyRequests.cap`.
+3. Restore the backup taken before the update in 0.13.2 (`POST /scoutro/api/v1/kg/control`
+   `{"action":"restore","backup":"<file>"}`), never in 0.14.0, which would convert it again. The restored graph carries
+   `rule/9` and `llm/5`: neither the re-extraction of every page nor the examination of every document remains. Only the
+   restore undoes the merges of the update.
+4. Set the old value again when the owner decides; until then model requests stay within the small cap per UTC day.
+
+## Tests of this release
+
+`DocumentedRelationsTest`, `GenericNamesTest`, `KindFacilityTest`, `PlaceEvidenceTest`, `LlmExtractorInvalidReasonTest`,
+`BusinessSignalsTest`, `MatchingTest`, `DerivedServiceTest`, `AudiencesTest`, `BusinessExtractionTest`, `CollectionMigrationTest`,
+and the regression of `tools/scoutro/ci/scoutro-checks.sh`.
