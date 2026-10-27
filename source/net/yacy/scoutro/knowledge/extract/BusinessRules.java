@@ -1592,7 +1592,7 @@ public final class BusinessRules {
     private static final Pattern DESCRIPTION_HEAD = Pattern.compile("(?iu)(?:unternehmen|händler|haendler|dienstleister|versorger|gruppe|konzern"
             + "|hersteller|mittelständler|mittelstaendler|anbieter|betreiber|verwaltung|fabrik|betrieb|kette|verbund|verein|träger|traeger"
             + "|company|retailer|provider|group|manufacturer|operator|supplier)$");
-    /** 0.14.0: the preposition after the head of a description ("Dienstleister für …", "Anbieter von …", "…konzern in NRW"). */
+    /** 0.14.0: the preposition after the head of a description ("Dienstleister für …", "Anbieter von …", "…konzern in Musterland"). */
     private static final Pattern DESCRIPTION_LINK = Pattern.compile("(?iu)^(?:für|fuer|von|vom|in|im|aus|der|des|mit|for|of|in|from|with)$");
     /**
      * 0.14.0: a head that public bodies and associations carry in their names ("Senatsverwaltung für Stadtentwicklung", "Verein für

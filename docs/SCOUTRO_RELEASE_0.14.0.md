@@ -61,7 +61,10 @@ operator.
    undone by a later version: the backup taken before the update is the way back.
 3. The first passes of the derivation and the matching remove the rows naming merged entities (the matching up to 2 000 per
    run, `removed_merged`).
-4. Reading: the third person of B6 and the matching's vetoes take effect at once on stored evidence.
+4. New and changed pages are asked as before; the prompt hash includes the version of the products' vocabulary (version 3),
+   so their chunks no longer hit the cache of the former prompt (the system prompt, the schema and the question's version 4
+   are unchanged). The pages the LLM tier skipped as no candidate are decided once more by `rule/10` (no request).
+5. Reading: the third person of B6 and the matching's vetoes take effect at once on stored evidence.
 
 The work of 1 and 2 is CPU only, about one rule extraction per page; the LLM schedule does not hold the replay.
 

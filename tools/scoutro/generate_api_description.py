@@ -781,6 +781,10 @@ schemas["KgBusinessView"] = {"type": "object", "description": "The object view: 
     "audiences": {"type": "object", "description": "Three layers, never mixed.", "properties": {
         "declared": {"type": "object", "description": "declared_audience: customer_type, audience_segment, target_industry, target_category, company_size, need, serves_place.", "additionalProperties": {"type": "array"}},
         "observed": {"type": "array", "items": KG_REL, "description": "observed_customer: published customer_of / reference_for relations."},
+        "client_descriptions": {"type": "array", "items": {"type": "object", "properties": {"statement": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"},
+            "description": {"type": "string"}, "project": {"type": "string"}, "state": {"type": "string", "enum": ["running", "completed", "unknown"]},
+            "products": {"type": "array", "items": {"type": "string"}}}},
+            "description": "0.14.0: the clients the entity documents by a description, not by a name (\"Dienstleister für …\"), at their projects: values of the entity (client_description), never organisations, never merged, never matching candidates."},
         "suggested": {"type": "array", "items": ref("KgDerived"), "description": "suggested_match: Scoutro suggestions, no facts."}}},
     "suggested_matches": {"type": "object", "properties": {"suggested_customer": {"type": "array", "items": ref("KgDerived")}, "suggested_partner": {"type": "array", "items": ref("KgDerived")},
         "as_possible_customer": {"type": "array", "items": ref("KgDerived"), "description": "Providers for which this entity could be a customer."}}},

@@ -4394,7 +4394,9 @@ package 8 (`products.json` version 3, `categories.json` with `exclude`): **one r
 C6, the places' words), **without a model request** (40.3); the question's version stays 4. An organisation, client or place
 whose only evidence was the former reading goes with it; facilities named by their kind on several pages of one provider at one
 place are merged into one (the older entity survives), so **a backup before the update is mandatory**. The first passes of
-the derivation and the matching remove the rows on merged entities. Schema 9, unchanged.
+the derivation and the matching remove the rows on merged entities. The prompt hash includes the version of the products'
+vocabulary: new and changed pages no longer hit the cache of the former prompt (the system prompt and the schema are
+unchanged). Schema 9, unchanged.
 
 ### 44.4 Tests
 
