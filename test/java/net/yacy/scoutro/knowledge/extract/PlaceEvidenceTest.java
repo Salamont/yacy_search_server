@@ -339,8 +339,10 @@ public class PlaceEvidenceTest {
                 new ExtractContext(KgVocabularies.get(), Set.of("care", "construction"), false, List.of("muster-web")).operatesPlaces());
         assertFalse(new ExtractContext(KgVocabularies.get(), Set.of(), false, List.of("muster-web")).operatesPlaces());
 
+        // 0.14.0 (the owner's rule of 26 October 2026): two blocks of the page, the second under a heading's marks, never become one
+        // name; 0.13.0 found it across up to eight characters and kept it unclear
         final String parcs = "Unsere Häuser im Norden.\n\nMuster parc.\n\n#### Beispielstadt.\n\nMuster parc.\n\n#### Musterdorf.\n";
-        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(parcs, "Muster parc Beispielstadt", "Muster parc. #### Beispielstadt.",
+        assertEquals(PlaceEvidence.Verdict.REFUSED, PlaceEvidence.check(parcs, "Muster parc Beispielstadt", "Muster parc. #### Beispielstadt.",
                 "https://www.muster-care.de/", "facility", false).verdict);
         final String places = "** Muster-Berufsfachschule für Pflege Musterstraße 14. 12345 Musterstadt. **0123/45 67 89. Zur Einrichtung "
                 + "** Muster-Erziehungsberatung Beispielweg 15. 12345 Musterstadt. **0123/45 67 80. Zur Einrichtung\n";
@@ -360,9 +362,9 @@ public class PlaceEvidenceTest {
      */
     @Test
     public void refusedPlacesOfTheNinthRun() {
-        final String parcs = "Unsere Häuser im Norden.\n\nMuster parc.\n\n#### Beispiel\u00adstadt.\n\nMuster parc.\n\n#### Muster\u00addorf.\n";
-        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(parcs, "Muster parc Beispielstadt", "Muster parc. #### Beispielstadt.",
-                "https://www.muster-care.de/", "facility", false).verdict);
+        final String parcs = "Unsere Häuser im Norden.\n\nMuster parc\n\nBeispiel\u00adstadt\n\nMuster parc\n\nMuster\u00addorf\n";
+        assertEquals("white space between a name's words, blank lines too, joins them", PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check(parcs,
+                "Muster parc Beispielstadt", "Muster parc Beispielstadt", "https://www.muster-care.de/", "facility", false).verdict);
         final String block = "Kinder im Alter bis drei Jahren.\n## Muster Kurzzeit-Kinderbetreuung\nBeispielweg 19\n12345 Musterstadt\nMehr lesen\n"
                 + "##### Muster Zentralverwaltung\nMusterstraße 106\n12345 Musterstadt\nTelefon 0123 456\n";
         for (final String name : List.of("Muster Kurzzeit-Kinderbetreuung", "Muster Zentralverwaltung")) {
@@ -460,5 +462,25 @@ public class PlaceEvidenceTest {
         LlmExtractor.apply(accepted(text, reversed), List.of(), cut, ctx(text, "https://www.muster-pflege.de/").withReplay());
         assertEquals(Set.of("Haus Linde", "Gärtnerei Muster"), stated(cut));
         assertEquals(Set.of("Gärtnerei Muster"), unconfirmed(cut));
+    }
+
+    /**
+     * 0.14.0 (item C7, the owner's rule of 26 October 2026): only white space joins a name's words, or the marks the name itself
+     * writes there; other text, a heading's mark or a sentence's end ends the name, for the name and for the model's quote.
+     */
+    @Test
+    public void onlyWhiteSpaceJoinsTheWordsOfAName() {
+        assertEquals(1, PlaceEvidence.occurrences("Wir sind hier: Musterweg 5\n12345 Musterstadt.", "Musterweg 5, 12345 Musterstadt").size());
+        assertEquals(1, PlaceEvidence.occurrences("Wir sind hier: Musterweg 5, 12345 Musterstadt.", "Musterweg 5, 12345 Musterstadt").size());
+        assertEquals(1, PlaceEvidence.occurrences("Das Haus\n\n\nAm Muster  See.", "Haus Am Muster See").size());
+        assertEquals(1, PlaceEvidence.occurrences("Die Muster-WG in Beispielstadt.", "Muster-WG").size());
+        assertEquals(0, PlaceEvidence.occurrences("Muster Haus.\n\n#### Beispielstadt.", "Muster Haus Beispielstadt").size());
+        assertEquals(0, PlaceEvidence.occurrences("Muster Haus. Beispielstadt liegt am See.", "Muster Haus Beispielstadt").size());
+        assertEquals(0, PlaceEvidence.occurrences("Muster Haus | Beispielstadt", "Muster Haus Beispielstadt").size());
+        // the model's quote spanning both blocks gives no occurrence of the name either
+        assertEquals(PlaceEvidence.Verdict.REFUSED, PlaceEvidence.check("Unsere Angebote.\n\nMuster vita.\n\n#### Beispielstadt.\n",
+                "Muster vita Beispielstadt", "Muster vita. #### Beispielstadt.", "https://www.muster-care.de/", "facility", false).verdict);
+        assertEquals(PlaceEvidence.Verdict.UNCLEAR, PlaceEvidence.check("Unsere Angebote.\n\nMuster vita\nBeispielstadt\n",
+                "Muster vita Beispielstadt", "Muster vita Beispielstadt", "https://www.muster-care.de/", "facility", false).verdict);
     }
 }

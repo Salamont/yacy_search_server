@@ -56,9 +56,10 @@ public class CollectionFitTest {
     private static final String BAU = "bauteamcheck-web", STACK = "stackfinder-web";
     /**
      * The prompt hash of the release (Scoutro 0.11.5, main e45d21d; 0.13.0: the definition of a facility and the products' tree;
-     * {@code LlmExtractor.VERSION} 5 keeps the question's version 4): the question changes none of it.
+     * {@code LlmExtractor.VERSION} 5 keeps the question's version 4; 0.14.0: the products' vocabulary of version 3 with the brands
+     * and vendors, {@code LlmExtractor.VERSION} 6, the system prompt and the schema unchanged): the question changes none of it.
      */
-    private static final String PROMPT_HASH_0115 = "c2016bce82a82b85";
+    private static final String PROMPT_HASH_0115 = "93a6ef11e31ef010";
     private static final String PROMPT_AND_SCHEMA_0115 = "8a09718cfd968614166037f745aaac71ae344e4381cc79fb47cdbdc7b26cce0d";
     private static final String HOME = "Drolshagens Feinkost und Confiserie: Pralinen, Trüffel und Geschenkkörbe aus eigener Manufaktur.";
 
@@ -232,7 +233,7 @@ public class CollectionFitTest {
     public void onlyTheHomePagesFirstRequestCarriesTheQuestionAndNothingElseChanges() throws Exception {
         assertEquals("the prompt hash of 0.11.5", PROMPT_HASH_0115, LlmExtractor.PROMPT_HASH);
         assertEquals("system prompt and schema of 0.11.5", PROMPT_AND_SCHEMA_0115, sha(LlmExtractor.SYSTEM_PROMPT + "\u0000" + LlmExtractor.SCHEMA));
-        assertEquals("5", LlmExtractor.VERSION);
+        assertEquals("6", LlmExtractor.VERSION);
         add("AAAAAAhome01", "https://drolshagens-muster.de/", List.of(BAU), HOME);
         add("AAAAAAimpr02", "https://drolshagens-muster.de/impressum", List.of(BAU), "Impressum. Drolshagens Feinkost GmbH, Musterweg 1.");
         settle();

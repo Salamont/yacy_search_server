@@ -19207,6 +19207,9 @@
     <trans-unit id="a521a5ae" xml:space="preserve" approved="no" translate="yes">
        <source>Published customers and references</source>
     </trans-unit>
+    <trans-unit id="5ce109f3" xml:space="preserve" approved="no" translate="yes">
+       <source>Clients named by a description</source>
+    </trans-unit>
     <trans-unit id="54cba18d" xml:space="preserve" approved="no" translate="yes">
        <source>Possible customers (Scoutro suggestions)</source>
     </trans-unit>

@@ -2,6 +2,30 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.14.0 / 1.942-scoutro.49 — names, clients, facilities by their kind, the matching's follow-ups and the clean-up
+
+On 0.13.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/10`, `jsonld/8`, `Vocabulary.VERSION` 6, vocabulary
+package 8); the LLM tier's stored answers are replayed without a model request (`LlmExtractor.VERSION` 6, `REPLAYS` = {4, 5});
+`BusinessSignals.VERSION` 6, `Audiences.VERSION` 3; `MatchingRules.VERSION` stays 1. A backup before the update is mandatory.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.14.0.md).
+
+- **Names** (docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 44): a word of the vocabularies alone names no organisation, client,
+  partner, supplier or region (rules, JSON-LD, LLM tier); the brands of `products.json` version 3 and the products' vendors are
+  names, and the comparison keeps the umlauts. One name is never split at "und" or a comma; a client field ends with its name;
+  placeholders are no client; a project's name keeps no markdown marks.
+- **"… bei X"** names a client only as a name (a legal form or a proper name), on a reference page or below a heading of
+  references, cut before the words after it.
+- **Clients named by a description** are values of the provider (`client_description`, `audiences.client_descriptions` of the
+  business view), never organisations or candidates of the matching; public bodies stay clients.
+- **Facilities named only by their kind** are kept only with their place and shown as "kind (provider, place)", one per
+  provider, kind and address (scheme `facility_kind`); only white space joins the words of a place's name.
+- **Matching:** the provider's work for others is its offer, a product an offer replaces is no use, the source of a planned
+  migration no need, the vendor of a product no client of it, an FAQ section no use, plan or need.
+- **Audiences:** an audience phrase gives the provider no category; the provider naming itself in the third person is no
+  target; `categories.json` `exclude` lists words of another sense.
+- **Clean-up:** rows and contributions naming a merged entity are removed in every pass, also an incomplete one.
+- The notes of 0.13.2 give its merge and image digest.
+
 ## 0.13.2 / 1.942-scoutro.48 — the speaker's own business, a topic and a referral are no declared audience
 
 On 0.13.1: no schema change, no new extractor version (`rule/9`, `jsonld/7`, `llm/5`), no re-extraction. [Release, upgrade and

@@ -654,11 +654,12 @@ public final class DerivedService {
         // existing rows: key -> {der_rowid, public_id, confidence, basis}
         final Map<String, Object[]> have = this.store.read(c -> {
             final Map<String, Object[]> m = new HashMap<>();
-            try (PreparedStatement ps = c.prepareStatement("SELECT der_rowid, kind, a_ent, b_ent, coll_a, coll_b, public_id, confidence, basis,"
-                    + " reason FROM kg_derived"); ResultSet rs = ps.executeQuery()) {
+            try (PreparedStatement ps = c.prepareStatement("SELECT d.der_rowid, d.kind, d.a_ent, d.b_ent, d.coll_a, d.coll_b, d.public_id,"
+                    + " d.confidence, d.basis, d.reason, (SELECT count(*) FROM kg_entity e WHERE e.ent_rowid IN (d.a_ent, d.b_ent) AND e.status = 2)"
+                    + " FROM kg_derived d"); ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     m.put(rs.getInt(2) + ":" + rs.getLong(3) + ":" + rs.getLong(4) + ":" + rs.getInt(5) + ":" + rs.getInt(6),
-                            new Object[] {rs.getLong(1), rs.getString(7), rs.getDouble(8), rs.getString(9), rs.getString(10)});
+                            new Object[] {rs.getLong(1), rs.getString(7), rs.getDouble(8), rs.getString(9), rs.getString(10), rs.getInt(11) > 0});
                 }
             }
             return m;
@@ -670,7 +671,9 @@ public final class DerivedService {
                     && KgStore.queryLong(c,"SELECT count(*) FROM kg_entity") < MAX_ROWS
                     && KgStore.queryLong(c,"SELECT count(*) FROM kg_doc_link") < MAX_ROWS);
         for (final Map.Entry<String, Object[]> e : have.entrySet()) {
-            if (complete && !want.containsKey(e.getKey())) {
+            // 0.14.0 (item D1): a row naming a merged entity is never shown (reads take status 1) and never wanted again (the pass
+            // computes the survivor's rows); it goes also in an incomplete pass
+            if (complete && !want.containsKey(e.getKey()) || Boolean.TRUE.equals(e.getValue()[5]) && !want.containsKey(e.getKey())) {
                 final String[] k = e.getKey().split(":");
                 deletes.add(new Object[] {e.getValue()[0], e.getValue()[1], Integer.parseInt(k[3]), Integer.parseInt(k[4])});
             }

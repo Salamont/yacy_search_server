@@ -29,7 +29,8 @@ public class LlmExtractorInvalidReasonTest {
      */
     static final String TEXT = LlmExtractorTest.TEXT + "\nWir suchen im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die"
             + " Muster Pflege gGmbH. Die Muster Pflege gGmbH und SAP werden genannt.\nUnser Pflegeteam erreicht Sie werktags. Die"
-            + " Software Musterplan nutzen wir intern. Die Verwaltungsleitung sitzt in Berlin. Unser Musterkurs beginnt montags.";
+            + " Software Musterplan nutzen wir intern. Die Verwaltungsleitung sitzt in Berlin. Unser Musterkurs beginnt montags."
+            + " Ein Pflegedienst hilft im Alltag. Unsere Wohngemeinschaft hat freie Zimmer.";
 
     /** k1 is the known "Muster Pflege gGmbH" ({@link LlmExtractorTest#known()}), kj the known posting, ks a service of the rules. */
     static List<LlmExtractor.Known> known() {
@@ -124,6 +125,12 @@ public class LlmExtractorInvalidReasonTest {
                 + "\"quote\":\"Die Verwaltungsleitung sitzt in Berlin\"}", C1, V1));
         m.put("entity_facility_service_name", answer(e + "{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Musterkurs\","
                 + "\"quote\":\"Unser Musterkurs beginnt montags\"}", C1, V1));
+        // a word of the vocabularies is no organisation's name (0.14.0)
+        m.put("entity_organisation_vocabulary_word", answer(e + "{\"id\":\"e3\",\"type\":\"organization\",\"name\":\"Pflegedienst\","
+                + "\"quote\":\"Ein Pflegedienst hilft im Alltag\"}", C1, V1));
+        // a facility named only by its kind needs its place (0.14.0)
+        m.put("entity_facility_kind_without_place", answer(e + "{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Wohngemeinschaft\","
+                + "\"quote\":\"Unsere Wohngemeinschaft hat freie Zimmer\"}", C1, V1));
         // claims
         final String c = C1 + ",";
         m.put("claim_not_object", answer(E1 + "," + E2, c + "[\"e1\",\"offers\",\"e2\"]", V1));

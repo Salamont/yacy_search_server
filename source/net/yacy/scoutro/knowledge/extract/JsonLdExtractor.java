@@ -29,6 +29,7 @@ import org.json.JSONObject;
 
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.resolve.OrganisationIds;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 /**
  * Tier 1, structured data: schema.org JSON-LD blocks of a page
@@ -66,7 +67,7 @@ import net.yacy.scoutro.knowledge.resolve.OrganisationIds;
 public final class JsonLdExtractor {
 
     public static final String NAME = "jsonld";
-    public static final String VERSION = "7"; // 7: the root @id of the own domain without url (0.13.0); 6: money and product roles (WP-F)
+    public static final String VERSION = "8"; // 8: a word of the vocabularies names no organisation (0.14.0); 7: the root @id of the own domain without url (0.13.0); 6: money and product roles (WP-F)
     /**
      * Prefix of the synthetic {@code ld_id} of a brand or maker without an {@code @id} (0.11.5): its name, scoped to the host.
      * No version of its own in 0.11.5 (the version is part of every page's extractor key, a new one reads every page again);
@@ -331,6 +332,12 @@ public final class JsonLdExtractor {
         final Mention existing = run.out.mention(p);
         if (existing != null) {
             return existing.ref;
+        }
+        // 0.14.0: a word of the vocabularies alone names no organisation ("Managed Services", a brand "Doors"); the operator of the
+        // own domain stays whatever it calls itself, a product's or vendor's name is a name
+        if (Vocabulary.ORGANIZATION.equals(type) && string(o.opt("legalName")) == null && !ownDomain(run, o) && !ownRoot(run, o, id)
+                && KgVocabularies.get().vocabularyWord(string(o.opt("name")))) {
+            return null;
         }
         final Mention m = run.out.add(new Mention(p, type, 1));
         if (id != null) {

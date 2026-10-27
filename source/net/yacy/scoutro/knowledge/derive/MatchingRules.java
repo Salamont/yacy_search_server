@@ -255,6 +255,10 @@ public final class MatchingRules {
             // a documented purchase comes from the reader of references, not from the sentence reader
             if(!purchased&&!contextConfirmed(signal,context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;
+            // 0.14.0 (item A2): the source of a planned migration is what the company leaves, no need of it
+            if("planned_migration".equals(context)&&"source".equals(signal.value.optString("system_role")))return null;
+            // 0.14.0 (item A3): the vendor of a product is no client of it ("Muster Software SE" for its own product)
+            if(vendor(actorNames(signal),KgVocabularies.get().signals.vendors(offer.key)))return null;
             // 0.12.0 (T6, round 2): a client speaking on the actor's page ("Wir nutzen dab Nexus …" on dab's page) or the actor named
             // as the provider of what another uses is the client's use, not the actor's (veto at reading, as the context check).
             if(!jobBased&&BusinessSignals.customerVoice(signal.text,actorNames(signal)))return null;
@@ -305,6 +309,20 @@ public final class MatchingRules {
         if(signal.observedAt==null){result.uncertainties.add("observation_date_unknown");result.score-=5;}
         result.uncertainties.add("external_purchase_or_cooperation_unconfirmed");
         return result;
+    }
+    /** Legal forms and the country of a vendor's company ("SAP SE", "Muster Deutschland GmbH"): no part of the vendor's name. */
+    private static final Pattern VENDOR_SUFFIX=Pattern.compile("(?iu)(?:[\\s,]+(?:gmbh|ag|se|eg|e\\.\\s?g\\.?|kg|kgaa|co\\.?|&|inc\\.?|ltd\\.?|llc|corp\\.?"
+            +"|corporation|plc|deutschland|germany|schweiz|switzerland|österreich|oesterreich|austria|europe|emea|dach|international))+\\s*$");
+    /**
+     * 0.14.0 (item A3): true if one of the actor's names is one of the vendors of a product (its node's and its ancestors', {@code
+     * vendors} of products.json), without its legal form and its country ("Muster Software Deutschland GmbH").
+     */
+    public static boolean vendor(List<String> names,List<String> vendorNames) {
+        Set<String> vendors=new java.util.HashSet<>();
+        for(String v:vendorNames)vendors.add(KgVocabularies.wordKey(v));
+        if(vendors.isEmpty())return false;
+        for(String n:names)if(vendors.contains(KgVocabularies.wordKey(VENDOR_SUFFIX.matcher(n.trim()).replaceFirst(""))))return true;
+        return false;
     }
     /** The names the extraction knew the actor by: the stated names of the subject and of its organization. */
     private static List<String> actorNames(Observation o) {

@@ -4264,10 +4264,14 @@ services built on a category's own term name no organisation ("Pflegedienstleist
 No re-extraction: the reader's version is no part of an extractor identity (39.3). Stored evidence is read again with the current
 reader wherever an audience takes effect (`read/AudienceEvidence.confirmed`): in the derivation, in the business view and in the
 reasons of the older suggestions. A target statement whose evidence is only the speaker's own business stays stored as history
-and has no effect. A stored suggestion of the older path that rests on such a statement is no longer shown, at once
-(`Suggestions.groups` leaves out a contribution whose basis is not confirmed); a pass of the derivation computes it again where
-the confirmed rest of its basis still meets, and a complete pass deletes the others (a pass above its limits deletes nothing,
-`DerivedService.apply`: the row stays stored and hidden). The graph does not grow.
+and has no effect. A stored suggestion of the older path is shown per stored reason (`Suggestions.legacyItem`: one contribution
+per reason); a reason that rests on such a statement is left out at once (`Suggestions.groups` leaves out a contribution whose
+basis is not confirmed), so a suggestion with a second, confirmed reason stays shown with that reason, and one without is no
+longer shown. A pass of the derivation computes it again where the confirmed rest of its basis still meets; only a complete pass
+deletes the others: a pass of a graph above its limits (200 000 statement scopes, entities or page links, or capped rows)
+deletes nothing (`DerivedService.apply`), the rows stay stored and hidden. The graph does not grow. (Corrected in 0.14.0 after
+the rollout of 0.13.2: the first text counted rows, not reasons; since 0.14.0 a row naming a merged entity goes also in an
+incomplete pass, 44.)
 
 ### 43.4 Tests
 
@@ -4276,3 +4280,154 @@ own business, the place, the identity, the nominative after "Ihnen als", the top
 target; the reader's business, an addressee after a topic or a referral, the role after the term, the client's voice and the
 customer types and segments stay; stored evidence of the own business is not confirmed again). Without the change the first group
 gives targets. The other tests of `AudiencesTest` keep their results.
+
+## 44. Names, clients, facilities by their kind, the matching's follow-ups and the clean-up (0.14.0, `rule/10`, `jsonld/8`, `llm/6`)
+
+### 44.1 Finding
+
+A count on production data, read only, of the organisations, clients, partners, suppliers and places named like a term of
+the vocabularies, judged line by line (the private package repository, `docs/SCOUTRO-PLAN-0.14.0.md`):
+
+- **A word of the vocabularies as an organisation:** list items after a relation marker ("Mitglied im Netzwerk", "Partner:
+  Maler, Fliesenleger und …"), a compound split at "und" ("Garten- und Landschaftsbau" gave "Landschaftsbau"), the region of
+  "X und Umgebung", JSON-LD organisations and the LLM tier's organisations named "Pflegedienst", "Mittelstand" or "Senioren".
+  The brands of the products (AWS, Shopware, Google Cloud, Shopify, KNX, WordPress, TYPO3) are no such word, and a firm whose
+  name equals a vocabulary word only without its umlauts ("Turen" against "Türen") is a firm.
+- **Clients:** a heading of references read "… bei X" as a client also for a phrase ("Hilfe bei kaputtem Kessel"), a
+  common noun, the reader ("bei Ihnen") or a place ("Musterdorf bei Musterstadt"); a client field ran on into an address, a
+  representative or the next field; placeholders ("auf Anfrage", "N.N.") and markdown marks of a project's name were kept; a
+  client named by a description ("Dienstleister für Musterabrechnungen", "Energieversorgungskonzern in Musterland") became an
+  organisation and a candidate of the matching.
+- **Places of the LLM tier:** a facility named only by its kind ("Tagespflege", "Betreutes Wohnen") was one entity per page,
+  without its place and its provider; a name's words were joined across blocks of a page.
+- **Matching (after M1 of 0.13.1):** the provider's work for others ("Systeme, die wir migrieren") read as its own use; a
+  product named as what an offer replaces ("Alternative zu …") as a use; the vendor of a product as its client; the reader's
+  lines below an FAQ heading as the company's use, plan or need.
+- **Audiences:** an audience phrase ("Software für Architekten") gave the provider the audience's category; a provider naming
+  itself in the third person ("Der Pflegedienst Muster unterstützt Sie") its own category as a target (43, known limitation);
+  a word of another sense was a hit ("IT-Architekturen" of architecture).
+- **Rows on merged entities:** rows of the derivation and contributions of the matching naming a merged entity stayed stored
+  (invisible) where a pass was incomplete.
+
+### 44.2 Rules
+
+**A word of the vocabularies names no organisation** (`KgVocabularies.Snapshot.vocabularyWord`): a name that is nothing but a
+term or a label of a service category, a group, an audience segment, a kind of organisation, a customer type, a company size,
+an employment type or a need names no organisation, client, partner, supplier or region. It is compared by
+`KgVocabularies.wordKey` (lower case, the umlauts written out, every run of other characters one space), so "Türen" and
+"Tueren" are one word and "Turen" another. The names of the product vocabulary, its products and their vendors are names, never
+words: `products.json` version 3 has the brands and the `vendors` of the tree's nodes, so they are in the product vocabulary
+before the rule takes effect. It applies to list items after a relation marker (a list mostly of such words names no
+organisation, the other items too), to clients, to "X und Umgebung", to JSON-LD organisations without a legal name other than
+the own domain's operator, and to the LLM tier's organisations (`entity_organisation_vocabulary_word`, cached and replayed
+answers too).
+
+**One name is never split** (`BusinessRules.joinsName`, `splitNames`): not after the first half of a compound ("Garten- und
+Landschaftsbau", "Heizungs-, Lüftungs- und Klimatechnik"), not in the list of a name's phrase ("Ministerium für Muster, Beispiel,
+Probe und Test", "Büro für Muster und Beispiel"), not in the trades of an association ("Innung Sanitär, Heizung und Klima");
+never at a line break, a full stop or ";". A word of an organisation with its name in quotes is a name ("Netzwerk „Muster
+sicher“"). Several clients are split at "und", "&", ";" and " / " only between complete names (a part in lower case or a single
+word before "&" continues the name: "Muster heat & power AG", "Hof & Garten").
+
+**A client field ends with its name** (`BusinessRules.fieldValue`): before "vertreten durch", an address (a street with its
+number, a postcode with its town), a field label after an asterisk, and a sentence end after a capitalised word of four letters
+or more ("Ev. Kirche", "Ev.-Luth. …", "e. V." and "Dr." go on); the label of a former or later name is dropped ("… / heute:
+…"). Placeholders ("auf Anfrage", "N.N.", "interner Showcase") are no client; a project's name keeps no markdown marks.
+
+**"… bei X" names a client only as a name** (the owner's decision of 27 October 2026, `BusinessRules.clientsAfterBei`): in a
+heading on a reference page or below a heading of references (the nearest heading above with fewer marks: "Referenzen",
+"Kundenprojekte", "Success Stories", "Case Studies"). X is a name with a legal form or a proper name, cut before the words after
+it ("E-Mobilität bei Beispielwerk: Neue Ladesäulen" names "Beispielwerk"); none for a phrase ("bei Bedarf", "bei defektem …"),
+a common noun by its ending ("bei der Erweiterung …"), the reader, a question, a place after the name ("… bei Musterstadt am
+Main"), an infinitive ("bei Muster zu sehen") or a part of a quoted title. "Muster AG setzt bei der Planung auf Beispiel" names
+the client before "setzt".
+
+**A client named by a description is a value of the provider** (item A1, `client_description`, `T_JSON`): no legal form and an
+organisation's word as its head ("Dienstleister", "…konzern", "…verwaltung", "…-Gruppe") after adjectives or the first halves
+of compounds, at its end or before a preposition and the rest ("Dienstleister für Musterabrechnungen", "Internationaler
+Anbieter von Muster-Management"). The description, the project with its state and the products of its context are stored on
+the provider; it is never an organisation, never merged, never a candidate of the matching. Public bodies and associations stay
+clients ("Senatsverwaltung für …", "Verein für …", "Bayerische …verwaltung"; a description only with its place or after common
+adjectives). The business view lists them under `audiences.client_descriptions`.
+
+**Places of the LLM tier** (`PlaceEvidence`): only white space, or the marks the name itself writes, joins a name's words; a
+heading's mark, a sentence end or other text ends it, also through the model's quote (the owner's rule of 26 October 2026, 40.2
+known limitation).
+
+**A facility named only by its kind is the provider's at its place** (the owner's decision of 27 October 2026,
+`PlaceEvidence.kindOnly`, `placeOf`): a name that is a word of the vocabularies or a place word itself ("Tagespflege",
+"Betreutes Wohnen", "Wohngemeinschaft"; a name ending with one, "Sonnenhof", is a name) is a facility only with its place: an
+address after an occurrence of the name outside a menu (a street with its number, the postal code and town of the next lines;
+or a postal code with its town), read at the model's quote first, else a town after it in its clause ("an unserem Standort
+Musterstadt", "in Musterstadt"). The reader ("in Ihrer Nähe"), the provider describing itself ("Wir sind ein ambulanter
+Pflegedienst in …") and a phone number are no place; without one the kind stays an offer (`entity_facility_kind_without_place`).
+It is shown as "kind (provider, place)", the provider the page's operator ("Tagespflege (Muster Pflege, Musterstadt)"; where the
+page names no operator, "kind (place)": a known limitation of 0.14.0 by the owner's decision of 27 October 2026, the facility
+belongs to the provider's domain all the same), and
+keyed by the scheme `facility_kind`: the kind and the place (its street and number, else its town) within the
+registrable domain, a discriminator. Three day care facilities of one provider at three addresses stay three; the same one on
+five pages is one.
+
+**Matching** (`BusinessSignals.VERSION` 6, `MatchingRules`; the rules' version stays 1, the vetoes apply when the pairs are
+read): the provider's work for others in a relative clause or with the reader as object ("Systeme, die wir migrieren, betreuen
+und absichern", "migrieren wir Ihre Daten") and its choice for the reader ("wir nutzen die passenden …") are its offers (A2); a
+product named as what an offer replaces ("Alternative zu …", "statt …", "anstelle von …") is neither used nor offered; the
+source of a planned migration is no need of it. The vendor of a product (the `vendors` of its node and its ancestors, without
+legal form and country) is no client of it (A3). Below a heading of questions and answers ("FAQ", "Häufige Fragen") the lines
+state no use, plan or need (A4).
+
+**Audiences** (`Audiences.VERSION` 3, at reading too): an audience phrase gives the provider no category, offer or topic of the
+audience (B5); the provider naming itself in the third person, the word as the clause's subject with its own name ("Der
+Pflegedienst Muster unterstützt Sie") or presented to the reader at its place ("Ihr häuslicher Pflegedienst in Musterstadt"),
+is no target; an addressee stays ("Lösungen für Ihren Pflegedienst") (B6). A category's `exclude` (`categories.json`) lists
+words of another sense, folded, that are no hit ("IT-Architekturen", "Verkehrsinfrastruktur", "Partnernetzwerk") (B7).
+
+**Clean-up** (D1): every pass of the derivation deletes its rows naming an entity of status 2 (merged), also a pass that is
+incomplete (43.3); every run of the matching first removes up to 2 000 contributions whose provider or candidate is merged
+(`removed_merged` in its result).
+
+Language knowledge in the code, industry knowledge only in the vocabularies.
+
+**Corrections after the first run of the gates** (27 October 2026; all four collections read, the judgement in the package
+repository):
+
+- After "bei": a place by a place written after a comma or "aus" is no client ("Muster GmbH, Musterdorf bei Musterstadt", "aus
+  Musterdorf bei Musterstadt"), nor a place before its district ("bei Musterdorf, Landkreis Beispiel"); a word before a genitive or
+  before a participle that ends the heading is a common noun ("bei der Auswahl eines …", "bei Musterprojekt eingespart"). A name with
+  a legal form stays a client.
+- A client field: the abbreviations of a name go on ("Evang. Kirchengemeinde", "Kath. Pfarramt", "Staatl. Bauamt", "Ing. …"), a
+  sentence end after a capitalised word of three letters ends it ("… vor dem Muster Tor. Planung"), so does a legal form before a
+  sentence end ("… GmbH & Co. KG. Client-Server-Entwicklung"); the label of another field at its start is dropped ("Bauherr: …");
+  no-break spaces and line separators are spaces (an address written with them is cut, "GmbH & Co. KG" stays one legal form); the
+  soft hyphens of a word do not hide its sentence end.
+- The place of a facility named by its kind: the marks of markdown between the kind and its address do not end its block
+  ("**Tagespflege. ** Musterstraße 9. 12345 Musterdorf."), a compound of "Standort" names the place ("an unserem Hauptstandort in
+  Musterstadt"), and a word after a dot is no part of the street ("Muster e.K. Musterstraße 9").
+- After the second run: the key of a facility's place is its street and number (else its town), so a page that writes the full
+  address and one that writes only the street name one facility; a town of two words after a place by a place is no client
+  ("Muster GmbH, Musterdorf bei Bad Beispiel").
+- After the third run: the key of a facility named by its kind is its kind's name and its place only; the model's guess of its
+  kind ("adultdaycare" on one page, none on the next) and its shown name (with or without the provider) are none of it, and they
+  do not keep two such facilities apart.
+
+### 44.3 The update
+
+`rule/10`, `jsonld/8`, `Vocabulary.VERSION` 6 (the schemes `facility_kind` and `client_description`) and the vocabulary
+package 8 (`products.json` version 3, `categories.json` with `exclude`): **one re-extraction** of every tracked page (42).
+`LlmExtractor.VERSION` 6 with `REPLAYS` = {4, 5}: the stored answers are rebuilt from their evidence and validated again (C1,
+C6, the places' words), **without a model request** (40.3); the question's version stays 4. An organisation, client or place
+whose only evidence was the former reading goes with it; facilities named by their kind on several pages of one provider at one
+place are merged into one (the older entity survives), so **a backup before the update is mandatory**. The first passes of
+the derivation and the matching remove the rows on merged entities. The prompt hash includes the version of the products'
+vocabulary: new and changed pages no longer hit the cache of the former prompt (the system prompt and the schema are
+unchanged). Schema 9, unchanged.
+
+### 44.4 Tests
+
+`DocumentedRelationsTest` (after "bei" only a name, one name never split, the field's end, placeholders, markdown, descriptions),
+`GenericNamesTest` (vocabulary words, the brands, the umlauts, lists, the senses of B7), `KindFacilityTest` (a kind is a
+facility only at its place; one per provider, kind and address: three at three addresses stay three, one on five pages is one),
+`PlaceEvidenceTest.onlyWhiteSpaceJoinsTheWordsOfAName`, `LlmExtractorInvalidReasonTest` (the two new codes),
+`BusinessSignalsTest` (A2, A4), `MatchingTest` (the vendor, contributions on merged entities), `DerivedServiceTest.
+aRowOnAMergedEntityGoesAlsoInAnIncompletePass`, `AudiencesTest.theProviderInTheThirdPersonIsNoTarget`,
+`BusinessExtractionTest.aPhraseAboutTheCustomersGivesNoCategory`. Without their change B5 and D1 fail; neutral texts only.

@@ -90,9 +90,20 @@ public final class Categories {
         /** The safe NACE level, or null. */
         public final String nace;
         public final List<String> terms;
+        /**
+         * 0.14.0 (item B7): the words of another sense, folded ({@link TermMatcher#fold}, no hyphens): a word holding one is no
+         * hit of the entry ("IT-Architekturen" of architecture, "Verkehrsinfrastruktur" of IT infrastructure); {@code exclude} of
+         * the file.
+         */
+        public final List<String> excludes;
 
         Entry(final String id, final String vocabulary, final String code, final String de, final String en, final String group,
                 final String nace, final List<String> terms) {
+            this(id, vocabulary, code, de, en, group, nace, terms, List.of());
+        }
+
+        Entry(final String id, final String vocabulary, final String code, final String de, final String en, final String group,
+                final String nace, final List<String> terms, final List<String> excludes) {
             this.id = id;
             this.vocabulary = vocabulary;
             this.code = code;
@@ -101,6 +112,7 @@ public final class Categories {
             this.group = group;
             this.nace = nace;
             this.terms = Collections.unmodifiableList(terms);
+            this.excludes = Collections.unmodifiableList(excludes);
         }
 
         public String label(final String lang) {
@@ -162,16 +174,50 @@ public final class Categories {
 
         /** Categories named in the text, with their positions. */
         public List<TermMatcher.Hit<Entry>> categories(final String text, final int from, final int to) {
-            return this.categoryMatcher.find(text, from, to);
+            return senses(text, this.categoryMatcher.find(text, from, to));
         }
 
         public List<TermMatcher.Hit<Entry>> segments(final String text, final int from, final int to) {
-            return this.segmentMatcher.find(text, from, to);
+            return senses(text, this.segmentMatcher.find(text, from, to));
         }
 
         /** 0.13.0: the words of the field's organisations named in the text ({@link #organisations}). */
         public List<TermMatcher.Hit<Entry>> organisations(final String text, final int from, final int to) {
-            return this.organisationMatcher.find(text, from, to);
+            return senses(text, this.organisationMatcher.find(text, from, to));
+        }
+
+        /** 0.14.0 (item B7): the hits without those whose word is of another sense ({@link Entry#excludes}). */
+        private static List<TermMatcher.Hit<Entry>> senses(final String text, final List<TermMatcher.Hit<Entry>> hits) {
+            hits.removeIf(h -> !h.entry.excludes.isEmpty() && otherSense(text, h));
+            return hits;
+        }
+
+        private static boolean otherSense(final String text, final TermMatcher.Hit<Entry> h) {
+            int a = h.start;
+            while (a > 0 && (Character.isLetterOrDigit(text.charAt(a - 1)) || text.charAt(a - 1) == '-')) {
+                a--;
+            }
+            int b = h.end;
+            while (b < text.length() && (Character.isLetterOrDigit(text.charAt(b)) || text.charAt(b) == '-')) {
+                b++;
+            }
+            final String word = TermMatcher.fold(text.substring(a, b).replace("-", ""));
+            // with the word before it ("software architecture"), as an exclusion of two words is written together
+            int p = a;
+            while (p > 0 && p > a - 3 && Character.isWhitespace(text.charAt(p - 1))) {
+                p--;
+            }
+            int q = p;
+            while (q > 0 && (Character.isLetterOrDigit(text.charAt(q - 1)) || text.charAt(q - 1) == '-')) {
+                q--;
+            }
+            final String pair = TermMatcher.fold(text.substring(q, p).replace("-", "")) + word;
+            for (final String x : h.entry.excludes) {
+                if (word.contains(x) || pair.contains(x)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -549,7 +595,15 @@ public final class Categories {
                 terms.add(en);
             }
         }
-        return new Entry(id, vocabulary, code, de, en, group, n, terms);
+        final List<String> excludes = new ArrayList<>();
+        final JSONArray x = o.optJSONArray("exclude");
+        for (int i = 0; x != null && i < x.length() && excludes.size() < 40; i++) {
+            final String word = TermMatcher.fold(x.optString(i, "").trim().replace("-", "").replace(" ", ""));
+            if (word.length() >= 4 && word.length() <= 80) {
+                excludes.add(word);
+            }
+        }
+        return new Entry(id, vocabulary, code, de, en, group, n, terms, excludes);
     }
 
     private static String label(final String s) {
@@ -568,7 +622,8 @@ public final class Categories {
             sb.append(v.name).append('\u0001');
             for (final Map<String, Entry> m : List.of(v.groups, v.categories, v.segments, v.organisations)) {
                 for (final Entry e : m.values()) {
-                    sb.append(e.id).append('|').append(e.group).append('|').append(e.nace).append('|').append(e.terms).append('\u0002');
+                    sb.append(e.id).append('|').append(e.group).append('|').append(e.nace).append('|').append(e.terms)
+                            .append(e.excludes.isEmpty() ? "" : "|" + e.excludes).append('\u0002');
                 }
             }
         }

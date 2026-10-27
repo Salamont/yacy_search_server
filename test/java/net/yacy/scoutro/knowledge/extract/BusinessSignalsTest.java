@@ -410,4 +410,32 @@ public class BusinessSignalsTest {
         assertTrue(BusinessSignals.customerVoice(voice,List.of("dab")));
         assertTrue(ownContexts(voice,"sap","").contains("internal_use"));
     }
+    /**
+     * 0.14.0 (items A2 and A4): a provider's own offer is no use ("die wir migrieren", "wir nutzen die passenden …"), a product
+     * named as what an offer replaces is neither used nor offered ("Alternative zu …"), and a reader's line under an FAQ is no use.
+     */
+    @Test public void anOwnOfferAnAlternativeAndTheReadersLineAreNoUse() throws Exception {
+        for(String quote:List.of("Wir betreiben Microsoft 365 und Azure, die wir migrieren, betreuen und absichern.",
+                "Wir setzen die passenden DATEV-Module für Ihre Buchhaltung ein.", "Wir nutzen eine Alternative zu Microsoft 365.",
+                "Unsere Plattform ist die Alternative zu Salesforce, die wir intern nutzen.")) {
+            assertTrue(quote,ownContexts(quote,"microsoft-365",quote.contains("DATEV")?"":"").isEmpty()&&ownContexts(quote,"datev","").isEmpty()
+                    &&ownContexts(quote,"salesforce","").isEmpty());
+        }
+        Set<String> offered=new TreeSet<>();
+        for(String v:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,"Wir betreiben Microsoft 365, die wir migrieren, betreuen und absichern.","text",
+                Vocabulary.ORGANIZATION,null))offered.add(new JSONObject(v).getString("context"));
+        assertEquals(Set.of("offered_capability"),offered);
+        assertTrue(BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,"Wir bieten eine Alternative zu Salesforce an.","text",Vocabulary.ORGANIZATION,null).isEmpty());
+        // an own plan stays one
+        assertEquals(Set.of("planned_migration"),ownContexts("Wir planen die Migration auf Microsoft Azure, die wir 2027 umsetzen werden.","microsoft-azure",""));
+        // the reader's line below an FAQ heading
+        Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);actor.name="Muster IT GmbH";
+        Extraction e=new Extraction(30);e.add(actor);
+        BusinessSignals.extract("## Häufige Fragen\n\nWir arbeiten schon mit Office 365.\n\nDann migrieren wir Ihre Postfächer.\n\n## Über uns\n\n"
+                + "Wir nutzen SAP S/4HANA intern.",actor,e,2,Claim.KIND_RULE,"text","text");
+        Set<String> found=new TreeSet<>();
+        for(Claim c:e.claims())found.add(new JSONObject(c.value).getString("product")+":"+new JSONObject(c.value).getString("context"));
+        assertEquals("the reader's Office 365 under the FAQ is no use; the company's own SAP below another heading is",
+                Set.of("sap-s4hana:internal_use"),found);
+    }
 }

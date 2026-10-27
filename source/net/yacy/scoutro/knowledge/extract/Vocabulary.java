@@ -43,7 +43,7 @@ import java.util.TreeSet;
  */
 public final class Vocabulary {
 
-    public static final String VERSION = "5"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0)
+    public static final String VERSION = "6"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0); 6: facility_kind, client_description (0.14.0)
 
     // entity types (kg_vocab kind 1)
     public static final String ORGANIZATION = "organization";
@@ -173,6 +173,13 @@ public final class Vocabulary {
      */
     public static final String WEBSITE_TECHNOLOGY="website_technology";
     public static final String JOB_STATUS="job_status";
+    /**
+     * 0.14.0 (item A1, variant a of the owner's decision of 26 October 2026): a client a provider documents by a description, not
+     * by a name ("Dienstleister für Musterabrechnungen", "Energieversorgungskonzern in Musterland"), as a value of the provider
+     * ({@link #T_JSON}: the description, the project, its state and products): never an organisation, never merged, never a
+     * candidate of the matching.
+     */
+    public static final String CLIENT_DESCRIPTION="client_description";
     public static final String ADVERTISED_BY="advertised_by";
     public static final String RECRUITING_ORGANIZATION="recruiting_organization";
     public static final String DEPLOYMENT_ORGANIZATION="deployment_organization";
@@ -229,6 +236,13 @@ public final class Vocabulary {
      * provider is one organisation; never across two providers' domains; no discriminator by itself.
      */
     public static final String CLIENT_NAME = "client_name";
+    /**
+     * 0.14.0 (item C6, the owner's decision of 27 October 2026): a facility or site named only by its kind ("Tagespflege") by its
+     * kind and its place (its street and number, else its town) within the registrable domain of its provider: one per
+     * provider, kind and address, so the same day care on five pages is one and three at three addresses stay three. A
+     * discriminator: another place is another facility.
+     */
+    public static final String FACILITY_KIND = "facility_kind";
 
     // literal datatypes
     public static final String T_STRING = "string";
@@ -250,7 +264,7 @@ public final class Vocabulary {
     public static final Set<String> STRONG_SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK);
 
     public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, OPERATOR_NAME, FACILITY_ADDRESS,
-            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL, CLIENT_NAME);
+            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME, PRODUCT_URL, CLIENT_NAME, FACILITY_KIND);
 
     /** Relations between organisations (version 2, part D). */
     public static final Set<String> BUSINESS_RELATIONS = set(PARENT_OF, SUBSIDIARY_OF, CARRIER_OF, MEMBER_OF, ASSOCIATION_MEMBER,
@@ -340,6 +354,8 @@ public final class Vocabulary {
         literal(p,BUSINESS_ROLE_EVIDENCE,false,T_JSON);
         literal(p,WEBSITE_TECHNOLOGY,false,T_JSON);
         literal(p,JOB_STATUS,false,T_CODE);
+        // version 6
+        literal(p,CLIENT_DESCRIPTION,false,T_JSON);
         relation(p,ADVERTISED_BY);relation(p,RECRUITING_ORGANIZATION);relation(p,DEPLOYMENT_ORGANIZATION);
         literal(p, CUSTOMER_TYPE, false, T_CODE);
         literal(p, AUDIENCE_SEGMENT, false, T_CODE);

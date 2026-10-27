@@ -62,7 +62,8 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  */
 public final class Audiences {
 
-    public static final String VERSION = "2"; // 2: the speaker's own business, a topic and a referral are no audience (0.13.2)
+    public static final String VERSION = "3"; // 2: the speaker's own business, a topic and a referral are no audience (0.13.2); 3: the
+    // provider naming itself in the third person (0.14.0)
 
     /** One audience of a phrase: its predicate, its value and the span that names it. */
     public static final class Audience {
@@ -210,6 +211,17 @@ public final class Audiences {
     private static final Pattern FOR_IDENTITY = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:für|fuer|for|auf|an|on|to)(?:[^\\p{L}]|$)");
     /** 0.13.2: a dative pronoun of the reader: a role after it in the nominative is the speaker's ("Ihnen als ambulanter Pflegedienst"). */
     private static final Pattern READER_DATIVE = Pattern.compile("(?iu)^(?:ihnen|euch|dir)$");
+
+    /** 0.14.0 (item B6): the clause starts with an article before the word ("Der Pflegedienst Muster …", "Das ambulante …"). */
+    private static final Pattern SUBJECT_ARTICLE = Pattern.compile("(?iu)^[\\s*#_\"„“]*(?:der|die|das|the)\\s+(?:[\\p{L}-]+\\s+){0,2}$");
+    /** 0.14.0 (item B6): the clause starts with the reader's possessive before the word ("Ihr häuslicher Pflegedienst …"). */
+    private static final Pattern READER_OWN_START = Pattern.compile("(?iu)^[\\s*#_\"„“]*(?:ihr|ihre|your)\\s+(?:[\\p{L}-]+\\s+){0,2}$");
+    /** 0.14.0: after the word, a proper name ("… Pflegedienst Muster unterstützt"), not the reader ("… Ihrer Region"). */
+    private static final Pattern NAME_AFTER = Pattern.compile("(?u)^[\\p{L}-]*\\s+[„\"]?(?!(?:Ihr|Ihre|Ihrem|Ihren|Ihrer|Ihres|Sie|Ihnen|Euch|Euer|Eure)\\b)"
+            + "\\p{Lu}[\\p{L}-]+");
+    /** 0.14.0: after the word, its place ("… Pflegedienst in Musterstadt", "… für Musterstadt und Umgebung"). */
+    private static final Pattern PLACE_AFTER = Pattern.compile("(?iu)^[\\p{L}-]*\\s+(?:in|im|aus|für|fuer|am|an\\s+der|bei|rund\\s+um|vor\\s+ort\\s+in)"
+            + "\\s+(?-i:\\p{Lu})");
 
     private Audiences() {}
 
@@ -382,7 +394,7 @@ public final class Audiences {
         if (NEGATION.matcher(before).find()) {
             return false;
         }
-        if (organisation && ownBusiness(text, from, before)) {
+        if (organisation && (ownBusiness(text, from, before) || thirdPerson(text, before, h.end))) {
             return false;
         }
         final Matcher role = ROLE.matcher(before);
@@ -398,6 +410,18 @@ public final class Audiences {
             return role.group(1) != null && READER.matcher(role.group(1)).matches() && !(after.length > 0 && POSSESSIVE.matcher(after[0]).matches());
         }
         return true;
+    }
+
+    /**
+     * 0.14.0 (item B6): true if the provider names itself in the third person: the word as the clause's subject with its own name
+     * ("Der Pflegedienst Muster unterstützt Sie", "Das Pflegeheim Sonnenhof bietet …"), or presented to the reader at its place
+     * ("Ihr häuslicher Pflegedienst in Musterstadt"). An addressee is none of them ("Lösungen für Ihren Pflegedienst", "Die
+     * Pflegeheime Ihrer Region").
+     */
+    private static boolean thirdPerson(final String text, final String before, final int end) {
+        final String after = text.substring(end, Math.min(text.length(), end + 80));
+        return SUBJECT_ARTICLE.matcher(before).find() && NAME_AFTER.matcher(after).find()
+                || READER_OWN_START.matcher(before).find() && PLACE_AFTER.matcher(after).find();
     }
 
     /** 0.13.2: true if the organisation or category before which {@code before} ends is the speaker's own, a topic or a referral. */

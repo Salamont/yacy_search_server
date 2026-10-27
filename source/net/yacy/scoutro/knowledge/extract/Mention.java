@@ -74,6 +74,11 @@ public final class Mention {
      * {@code scoutro.kg.identity.productUrl} (WP-F, identity change).
      */
     public String productUrl;
+    /**
+     * 0.14.0: the key of the {@code facility_kind} scheme of a facility named only by its kind (its kind and its place,
+     * {@link PlaceEvidence#placeKey}), within the registrable domain.
+     */
+    public String kindKey;
 
     /** The provider part of a service key: the site's operator, or the named organisation or facility; null if unnamed. */
     public static String providerKey(final Mention provider) {

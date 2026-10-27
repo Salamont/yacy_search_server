@@ -37,6 +37,7 @@ import org.json.JSONObject;
 
 import net.yacy.ai.PromptGuard;
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 /**
  * Tier 3: entities and relations a language model reads from a page's text
@@ -73,15 +74,17 @@ public final class LlmExtractor {
     public static final String NAME = "llm";
     /**
      * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no place; the
-     * change is what is kept of an answer, not the question.
+     * change is what is kept of an answer, not the question. 6 (0.14.0): a word of the vocabularies names no organisation, only
+     * white space joins a place's words, a facility named by its kind is the provider's at its address; again what is kept of
+     * an answer, not the question.
      */
-    public static final String VERSION = "5";
+    public static final String VERSION = "6";
     /**
      * The versions whose stored answers this version reads again without a model request (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40):
      * their change to this one is the validation only, so their tier-3 evidence is rebuilt into the answer, validated with the
      * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
      */
-    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4");
+    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4", "5");
     /**
      * The version of the question (prompt, schema and the requests' form): part of the prompt hash and of the cache key. A version
      * in {@link #REPLAYS} changes what is kept of an answer, not the question, so it keeps the question's version: a cached answer
@@ -385,6 +388,12 @@ public final class LlmExtractor {
             "entity_page_label", // "Kontakt", "Referenzen", "Über uns": a label of the site's pages as a place, a section's name as a service
             "entity_facility_not_a_place", // a generic noun, an activity, or a name the text never shows as a place (only in a menu)
             "entity_facility_service_name", // the name of a service the rules found on the page, without a sign of a place
+            // 0.14.0: a word of the vocabularies alone names no organisation ("Pflegedienst", "Mittelstand"); a product's or vendor's
+            // name is a name
+            "entity_organisation_vocabulary_word",
+            // 0.14.0: a facility or site named only by its kind ("Tagespflege") without its place (an address, "in X"): the kind
+            // stays an offer
+            "entity_facility_kind_without_place",
             // claims
             "claim_not_object",
             "claim_extra_field", // a field other than subject, predicate, object, hedged, quote
@@ -904,7 +913,11 @@ public final class LlmExtractor {
         if (Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) {
             // 0.13.0: a place needs a place in its context (PlaceEvidence); an unclear one is decided when it is published
             final PlaceEvidence.Result place = PlaceEvidence.check(raw, name, quote, null, type, serviceOfPage(known, name));
-            return place.verdict == PlaceEvidence.Verdict.REFUSED ? place.reason : null;
+            if (place.verdict == PlaceEvidence.Verdict.REFUSED) {
+                return place.reason;
+            }
+            // 0.14.0: a facility named only by its kind is one only at its place
+            return PlaceEvidence.kindOnly(name) && PlaceEvidence.placeOf(raw, name, quote) == null ? "entity_facility_kind_without_place" : null;
         }
         if (Vocabulary.SERVICE.equals(type)) {
             if (PlaceEvidence.sectionLabel(name)) {
@@ -914,6 +927,9 @@ public final class LlmExtractor {
                 return "entity_service_team_or_role";
             }
             return serviceProof(id, name, quote, text, raw, context) == null && !titled(serviceTitle, name) ? "entity_service_not_offered" : null;
+        }
+        if (Vocabulary.ORGANIZATION.equals(type) && KgVocabularies.get().vocabularyWord(name)) {
+            return "entity_organisation_vocabulary_word";
         }
         if (Vocabulary.JOB.equals(type)) {
             if (POSTING.matcher(name).find() || POSTING.matcher(quote).find() || underHeading(raw, quote, POSTING)) {
@@ -1207,15 +1223,30 @@ public final class LlmExtractor {
                 continue; // 0.13.0: a section of the site is no service, also of an old accepted or cached answer
             }
             boolean unconfirmed = false;
+            Address kindPlace = null;
             if ((Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) && same == null) {
                 // 0.13.0: every accepted answer (fresh, cached or replayed) is checked again with the page's text: a place needs a
                 // place in its context; a proper name without one is kept and marked
-                final PlaceEvidence.Result place = PlaceEvidence.check(ctx == null || ctx.serviceText == null ? quote : ctx.serviceText, name,
-                        quote, ctx == null ? null : ctx.pageUrl, type, serviceOfPage(known, name), ctx != null && ctx.operatesPlaces());
+                final String placeText = ctx == null || ctx.serviceText == null ? quote : ctx.serviceText;
+                final PlaceEvidence.Result place = PlaceEvidence.check(placeText, name, quote, ctx == null ? null : ctx.pageUrl, type,
+                        serviceOfPage(known, name), ctx != null && ctx.operatesPlaces());
                 if (place.verdict == PlaceEvidence.Verdict.REFUSED) {
                     continue;
                 }
                 unconfirmed = place.verdict == PlaceEvidence.Verdict.UNCLEAR;
+                // 0.14.0 (item C6, the owner's decision of 27 October 2026): a facility named only by its kind is the provider's
+                // facility of that kind at its place, shown as "kind (provider, place)" and one per provider, kind and address;
+                // without a place it is none (the kind stays an offer)
+                if (PlaceEvidence.kindOnly(name)) {
+                    kindPlace = PlaceEvidence.placeOf(placeText, name, quote);
+                    if (kindPlace == null || PlaceEvidence.placeKey(kindPlace) == null) {
+                        continue;
+                    }
+                    unconfirmed = false;
+                }
+            }
+            if (Vocabulary.ORGANIZATION.equals(type) && same == null && KgVocabularies.get().vocabularyWord(name)) {
+                continue; // 0.14.0: a word of the vocabularies names no organisation, also of a cached or replayed answer
             }
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection
@@ -1223,24 +1254,32 @@ public final class LlmExtractor {
             if (Vocabulary.JOB.equals(type) && same == null && ctx.noPosting(name)) {
                 continue; // a menu entry or teaser link of the page (0.10.5): its claims go with it
             }
-            refs.put(e.optString("id"), ref);
-            Mention m = out.mention(ref);
+            // the kind is the name ("tagespflege"), not the model's guess of its kind ("adultdaycare" on one page, none on the next)
+            final String kindKey = kindPlace == null ? null : key + "|" + PlaceEvidence.placeKey(kindPlace);
+            final String mentionRef = kindKey == null ? ref : "llm:" + type + ":" + key + "@" + PlaceEvidence.placeKey(kindPlace);
+            final String shown = kindPlace == null ? name : kindName(name, ctx, kindPlace);
+            refs.put(e.optString("id"), mentionRef);
+            Mention m = out.mention(mentionRef);
             if (m == null) {
-                m = out.add(new Mention(ref, type, TIER));
-                m.name = name;
+                m = out.add(new Mention(mentionRef, type, TIER));
+                m.name = shown;
                 m.subkind = e.isNull("kind") ? null : e.optString("kind", null);
+                if (kindKey != null) {
+                    m.kindKey = kindKey;
+                    m.address = kindPlace.complete() ? kindPlace : null;
+                }
                 if (Vocabulary.ORGANIZATION.equals(type)) {
                     // a legal name joins the declared operator of the domain, as an organisation of the rules does
                     m.legalName = Normalizers.legalName(name);
                 }
             }
-            if (named.add(ref)) {
-                final boolean added = out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote,
+            if (named.add(mentionRef)) {
+                final boolean added = out.add(new Claim(mentionRef, Vocabulary.NAME, null, shown, TIER, Claim.KIND_LLM, false, location, quote,
                         structural.contains(ref) ? BusinessRules.STRUCTURAL_CONFIDENCE : null));
                 if (added && unconfirmed) {
                     // the mark of the name takes none of the page's limit of statements: on a full page it displaces no item
                     // that a release before 0.13.0 published, and an item the limit cuts carries none (0.13.0)
-                    out.mark(new Claim(ref, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
+                    out.mark(new Claim(mentionRef, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
                 }
             }
         }
@@ -1319,6 +1358,17 @@ public final class LlmExtractor {
         }
         BusinessFacts.industriesFromServices(out, ctx, TIER, MAX_QUOTE);
         out.ranTier(TIER);
+    }
+
+    /**
+     * 0.14.0 (item C6): the name of a facility named only by its kind, as it is shown: "Tagespflege (Muster Pflege, Musterstadt)",
+     * the provider the page's operator, the place its town or street; without a known provider "Tagespflege (Musterstadt)".
+     */
+    static String kindName(final String kind, final ExtractContext ctx, final Address place) {
+        final Mention provider = ctx == null ? null : ctx.serviceOperator;
+        final String by = provider == null || provider.name == null || provider.name.isBlank() ? null : provider.name.trim();
+        final String at = PlaceEvidence.placeLabel(place);
+        return Normalizers.clip(kind.trim() + " (" + (by == null ? "" : by + (at == null ? "" : ", ")) + (at == null ? "" : at) + ")", MAX_STRING);
     }
 
     /** The values a quote states for a value predicate, read deterministically; empty if it states none. */

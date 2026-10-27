@@ -7,9 +7,9 @@ extractor version: the rules stay `rule/9` and `jsonld/7`, the LLM tier `llm/5`;
 | What | Value |
 |---|---|
 | Release | for a target category or industry, the speaker's own business in the first person, its identity, a place after "im", a topic and a referral or comparison are no audience; the services built on a category's term name no organisation |
-| Source commit on `main` | **open** (on 0.13.1, `2f79fd2bf329`) |
+| Source commit on `main` | `d7fdf60a6842` (merge of #99, on 0.13.1 `2f79fd2bf329`) |
 | Image | `ghcr.io/salamont/scoutro:1.942-scoutro.48`, alias `0.13.2`, linux/amd64 |
-| Registry digest | **open** until publication |
+| Registry digest | `sha256:9edf0ece1989d63e34a827b574de6d69baee92e42c309d5ef363f2231f632ca6` (both tags) |
 | Knowledge graph schema | **9, unchanged** |
 | Extractors | unchanged (`rule/9`, `jsonld/7`, `llm/5`); `Audiences.VERSION` 2 |
 | Upgrade from | 0.13.1 / `1.942-scoutro.47` |
@@ -59,7 +59,7 @@ deleted come back at its next pass. The way back to 0.12.2 stays the one of [0.1
 ## Known limitations
 
 - A target of the LLM tier from a provider that names itself in the third person ("Der Pflegedienst Muster unterstützt …", a
-  heading "Ihr häuslicher Pflegedienst in Musterstadt") stays confirmed; the follow-up version reads such names.
+  heading "Ihr häuslicher Pflegedienst in Musterstadt") stays confirmed; corrected in [0.14.0](SCOUTRO_RELEASE_0.14.0.md).
 - A client's voice on a provider's page after another marker than an offer ("Speziell für unseren Heizungsbetrieb entwickelt")
   is read as the speaker's own business.
 

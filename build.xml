@@ -575,6 +575,7 @@
       <arg value="net.yacy.scoutro.knowledge.extract.ServiceOfferEvidenceTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.OfferEvidenceRule8Test"/>
       <arg value="net.yacy.scoutro.knowledge.extract.DocumentedRelationsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.GenericNamesTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.ServiceOfferPublicationTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorInvalidReasonTest"/>
@@ -603,6 +604,7 @@
       <arg value="net.yacy.scoutro.knowledge.extract.AudiencesTest"/>
       <arg value="net.yacy.scoutro.knowledge.derive.DeclaredAudienceTest"/>
       <arg value="net.yacy.scoutro.knowledge.resolve.ClientIdentityTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.KindFacilityTest"/>
       <arg value="net.yacy.scoutro.knowledge.resolve.OrganisationIdsTest"/>
       <arg value="net.yacy.scoutro.knowledge.resolve.OperatorIdentityTest"/>
     </java>

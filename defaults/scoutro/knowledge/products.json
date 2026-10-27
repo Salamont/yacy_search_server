@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "note": "0.13.0: products as a tree (parents: vendor -> product -> module). A text names every product it states; a product never states its modules; a 'general' vendor states nothing beside a product of it. service_types: the kind of a service.",
+  "version": 3,
+  "note": "0.13.0: products as a tree (parents: vendor -> product -> module). A text names every product it states; a product never states its modules; a 'general' vendor states nothing beside a product of it. service_types: the kind of a service. 0.14.0 (version 3): the brands the product vocabulary did not know (AWS, Google Cloud, Shopify, Shopware, KNX, WordPress, TYPO3, Kubernetes); vendors: the organisations behind a node of the tree, never a client of their own products. The names of the products and vendors are names, never generic words.",
   "products": {
     "sap": ["SAP"],
     "sap-s4hana": ["S/4HANA", "S/4 HANA", "SAP S4HANA", "SAP S4"],
@@ -40,7 +40,15 @@
     "weclapp": ["weclapp"],
     "ifs": ["IFS Cloud", "IFS Applications"],
     "revit": ["Revit", "Autodesk Revit"],
-    "archicad": ["Archicad", "ArchiCAD"]
+    "archicad": ["Archicad", "ArchiCAD"],
+    "aws": ["AWS", "Amazon Web Services"],
+    "google-cloud": ["Google Cloud", "Google Cloud Platform", "GCP"],
+    "shopify": ["Shopify"],
+    "shopware": ["Shopware"],
+    "knx": ["KNX"],
+    "wordpress": ["WordPress"],
+    "typo3": ["TYPO3"],
+    "kubernetes": ["Kubernetes", "K8s"]
   },
   "parents": {
     "sap-s4hana": "sap",
@@ -70,6 +78,32 @@
     "mulesoft": "salesforce"
   },
   "general": ["sap"],
+  "vendors": {
+    "sap": ["SAP", "SAP SE"],
+    "microsoft": ["Microsoft"],
+    "salesforce": ["Salesforce"],
+    "tableau": ["Tableau"],
+    "mulesoft": ["MuleSoft"],
+    "proalpha": ["proALPHA"],
+    "abas": ["abas Software"],
+    "infor": ["Infor"],
+    "oracle-netsuite": ["Oracle"],
+    "sage": ["Sage"],
+    "datev": ["DATEV"],
+    "odoo": ["Odoo"],
+    "weclapp": ["weclapp"],
+    "ifs": ["IFS"],
+    "revit": ["Autodesk"],
+    "archicad": ["Graphisoft"],
+    "aws": ["Amazon Web Services", "Amazon"],
+    "google-cloud": ["Google"],
+    "shopify": ["Shopify"],
+    "shopware": ["Shopware"],
+    "knx": ["KNX Association"],
+    "wordpress": ["Automattic", "WordPress Foundation"],
+    "typo3": ["TYPO3 Association"],
+    "kubernetes": ["Cloud Native Computing Foundation", "CNCF"]
+  },
   "service_types": {
     "consulting": ["Beratung", "Beratungsleistungen", "Konzeption", "Consulting", "beraten"],
     "implementation": ["Einführung", "Implementierung", "Implementation", "Rollout", "einführen", "implementieren"],

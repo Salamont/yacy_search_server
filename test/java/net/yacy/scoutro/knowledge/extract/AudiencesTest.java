@@ -256,4 +256,28 @@ public class AudiencesTest {
         }
         assertTrue("structured data are not read again", Audiences.confirms(Vocabulary.CUSTOMER_TYPE, "b2b", "audienceType: Business", 1));
     }
+
+    /**
+     * 0.14.0 (item B6): the provider naming itself in the third person, as the LLM tier quotes it, is no target: the word as the
+     * clause's subject with its own name, or presented to the reader at its place; an addressee stays one.
+     */
+    @Test
+    public void theProviderInTheThirdPersonIsNoTarget() {
+        final ExtractContext all = Audiences.all();
+        for (final String q : List.of("Der Pflegedienst Muster unterstützt Sie im Alltag.", "Das ambulante Pflegeteam Beispiel hilft Ihnen.",
+                "Ihr häuslicher Pflegedienst in Musterstadt", "Ihre Tagespflege für Musterstadt und Umgebung")) {
+            final List<String> found = new ArrayList<>();
+            for (final Audiences.Audience a : Audiences.named(q, all)) {
+                if (a.predicate.startsWith("target_category")) {
+                    found.add(a.toString());
+                }
+            }
+            assertTrue(q + " " + found, found.isEmpty());
+        }
+        for (final String[] c : new String[][] {{"Lösungen für Ihren Pflegedienst in Musterstadt.", "target_category=care/ambulante_pflege"},
+                {"Unsere Software unterstützt die Pflegeheime Ihrer Region.", "target_category=care/stationaere_langzeitpflege"},
+                {"Software für Pflegedienste in Musterstadt.", "target_category=care/ambulante_pflege"}}) {
+            assertTrue(c[0], Audiences.named(c[0], all).toString().contains(c[1]));
+        }
+    }
 }

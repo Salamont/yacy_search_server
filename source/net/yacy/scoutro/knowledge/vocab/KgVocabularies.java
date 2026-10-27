@@ -25,7 +25,10 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.json.JSONObject;
 
@@ -67,6 +70,74 @@ public final class KgVocabularies {
         public String version() {
             return this.categories.version + "-" + this.nace.size()+"-signals-"+this.signals.version;
         }
+
+        private volatile Set<String> words;
+        private volatile Set<String> names;
+
+        /**
+         * 0.14.0: whether {@code name} is nothing but a word of the vocabularies, a term or a label of a service category, a group, an
+         * audience segment, a kind of organisation, a customer type, a company size, an employment type or a need ("Netzwerk",
+         * "Senioren", "Managed Services"): such a word names no organisation, client, partner, supplier or place. Compared with the
+         * umlauts ({@link #wordKey}: "Turen" is no "Türen"); a name of the product vocabulary, a product or its vendor ("AWS",
+         * "Shopware", "Google Cloud"), is a name, never a word.
+         */
+        public boolean vocabularyWord(final String name) {
+            final String key = wordKey(name);
+            if (key.isEmpty()) {
+                return false;
+            }
+            if (this.words == null) {
+                index();
+            }
+            return this.words.contains(key) && !this.names.contains(key);
+        }
+
+        private synchronized void index() {
+            if (this.words != null) {
+                return;
+            }
+            final Set<String> w = new HashSet<>();
+            final List<Categories.Entry> entries = new ArrayList<>();
+            for (final Categories.Vocab v : this.categories.vocabularies.values()) {
+                entries.addAll(v.groups.values());
+                entries.addAll(v.categories.values());
+                entries.addAll(v.segments.values());
+                entries.addAll(v.organisations.values());
+            }
+            entries.addAll(this.categories.customerTypes.values());
+            entries.addAll(this.categories.companySizes.values());
+            entries.addAll(this.categories.employmentTypes.values());
+            for (final Categories.Entry e : entries) {
+                w.add(wordKey(e.de));
+                w.add(wordKey(e.en));
+                for (final String t : e.terms) {
+                    w.add(wordKey(t));
+                }
+            }
+            for (final String t : this.signals.needPhrases()) {
+                w.add(wordKey(t));
+            }
+            w.remove("");
+            final Set<String> n = new HashSet<>();
+            for (final String t : this.signals.names()) {
+                n.add(wordKey(t));
+            }
+            this.names = n;
+            this.words = w;
+        }
+    }
+
+    /**
+     * 0.14.0: the key a name is compared by with the words of the vocabularies: lower case, the umlauts written out ("ü" as "ue",
+     * "ß" as "ss", so "Türen" and "Tueren" are one word and "Turen" another), every run of other characters one space.
+     */
+    public static String wordKey(final String s) {
+        if (s == null) {
+            return "";
+        }
+        final String t = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFC).toLowerCase(Locale.ROOT)
+                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
+        return t.replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
     }
 
     private static volatile File defaultsDir = new File(DEFAULTS);

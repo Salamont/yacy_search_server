@@ -218,6 +218,13 @@ all collections and the page says so.
   statements with `value` (category code), `label_de`, `label_en`, status,
   confidence and `source_docs`, like other coded facts; absent when there are
   none.
+- **Clients named by a description** (0.14.0): a reference that names its
+  client only by a description ("Dienstleister für …", "Energieversorger in
+  …") is shown with the provider, at its project, its state and the products
+  of its context. Such a client is no company of the graph, joins no other and
+  is never a possible customer. API field `audiences.client_descriptions` of
+  the business view: `statement`, `description`, `project`, `state`,
+  `products` and the fact's status and sources; absent when there are none.
 - **Possible competitors** (0.12.0): the business view lists only the
   categories the company offers itself (the categories of its shown, current
   offers). Opening a category reads its possible competitors: the evidenced
