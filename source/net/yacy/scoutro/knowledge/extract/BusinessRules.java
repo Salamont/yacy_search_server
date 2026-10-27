@@ -1494,9 +1494,10 @@ public final class BusinessRules {
             // Beispielwerk" is a project at a client
             final String last = beforeWords[beforeWords.length - 1];
             final Matcher place = PLACE_BY_PLACE.matcher(before.replaceAll("[*_#]+", " "));
-            if (out.isEmpty() && !legal && head.split("\\s+").length == 1 && (beforeWords.length == 1 && last.matches("(?u)\\p{Lu}\\p{Ll}+")
-                    && !COMMON_NOUN.matcher(last).find() || place.find() && !COMMON_NOUN.matcher(place.group(1)).find())) {
-                break;
+            final int words = head.split("\\s+").length;
+            if (out.isEmpty() && !legal && (words == 1 && beforeWords.length == 1 && last.matches("(?u)\\p{Lu}\\p{Ll}+")
+                    && !COMMON_NOUN.matcher(last).find() || words <= 2 && place.find() && !COMMON_NOUN.matcher(place.group(1)).find())) {
+                break; // a town of two words too ("Muster GmbH, Musterdorf bei Bad Beispiel")
             }
             out.add(head);
             if (!after.replaceAll("[\\s.,;!*_]+", "").isEmpty()) {

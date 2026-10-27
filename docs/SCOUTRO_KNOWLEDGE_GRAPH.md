@@ -4362,7 +4362,7 @@ or a postal code with its town), read at the model's quote first, else a town af
 Musterstadt", "in Musterstadt"). The reader ("in Ihrer Nähe"), the provider describing itself ("Wir sind ein ambulanter
 Pflegedienst in …") and a phone number are no place; without one the kind stays an offer (`entity_facility_kind_without_place`).
 It is shown as "kind (provider, place)", the provider the page's operator ("Tagespflege (Muster Pflege, Musterstadt)"), and
-keyed by the scheme `facility_kind`: the kind and the place (the full address, else the street, else the town) within the
+keyed by the scheme `facility_kind`: the kind and the place (its street and number, else its town) within the
 registrable domain, a discriminator. Three day care facilities of one provider at three addresses stay three; the same one on
 five pages is one.
 
@@ -4401,6 +4401,9 @@ repository):
 - The place of a facility named by its kind: the marks of markdown between the kind and its address do not end its block
   ("**Tagespflege. ** Musterstraße 9. 12345 Musterdorf."), a compound of "Standort" names the place ("an unserem Hauptstandort in
   Musterstadt"), and a word after a dot is no part of the street ("Muster e.K. Musterstraße 9").
+- After the second run: the key of a facility's place is its street and number (else its town), so a page that writes the full
+  address and one that writes only the street name one facility; a town of two words after a place by a place is no client
+  ("Muster GmbH, Musterdorf bei Bad Beispiel").
 
 ### 44.3 The update
 

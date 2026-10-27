@@ -238,7 +238,7 @@ public final class Vocabulary {
     public static final String CLIENT_NAME = "client_name";
     /**
      * 0.14.0 (item C6, the owner's decision of 27 October 2026): a facility or site named only by its kind ("Tagespflege") by its
-     * kind and its place (the address, else the street, else the town) within the registrable domain of its provider: one per
+     * kind and its place (its street and number, else its town) within the registrable domain of its provider: one per
      * provider, kind and address, so the same day care on five pages is one and three at three addresses stay three. A
      * discriminator: another place is another facility.
      */

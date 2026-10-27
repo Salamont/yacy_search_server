@@ -53,7 +53,7 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * registrable domain of that page: one organisation for the same client on every page of the provider; mentions with different
  * legal forms never join ("Muster GmbH" and "Muster AG");</li>
  * <li>{@code facility_address}: name and <em>full</em> address, within the registrable domain;</li>
- * <li>{@code facility_kind} (0.14.0): a facility named only by its kind by its kind and place (address, street or town), within
+ * <li>{@code facility_kind} (0.14.0): a facility named only by its kind by its kind and place (street and number, else the town), within
  * the registrable domain: one per provider, kind and address;</li>
  * <li>{@code job_posting} (version 2): employer, title and location of a job, within the registrable domain;</li>
  * <li>{@code place_name} (version 2): a place by country, level and name, global (a state, a country, a locality);</li>

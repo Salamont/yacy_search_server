@@ -211,6 +211,8 @@ public class KindFacilityTest {
                 "Tagespflege").locality);
         final Address after = PlaceEvidence.placeOf("Tagespflege. Muster e.K. Musterstrasse 9. 12345 Musterstadt.", "Tagespflege");
         assertEquals("Musterstrasse 9, 12345 Musterstadt", after.display());
+        // the full address and the street alone name one place
+        assertEquals(PlaceEvidence.placeKey(bold), PlaceEvidence.placeKey(PlaceEvidence.placeOf("**Tagespflege. ** Musterstraße 9.", "Tagespflege")));
         // a blank line still ends the block
         assertNull(PlaceEvidence.placeOf("Tagespflege.\n\n\n**Kontakt** Musterstraße 9. 12345 Musterdorf.", "Tagespflege"));
     }

@@ -205,6 +205,7 @@ public class DocumentedRelationsTest {
         final Map<String, Set<String>> c = clients(rules("software", "https://www.muster-landschaft.de/referenzen/",
                 "## Referenzen.\n\n### Muster Garten GmbH, Musterdorf bei Musterstadt\n\nText.\n\n"
                         + "### Beispiel Brands AG, Beispieldorf bei Probestadt\n\nText.\n\n"
+                        + "### Probe Werbung, Probedorf bei Bad Beispiel\n\nText.\n\n"
                         + "### Umgehung an der A7 bei Musterdorf, Landkreis Beispiel (in Bearbeitung).\n\nText.\n\n"
                         + "### Unterstützung aus Musterdorf bei Musterstadt überzeugen.\n\nText.\n\n"
                         + "### 50% der Kosten bei Musterprojekt eingespart.\n\nText.\n\n"

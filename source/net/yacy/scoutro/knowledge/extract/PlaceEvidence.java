@@ -496,17 +496,17 @@ public final class PlaceEvidence {
         return null;
     }
 
-    /** 0.14.0: the key of a facility's place ({@link #placeOf}): its full address, else its street and number, else its town. */
+    /**
+     * 0.14.0: the key of a facility's place ({@link #placeOf}): its street and number, else its postal code and town, else its town.
+     * A page that writes the full address and one that writes only the street name one place (gates of 0.14.0: the same day care
+     * on five pages is one).
+     */
     public static String placeKey(final Address a) {
         if (a == null) {
             return null;
         }
-        if (a.complete()) {
-            return a.key();
-        }
         if (a.street != null && a.number != null) {
-            return Normalizers.streetKey(a.street) + " " + a.number.replaceAll("\\s+", "").toLowerCase(Locale.ROOT)
-                    + (a.postalCode == null ? "" : "|" + a.postalCode);
+            return Normalizers.streetKey(a.street) + " " + a.number.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         }
         return a.postalCode != null ? a.postalCode + "|" + Normalizers.key(a.locality) : a.locality == null ? null : Normalizers.key(a.locality);
     }
