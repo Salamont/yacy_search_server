@@ -4386,6 +4386,22 @@ incomplete (43.3); every run of the matching first removes up to 2 000 contribut
 
 Language knowledge in the code, industry knowledge only in the vocabularies.
 
+**Corrections after the first run of the gates** (27 October 2026; all four collections read, the judgement in the package
+repository):
+
+- After "bei": a place by a place written after a comma or "aus" is no client ("Muster GmbH, Musterdorf bei Musterstadt", "aus
+  Musterdorf bei Musterstadt"), nor a place before its district ("bei Musterdorf, Landkreis Beispiel"); a word before a genitive or
+  before a participle that ends the heading is a common noun ("bei der Auswahl eines …", "bei Musterprojekt eingespart"). A name with
+  a legal form stays a client.
+- A client field: the abbreviations of a name go on ("Evang. Kirchengemeinde", "Kath. Pfarramt", "Staatl. Bauamt", "Ing. …"), a
+  sentence end after a capitalised word of three letters ends it ("… vor dem Muster Tor. Planung"), so does a legal form before a
+  sentence end ("… GmbH & Co. KG. Client-Server-Entwicklung"); the label of another field at its start is dropped ("Bauherr: …");
+  no-break spaces and line separators are spaces (an address written with them is cut, "GmbH & Co. KG" stays one legal form); the
+  soft hyphens of a word do not hide its sentence end.
+- The place of a facility named by its kind: the marks of markdown between the kind and its address do not end its block
+  ("**Tagespflege. ** Musterstraße 9. 12345 Musterdorf."), a compound of "Standort" names the place ("an unserem Hauptstandort in
+  Musterstadt"), and a word after a dot is no part of the street ("Muster e.K. Musterstraße 9").
+
 ### 44.3 The update
 
 `rule/10`, `jsonld/8`, `Vocabulary.VERSION` 6 (the schemes `facility_kind` and `client_description`) and the vocabulary

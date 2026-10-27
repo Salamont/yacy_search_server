@@ -75,19 +75,25 @@ The gates run on production data, read only and without a model, in the private 
 collections: G1 every entity of the count of generic names on the pages that named it, read by the staged classes (stays, shown
 as a kind, a client description or goes; the owner's criterion: at least nine in ten of those that go are wrong); G2 the
 clients after "bei" and in client fields (how many of the real clients stay); G3 the declared audiences with the former and
-the new reader, and the categories and topics of a sample of pages; G4 the 98 pairs of M1 with the former and the new read path,
+the new reader, and the categories and topics of a sample of pages; G4 the pairs of the sample of M1 with the former and the new read path,
 and their candidates as descriptions or vendors; G5 the facilities named by their kind (distinct providers, kinds and places).
 No collection may get worse.
 
 | Gate | Result |
 |---|---|
-| G1–G5 | **open** |
+| G1–G5, run 1 (27 October 2026) | judged in full, not by samples: G1 met in every collection (of the names that go far more than nine in ten are wrong; every organisation named by a brand and both firms named like a segment word stay); G2: every real client of a heading "… bei X" stays, many client names cut or run on are read in full now; G3: a few evidence lines are no longer confirmed, all rightly (the provider in the third person, words of another sense), none gained; G4: a few pairs no longer shown, all rightly (an offer's alternative, work for others), some candidates are descriptions or the vendor; G5: the facilities named by their kind kept with their place, merged per provider, kind and place. General reading errors of client names found (places after "bei", abbreviations, no-break spaces, a field's label) and real facilities lost (markdown between the kind and its address, a compound of "Standort"): **corrected** (section 44.2) |
+| G1–G5, run 2 | **open** |
 | M0 / M1 | **open** |
 
 ## Known limitations
 
 - A brand written in lower case and ending in "-er" after "bei" reads as an adjective and is not taken as a client.
 - A client named only in a heading that asks ("Was macht … bei Muster?") is no client.
+- A facility named by its kind shows its provider only where the page names its operator; else "kind (place)" (the facility
+  belongs to the provider's domain all the same).
+- A facility named by its kind is kept only with its address or "in X" after it; a town on a line of its own ("Tagespflege.
+  Musterstadt.") or a place later in the clause ("befindet sich neben unserer Geschäftsstelle in Musterstadt") is none.
+- A country or a single word after " / " in a client field reads as a client of its own ("Muster Behörde / Musterland").
 
 ## Rollback to 0.13.2
 

@@ -196,6 +196,24 @@ public class DocumentedRelationsTest {
                 + "### E-Mobilität bei Beispielwerk: Neue Ladesäulen.\n\nText.")).isEmpty());
     }
 
+    /**
+     * The gates of 0.14.0: after "bei", a place by a place written after a comma or "aus", a place with its district, a common noun
+     * before a genitive and a word before a participle that ends the heading are no client; a name with a legal form stays one.
+     */
+    @Test
+    public void aPlaceByAPlaceADistrictOrACommonNounAfterBeiIsNoClient() throws Exception {
+        final Map<String, Set<String>> c = clients(rules("software", "https://www.muster-landschaft.de/referenzen/",
+                "## Referenzen.\n\n### Muster Garten GmbH, Musterdorf bei Musterstadt\n\nText.\n\n"
+                        + "### Beispiel Brands AG, Beispieldorf bei Probestadt\n\nText.\n\n"
+                        + "### Umgehung an der A7 bei Musterdorf, Landkreis Beispiel (in Bearbeitung).\n\nText.\n\n"
+                        + "### Unterstützung aus Musterdorf bei Musterstadt überzeugen.\n\nText.\n\n"
+                        + "### 50% der Kosten bei Musterprojekt eingespart.\n\nText.\n\n"
+                        + "### Beratung bei der Anbieterauswahl eines neuen Musterdienstes.\n\nText.\n\n"
+                        + "### Kommissionierung bei Muster Schweiz per Stimme.\n\nText.\n\n"
+                        + "### Erfolg bei Beispiel AG erreicht.\n\nText."));
+        assertEquals(c.toString(), Set.of("Muster Schweiz", "Beispiel AG"), c.keySet());
+    }
+
     /** 0.14.0: one name is never split ("Büro für Muster und Beispiel", "Muster heat & power AG"); several names are. */
     @Test
     public void oneNameIsNeverSplitSeveralNamesAre() throws Exception {
@@ -229,6 +247,18 @@ public class DocumentedRelationsTest {
         assertEquals("Ev.-Luth. Kirchengemeinde Muster", BusinessRules.fieldValue("Ev.-Luth. Kirchengemeinde Muster"));
         assertEquals(Set.of("Beispielamt Musterstadt"), clients(rules("software", "https://www.muster-bau.de/referenzen/",
                 "## Neubau Schule.\n\nAuftraggeber: Beispielamt Musterstadt. Planung, Ausschreibung und Bauleitung\n\nLeistung: Fachplanung.")).keySet());
+        // the gates of 0.14.0: the abbreviations of a name go on, a short word ends a sentence, a legal form ends the name, the label
+        // of another field and no-break spaces are no part of it
+        assertEquals("Evang. Kirchengemeinde Musterdorf", BusinessRules.fieldValue("Evang. Kirchengemeinde Musterdorf"));
+        assertEquals("Kath. Pfarramt St. Muster", BusinessRules.fieldValue("Kath. Pfarramt St. Muster"));
+        assertEquals("Staatl. Bauamt Musterstadt", BusinessRules.fieldValue("Staatl. Bauamt Musterstadt"));
+        assertEquals("Kirchengemeinde vor dem Muster Tor", BusinessRules.fieldValue("Kirchengemeinde vor dem Muster Tor. Planung, Ausschreibung"));
+        assertEquals("Muster Technik GmbH & Co. KG", BusinessRules.fieldValue("Muster Technik GmbH & Co. KG. Client-Server-Entwicklung"));
+        assertEquals("musto consult Objektgesellschaft mbH", BusinessRules.fieldValue("Bauherr: musto consult Objektgesellschaft mbH"));
+        assertEquals("Stadt Musterstadt", BusinessRules.fieldValue("Stadt Musterstadt,\u00a0Postfach 4535,\u00a012345 Musterstadt"));
+        assertEquals("Dienstleister für Muster\u00adabrechnungen", BusinessRules.fieldValue("Dienstleister für Muster\u00adabrechnungen. Systemgröße: ca. 500 User"));
+        assertEquals(Set.of("M. Muster Elektrotechnik GmbH & Co. KG"), clients(rules("software", "https://www.muster-bau.de/referenzen/",
+                "## Neubau Halle.\n\nAuftraggeber: M.\u00a0Muster\u00a0Elektrotechnik\u00a0GmbH\u00a0&\u00a0Co.\u00a0KG\n\nLeistung: Planung.")).keySet());
     }
 
     /** 0.14.0: a placeholder of a client field is no client ("auf Anfrage", "N.N.", "interner Showcase"). */

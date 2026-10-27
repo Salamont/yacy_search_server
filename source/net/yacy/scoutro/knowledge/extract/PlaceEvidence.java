@@ -405,16 +405,20 @@ public final class PlaceEvidence {
 
     /**
      * A street with its number, the postal code and the town after it if the page gives them: "Musterstraße 5", "Beispieler Straße
-     * 17", "Am Musterbach 1. 12345 Musterstadt", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt").
+     * 17", "Am Musterbach 1. 12345 Musterstadt", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt"). A word
+     * after a dot is no part of the street ("Muster e.K. Musterstraße 9" is "Musterstraße 9").
      */
-    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}])((?:\\p{Lu}[\\p{L}.'-]*\\s+)?\\p{Lu}[\\p{L}'-]*"
+    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}.])((?:\\p{Lu}[\\p{L}.'-]*\\s+)?\\p{Lu}[\\p{L}'-]*"
             + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:\\p{Lu}[\\p{L}.'-]*\\s+)?(?:Straße|Strasse|Weg|Gasse"
             + "|Platz|Allee|Ring|Damm|Ufer|Chaussee|Markt)|(?i:am|an\\s+der|an\\s+den|im|in\\s+der|auf\\s+dem|auf\\s+der|zum|zur)\\s+\\p{Lu}"
             + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+(?:\\s+(?:am|an\\s+der|im|ob\\s+der)"
             + "\\s+\\p{Lu}[\\p{L}-]+)?))?|(?<!\\d)(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+))");
-    /** A town after the kind in its clause: "… an unserem Standort Musterstadt", "… in Musterstadt", "… im Musterdorf". */
-    private static final Pattern KIND_TOWN = Pattern.compile("(?u)^[\\s,]*(?:(?i:an\\s+unserem|am|unseres|unserem)\\s+Standort\\s+(?:in\\s+)?"
-            + "|(?i:in|im)\\s+)(\\p{Lu}[\\p{L}-]+(?:[ -](?:am|an\\s+der|im)\\s+\\p{Lu}[\\p{L}-]+|-\\p{Lu}[\\p{L}-]+)?)(?![\\p{L}\\p{N}])");
+    /**
+     * A town after the kind in its clause: "… an unserem Standort Musterstadt", "… an unserem Hauptstandort in Musterstadt", "… in
+     * Musterstadt", "… im Musterdorf".
+     */
+    private static final Pattern KIND_TOWN = Pattern.compile("(?u)^[\\s,]*(?:(?i:an\\s+unserem|am|unseres|unserem)\\s+(?:Standort|\\p{Lu}\\p{Ll}+standort)"
+            + "\\s+(?:in\\s+)?|(?i:in|im)\\s+)(\\p{Lu}[\\p{L}-]+(?:[ -](?:am|an\\s+der|im)\\s+\\p{Lu}[\\p{L}-]+|-\\p{Lu}[\\p{L}-]+)?)(?![\\p{L}\\p{N}])");
     /** A word after "in" that is no town: the reader ("in Ihrer Nähe"), a common noun ("in Planung", "in Vorbereitung"). */
     private static final Pattern NOT_TOWN = Pattern.compile("(?iu)^(?:ihr|ihre[mnrs]?|unser|unsere[mnrs]?|der|die|das|dem|den|des|einer?"
             + "|deutschland|germany|europa|ganz)$|(?:ung|ungen|heit|keit|schaft|tion|nähe|naehe|umgebung|region|kürze|kuerze)$");
@@ -472,8 +476,8 @@ public final class PlaceEvidence {
             int end = seg[1];
             for (int k = 0; k < 2 && end < text.length(); k++) {
                 final int n = nextContent(text, end);
-                if (n >= text.length() || n - end > 4) {
-                    break; // a blank line or more ends the name's block
+                if (n >= text.length() || n - end - marks(text, end, n) > 4) {
+                    break; // a blank line or more ends the name's block; the marks of markdown ("**Tagespflege. ** Muster…") do not
                 }
                 end = segment(text, n, n + 1)[1];
             }
@@ -711,6 +715,15 @@ public final class PlaceEvidence {
             i++;
         }
         return i;
+    }
+
+    /** 0.14.0: the marks of markdown ("*", "_") in {@code [from, to)}. */
+    private static int marks(final String text, final int from, final int to) {
+        int n = 0;
+        for (int i = from; i < to; i++) {
+            n += text.charAt(i) == '*' || text.charAt(i) == '_' ? 1 : 0;
+        }
+        return n;
     }
 
     private static int lowerWords(final String s) {

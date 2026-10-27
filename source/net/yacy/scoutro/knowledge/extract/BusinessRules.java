@@ -1007,6 +1007,18 @@ public final class BusinessRules {
     private static final Pattern PLACE_AFTER = Pattern.compile("(?u)^\\s*(?:am|im|an\\s+der|in\\s+der|ob\\s+der|auf\\s+der)\\s+\\p{Lu}");
     /** 0.14.0: an infinitive after a name ("bei Muster zu sehen"): the name is no client. */
     private static final Pattern INFINITIVE_AFTER = Pattern.compile("(?u)^\\s*zu\\s+\\p{Ll}");
+    /**
+     * 0.14.0 (gates of 0.14.0): after the word, a genitive ("bei der Auswahl eines …") or a participle that ends the heading ("bei
+     * Musterprojekt eingespart"): a common noun, no client.
+     */
+    private static final Pattern NOUN_AFTER = Pattern.compile("(?u)^\\s+(?:eines|einer|des)\\s|^\\s+\\p{Ll}+t[\\s.!?*_]*$");
+    /** 0.14.0 (gates of 0.14.0): a place's district after the word ("bei Musterdorf, Landkreis Beispiel"): the word is a place. */
+    private static final Pattern DISTRICT_AFTER = Pattern.compile("(?u)^\\s*,\\s*(?:Landkreis|Kreis|Gemeinde|Markt|Ortsteil|OT|Bezirk|Kanton|Bundesland)\\b");
+    /**
+     * 0.14.0 (gates of 0.14.0): a place by a place written after a comma or "aus" ("Muster GmbH, Musterdorf bei Musterstadt", "aus
+     * Musterdorf bei Musterstadt"): the word before "bei" with its separator.
+     */
+    private static final Pattern PLACE_BY_PLACE = Pattern.compile("(?u)(?:,|(?<![\\p{L}])(?:aus|nahe|near|from))\\s+(\\p{Lu}\\p{Ll}+(?:-\\p{Lu}\\p{Ll}+)?)\\s*$");
     /** 0.14.0: where a name after "bei" ends: a colon, a dash, a bracket, a question, a sentence end, a comma. */
     private static final Pattern NAME_STOP = Pattern.compile("(?u)\\s+[–—-]\\s+|[:!?»«|(]|,\\s|\\.(?=\\s|$)");
     /** 0.14.0: a word joining the words of one name ("Kammer der Musterregion", "Hochschule für Musterkunde"). */
@@ -1059,8 +1071,22 @@ public final class BusinessRules {
             + "|An\\s+der\\s+\\p{Lu}[\\p{L}-]+|Am\\s+\\p{Lu}[\\p{L}-]+)\\s+\\d+|(?<!\\d)\\d{5}\\s+\\p{Lu})");
     /** 0.14.0: a legal form's suffix of a German name ("Muster Gesellschaft mbH", "Beispiel eG", "Muster AöR"). */
     private static final Pattern LEGAL_SUFFIX = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:mbh|mbb|e\\.\\s?g\\.?|e\\.\\s?v\\.?|aör|aoer|kdör)(?![\\p{L}\\p{N}])");
-    /** 0.14.0: a sentence end after a name ("Beispielamt Musterstadt. Planung, Ausschreibung …"); "Ev. Kirche", "Ev.-Luth. Muster", "e. V." and "Dr." go on. */
-    private static final Pattern VALUE_END = Pattern.compile("(?u)(?<=(?<![\\p{L}.-])\\p{Lu}[\\p{L}-]{3,40}|\\))\\.(?=\\s|$)");
+    /**
+     * 0.14.0: a sentence end after a name ("Beispielamt Musterstadt. Planung, Ausschreibung …", "… vor dem Muster Tor. Planung"): a dot
+     * after a capitalised word of three letters or more (its soft hyphens included), or after a bracket; "Ev. Kirche", "Ev.-Luth. Muster",
+     * "e. V." and "Dr." go on, and so do the abbreviations of {@link #NAME_ABBREVIATION}.
+     */
+    private static final Pattern VALUE_END = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{Cf}.-])(\\p{Lu}[\\p{L}\\p{Cf}-]{2,40})|\\))\\.(?=\\s|$)");
+    /** 0.14.0: abbreviations inside a name ("Evang. Kirchengemeinde", "Kath. Pfarramt", "Staatl. Bauamt", "Ing. Muster", "Abt. Bau"). */
+    private static final Pattern NAME_ABBREVIATION = Pattern.compile("(?iu)^(?:evang|kath|luth|diak|staatl|städt|staedt|kirchl|ing|dipl|prof|abt|ref"
+            + "|ges|gem|inst|univ|verw|bez|lkr|gebr|techn|wiss|med|int|intl|allg|landw|verb|vers|ver|zentr|hochsch|fachhochsch)$");
+    /** 0.14.0: a legal form before a sentence end: the name ends with it ("Muster GmbH & Co. KG. Client-Server-Entwicklung"). */
+    private static final Pattern LEGAL_END = Pattern.compile("(?u)(?<![\\p{L}])(?:KG|AG|SE|OG|UG|GmbH|mbH|KGaA|Inc|Ltd|Corp|eG|e\\.\\s?V)\\.(?=\\s+\\p{Lu})");
+    /** 0.14.0: a field's label at the start of its value ("Auftraggeber: Bauherr: Muster GmbH"): no part of the name. */
+    private static final Pattern VALUE_LABEL = Pattern.compile("(?iu)^(?:bauherr(?:in|en)?|auftraggeber(?:in)?|kunde|kundin|client|customer|endkunde)"
+            + "\\s*[:.]\\s*");
+    /** 0.14.0: white space a page writes as a character of its own (no-break spaces, line separators), one space each. */
+    private static final Pattern SPACE_LIKE = Pattern.compile("[\\u00a0\\u2007\\u202f\\u2028\\u2029]");
     /** 0.14.0: a field label after an asterisk ("Musteramt *Unsere Leistungen:"). */
     private static final Pattern STARRED_FIELD = Pattern.compile("(?u)\\s\\*{1,2}\\p{Lu}[\\p{L}\\- ]{1,40}\\*{0,2}\\s*:.*$");
     /** 0.14.0: the label of a former or a later name inside a client's field ("Muster Bank eG / heute: Beispiel Bank"). */
@@ -1308,7 +1334,7 @@ public final class BusinessRules {
     /** The clients named in {@code names} (each a client of the operator) with the products and program needs of their project. */
     private int documented(final Run run, final String names, final int at, final String project, final String context, final Set<String> seen) {
         int n = 0;
-        for (final String raw : splitNames(names.replaceAll("\\s+", " ").trim())) {
+        for (final String raw : splitNames(SPACE_LIKE.matcher(names).replaceAll(" ").replaceAll("\\s+", " ").trim())) {
             final String name = NAME_LABEL.matcher(raw.replaceAll("^[*_\\s]+|[*_\\s]+$", "")).replaceFirst("").replaceAll("[.!:]+$", "")
                     .replaceAll("^[„“\"']|[„“\"']$", "").trim();
             if (described(name)) {
@@ -1386,19 +1412,28 @@ public final class BusinessRules {
 
     /**
      * 0.14.0: the end of a client field's value: before "vertreten durch", before an address (a street with its number, a postcode
-     * with its town), before a field label after an asterisk, and at a sentence end after a capitalised word of four letters or
-     * more ("Beispielamt Musterstadt. Planung, Ausschreibung …"); "Ev. Kirche", "Hl. Muster" and "e. V." go on.
+     * with its town), before a field label after an asterisk, after a legal form before a sentence end, and at a sentence end after a
+     * capitalised word of three letters or more ("Beispielamt Musterstadt. Planung, Ausschreibung …"); "Ev. Kirche", "Hl. Muster",
+     * "Evang. Kirchengemeinde" and "e. V." go on. No-break spaces are spaces, and the label of another field at its start is dropped
+     * ("Bauherr: Muster GmbH").
      */
     static String fieldValue(final String value) {
-        String v = REPRESENTED.matcher(value).replaceFirst("");
+        String v = VALUE_LABEL.matcher(SPACE_LIKE.matcher(value).replaceAll(" ").trim()).replaceFirst("");
+        v = REPRESENTED.matcher(v).replaceFirst("");
         v = STARRED_FIELD.matcher(v).replaceFirst("");
         final Matcher address = ADDRESS_AFTER.matcher(v);
         if (address.find() && address.start() > 0) {
             v = v.substring(0, address.start()).replaceFirst("(?u),[^,]*\\d+[a-z]?\\s*$", "");
         }
-        final Matcher end = VALUE_END.matcher(v);
-        if (end.find() && end.start() > 0) {
-            v = v.substring(0, end.start());
+        final Matcher legal = LEGAL_END.matcher(v);
+        if (legal.find()) {
+            v = v.substring(0, legal.start() + legal.group().length() - 1);
+        }
+        for (final Matcher end = VALUE_END.matcher(v); end.find();) {
+            if (end.end() > 1 && (end.group(1) == null || !NAME_ABBREVIATION.matcher(end.group(1)).matches())) {
+                v = v.substring(0, end.end() - 1);
+                break;
+            }
         }
         return v.replaceAll("[\\s.,;:*]+$", "").trim();
     }
@@ -1412,9 +1447,9 @@ public final class BusinessRules {
      * 0.14.0 (the owner's decision of 27 October 2026): the clients after "bei" in a heading of references ({@code before}
      * "bei" {@code rest}): only names, with a legal form or a proper name, each cut before the words that follow it ("E-Mobilität bei
      * Beispielwerk: Neue Ladesäulen" names "Beispielwerk"); none for a phrase ("bei defektem Kessel", "bei Bedarf", "bei Ihnen"), a
-     * common noun ("bei der Erweiterung …", "bei Projekten"), a question, a place ("Musterdorf bei Musterstadt:", "… bei Musterstadt
-     * am Main") or an infinitive ("bei Muster zu sehen"). "Muster AG setzt bei der Planung auf Beispiel" names the client before
-     * "setzt".
+     * common noun ("bei der Erweiterung …", "bei Projekten", "bei der Auswahl eines …"), a question, a place ("Musterdorf bei
+     * Musterstadt:", "Muster GmbH, Musterdorf bei Musterstadt", "… bei Musterstadt am Main", "bei Musterdorf, Landkreis Beispiel") or
+     * an infinitive ("bei Muster zu sehen"). "Muster AG setzt bei der Planung auf Beispiel" names the client before "setzt".
      */
     static List<String> clientsAfterBei(final String before, final String rest) {
         final List<String> out = new ArrayList<>();
@@ -1450,10 +1485,17 @@ public final class BusinessRules {
             if (PLACE_AFTER.matcher(after).find() || INFINITIVE_AFTER.matcher(after).find()) {
                 break;
             }
-            // "Musterdorf bei Musterstadt": a place by a place; "E-Mobilität bei Beispielwerk" is a project at a client
+            final boolean legal = LEGAL_FORM_ANY_CASE.matcher(head).find();
+            if (!legal && !BODY.matcher(head).find() && DISTRICT_AFTER.matcher(after).find()
+                    || !legal && !INSTITUTION.matcher(head).find() && !BODY.matcher(head).find() && NOUN_AFTER.matcher(after).find()) {
+                break; // "bei Musterdorf, Landkreis Beispiel": a place with its district; "bei der Auswahl eines …": a common noun
+            }
+            // "Musterdorf bei Musterstadt", "Muster GmbH, Musterdorf bei Musterstadt": a place by a place; "E-Mobilität bei
+            // Beispielwerk" is a project at a client
             final String last = beforeWords[beforeWords.length - 1];
-            if (out.isEmpty() && !LEGAL_FORM_ANY_CASE.matcher(head).find() && head.split("\\s+").length == 1 && beforeWords.length == 1
-                    && last.matches("(?u)\\p{Lu}\\p{Ll}+") && !COMMON_NOUN.matcher(last).find()) {
+            final Matcher place = PLACE_BY_PLACE.matcher(before.replaceAll("[*_#]+", " "));
+            if (out.isEmpty() && !legal && head.split("\\s+").length == 1 && (beforeWords.length == 1 && last.matches("(?u)\\p{Lu}\\p{Ll}+")
+                    && !COMMON_NOUN.matcher(last).find() || place.find() && !COMMON_NOUN.matcher(place.group(1)).find())) {
                 break;
             }
             out.add(head);

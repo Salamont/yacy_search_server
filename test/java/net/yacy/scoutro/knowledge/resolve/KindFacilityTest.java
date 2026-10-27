@@ -196,6 +196,25 @@ public class KindFacilityTest {
                 + " Beratung.\n", url, new String[] {"Tagespflege", "Unsere Leistungen: Tagespflege, Hausnotruf und Beratung."})));
     }
 
+    /**
+     * The gates of 0.14.0: the marks of markdown between the kind and its address do not end its block ("**Tagespflege. **
+     * Musterstraße 9."), a compound of "Standort" names the place ("an unserem Hauptstandort in Musterstadt"), and the word after a
+     * legal form's dot is no part of the street ("Muster e.K. Musterstrasse 9").
+     */
+    @Test
+    public void markdownAMainSiteAndALegalFormBeforeTheStreet() {
+        final Address bold = PlaceEvidence.placeOf("Über uns\n\n**Tagespflege. ** Musterstraße 9. 12345 Musterdorf.\n\nWeitere Angebote",
+                "Tagespflege", "**Tagespflege. ** Musterstraße 9. 12345 Musterdorf.");
+        assertEquals("Musterstraße 9, 12345 Musterdorf", bold.display());
+        assertEquals("Musterdorf", PlaceEvidence.placeOf("Musterweg\n\nSchreinerei. ** Musterweg 4. 12345 Musterdorf.\n", "Schreinerei").locality);
+        assertEquals("Musterstadt", PlaceEvidence.placeOf("Seit 2020 ist unsere Tagespflege an unserem Hauptstandort in Musterstadt in Betrieb.",
+                "Tagespflege").locality);
+        final Address after = PlaceEvidence.placeOf("Tagespflege. Muster e.K. Musterstrasse 9. 12345 Musterstadt.", "Tagespflege");
+        assertEquals("Musterstrasse 9, 12345 Musterstadt", after.display());
+        // a blank line still ends the block
+        assertNull(PlaceEvidence.placeOf("Tagespflege.\n\n\n**Kontakt** Musterstraße 9. 12345 Musterdorf.", "Tagespflege"));
+    }
+
     @Test
     public void oneFacilityPerProviderKindAndAddress() throws Exception {
         final String three = "## Unsere Tagespflegen\n\nTagespflege\nAm Musterbach 1\n12345 Musterstadt\n\nTagespflege\nBeispielweg 2\n"
