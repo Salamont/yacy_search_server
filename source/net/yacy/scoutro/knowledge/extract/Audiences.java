@@ -42,13 +42,27 @@ import net.yacy.scoutro.knowledge.vocab.TermMatcher;
  * "Sanierung", "Baufinanzierung", "Veränderungsprozesse"), the speaker's own role ("als Ihr Generalunternehmer", "als erfahrener
  * Pflegedienst"; the reader's role stays: "Sie als Pflegedienst"), a denied one ("keine Bauträger"), a website's technology ("Powered
  * by WordPress" is read by {@link WebsiteTechnology}, never here) and anything after the clause's end.</li>
+ * <li><b>0.13.2, the speaker's own business, a topic and a referral:</b> since every vocabulary is read, a provider's own word for
+ * itself reached the target categories and industries (a care service: "Für wen eignet sich unser Pflegedienst?", "Wir helfen Ihnen
+ * als ambulanter Pflegedienst", "Leistungen im Pflegedienst"). For a target category or industry none is an audience: the word after
+ * a possessive of the first person ("unser Pflegedienst", "in unserer Pflegeeinrichtung") or after "im" (a place: "im Pflegedienst";
+ * after a marker or a preposition of an addressee it stays: "Software für den Einsatz im Pflegeheim"); the clause whose object is the
+ * speaker ("speziell für uns"); the speaker's identity ("wir sind ein ambulanter Pflegedienst"); the role after a dative "Ihnen als"
+ * in the nominative ("Ihnen als ambulanter Pflegedienst" is the speaker, "Ihnen als ambulantem Pflegedienst" the reader); a topic
+ * ("Fragen rund um den ambulanten Pflegedienst", "das Thema Pflegedienst"; "rund um Ihre Pflegeeinrichtung" stays, the reader's
+ * own); a referral or a comparison ("vermitteln Ihnen den passenden Energieberater", "Vermittlung eines ambulanten Pflegedienstes",
+ * "Leistungsvergleich der Pflegedienste"). A topic, a referral and the identity reach at most five words, not across a comma or an
+ * "und", and never past a preposition of an addressee ("Fragen rund um Software für Pflegedienste", "Vermittlung von Fachkräften
+ * für Pflegeeinrichtungen"). An offer for the speaker's business is the voice of a client ("Software für unseren Heizungsbetrieb"):
+ * its audience stays. Customer types, segments and sizes keep the reading of 0.13.0 ("unsere Bauherren" are the speaker's clients).
+ * The services built on a category's own term name no organisation ("Pflegedienstleistungen"; "Pflegedienstleitungen" do).</li>
  * </ul>
  * The version is no part of an extractor identity: stored evidence is read again with the current reader wherever its
  * audience takes effect.
  */
 public final class Audiences {
 
-    public static final String VERSION = "1";
+    public static final String VERSION = "2"; // 2: the speaker's own business, a topic and a referral are no audience (0.13.2)
 
     /** One audience of a phrase: its predicate, its value and the span that names it. */
     public static final class Audience {
@@ -89,12 +103,14 @@ public final class Audiences {
         }
     }
 
+    /** An offer and the audience it is for ("Lösungen für WordPress-Agenturen", "Software für Pflegedienste"). */
+    private static final String OFFER = "(?:lösungen|loesungen|software|angebote?|leistungen|produkte|beratung|solutions|services|products)"
+            + "\\s+(?:für|fuer|for)";
     /** The markers of an address; at most {@link #MAX_MARKERS} per page. */
     static final Pattern MARKER = Pattern.compile("(?iu)\\b(?:für\\s+wen|fuer\\s+wen|zielgruppen?|wir\\s+unterstützen|wir\\s+unterstuetzen"
             + "|wir\\s+beraten|wir\\s+begleiten|wir\\s+helfen|unser\\s+angebot\\s+richtet\\s+sich\\s+an|richtet\\s+sich\\s+an|unsere\\s+kunden\\s+sind"
             + "|wir\\s+arbeiten\\s+für|speziell\\s+für|our\\s+clients\\s+are|we\\s+help|we\\s+support|designed\\s+for|who\\s+we\\s+serve"
-            // an offer and the audience it is for ("Lösungen für WordPress-Agenturen", "Software für Pflegedienste")
-            + "|(?:lösungen|loesungen|software|angebote?|leistungen|produkte|beratung|solutions|services|products)\\s+(?:für|fuer|for))\\b\\s*:?\\s*");
+            + "|" + OFFER + ")\\b\\s*:?\\s*");
     /** A marker that heads its audience ("Für wen?", "Zielgruppe:", "Who we serve"): the audience follows in the next unit. */
     private static final Pattern HEADING = Pattern.compile("(?iu)^(?:für\\s+wen|fuer\\s+wen|zielgruppen?|who\\s+we\\s+serve)");
     /**
@@ -143,6 +159,8 @@ public final class Audiences {
      * ("Fertighaus", "Netzwerk", "Rechenzentrum") and are none.
      */
     static final List<String> TERM_HEADS = List.of("dienst", "dienste", "heim", "heime");
+    /** 0.13.2: the services of a category's organisation, a word built on its term ("Pflegedienstleistungen"). */
+    private static final Pattern SERVICES = Pattern.compile("leistung(?:en)?$");
     /** A word of the German plural "-ereien" (Druckereien, Schreinereien) names businesses. */
     private static final Pattern EREIEN = Pattern.compile("\\p{L}{3,}ereien$");
     /** The word before "als" and up to three words after it, at the end of the text before a phrase. */
@@ -154,6 +172,44 @@ public final class Audiences {
     private static final Pattern POSSESSIVE = Pattern.compile("(?iu)^(?:ihr|ihre|ihren|ihrem|ihrer|your|unser|unsere|unseren|unserem|our)$");
     private static final Pattern NEGATION = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:nicht|keine?[nmrs]?|kein|not|no|never)(?:[^\\p{L}]|$)(?!\\s*(?:nur|only)\\b)");
     private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{N}]+(?:-[\\p{L}\\p{N}]+)*");
+    /** 0.13.2: the clause's object is the speaker ("speziell für uns programmiert"). */
+    private static final Pattern SPEAKER_OBJECT = Pattern.compile("(?iu)^\\s*(?:uns|mich|us|me)(?:[^\\p{L}]|$)");
+    /** 0.13.2: the word after a possessive of the first person ("unser Pflegedienst", "in unserer modernen Einrichtung"). */
+    private static final Pattern OWN = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:unser|unsere|unserem|unseren|unserer|unseres|our)\\s+"
+            + "(?:[\\p{L}-]+\\s+){0,2}$");
+    /**
+     * 0.13.2: an offer for the speaker's business ("Software für unseren Heizungsbetrieb") is the voice of a client: the offer is for
+     * such businesses.
+     */
+    private static final Pattern OFFER_TO_OWN = Pattern.compile("(?iu)" + OFFER + "\\s*:?\\s*$");
+    private static final Pattern OWN_FIRST = Pattern.compile("(?iu)^\\s*(?:unser|unsere|unserem|unseren|unserer|unseres|our)\\s");
+    /** 0.13.2: a place, not an addressee ("Leistungen im Pflegedienst"). */
+    private static final Pattern LOCATIVE = Pattern.compile("(?iu)(?:^|[^\\p{L}])im\\s+(?:[\\p{L}-]+\\s+)?$");
+    /** 0.13.2: the reader's own ("rund um Ihre Pflegeeinrichtung"): a topic of the reader's business stays its audience. */
+    private static final Pattern READERS = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:ihr|ihre|ihren|ihrem|ihrer|ihres|your)\\s+"
+            + "(?:[\\p{L}-]+\\s+){0,2}$");
+    /** 0.13.2: a topic ("Fragen rund um den ambulanten Pflegedienst", "das Thema Pflegedienst"). */
+    private static final Pattern TOPIC = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:thema|themen|themenbereich|frage|fragen|rund\\s+um|topic|topics"
+            + "|questions)(?:[^\\p{L}]|$)");
+    /**
+     * 0.13.2: a referral or a comparison ("vermitteln Ihnen den passenden …", "Vermittlung eines …", "Leistungsvergleich der …");
+     * not a word that only holds it ("Wissensvermittlung" is teaching).
+     */
+    private static final Pattern REFERRAL = Pattern.compile("(?iu)(?:(?:^|[^\\p{L}])(?:vermittl\\p{L}*|vermitteln|refer\\p{L}*)|\\p{L}*vergleich\\p{L}*)"
+            + "(?:[^\\p{L}]|$)");
+    /** 0.13.2: the speaker's identity ("wir sind eines der ersten …"). */
+    private static final Pattern IDENTITY = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:wir\\s+sind|ich\\s+bin|we\\s+are)(?:[^\\p{L}]|$)");
+    /**
+     * 0.13.2: the preposition of an addressee between a topic or a referral and the word ("Fragen rund um Software für Pflegedienste",
+     * "die Vermittlung von Fachkräften für Pflegeeinrichtungen"): the word is the audience again; after the speaker's identity also
+     * "auf" and "an" ("wir sind spezialisiert auf Pflegedienste").
+     */
+    private static final Pattern FOR = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:für|fuer|for)(?:[^\\p{L}]|$)");
+    /** 0.13.2: a comma or a conjunction ends the reach of a topic, a referral or the speaker's identity. */
+    private static final Pattern BREAK = Pattern.compile("(?iu),|(?:^|[^\\p{L}])(?:und|oder|sowie|and|or)(?:[^\\p{L}]|$)");
+    private static final Pattern FOR_IDENTITY = Pattern.compile("(?iu)(?:^|[^\\p{L}])(?:für|fuer|for|auf|an|on|to)(?:[^\\p{L}]|$)");
+    /** 0.13.2: a dative pronoun of the reader: a role after it in the nominative is the speaker's ("Ihnen als ambulanter Pflegedienst"). */
+    private static final Pattern READER_DATIVE = Pattern.compile("(?iu)^(?:ihnen|euch|dir)$");
 
     private Audiences() {}
 
@@ -279,32 +335,32 @@ public final class Audiences {
         }
         final Set<String> done = new LinkedHashSet<>();
         for (final TermMatcher.Hit<Categories.Entry> h : ctx.categories.customerTypes(text, from, to)) {
-            if (addressed(text, from, h) && done.add("ct:" + h.entry.id)) {
+            if (addressed(text, from, h, false) && done.add("ct:" + h.entry.id)) {
                 out.add(new Audience(Vocabulary.CUSTOMER_TYPE, h.entry.id, h.start, h.end));
             }
         }
         if (segments) {
             for (final Categories.Vocab v : ctx.vocabularies) {
                 for (final TermMatcher.Hit<Categories.Entry> h : v.segments(text, from, to)) {
-                    if (addressed(text, from, h) && done.add("seg:" + h.entry.id)) {
+                    if (addressed(text, from, h, false) && done.add("seg:" + h.entry.id)) {
                         out.add(new Audience(Vocabulary.AUDIENCE_SEGMENT, h.entry.id, h.start, h.end));
                     }
                 }
             }
         }
         for (final TermMatcher.Hit<Categories.Entry> h : ctx.categories.companySizes(text, from, to)) {
-            if (addressed(text, from, h) && done.add("size:" + h.entry.id)) {
+            if (addressed(text, from, h, false) && done.add("size:" + h.entry.id)) {
                 out.add(new Audience(Vocabulary.COMPANY_SIZE, h.entry.id, h.start, h.end));
             }
         }
         for (final Categories.Vocab v : ctx.allVocabularies()) {
             for (final TermMatcher.Hit<Categories.Entry> h : v.organisations(text, from, to)) {
-                if (addressed(text, from, h) && ctx.nace.valid(h.entry.nace) && done.add("nace:" + h.entry.nace)) {
+                if (addressed(text, from, h, true) && ctx.nace.valid(h.entry.nace) && done.add("nace:" + h.entry.nace)) {
                     out.add(new Audience(Vocabulary.TARGET_INDUSTRY, h.entry.nace, h.start, h.end));
                 }
             }
             for (final TermMatcher.Hit<Categories.Entry> h : v.categories(text, from, to)) {
-                if (!organisationHeaded(text, h, to) || !addressed(text, from, h) || !done.add("cat:" + h.entry.id)) {
+                if (!organisationHeaded(text, h, to) || !addressed(text, from, h, true) || !done.add("cat:" + h.entry.id)) {
                     continue;
                 }
                 out.add(new Audience(Vocabulary.TARGET_CATEGORY, h.entry.id, h.start, h.end));
@@ -317,20 +373,65 @@ public final class Audiences {
         return out;
     }
 
-    /** True if the hit is addressed: not the speaker's own role and not denied before it in the clause. */
-    private static boolean addressed(final String text, final int from, final TermMatcher.Hit<Categories.Entry> h) {
+    /**
+     * True if the hit is addressed: not the speaker's own role, not denied before it in the clause; for an organisation or a category
+     * ({@code organisation}, 0.13.2) also not the speaker's own business or identity, no topic and no referral.
+     */
+    private static boolean addressed(final String text, final int from, final TermMatcher.Hit<Categories.Entry> h, final boolean organisation) {
         final String before = text.substring(from, h.start);
         if (NEGATION.matcher(before).find()) {
+            return false;
+        }
+        if (organisation && ownBusiness(text, from, before)) {
             return false;
         }
         final Matcher role = ROLE.matcher(before);
         if (role.find() && (role.group(1) == null || !NOT_ROLE.matcher(role.group(1)).matches())) {
             // "Sie als (ambulanter) Pflegedienst" is the reader in its role; "als Ihr Generalunternehmer", "als erfahrener Pflegedienst"
-            // and "Sie als Ihr Steuerberater" are the speaker
+            // and "Sie als Ihr Steuerberater" are the speaker; for an organisation so is "Ihnen als ambulanter Pflegedienst" (the
+            // nominative after a dative, 0.13.2)
             final String[] after = role.group(2).trim().isEmpty() ? new String[0] : role.group(2).trim().split("\\s+");
+            if (organisation && role.group(1) != null && READER_DATIVE.matcher(role.group(1)).matches() && after.length > 0
+                    && after[0].toLowerCase(Locale.ROOT).matches("\\p{L}+(?:er|es)")) {
+                return false;
+            }
             return role.group(1) != null && READER.matcher(role.group(1)).matches() && !(after.length > 0 && POSSESSIVE.matcher(after[0]).matches());
         }
         return true;
+    }
+
+    /** 0.13.2: true if the organisation or category before which {@code before} ends is the speaker's own, a topic or a referral. */
+    private static boolean ownBusiness(final String text, final int from, final String before) {
+        if (SPEAKER_OBJECT.matcher(before).find()) {
+            return true;
+        }
+        if (OWN.matcher(before).find()
+                && !(OWN_FIRST.matcher(before).find() && OFFER_TO_OWN.matcher(text.substring(Math.max(0, from - 24), from)).find())) {
+            return true;
+        }
+        // a place after "im" ("Leistungen im Pflegedienst"); after a marker or a preposition of an addressee it is where the audience
+        // works ("Software für den Einsatz im Pflegeheim")
+        if (LOCATIVE.matcher(before).find() && !FOR.matcher(text.substring(Math.max(0, from - 8), from)).find() && !FOR.matcher(before).find()) {
+            return true;
+        }
+        return unaddressedAfter(IDENTITY, before, FOR_IDENTITY) || unaddressedAfter(REFERRAL, before, FOR)
+                || unaddressedAfter(TOPIC, before, FOR) && !READERS.matcher(before).find();
+    }
+
+    /**
+     * 0.13.2: true if {@code p} occurs in {@code before} close to the word: at most five words after its last occurrence, no comma, no
+     * "und" or "oder" and no preposition of an addressee ({@code to}) between.
+     */
+    private static boolean unaddressedAfter(final Pattern p, final String before, final Pattern to) {
+        int end = -1;
+        for (final Matcher m = p.matcher(before); m.find();) {
+            end = m.end();
+        }
+        if (end < 0) {
+            return false;
+        }
+        final String between = before.substring(end);
+        return !to.matcher(between).find() && !BREAK.matcher(between).find() && between.trim().split("\\s+").length <= 5;
     }
 
     /**
@@ -361,8 +462,9 @@ public final class Audiences {
         }
         for (final String term : h.entry.terms) {
             final String t = TermMatcher.fold(term.replaceAll("[\\s-]+", ""));
-            if (ends(t, TERM_HEADS) && word.startsWith(t.substring(0, Math.max(1, t.length() - 2)))) {
-                return true; // the category's own term names the organisation, and the word is that term (or its plural)
+            // 0.13.2: not the services built on the term ("Pflegedienstleistungen")
+            if (ends(t, TERM_HEADS) && word.startsWith(t.substring(0, Math.max(1, t.length() - 2))) && !SERVICES.matcher(word).find()) {
+                return true; // the category's own term names the organisation
             }
         }
         final Matcher next = WORD.matcher(text).region(b, to);

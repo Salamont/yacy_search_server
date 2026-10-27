@@ -2,6 +2,21 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.13.2 / 1.942-scoutro.48 — the speaker's own business, a topic and a referral are no declared audience
+
+On 0.13.1: no schema change, no new extractor version (`rule/9`, `jsonld/7`, `llm/5`), no re-extraction. [Release, upgrade and
+rollback](docs/SCOUTRO_RELEASE_0.13.2.md).
+
+- **A provider's own word for itself was its declared audience** (docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 43): since 0.13.0
+  reads every vocabulary, "unser Pflegedienst", "Ihnen als ambulanter Pflegedienst" or "Leistungen im Pflegedienst" gave a care
+  service the target category of care services, and the older path offered other care services to it as customers. For a target
+  category or industry, the speaker's own business in the first person, its identity, a place after "im", a topic and a referral
+  or comparison are no audience now; an offer for the speaker's business stays (a client's voice), customer types, segments and
+  sizes keep their reading.
+- **Effective at once:** stored evidence is read again with the current reader; the older suggestions resting on the own
+  business are no longer shown, and a derivation pass computes them again where the confirmed rest of their basis still meets.
+- The notes of 0.13.1 give its image digest.
+
 ## 0.13.1 / 1.942-scoutro.47 — a re-extraction reads every page, also beyond the work queue
 
 On 0.13.0: no schema change, no new extractor version (`rule/9`, `jsonld/7`, `llm/5`). [Release, upgrade and

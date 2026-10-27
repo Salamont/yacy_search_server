@@ -4224,3 +4224,55 @@ request; the replay ends once the pages it waited for are read.
 page is read, none dropped) and `SyncServiceTest.pagesAnEarlierReextractionLeftOutAreReadOnceAtTheNextStart` (a graph without the
 record: the two pages left out are extracted again, the others only checked, the next start checks nothing); without the change
 the first leaves five pages with the former input, the second both.
+
+## 43. The speaker's own business, a topic and a referral are no declared audience (0.13.2)
+
+### 43.1 Finding
+
+The reader of 0.13.0 reads every vocabulary, the page's own too (39.2). A provider's own word for itself then reached its target
+categories and industries: a care service's "Für wen eignet sich unser Pflegedienst?", "Wir helfen Ihnen als ambulanter
+Pflegedienst", "Leistungen im Pflegedienst" or "Fragen rund um das Thema Pflegedienst" became the target category of ambulant
+care. The older path (39.4) then offered other care services to it as customers: its own category met theirs. The measurement after
+the update found such audience fits mostly implausible in the care collection, and single ones in the construction collection (a
+heating firm's "unser Heizungsbetrieb", a referral to an energy adviser).
+
+### 43.2 Rules (`Audiences.VERSION` 2)
+
+For a target category and a target industry (not for customer types, segments and sizes, whose reading stays the one of 0.13.0:
+"unsere Bauherren" are the speaker's clients), none of these is an audience:
+
+- the word after a possessive of the first person ("unser Pflegedienst", "in unserer Pflegeeinrichtung"; at most two words
+  between); an offer for the speaker's business is the voice of a client and stays ("Software für unseren Heizungsbetrieb");
+- a place after "im" ("Leistungen im Pflegedienst"); after a marker or a preposition of an addressee it stays ("Software für den
+  Einsatz im Pflegeheim");
+- the clause whose object is the speaker ("speziell für uns");
+- the speaker's identity ("wir sind ein ambulanter Pflegedienst", "wir sind stolz, eines der ersten …");
+- the role in the nominative after the reader's dative ("Ihnen als ambulanter Pflegedienst" is the speaker; "Ihnen als ambulantem
+  Pflegedienst" and "Sie als Pflegedienst" are the reader);
+- a topic ("Fragen rund um den ambulanten Pflegedienst", "das Thema Pflegedienst"); the reader's own stays ("rund um Ihre
+  Pflegeeinrichtung");
+- a referral or a comparison ("vermitteln Ihnen den passenden Energieberater", "Vermittlung eines ambulanten Pflegedienstes",
+  "Leistungsvergleich der Pflegedienste"); a word that only holds one is none ("Wissensvermittlung").
+
+A topic, a referral and the identity reach at most five words, not across a comma or a conjunction, and never past a preposition
+of an addressee ("Fragen rund um Software für Pflegedienste", "Vermittlung von Fachkräften für Pflegeeinrichtungen" stay). The
+services built on a category's own term name no organisation ("Pflegedienstleistungen"; "Pflegedienstleitungen" and
+"Pflegeheimbetreiber" do). Language knowledge in the code, no industry knowledge: the words come from the vocabularies.
+
+### 43.3 What an existing graph does
+
+No re-extraction: the reader's version is no part of an extractor identity (39.3). Stored evidence is read again with the current
+reader wherever an audience takes effect (`read/AudienceEvidence.confirmed`): in the derivation, in the business view and in the
+reasons of the older suggestions. A target statement whose evidence is only the speaker's own business stays stored as history
+and has no effect. A stored suggestion of the older path that rests on such a statement is no longer shown, at once
+(`Suggestions.groups` leaves out a contribution whose basis is not confirmed); a pass of the derivation computes it again where
+the confirmed rest of its basis still meets, and a complete pass deletes the others (a pass above its limits deletes nothing,
+`DerivedService.apply`: the row stays stored and hidden). The graph does not grow.
+
+### 43.4 Tests
+
+`AudiencesTest.theSpeakersOwnBusinessATopicAndAReferralAreNoTarget` (neutral texts with the structure of the measured cases: the
+own business, the place, the identity, the nominative after "Ihnen als", the topic, the referral and the comparison name no
+target; the reader's business, an addressee after a topic or a referral, the role after the term, the client's voice and the
+customer types and segments stay; stored evidence of the own business is not confirmed again). Without the change the first group
+gives targets. The other tests of `AudiencesTest` keep their results.
