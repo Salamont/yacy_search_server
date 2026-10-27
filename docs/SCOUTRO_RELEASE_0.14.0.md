@@ -85,14 +85,15 @@ No collection may get worse.
 | G1–G5, run 2 (27 October 2026) | on the corrected rules: the facilities lost in run 1 are kept with their place (markdown, a compound of "Standort"), the towns after "bei" and the cut abbreviations are gone, the addresses and no-break spaces of client fields are cut; G3 and G4 as in run 1. Found: the same facility named on one page with its full address and on another with its street only had two keys; a town of two words after a place by a place. **Corrected** (section 44.2) |
 | G1–G5, run 3 (27 October 2026) | the facility named with its full address and with its street only is one now, the town of two words is gone; no other verdict changed (the rows of pages new since run 2 are names of products, all kept); G3 and G4 as before. Found: the model's guess of a facility's kind was part of its key, so the same day care on five pages could still be two. **Corrected** (section 44.2) |
 | G1–G5, run 4 (27 October 2026) | **passed in all four collections**: every facility named by its kind is one per provider, kind and place (the same day care on five pages is one, also where the model guessed its kind on one page only); no other verdict changed; G3 and G4 as before. No collection worse |
-| M0 / M1 | **open** (the package repository's `docs/OPENCODE-MEASURE-0.14.0.md`) |
+| M0 (27 October 2026) | taken on 0.13.2 (the package repository's `docs/OPENCODE-MEASURE-0.14.0.md`) |
+| M1 | **open**: after the update's one-time work |
 
 ## Known limitations
 
 - A brand written in lower case and ending in "-er" after "bei" reads as an adjective and is not taken as a client.
 - A client named only in a heading that asks ("Was macht … bei Muster?") is no client.
 - A facility named by its kind shows its provider only where the page names its operator; else "kind (place)" (the facility
-  belongs to the provider's domain all the same).
+  belongs to the provider's domain all the same). Kept for 0.14.0 by the owner's decision of 27 October 2026.
 - A facility named by its kind is kept only with its address or "in X" after it; a town on a line of its own ("Tagespflege.
   Musterstadt.") or a place later in the clause ("befindet sich neben unserer Geschäftsstelle in Musterstadt") is none.
 - A country or a single word after " / " in a client field reads as a client of its own ("Muster Behörde / Musterland").

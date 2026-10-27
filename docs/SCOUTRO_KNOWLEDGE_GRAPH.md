@@ -4361,7 +4361,9 @@ address after an occurrence of the name outside a menu (a street with its number
 or a postal code with its town), read at the model's quote first, else a town after it in its clause ("an unserem Standort
 Musterstadt", "in Musterstadt"). The reader ("in Ihrer Nähe"), the provider describing itself ("Wir sind ein ambulanter
 Pflegedienst in …") and a phone number are no place; without one the kind stays an offer (`entity_facility_kind_without_place`).
-It is shown as "kind (provider, place)", the provider the page's operator ("Tagespflege (Muster Pflege, Musterstadt)"), and
+It is shown as "kind (provider, place)", the provider the page's operator ("Tagespflege (Muster Pflege, Musterstadt)"; where the
+page names no operator, "kind (place)": a known limitation of 0.14.0 by the owner's decision of 27 October 2026, the facility
+belongs to the provider's domain all the same), and
 keyed by the scheme `facility_kind`: the kind and the place (its street and number, else its town) within the
 registrable domain, a discriminator. Three day care facilities of one provider at three addresses stay three; the same one on
 five pages is one.
