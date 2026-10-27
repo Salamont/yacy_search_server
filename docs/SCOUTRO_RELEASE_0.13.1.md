@@ -7,9 +7,9 @@ of the operator.
 | What | Value |
 |---|---|
 | Release | a re-extraction of every page reads every page, also when the graph tracks more pages than the work queue holds; a graph whose earlier re-extraction lost pages checks every page once at the start |
-| Source commit on `main` | **open** (on 0.13.0, `b5f0a0dd0f70`) |
+| Source commit on `main` | `2f79fd2bf329` (merge of #98, on 0.13.0 `b5f0a0dd0f70`) |
 | Image | `ghcr.io/salamont/scoutro:1.942-scoutro.47`, alias `0.13.1`, linux/amd64 |
-| Registry digest | **open** until publication |
+| Registry digest | `sha256:b7654e4b874194262f53d8b242c0d63fe8df408618b7f51233d2793c3da7d56e` (both tags) |
 | Knowledge graph schema | **9, unchanged** |
 | Extractors | unchanged (`rule/9`, `jsonld/7`, `llm/5`) |
 | Upgrade from | 0.13.0 / `1.942-scoutro.46` |
@@ -51,6 +51,11 @@ again.
 The graph keeps schema 9 and the extractor identity of 0.13.0: 0.13.0 runs on it as it is, without a conversion (it ignores the
 record of item 3). Start the 0.13.0 image by digest on the same DATA. The way back to 0.12.2 stays the one of
 [0.13.0](SCOUTRO_RELEASE_0.13.0.md) with the backup taken before that update.
+
+## Known limitations
+
+- The reader of 0.13.0 takes a provider's own word for itself in the first person, a topic and a referral as its declared
+  audience; corrected in [0.13.2](SCOUTRO_RELEASE_0.13.2.md).
 
 ## Tests of this release
 

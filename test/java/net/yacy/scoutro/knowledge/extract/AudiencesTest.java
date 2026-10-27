@@ -189,6 +189,56 @@ public class AudiencesTest {
         }
     }
 
+    /**
+     * 0.13.2: the speaker's own business in the first person, a topic and a referral name no target category and no target industry;
+     * the reader's business, an addressee after them and the voice of a client stay. Customer types and segments keep their reading.
+     */
+    @Test
+    public void theSpeakersOwnBusinessATopicAndAReferralAreNoTarget() {
+        final ExtractContext all = Audiences.all();
+        for (final String t : List.of("Für wen eignet sich unser Pflegedienst?",
+                "Wir helfen Ihnen gerne, wir sind ein ambulanter Pflegedienst in Musterstadt.",
+                "Wir helfen Ihnen als ambulanter Pflegedienst und verlässlicher Partner.",
+                "Wir unterstützen Sie mit Leistungen im Pflegedienst in Musterstadt.",
+                "Wir unterstützen Sie in unserer Pflegeeinrichtung und auch zu Hause.",
+                "Wir unterstützen Sie mit umfassenden Pflegedienstleistungen.",
+                "Wir beraten Sie gerne zu allen Fragen rund um das Thema Pflegedienst.",
+                "Wir beraten Sie in allen Fragen rund um den ambulanten Pflegedienst.",
+                "Wir unterstützen Sie gerne bei der Vermittlung eines ambulanten Pflegedienstes.",
+                "Wir helfen Ihnen mit einem Preis-Leistungsvergleich der Pflegedienste in der Region.",
+                "Wir beraten Sie zu den passenden Systemen und vermitteln Ihnen auf Wunsch den passenden Energieberater.",
+                "Die Software wurde speziell für uns programmiert und wir sind stolz, eines der ersten Fliesenunternehmen zu sein.")) {
+            final List<Audiences.Audience> found = new ArrayList<>();
+            for (final Audiences.Audience a : Audiences.audiences(Audiences.read(t, all))) {
+                if (a.predicate.startsWith("target_")) {
+                    found.add(a);
+                }
+            }
+            assertTrue(t + " " + found, found.isEmpty());
+        }
+        for (final String[] c : new String[][] {
+                {"Lösungen für Ihren Pflegedienst.", "target_category=care/ambulante_pflege"},
+                {"Wir beraten Sie in allen Fragen rund um Ihre Pflegeeinrichtung.", "target_category=care/stationaere_langzeitpflege"},
+                {"Wir unterstützen Sie bei der Vermittlung von Fachkräften für Pflegeeinrichtungen.",
+                        "target_category=care/stationaere_langzeitpflege"},
+                {"Wir beraten Sie zu allen Fragen rund um Software für Pflegedienste.", "target_category=care/ambulante_pflege"},
+                {"Software für den Einsatz im Pflegeheim.", "target_category=care/stationaere_langzeitpflege"},
+                {"Wir helfen Ihnen als ambulantem Pflegedienst bei der Dokumentation.", "target_category=care/ambulante_pflege"},
+                {"Wir unterstützen Pflegedienstleitungen bei der Dienstplanung.", "target_category=care/ambulante_pflege"},
+                {"Software für Pflegeheimbetreiber.", "target_category=care/stationaere_langzeitpflege"},
+                {"Software für unseren Sanitär- und Heizungsbetrieb ist das Werkzeug, das wir jeden Tag nutzen.",
+                        "target_category=construction/heizung"}}) {
+            assertTrue(c[0], Audiences.audiences(Audiences.read(c[0], all)).toString().contains(c[1]));
+        }
+        assertEquals("[audience_segment=construction/private_bauherren]",
+                Audiences.audiences(Audiences.read("Wir unterstützen unsere Bauherren bei jedem Schritt.", all)).toString());
+        assertEquals("[customer_type=b2b, company_size=midsize]",
+                Audiences.audiences(Audiences.read("Wir beraten Unternehmen im Mittelstand.", all)).toString());
+        // stored evidence of the speaker's own business is not confirmed again; the reader's is
+        assertFalse(Audiences.confirms(Vocabulary.TARGET_CATEGORY, "care/ambulante_pflege", "Für wen eignet sich unser Pflegedienst? Unser", 2));
+        assertTrue(Audiences.confirms(Vocabulary.TARGET_CATEGORY, "care/ambulante_pflege", "Lösungen für Ihren Pflegedienst.", 2));
+    }
+
     /** Test 12 (reader part): the LLM tier's target category only from a phrase naming organisations; stored evidence read again. */
     @Test
     public void theLlmTiersTargetCategoryAndStoredEvidence() {
