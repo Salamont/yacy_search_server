@@ -148,4 +148,102 @@ public class DocumentedRelationsTest {
                 "Referenzen.\n\n### Teamentwicklung bei der Muster Klinik gGmbH.\n\nZwei Workshops mit allen Teams, erfolgreich abgeschlossen."));
         assertEquals(c.toString(), Set.of("customer_of", "purchased_need:team-development"), c.get("Muster Klinik gGmbH"));
     }
+
+    /** The project names of the clients' purchased services and needs. */
+    private static Set<String> projects(final Extraction ex) throws Exception {
+        final Set<String> out = new java.util.TreeSet<>();
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.SYSTEM_SIGNAL.equals(c.predicate) || Vocabulary.BUSINESS_NEED_SIGNAL.equals(c.predicate)) {
+                final String project = new JSONObject(c.value).optString("project", "");
+                if (!project.isEmpty()) {
+                    out.add(project);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 0.14.0 (the owner's decision of 27 October 2026): after "bei" in a heading of references only a name is a client, a legal
+     * form or a proper name, cut before the words after it; a phrase, a common noun, the reader, a place, a question or a part of a
+     * quoted title is none. A heading names clients on a reference page or below a heading of references, nowhere else.
+     */
+    @Test
+    public void afterBeiOnlyANameIsAClient() throws Exception {
+        final Map<String, Set<String>> c = clients(rules("software", "https://www.muster-technik.de/referenzen/",
+                "## Referenzen.\n\n### E-Mobilität bei Beispielwerk: Neue Ladesäulen für Mitarbeiter und Besucher.\n\nText.\n\n"
+                        + "### Dachsanierung bei der Muster Collection in Musterstadt.\n\nText.\n\n"
+                        + "### Penetrationstest bei der musto Consulting Group Weiterlesen ».\n\nText.\n\n"
+                        + "### Beispiel Leaps setzt bei Machine Learning auf Muster.\n\nText.\n\n"
+                        + "### Schnelle Hilfe bei defektem Ölkessel.\n\nText.\n\n"
+                        + "### Beschwerderecht bei der zuständigen Aufsichtsbehörde.\n\nText.\n\n"
+                        + "### Musterdorf bei Musterstadt: Villa mit 2 Wohneinheiten.\n\nText.\n\n"
+                        + "### Wurzelschutz bei der Erweiterung einer Bushaltestelle in Musterdorf.\n\nText.\n\n"
+                        + "### Wo können wir bei Ihnen ansetzen?\n\nText.\n\n"
+                        + "### Brücke bei Musterdorf im Zuge der K 23.\n\nText.\n\n"
+                        + "### Schallpegelmessung bei „Immer wieder Musterfest“. Messe in Musterstadt.\n\nText.\n\n"
+                        + "### Unterstützung bei Projekten im Bereich Digitalisierung.\n\nText.\n\n"
+                        + "### Ein Projekt bei Bedarf.\n\nText."));
+        assertEquals(c.toString(), Set.of("Beispielwerk", "Muster Collection", "musto Consulting Group", "Beispiel Leaps"), c.keySet());
+        assertEquals(List.of("M.U.S", "musto iT"), BusinessRules.clientsAfterBei("S/4HANA Release-Wechsel", "M.U.S. & musto iT."));
+        assertEquals(List.of("Kammer der Musterregion Musterstadt"), BusinessRules.clientsAfterBei("Beratung", "der Kammer der Musterregion Musterstadt, Musterland"));
+        assertEquals(List.of("Muster Werke"), BusinessRules.clientsAfterBei("Messung", "„Muster Werke“. Messe in Musterstadt"));
+        // below a heading of references on another page; a heading of another section names nobody
+        assertEquals(Set.of("Beispielwerk"), clients(rules("software", "https://www.muster-technik.de/", "## Unsere Referenzen\n\n"
+                + "### E-Mobilität bei Beispielwerk: Neue Ladesäulen.\n\nText.\n\n## Kontakt\n\n### Beratung bei Musterfirma.\n\nText.")).keySet());
+        assertTrue(clients(rules("software", "https://www.muster-technik.de/aktuelles/", "## Neuigkeiten\n\n"
+                + "### E-Mobilität bei Beispielwerk: Neue Ladesäulen.\n\nText.")).isEmpty());
+    }
+
+    /** 0.14.0: one name is never split ("Büro für Muster und Beispiel", "Muster heat & power AG"); several names are. */
+    @Test
+    public void oneNameIsNeverSplitSeveralNamesAre() throws Exception {
+        assertEquals(List.of("Büro für Muster und Beispiel Musterland"), BusinessRules.splitNames("Büro für Muster und Beispiel Musterland"));
+        assertEquals(List.of("Ministerium für Muster, Beispiel und Probe"), BusinessRules.splitNames("Ministerium für Muster, Beispiel und Probe"));
+        assertEquals(List.of("Muster heat & power AG Musterstadt"), BusinessRules.splitNames("Muster heat & power AG Musterstadt"));
+        assertEquals(List.of("Hof & Garten Musterstadt Garten- und Hofverein Musterstadt und Umgebung e.V."),
+                BusinessRules.splitNames("Hof & Garten Musterstadt Garten- und Hofverein Musterstadt und Umgebung e.V."));
+        assertEquals(List.of("Muster Partner GmbH & Co. KG"), BusinessRules.splitNames("Muster Partner GmbH & Co. KG"));
+        assertEquals(List.of("Muster Werke mbH Musterstadt (M.W.)", "musto iT gesellschaft für Informationstechnik mbh"),
+                BusinessRules.splitNames("Muster Werke mbH Musterstadt (M.W.) und musto iT gesellschaft für Informationstechnik mbh"));
+        assertEquals(List.of("Energie Muster AG", "Stadtwerke Beispiel"), BusinessRules.splitNames("Energie Muster AG & Stadtwerke Beispiel"));
+        assertEquals(List.of("Muster", "Beispiel"), BusinessRules.splitNames("Muster und Beispiel"));
+        // a former and a current name: two names, the label left out
+        assertEquals(Set.of("Muster Bank e.G", "Beispiel Bank"), clients(rules("software", "https://www.muster-bau.de/referenzen/",
+                "## Umbau Filiale.\n\nAuftraggeber: Muster Bank e.G. / heute: Beispiel Bank\n\nLeistung: Planung und Bauleitung.")).keySet());
+    }
+
+    /**
+     * 0.14.0: a client field ends with its name: before an address, "vertreten durch", a field after an asterisk and a sentence
+     * end after a name; "Ev.-Luth." goes on.
+     */
+    @Test
+    public void aClientFieldEndsWithItsName() throws Exception {
+        assertEquals("Beispielamt Musterstadt", BusinessRules.fieldValue("Beispielamt Musterstadt. Planung, Ausschreibung und Bauleitung"));
+        assertEquals("Musterschule Musterstadt", BusinessRules.fieldValue("Musterschule Musterstadt, An der Musterwiese 15, 12345 Musterstadt"));
+        assertEquals("Agentur für Muster", BusinessRules.fieldValue("Agentur für Muster Beispielweg 80, 12345 Musterstadt"));
+        assertEquals("Agentur für Muster", BusinessRules.fieldValue("Agentur für Muster Beispieler Weg 80, 12345 Musterstadt"));
+        assertEquals("Land Musterland", BusinessRules.fieldValue("Land Musterland, vertreten durch das Musteramt, Musterstadt"));
+        assertEquals("Musteramt Musterstadt", BusinessRules.fieldValue("Musteramt Musterstadt *Unsere Leistungen:. *Ausführungsplanung"));
+        assertEquals("Ev.-Luth. Kirchengemeinde Muster", BusinessRules.fieldValue("Ev.-Luth. Kirchengemeinde Muster"));
+        assertEquals(Set.of("Beispielamt Musterstadt"), clients(rules("software", "https://www.muster-bau.de/referenzen/",
+                "## Neubau Schule.\n\nAuftraggeber: Beispielamt Musterstadt. Planung, Ausschreibung und Bauleitung\n\nLeistung: Fachplanung.")).keySet());
+    }
+
+    /** 0.14.0: a placeholder of a client field is no client ("auf Anfrage", "N.N.", "interner Showcase"). */
+    @Test
+    public void aPlaceholderIsNoClient() throws Exception {
+        assertTrue(clients(rules("software", "https://www.muster-bau.de/referenzen/", "## Neubau Halle.\n\nAuftraggeber: Auf Anfrage.\n\n"
+                + "Leistung: Planung.\n\n## Umbau.\n\nAuftraggeber: N.N.\n\nLeistung: Bauleitung.\n\n## Portal.\n\nKunde: Interner Showcase\n\n"
+                + "Projekt: Muster-Portal.")).isEmpty());
+    }
+
+    /** 0.14.0: a project's name keeps no marks of its markdown. */
+    @Test
+    public void aProjectNameKeepsNoMarkdown() throws Exception {
+        final Extraction ex = rules("software", "https://www.muster-stellwerk.de/referenzen/",
+                "## ****Release-Wechsel**** **S/4HANA**\n\nKunde: Beispiel AG\n\nRolle: Projektleitung\n\nSAP S/4HANA, erfolgreich abgeschlossen.");
+        assertEquals(Set.of("Release-Wechsel S/4HANA"), projects(ex));
+        assertEquals("Migration nach C#", BusinessRules.plain("## **Migration nach C#**"));
+    }
 }

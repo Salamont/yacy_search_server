@@ -951,6 +951,40 @@ public final class BusinessRules {
     /** A heading of a reference ("### S/4HANA Release-Wechsel bei E.V.A. & regio iT."): the project and its client(s). */
     private static final Pattern REFERENCE_HEADING = Pattern.compile("(?mu)^[ \\t]*#{1,4}[ \\t]+(.{4,140}?)[ \\t]+(bei|für|fuer|at|for)[ \\t]+"
             + "(?:(?:der|dem|den|die|das|the)[ \\t]+)?([^\\n]{2,90}?)[ \\t]*[.!]?[ \\t]*$");
+    /** 0.14.0: a heading that asks ("Wie flexibel sind Sie bei …?", "Was macht der Agent bei Muster genau?"). */
+    private static final Pattern QUESTION_START = Pattern.compile("(?iu)^[\\s*#_]*(?:wie|was|wo|wer|wen|wem|warum|weshalb|wieso|welche[rsmn]?|wann"
+            + "|kann|können|koennen|haben|hat|ist|sind|brauchen|brauche|möchten|moechten|how|what|why|which|who|can|do|does|is|are)\\b");
+    /** 0.14.0: a markdown heading with its marks. */
+    private static final Pattern HEADING_LEVEL = Pattern.compile("(?m)^[ \\t]*(#{1,6})[ \\t]+([^\\n]{2,140})$");
+    /** 0.14.0: a heading of references ("Referenzen", "Unsere Projekte", "Kundenprojekte", "Success Stories", "Case Studies"). */
+    private static final Pattern REFERENCE_SECTION = Pattern.compile("(?iu)^[\\W_]*(?:unsere\\s+|our\\s+|ausgewählte\\s+|ausgewaehlte\\s+|selected\\s+)?"
+            + "(?:referenzen|referenzprojekte|kundenprojekte|projekte|projektauswahl|references|projects|success[ -]?stories|case[ -]?studies"
+            + "|erfolgsgeschichten)[\\W_]*$");
+    /** 0.14.0: a quoted title after "bei" ("bei „Muster Werke“"). */
+    private static final Pattern QUOTED_TITLE = Pattern.compile("(?u)^[\"„“«»‚‘']([^\"„“«»‚‘']{2,80})[\"„“«»‚‘']");
+    /** 0.14.0: "Muster AG setzt bei der Planung auf Beispiel": the client is named before "setzt". */
+    private static final Pattern SETS_ON = Pattern.compile("(?iu)^(.{2,80}?)\\s+(?:setzt|setzen|vertraut|vertrauen|relies|rely)$");
+    /** 0.14.0: a place after a name ("… bei Musterstadt am Main", "… im Zuge der …"): no client. */
+    private static final Pattern PLACE_AFTER = Pattern.compile("(?u)^\\s*(?:am|im|an\\s+der|in\\s+der|ob\\s+der|auf\\s+der)\\s+\\p{Lu}");
+    /** 0.14.0: an infinitive after a name ("bei Muster zu sehen"): the name is no client. */
+    private static final Pattern INFINITIVE_AFTER = Pattern.compile("(?u)^\\s*zu\\s+\\p{Ll}");
+    /** 0.14.0: where a name after "bei" ends: a colon, a dash, a bracket, a question, a sentence end, a comma. */
+    private static final Pattern NAME_STOP = Pattern.compile("(?u)\\s+[–—-]\\s+|[:!?»«|(]|,\\s|\\.(?=\\s|$)");
+    /** 0.14.0: a word joining the words of one name ("Kammer der Musterregion", "Hochschule für Musterkunde"). */
+    private static final Pattern NAME_PARTICLE = Pattern.compile("(?u)^(?:der|des|de|du|von|van|vom|zu|zur|für|fuer|of|the|la|le|and|&)$");
+    /** 0.14.0: a word of a menu after a name ("Weiterlesen"), never part of it. */
+    private static final Pattern MENU_WORD = Pattern.compile("(?iu)^(?:weiterlesen|mehr|jetzt|read|more|details|lesen)$");
+    /** 0.14.0: the reader as a pronoun, capitalised in German ("bei Ihnen"). */
+    private static final Pattern PRONOUN = Pattern.compile("(?u)^(?:Ihnen|Ihr|Ihre|Ihrem|Ihren|Ihrer|Ihres|Sie|Dir|Dich|Euch|Uns|Du)$");
+    /**
+     * 0.14.0: a common noun by its ending ("Erweiterung", "Bahnabhängigkeit", "Installation", "Mobilität"): no proper name. Language
+     * knowledge of German and English word formation; a name with a legal form or an institution's word stays a name.
+     */
+    private static final Pattern COMMON_NOUN = Pattern.compile("(?iu)(?:ung|ungen|heit|heiten|keit|keiten|schaft|schaften|tion|tionen|sion|sionen"
+            + "|ität|itäten|nis|nisse|nissen|ismus|ismen|ment|ments|anz|enz|ie|ien|ik|iken|ur|uren|ing|eit|eiten)$");
+    /** 0.14.0: a phrase with "bei", never a client ("bei Bedarf", "bei Fragen", "bei Interesse"). */
+    private static final Pattern BEI_PHRASE = Pattern.compile("(?iu)^(?:bedarf|fragen|interesse|rückfragen|rueckfragen|wunsch|anfrage|anfragen"
+            + "|gelegenheit|problemen|störungen|stoerungen|schäden|schaeden|bedarfen|notfällen|notfaellen|bedenken)$");
     /** Words of a role in a signature. */
     private static final String ROLE_WORDS = "Head|Leiter(?:in)?|Leitung|Gesch(?:ä|ae)ftsf(?:ü|ue)hr(?:er|erin|ung)|CEO|CFO|CIO|CTO"
             + "|COO|Manager(?:in)?|Director|Direktor(?:in)?|Vorstand|Inhaber(?:in)?|Gr(?:ü|ue)nder(?:in)?|Referent(?:in)?|Owner|Founder|Partner(?:in)?";
@@ -967,7 +1001,31 @@ public final class BusinessRules {
             + "|eingeführt|completed|delivered)\\b");
     private static final Pattern PROJECT_RUNNING = Pattern.compile("(?iu)\\b(?:laufend|läuft|in\\s+arbeit|in\\s+umsetzung|seit|ongoing|in\\s+progress)\\b");
     /** Several clients of one profile or heading ("Energie Muster AG & Stadtwerke Beispiel"); "& Co. KG" is part of a legal form, never a split (0.13.0). */
-    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&(?!\\s*Co\\b)|;|(?<!-)\\s+und\\s+(?!Co\\b)|(?<!-)\\s+and\\s+)\\s*");
+    private static final Pattern NAME_SPLIT = Pattern.compile("(?u)\\s*(?:&(?!\\s*Co\\b)|;|(?<!-)\\s+und\\s+(?!Co\\b)|(?<!-)\\s+and\\s+|\\s+/\\s+)\\s*");
+    /**
+     * 0.14.0: a preposition or an article near the end of a name ("Büro für Muster", "Kirche in Musterland", "Akademie der Muster"):
+     * a list after it continues the name ("… für Muster und Beispiel", "… für Muster, Beispiel, Probe und Test").
+     */
+    private static final Pattern OPEN_PHRASE = Pattern.compile("(?iu)(?:^|\\s)(?:für|fuer|der|des|zu|zur|von|vom|in|im|am|an|of|for|de|du)"
+            + "(?:\\s+[^\\s]+){1,2}$");
+    /** 0.14.0: an abbreviation that is a complete name without a legal form ("M.U.S.", "BSP", "ABC"). */
+    private static final Pattern ABBREVIATION = Pattern.compile("(?u)^(?:\\p{Lu}\\.){2,}$|^\\p{Lu}{2,}[\\p{Lu}\\d]*$");
+    /** 0.14.0: a public body or an institution named before its unit, its place or its address ("Landratsamt Musterstadt, Amt für Hochbau"). */
+    private static final Pattern BODY = Pattern.compile("(?iu)amt\\b|ämter|aemter|magistrat|behörde|behoerde|senat|stadtwerke|zweckverband");
+    /** 0.14.0: "vertreten durch" ends the name of a client before its representative. */
+    private static final Pattern REPRESENTED = Pattern.compile("(?iu)[,\\s]+vertreten\\s+durch\\b.*$");
+    /** 0.14.0: an address after a client's name: a street with its number or a postcode with its town. */
+    private static final Pattern ADDRESS_AFTER = Pattern.compile("(?u)[,.\\s]+(?:(?:\\p{Lu}[\\p{L}-]*(?i:straße|strasse|str\\.|weg|allee|platz|gasse|ring|damm|ufer"
+            + "|chaussee|steig|pfad)|(?:\\p{Lu}[\\p{L}.'-]*\\s+)?(?:Straße|Strasse|Weg|Allee|Platz|Gasse|Ring|Damm|Ufer|Chaussee|Steig|Pfad)"
+            + "|An\\s+der\\s+\\p{Lu}[\\p{L}-]+|Am\\s+\\p{Lu}[\\p{L}-]+)\\s+\\d+|(?<!\\d)\\d{5}\\s+\\p{Lu})");
+    /** 0.14.0: a legal form's suffix of a German name ("Muster Gesellschaft mbH", "Beispiel eG", "Muster AöR"). */
+    private static final Pattern LEGAL_SUFFIX = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:mbh|mbb|e\\.\\s?g\\.?|e\\.\\s?v\\.?|aör|aoer|kdör)(?![\\p{L}\\p{N}])");
+    /** 0.14.0: a sentence end after a name ("Beispielamt Musterstadt. Planung, Ausschreibung …"); "Ev. Kirche", "Ev.-Luth. Muster", "e. V." and "Dr." go on. */
+    private static final Pattern VALUE_END = Pattern.compile("(?u)(?<=(?<![\\p{L}.-])\\p{Lu}[\\p{L}-]{3,40}|\\))\\.(?=\\s|$)");
+    /** 0.14.0: a field label after an asterisk ("Musteramt *Unsere Leistungen:"). */
+    private static final Pattern STARRED_FIELD = Pattern.compile("(?u)\\s\\*{1,2}\\p{Lu}[\\p{L}\\- ]{1,40}\\*{0,2}\\s*:.*$");
+    /** 0.14.0: the label of a former or a later name inside a client's field ("Muster Bank eG / heute: Beispiel Bank"). */
+    private static final Pattern NAME_LABEL = Pattern.compile("(?iu)^(?:heute|früher|frueher|jetzt|ehemals|vormals|now|formerly)\\s*:\\s*");
     /**
      * 0.13.0: a field label after a sentence end in a project profile written on one line ("Kunde: Beispiel AG. Systemgröße: ca. 350
      * User. Gesamtaufwand: 20 Personentage."): the client's name ends before it.
@@ -989,7 +1047,9 @@ public final class BusinessRules {
     /** The reader or a phrase, never a client ("für Ihr Unternehmen", "bei uns", "für mehr Effizienz"). */
     private static final Pattern NOT_A_CLIENT = Pattern.compile("(?iu)^(?:Ihr|Ihre|Ihren|Ihrem|Sie|uns|unsere?[nmrs]?|our|your|you|mehr|alle|jede[nmrs]?"
             + "|viele|Kunden|Unternehmen|Firmen|Projekte?|ein|eine[nmrs]?|diverse|verschiedene|privat\\w*|Familie|Herr|Frau|Eheleute"
-            + "|öffentliche[rn]?|anonym\\w*)\\b");
+            + "|öffentliche[rn]?|anonym\\w*"
+            // 0.14.0: a placeholder of a project profile ("auf Anfrage", "Auswahl verschiedener Projekte", "interner Showcase")
+            + "|auf\\s+anfrage|auf\\s+wunsch|auswahl|intern(?:e[rn]?)?\\s+showcase|showcase|nicht\\s+genannt|ungenannt|n\\.\\s?n)\\b");
     private static final int MAX_DOCUMENTED = 12;
     private static final Pattern LEGAL_FORM_ANY_CASE = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:" + LEGAL + ")(?![\\p{L}\\p{N}])");
 
@@ -1047,8 +1107,13 @@ public final class BusinessRules {
             // "ARGE Brienzersee (Bauherr: …)": a remark in brackets; "SBB AG, Infrastruktur – Ausbau …": the company before its unit
             String value = run.text.substring(from, to).replace('\n', ' ').replaceAll("\\([^()]*:[^()]*\\)", " ").split("\\s+[–—]\\s+")[0]
                     .replaceAll("\\s+", " ").replaceAll("[\\s.,;:*]+$", "").trim();
+            value = fieldValue(value);
             final int comma = value.indexOf(", ");
-            if (!plural && comma > 0 && LEGAL_FORM.matcher(value.substring(0, comma)).find()) {
+            // the company before its unit, place or address ("Muster GmbH, Musterstadt"); 0.14.0 also a public body ("Landratsamt
+            // Musterstadt, Amt für Hochbau"), but not inside a name's list ("Ministerium für Wohnen, Bau und Verkehr")
+            if (!plural && comma > 0 && (LEGAL_FORM.matcher(value.substring(0, comma)).find()
+                    || (INSTITUTION.matcher(value.substring(0, comma)).find() || BODY.matcher(value.substring(0, comma)).find())
+                    && !OPEN_PHRASE.matcher(value.substring(0, comma)).find())) {
                 value = value.substring(0, comma);
             }
             final Matcher nextClient = PROFILE_CUSTOMER.matcher(run.text).region(to, run.text.length());
@@ -1059,7 +1124,7 @@ public final class BusinessRules {
             final Matcher fields = PROFILE_FIELD.matcher(run.text).region(from, stop);
             while (fields.find()) {
                 if (fields.group(1).matches("(?i)Auftrag|Projekt|Leistung(?:en)?|Umfang|Project|Scope")) {
-                    project = fields.group(2).replaceAll("[*_]+", " ").trim();
+                    project = plain(fields.group(2));
                     break;
                 }
             }
@@ -1067,19 +1132,24 @@ public final class BusinessRules {
             while (hd.find()) {
                 heading = hd.start();
                 if (project == null || project.isBlank()) {
-                    project = hd.group(1).replaceAll("[.#*\\s]+$", "").trim();
+                    project = plain(hd.group(1));
                 }
             }
             if ((project == null || project.isBlank()) && pc.start() > lineStart) {
-                project = run.text.substring(lineStart, pc.start()).replaceAll("[*_]+", " ").replaceAll("[\\s.,;:]+$", "").trim();
+                project = plain(run.text.substring(lineStart, pc.start()));
             }
             final String context = run.text.substring(heading >= 0 ? heading : lineStart, stop);
             found += documented(run, value, from, project == null ? "" : project, context, seen);
         }
-        // headings of a reference page
-        if (run.kinds.contains(PageKind.REFERENCES)) {
+        // headings of a reference page; 0.14.0 also below a heading of references on another page ("## Referenzen" over "### Projekt
+        // bei Muster AG", the owner's decision of 27 October 2026)
+        {
+            final boolean referencePage = run.kinds.contains(PageKind.REFERENCES);
             final Matcher h = REFERENCE_HEADING.matcher(run.text);
             while (h.find() && found < MAX_DOCUMENTED) {
+                if (!referencePage && !underReferenceHeading(run.text, h.start())) {
+                    continue;
+                }
                 final int next = run.text.indexOf("\n#", h.end());
                 final String context = run.text.substring(h.start(), Math.min(next < 0 ? run.text.length() : next, h.end() + 400));
                 // "für"/"for" also names a purpose ("… for Rocket Manufacturing"): there only a name with a legal form is a client;
@@ -1088,10 +1158,18 @@ public final class BusinessRules {
                 if (!purpose && PLACE_BEFORE.matcher(h.group(1)).find()) {
                     continue;
                 }
-                for (final String name : h.group(3).split(",\\s+")) {
-                    if (!purpose || LEGAL_FORM.matcher(name).find()) {
-                        found += documented(run, name, h.start(3) + h.group(3).indexOf(name), h.group(1), context, seen);
+                if (purpose) {
+                    for (final String name : h.group(3).split(",\\s+")) {
+                        if (LEGAL_FORM.matcher(name).find()) {
+                            found += documented(run, name, h.start(3) + h.group(3).indexOf(name), plain(h.group(1)), context, seen);
+                        }
                     }
+                    continue;
+                }
+                // 0.14.0 (the owner's decision of 27 October 2026): after "bei" only a name, a legal form or a proper name
+                for (final String name : clientsAfterBei(h.group(1), h.group(3))) {
+                    final int in = h.group(0).indexOf(name);
+                    found += documented(run, name, in < 0 ? h.start(3) : h.start() + in, plain(h.group(1)), context, seen);
                 }
             }
         }
@@ -1168,11 +1246,32 @@ public final class BusinessRules {
         }
     }
 
+    /**
+     * 0.14.0: whether the heading at {@code at} stands below a heading of references of a higher level ("## Referenzen", "##
+     * Kundenprojekte", "## Success Stories"): the nearest heading above it with fewer marks decides.
+     */
+    static boolean underReferenceHeading(final String text, final int at) {
+        final Matcher own = HEADING_LEVEL.matcher(text).region(at, Math.min(text.length(), at + 160));
+        if (!own.lookingAt()) {
+            return false;
+        }
+        final int level = own.group(1).length();
+        final Matcher above = HEADING_LEVEL.matcher(text).region(0, at);
+        String parent = null;
+        while (above.find()) {
+            if (above.group(1).length() < level) {
+                parent = above.group(2);
+            }
+        }
+        return parent != null && REFERENCE_SECTION.matcher(parent).matches();
+    }
+
     /** The clients named in {@code names} (each a client of the operator) with the products and program needs of their project. */
     private int documented(final Run run, final String names, final int at, final String project, final String context, final Set<String> seen) {
         int n = 0;
-        for (final String raw : NAME_SPLIT.split(names.replaceAll("\\s+", " ").trim())) {
-            final String name = raw.replaceAll("[.!:]+$", "").replaceAll("^[„“\"']|[„“\"']$", "").trim();
+        for (final String raw : splitNames(names.replaceAll("\\s+", " ").trim())) {
+            final String name = NAME_LABEL.matcher(raw.replaceAll("^[*_\\s]+|[*_\\s]+$", "")).replaceFirst("").replaceAll("[.!:]+$", "")
+                    .replaceAll("^[„“\"']|[„“\"']$", "").trim();
             final Mention client = client(run, name, at, seen);
             if (client != null) {
                 purchases(run, client, Math.max(0, run.text.indexOf(name, Math.max(0, at - 5))), project, project + " " + context);
@@ -1180,6 +1279,198 @@ public final class BusinessRules {
             }
         }
         return n;
+    }
+
+    /**
+     * 0.14.0: the names of several clients: split at "und", "&", ";" and " / " ({@link #NAME_SPLIT}), never inside one name; a part
+     * continues the one before when that one is no complete name (no legal form, a preposition or an article near its end: "Büro
+     * für Muster und Beispiel"), when it starts in lower case ("Muster heat & power AG"), or when "&" follows a single word that
+     * is no abbreviation ("Hof & Garten").
+     */
+    static List<String> splitNames(final String names) {
+        final List<String> out = new ArrayList<>();
+        final Matcher m = NAME_SPLIT.matcher(names);
+        StringBuilder name = null;
+        String sep = "";
+        int at = 0;
+        while (true) {
+            final boolean found = m.find();
+            final String part = names.substring(at, found ? m.start() : names.length()).trim();
+            if (name == null) {
+                name = new StringBuilder(part);
+            } else if (continues(name.toString(), sep, part)) {
+                name.append(sep.contains("/") || sep.contains(";") ? " " + sep.trim() + " " : sep).append(part);
+            } else {
+                out.add(name.toString());
+                name = new StringBuilder(part);
+            }
+            if (!found) {
+                break;
+            }
+            sep = m.group();
+            at = m.end();
+        }
+        out.add(name.toString());
+        out.removeIf(String::isBlank);
+        return out;
+    }
+
+    private static boolean continues(final String before, final String sep, final String after) {
+        if (after.isEmpty() || sep.contains("/") || sep.contains(";") || legal(before)) {
+            return false;
+        }
+        if (OPEN_PHRASE.matcher(before).find()) {
+            return true;
+        }
+        // "Muster und Partner GmbH", "Muster und Umgebung e.V.": the legal form after one or two words belongs to the whole name
+        final Matcher form = LEGAL_FORM_ANY_CASE.matcher(after);
+        final Matcher suffix = LEGAL_SUFFIX.matcher(after);
+        final int at = form.find() ? form.start() : suffix.find() ? suffix.start() : -1;
+        if (at > 0 && after.substring(0, at).trim().split("\\s+").length <= 2) {
+            return true;
+        }
+        return sep.contains("&") && (Character.isLowerCase(after.codePointAt(0))
+                || before.trim().split("\\s+").length == 1 && !ABBREVIATION.matcher(before.trim()).matches());
+    }
+
+    private static boolean legal(final String name) {
+        return LEGAL_FORM_ANY_CASE.matcher(name).find() || LEGAL_SUFFIX.matcher(name).find();
+    }
+
+    /**
+     * 0.14.0: the end of a client field's value: before "vertreten durch", before an address (a street with its number, a postcode
+     * with its town), before a field label after an asterisk, and at a sentence end after a capitalised word of four letters or
+     * more ("Beispielamt Musterstadt. Planung, Ausschreibung …"); "Ev. Kirche", "Hl. Muster" and "e. V." go on.
+     */
+    static String fieldValue(final String value) {
+        String v = REPRESENTED.matcher(value).replaceFirst("");
+        v = STARRED_FIELD.matcher(v).replaceFirst("");
+        final Matcher address = ADDRESS_AFTER.matcher(v);
+        if (address.find() && address.start() > 0) {
+            v = v.substring(0, address.start()).replaceFirst("(?u),[^,]*\\d+[a-z]?\\s*$", "");
+        }
+        final Matcher end = VALUE_END.matcher(v);
+        if (end.find() && end.start() > 0) {
+            v = v.substring(0, end.start());
+        }
+        return v.replaceAll("[\\s.,;:*]+$", "").trim();
+    }
+
+    /** 0.14.0: a project's name without the marks of its markdown ("**Muster-Projekt**", "****", "## …"; "C#" stays). */
+    static String plain(final String text) {
+        return text == null ? "" : text.replaceAll("[*_]+|(?<![\\p{L}\\p{N}])#+", " ").replaceAll("\\s+", " ").replaceAll("^[\\s.,;:]+|[\\s.,;:]+$", "").trim();
+    }
+
+    /**
+     * 0.14.0 (the owner's decision of 27 October 2026): the clients after "bei" in a heading of references ({@code before}
+     * "bei" {@code rest}): only names, with a legal form or a proper name, each cut before the words that follow it ("E-Mobilität bei
+     * Beispielwerk: Neue Ladesäulen" names "Beispielwerk"); none for a phrase ("bei defektem Kessel", "bei Bedarf", "bei Ihnen"), a
+     * common noun ("bei der Erweiterung …", "bei Projekten"), a question, a place ("Musterdorf bei Musterstadt:", "… bei Musterstadt
+     * am Main") or an infinitive ("bei Muster zu sehen"). "Muster AG setzt bei der Planung auf Beispiel" names the client before
+     * "setzt".
+     */
+    static List<String> clientsAfterBei(final String before, final String rest) {
+        final List<String> out = new ArrayList<>();
+        final String line = rest.trim().replaceFirst("(?iu)^(?:der|dem|den|die|das|the)\\s+", "");
+        if (QUESTION_START.matcher(before).find() || line.endsWith("?") && !line.contains(":")) {
+            return out;
+        }
+        final Matcher sets = SETS_ON.matcher(before.replaceAll("[*_#]+", " ").trim());
+        if (sets.matches() && line.matches("(?iu).*\\bauf\\b.*")) {
+            final String[] words = sets.group(1).trim().split("\\s+");
+            final String client = nameHead(String.join(" ", java.util.Arrays.copyOfRange(words, Math.max(0, words.length - 4), words.length)));
+            if (client != null) {
+                out.add(client);
+            }
+            return out;
+        }
+        final Matcher quoted = QUOTED_TITLE.matcher(line);
+        if (quoted.find()) {
+            // a quoted title is a name only as a whole: "bei „Muster Werke“", never "bei „Immer wieder Musterfest“"
+            final String head = nameHead(quoted.group(1));
+            if (head != null && head.equals(quoted.group(1).trim())) {
+                out.add(head);
+            }
+            return out;
+        }
+        final String[] beforeWords = before.replaceAll("[*_#]+", " ").trim().split("[\\s,]+");
+        for (final String conjunct : line.split("\\s+(?:&|und|and)\\s+")) {
+            final String head = nameHead(conjunct);
+            if (head == null) {
+                break;
+            }
+            final String after = conjunct.substring(Math.min(conjunct.length(), conjunct.indexOf(head) + head.length()));
+            if (PLACE_AFTER.matcher(after).find() || INFINITIVE_AFTER.matcher(after).find()) {
+                break;
+            }
+            // "Musterdorf bei Musterstadt": a place by a place; "E-Mobilität bei Beispielwerk" is a project at a client
+            final String last = beforeWords[beforeWords.length - 1];
+            if (out.isEmpty() && !LEGAL_FORM_ANY_CASE.matcher(head).find() && head.split("\\s+").length == 1 && beforeWords.length == 1
+                    && last.matches("(?u)\\p{Lu}\\p{Ll}+") && !COMMON_NOUN.matcher(last).find()) {
+                break;
+            }
+            out.add(head);
+            if (!after.replaceAll("[\\s.,;!*_]+", "").isEmpty()) {
+                break; // the words after the name end the list: "Beispielwerk: Neue Ladesäulen für Mitarbeiter und Besucher"
+            }
+        }
+        return out;
+    }
+
+    /** 0.14.0: the proper name at the start of {@code text}, or null if it starts with no name ({@link #clientsAfterBei}). */
+    static String nameHead(final String text) {
+        final Matcher stop = NAME_STOP.matcher(text);
+        final String cut = (stop.find() ? text.substring(0, stop.start()) : text).replaceAll("[*_\"„“]+", " ").trim();
+        if (cut.isEmpty()) {
+            return null;
+        }
+        final String[] t = cut.split("\\s+");
+        final List<String> head = new ArrayList<>();
+        for (int i = 0; i < t.length; i++) {
+            final String w = t[i];
+            final boolean nextUpper = i + 1 < t.length && (Character.isUpperCase(t[i + 1].codePointAt(0)) || t[i + 1].matches("(?u).*\\p{Ll}\\p{Lu}.*"));
+            if (MENU_WORD.matcher(w).matches()) {
+                break;
+            }
+            if (Character.isUpperCase(w.codePointAt(0)) || Character.isDigit(w.codePointAt(0)) || w.matches("(?u).*\\p{Ll}\\p{Lu}.*")
+                    || LEGAL_FORM_ANY_CASE.matcher(w).matches()) {
+                head.add(w);
+            } else if (i > 0 && NAME_PARTICLE.matcher(w).matches() && nextUpper) {
+                head.add(w);
+            } else if (i == 0 && nextUpper && !w.matches("(?u).*(?:em|en|er|es|e)")) {
+                head.add(w); // a brand in lower case before its capitalised words ("muster Consulting Group"), no adjective
+            } else {
+                break;
+            }
+        }
+        if (head.isEmpty()) {
+            return null;
+        }
+        final String name = String.join(" ", head);
+        final String first = head.get(0);
+        if (LEGAL_FORM_ANY_CASE.matcher(name).find()) {
+            return name;
+        }
+        if (PRONOUN.matcher(first).matches() || BEI_PHRASE.matcher(first).matches() || first.endsWith("-") || first.matches("[\\d.,%]+")
+                || ADJECTIVE.matcher(first).matches() && !Character.isLowerCase(first.codePointAt(0)) && head.size() == 1) {
+            return null;
+        }
+        if (INSTITUTION.matcher(name).find() || BODY.matcher(name).find()) {
+            return name;
+        }
+        for (final String w : head) {
+            if (ABBREVIATION.matcher(w.replaceAll("[.,]+$", ".").replaceAll("^(\\p{Lu}{2,})\\.$", "$1")).matches()
+                    || w.matches("(?u)\\p{Ll}+\\p{Lu}.*")) {
+                return name; // "BSP NORD", "M.U.S.", "muster iT"
+            }
+        }
+        if (Character.isLowerCase(first.codePointAt(0))) {
+            return null; // a lower-case brand needs a word of an organisation or an inner capital after it
+        }
+        if (COMMON_NOUN.matcher(first).find() || first.matches("(?iu).*en") && (head.size() == 1 || NAME_PARTICLE.matcher(head.get(1)).matches())) {
+            return null; // "Erweiterung …", "Bahnabhängigkeit", plural nouns ("Projekten", "Messen", "Abfragen zur …")
+        }
+        return name;
     }
 
     /** The client named {@code name} near {@code at}, as {@code client customer_of operator}; null if it is none or named before. */
@@ -1206,7 +1497,7 @@ public final class BusinessRules {
         final String state = PROJECT_RUNNING.matcher(text).find() ? "running" : PROJECT_DONE.matcher(text).find() ? "completed" : "unknown";
         final Signals vocab = KgVocabularies.get().signals;
         final String excerpt = Normalizers.clip(text.replaceAll("\\s+", " ").trim(), 300);
-        final String projectName = project.isBlank() ? "" : Normalizers.clip(project.replaceAll("\\s+", " ").trim(), 120);
+        final String projectName = project.isBlank() ? "" : Normalizers.clip(plain(project), 120); // 0.14.0: without markdown
         final int start = Math.max(0, at);
         for (final String product : vocab.products(text)) {
             final Map<String, Object> v = new java.util.TreeMap<>(Map.of("product", product, "context", "purchased_service", "section", "references",
