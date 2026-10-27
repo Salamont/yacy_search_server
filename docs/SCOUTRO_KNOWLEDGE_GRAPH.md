@@ -4264,10 +4264,14 @@ services built on a category's own term name no organisation ("Pflegedienstleist
 No re-extraction: the reader's version is no part of an extractor identity (39.3). Stored evidence is read again with the current
 reader wherever an audience takes effect (`read/AudienceEvidence.confirmed`): in the derivation, in the business view and in the
 reasons of the older suggestions. A target statement whose evidence is only the speaker's own business stays stored as history
-and has no effect. A stored suggestion of the older path that rests on such a statement is no longer shown, at once
-(`Suggestions.groups` leaves out a contribution whose basis is not confirmed); a pass of the derivation computes it again where
-the confirmed rest of its basis still meets, and a complete pass deletes the others (a pass above its limits deletes nothing,
-`DerivedService.apply`: the row stays stored and hidden). The graph does not grow.
+and has no effect. A stored suggestion of the older path is shown per stored reason (`Suggestions.legacyItem`: one contribution
+per reason); a reason that rests on such a statement is left out at once (`Suggestions.groups` leaves out a contribution whose
+basis is not confirmed), so a suggestion with a second, confirmed reason stays shown with that reason, and one without is no
+longer shown. A pass of the derivation computes it again where the confirmed rest of its basis still meets; only a complete pass
+deletes the others: a pass of a graph above its limits (200 000 statement scopes, entities or page links, or capped rows)
+deletes nothing (`DerivedService.apply`), the rows stay stored and hidden. The graph does not grow. (Corrected in 0.14.0 after
+the rollout of 0.13.2: the first text counted rows, not reasons; since 0.14.0 a row naming a merged entity goes also in an
+incomplete pass, 44.)
 
 ### 43.4 Tests
 

@@ -23,8 +23,9 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
 public final class BusinessSignals {
     /** The patterns of the inline expressions, compiled once (0.11.8: they were compiled again on every read of a quote). */
     private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
-    public static final String VERSION="5"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2);
-    // 5: a planned migration in the clause of its verb, its product and the company (0.13.0)
+    public static final String VERSION="6"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2);
+    // 5: a planned migration in the clause of its verb, its product and the company (0.13.0); 6: an own offer is no use, an alternative
+    // to a product names no use of it, the reader's lines of an FAQ (0.14.0)
     private static final Pattern CUSTOMERS=p("Kundenprojekt|Bestandskunden|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
@@ -58,6 +59,27 @@ public final class BusinessSignals {
             +"(?:entwickeln|modernisieren|implementieren|planen|migrieren|bauen|konzipieren|beraten|begleiten|realisieren|integrieren|betreiben|liefern"
             +"|develop|modernize|modernise|implement|plan|migrate|build|design|operate|deliver)\\b");
     /** 0.12.2: advice to the reader ("Wir empfehlen die Umstellung … einzuplanen"): no plan or use of the company. */
+    /**
+     * 0.14.0 (item A2): the provider's work for others in a relative clause or with the reader as object ("Microsoft 365 & Cloud,
+     * die wir migrieren, betreuen und absichern", "migrieren wir Ihre Daten", "wir migrieren Ihre Systeme"); "die wir migrieren
+     * werden" is an own plan.
+     */
+    private static final Pattern MIGRATES_FOR_OTHERS=p("\\b(?:die|welche|das|den)\\s+wir\\s+(?:[\\p{L}-]+\\s+){0,3}(?:migrieren|betreuen|einführen|einfuehren"
+            +"|implementieren|absichern)\\b(?!\\s+(?:werden|wollen|möchten|moechten))|\\bmigrieren\\s+wir\\b|\\bwir\\s+migrieren\\s+(?:Ihre?[nmrs]?|ihre?[nmrs]?|Kunden)\\b"
+            +"|\\b(?:which|that)\\s+we\\s+(?:migrate|implement|manage)\\b|\\bwe\\s+migrate\\s+(?:your|clients?|customers?)\\b");
+    /** 0.14.0 (item A2): the provider choosing products for the reader ("wir nutzen die passenden DATEV-Lösungen"): its offer, no use. */
+    private static final Pattern CHOOSES_FOR_READER=p("\\b(?:wir|we)\\s+(?:nutzen|verwenden|setzen|wählen|waehlen|use|choose)\\s+(?:die|den|das|the)\\s+"
+            +"(?:passenden|geeigneten|richtigen|optimalen|besten|right|best|appropriate)\\b");
+    /** 0.14.0 (item A2): a product named as what an offer replaces ("Alternative zu …", "statt …", "anstelle von …", "instead of …"). */
+    private static final Pattern ALTERNATIVE=p("\\bAlternativen?\\s+(?:zu|für|fuer)\\s+|\\balternatives?\\s+to\\s+|\\bstatt\\s+|\\banstatt\\s+"
+            +"|\\banstelle\\s+(?:von\\s+)?|\\binstead\\s+of\\s+|\\bErsatz\\s+(?:für|fuer)\\s+|\\breplacement\\s+for\\s+");
+    /** Where the phrase after {@link #ALTERNATIVE} ends: a clause's mark or its verb. */
+    private static final Pattern ALTERNATIVE_END=p("[,;:.!?]|\\s(?:wir|we|nutzen|nutzt|setzen|verwenden|arbeiten|use|uses)\\b");
+    /** 0.14.0 (item A4): a heading of questions and answers ("FAQ", "Häufige Fragen", "Fragen und Antworten"). */
+    private static final Pattern FAQ_HEADING=p("^\\W*#+\\s*.*(?:\\bFAQs?\\b|häufige\\s+fragen|haeufige\\s+fragen|häufig\\s+gestellte|fragen\\s+(?:und|&)\\s+antworten"
+            +"|frequently\\s+asked|\\bQ\\s?&\\s?A\\b)");
+    /** 0.14.0 (item A4): the section of the reader's questions and lines ({@link #FAQ_HEADING}): no use, plan or need of the company. */
+    public static final String FAQ="faq";
     private static final Pattern RECOMMENDATION=p("\\bwir\\s+empfehlen\\b|\\bempfehlen\\s+wir\\b|\\bunsere?\\s+Empfehlung\\b|\\bwe\\s+recommend\\b|\\bour\\s+recommendation\\b");
     /**
      * 0.12.2: a product named as the subject of a use verb ("Salesforce verwendet nach eigenen Angaben …", "SAP is running"): the
@@ -249,8 +271,10 @@ public final class BusinessSignals {
                 if(jobAd(section)&&!Vocabulary.SYSTEM_SIGNAL.equals(predicate))continue;
                 if((Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)||Vocabulary.BUSINESS_ROLE_EVIDENCE.equals(predicate))
                         && !Vocabulary.ORGANIZATION.equals(actor.type)&&!Vocabulary.FACILITY.equals(actor.type))continue;
-                // 0.12.0 (T6, round 2): under a heading of customers' voices a "wir" is the client speaking about its use
+                // 0.12.0 (T6, round 2): under a heading of customers' voices a "wir" is the client speaking about its use; 0.14.0 (item
+                // A4): under a heading of questions and answers it is the reader
                 String in=REFERENCES.equals(section)||!customerVoiceSection(plain,offset)?section:REFERENCES;
+                if("text".equals(in)&&faqSection(plain,offset))in=FAQ;
                 for(String value:read(predicate,quote,in,actor.type,actor.name))
                     out.add(new Claim(actor.ref,predicate,null,located(value,locator+":"+locatorOffset),tier,kind,DESIRED.matcher(quote).find(),
                             locator+":"+locatorOffset,quote));
@@ -283,6 +307,32 @@ public final class BusinessSignals {
             line=nl;
         }
         return false;
+    }
+
+    /** 0.14.0 (item A4): true if the position stands below a heading of questions and answers (the last heading line before it). */
+    static boolean faqSection(String text,int at) {
+        int from=Math.max(0,at-VOICES_REACH);
+        int line=at;
+        while(line>from) {
+            int nl=text.lastIndexOf('\n',line-1);
+            int start=nl<from?from:nl+1;
+            String l=text.substring(start,Math.min(text.length(),text.indexOf('\n',start)<0?text.length():text.indexOf('\n',start)));
+            if(l.trim().startsWith("#")&&start<at)return FAQ_HEADING.matcher(l).find();
+            if(nl<from)break;
+            line=nl;
+        }
+        return false;
+    }
+
+    /** 0.14.0 (item A2): the products the quote names as what an offer replaces ({@link #ALTERNATIVE}): no use, no offer of them. */
+    static Set<String> replaced(String quote,Signals vocab) {
+        Set<String> out=new LinkedHashSet<>();
+        Matcher m=ALTERNATIVE.matcher(quote);
+        while(m.find()) {
+            Matcher end=ALTERNATIVE_END.matcher(quote).region(m.end(),Math.min(quote.length(),m.end()+80));
+            out.addAll(vocab.products(quote.substring(m.end(),end.find()?end.start():Math.min(quote.length(),m.end()+80))));
+        }
+        return out;
     }
 
     /** Whether the page at {@code url} is a reference, case-study or client page (by its path). */
@@ -387,6 +437,8 @@ public final class BusinessSignals {
         // product a speaking "wir" uses ("Wir nutzen dab Nexus" on dab's page: a customer's voice) is no subject of own use
         if(named&&providerNamed(quote,actorName)){named=false;own=false;}
         boolean references=REFERENCES.equals(section);
+        // 0.14.0 (item A4): the reader's lines and questions of an FAQ state no use, plan, migration or need of the company
+        boolean faq=FAQ.equals(section);
         // a job advertisement read for its employer is read as its posting: its field decides skills and qualifications
         boolean posting=Vocabulary.JOB.equals(actorType)||jobAd(section);
         String field=jobAd(section)?section.substring(JOB_AD.length()):section;
@@ -402,7 +454,9 @@ public final class BusinessSignals {
                     // 0.12.2: a row of delivery verbs is the provider's offer ("Wir entwickeln, modernisieren und betreiben …")
                     ||!posting&&(own||named)&&DELIVERY_ROW.matcher(quote).find()
                     // 0.12.0 (T6): the provider speaking to its reader, or running and supporting systems for others, offers them
-                    ||!posting&&(own||named)&&(READER.matcher(quote).find()||OFFER_TO.matcher(quote).find()||serviceOfProduct(quote,vocab)))context="offered_capability";
+                    ||!posting&&(own||named)&&(READER.matcher(quote).find()||OFFER_TO.matcher(quote).find()||serviceOfProduct(quote,vocab))
+                    // 0.14.0 (item A2): the provider migrating or running systems for others, or choosing them for the reader
+                    ||!posting&&(MIGRATES_FOR_OTHERS.matcher(quote).find()||(own||named)&&CHOOSES_FOR_READER.matcher(quote).find()))context="offered_capability";
             else if(customer)context="customer_projects";
             else if(question||RECOMMENDATION.matcher(quote).find()) context=null;
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
@@ -420,13 +474,16 @@ public final class BusinessSignals {
                 context=!posting&&!"skills".equals(field)&&!"qualifications".equals(field)?"stated_competence"
                         :DESIRED.matcher(quote).find()?"desirable_competence":"required_competence";
             if(context==null)return out;
+            if(faq&&List.of("internal_use","planned_migration","completed_migration","shutdown").contains(context))return out;
             // Simultaneous internal/customer claims need finer context; never assert internal use from them.
             if(customer&&p("\\bintern\\b|"+IN_HOUSE).matcher(quote).find())return out;
             // A reference page reports client work: a system used, migrated or shut down there is the client's.
             if(references&&List.of("internal_use","planned_migration","completed_migration","shutdown").contains(context))context="customer_projects";
-            // 0.12.2: own use is the use of the products of its clauses
+            // 0.12.2: own use is the use of the products of its clauses; 0.14.0 (item A2): a product an offer replaces is none
+            Set<String> replaced=replaced(quote,vocab);
             for(String product:"internal_use".equals(context)?ownUseProducts(quote,vocab,named?actorName:null)
                     :"planned_migration".equals(context)?plannedMigrationProducts(quote,vocab,named?actorName:null):vocab.products(quote)) {
+                if(replaced.contains(product))continue;
                 Map<String,Object> fields=new TreeMap<>();fields.put("product",product);fields.put("context",context);
                 fields.put("section",section);fields.put("scope",p("unternehmensweit|vollständig|organisation.wide|throughout our company").matcher(quote).find()?"organization":"unspecified");
                 String role="unspecified";
@@ -440,7 +497,7 @@ public final class BusinessSignals {
                 fields.put("system_role",role);assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)) {
-            if(references||!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find()||READER_NEED.matcher(quote).find())return out;
+            if(references||faq||!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find()||READER_NEED.matcher(quote).find())return out;
             for(String need:vocab.needs(quote)) {
                 boolean cancelled=p("abgesagt|eingestellt|aufgegeben|cancelled|canceled").matcher(quote).find();
                 boolean completed=p("fertiggestellt|abgeschlossen|completed|finished").matcher(quote).find();

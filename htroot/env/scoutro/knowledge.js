@@ -1170,6 +1170,14 @@
     if (x.version) head.append(' · ', node('span', t('tech_version').replace('%1', x.version).replace('%2', t('vsrc_' + x.version_source)), 'sseo-note'));
     const li = factItem(head, x); li.dataset.technology = x.technology; li.dataset.category = x.category; return li;
   }
+  /** 0.14.0: a client the entity documents by a description ("Dienstleister für …"), at its project; no company, no candidate. */
+  function descriptionItem(x) {
+    const head = node('div', null, 'skg-statement-head');
+    head.append(node('span', x.description, 'skg-value'));
+    if (x.project) head.append(' · ', node('span', x.project, 'sseo-note'));
+    if (x.products?.length) head.append(' · ', node('span', x.products.join(', '), 'sseo-note'));
+    return factItem(head, x);
+  }
   /** A topic of the website (0.11.8): a category the site names without an offer cue; no proof of an offer, no matching input. */
   function topicItem(x) {
     const head = node('div', null, 'skg-statement-head');
@@ -1236,6 +1244,7 @@
       const declared = []; for (const [p, l] of Object.entries(a.declared || {})) for (const i of l) declared.push([p, i]);
       if (declared.length) parts.push(node('h4', t('declared')), list(declared, ([p, i]) => p === 'serves_place' ? relationItem(i) : literalItem(p, i)));
       if (a.observed?.length) parts.push(node('h4', t('observed_customers')), list(a.observed, relationItem));
+      if (a.client_descriptions?.length) parts.push(node('h4', t('client_descriptions')), list(a.client_descriptions, descriptionItem));
       if (!b.suggestions && a.suggested?.length) parts.push(node('h4', t('suggested_customers')), list(a.suggested, derivedItem), node('p', t('suggestion_note'), 'sseo-note'));
       if (parts.length) box.append(section('audiences', ...parts));
     }

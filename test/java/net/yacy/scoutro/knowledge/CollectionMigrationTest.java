@@ -318,7 +318,11 @@ public class CollectionMigrationTest {
                 .replace("<categories 9192e239c049>", "4da033928d9e").replace("<categories ffe3a2e79047>", "b539fe6c90fc")
                 .replace("<categories 44c7a4bdf84d>", "43bb064bd2ae").replace("<categories 77a395381244>", "a7a52087ef45")
                 .replace("<categories 21fb237d6efd>", "cc036dde7de8")
-                // 0.14.0 changed the products on purpose (the brands and the vendors, version 3), within the one re-read of rule/10
+                // 0.14.0 changed the products on purpose (the brands and the vendors, version 3) and the categories (the excluded words
+                // of other senses), within the one re-read of rule/10: each hash of 0.13.0 becomes exactly one new hash
+                .replace("vocabulary/6-4da033928d9e-", "vocabulary/6-e8a62cc4fca6-").replace("vocabulary/6-b539fe6c90fc-", "vocabulary/6-ba6b641e7540-")
+                .replace("vocabulary/6-43bb064bd2ae-", "vocabulary/6-e6cad73685bc-").replace("vocabulary/6-a7a52087ef45-", "vocabulary/6-32e832716d7f-")
+                .replace("vocabulary/6-cc036dde7de8-", "vocabulary/6-20b4a67ab315-")
                 .replace("signals-222778f8d6a129fa06a550b3", "signals-0f9ea2791d8d6ba7c7cd2dae");
     }
 

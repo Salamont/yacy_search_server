@@ -15,6 +15,8 @@ public final class MatchingService {
     private final KgConfig cfg;
     private final int budget;
     private static final int MAX_PROVIDER_FACTS=2500;
+    /** 0.14.0: contributions naming a merged entity removed per run (item D1). */
+    static final int MERGED_BATCH=2000;
     public MatchingService(KgStore store,KgConfig cfg){this(store,cfg,Math.max(1,cfg.matchesMax));}
     public MatchingService(KgStore store,KgConfig cfg,int budget){this.store=store;this.cfg=cfg;this.budget=Math.max(1,budget);}
     private static final class Pending {
@@ -101,6 +103,17 @@ public final class MatchingService {
         }
         JSONObject state=store.read(c->{String raw=KgStore.getMeta(c,"matching_work");return raw==null?new JSONObject():net.yacy.scoutro.knowledge.extract.Values.json(raw);});
         int checked=0,inserted=0,completed=0,visited=0;String deferred=null;boolean cycleComplete=false;
+        // 0.14.0 (item D1): the contributions naming a merged entity, as provider or candidate, are never shown and never computed
+        // again (the observations moved to the survivor); removed in batches, whatever the partitions' state
+        int merged=store.write(WriteClass.MAINTENANCE,0,c->{
+            List<String> remove=new ArrayList<>();
+            try(PreparedStatement p=c.prepareStatement("SELECT m.public_id FROM kg_match_contribution m WHERE EXISTS (SELECT 1 FROM kg_entity e"
+                    +" WHERE e.public_id IN (m.provider_id,m.candidate_id) AND e.status=2) LIMIT "+MERGED_BATCH);ResultSet r=p.executeQuery()) {
+                while(r.next())remove.add(r.getString(1));
+            }
+            for(String id:remove)delete(c,id,now);
+            return remove.size();
+        });
         while(checked<budget&&visited<500) {
             final JSONObject previous=state;final int remaining=budget-checked;
             Partition part=store.read(c->compute(c,previous,remaining));
@@ -126,7 +139,8 @@ public final class MatchingService {
         }
         if(cycleComplete)store.write(WriteClass.SYSTEM,0,c->{KgStore.putMeta(c,"matching_work","{}");return null;});
         JSONObject result=KgJson.obj("version",MatchingRules.VERSION,"checked",checked,"upserts",inserted,"completed_partitions",completed,
-                "cycle_complete",cycleComplete&&deferred==null,"deferred",deferred==null&&!cycleComplete?"work_budget":deferred);
+                "cycle_complete",cycleComplete&&deferred==null,"deferred",deferred==null&&!cycleComplete?"work_budget":deferred,
+                "removed_merged",merged);
         store.write(WriteClass.SYSTEM,0,c->{KgStore.putMeta(c,"matching_last",result.toString());return null;});
         return result;
     }

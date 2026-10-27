@@ -392,6 +392,15 @@ public final class BusinessRules {
         }
         final Map<String, Boolean> offered = new LinkedHashMap<>();
         final Map<String, Boolean> explicit = new LinkedHashMap<>();
+        // 0.14.0 (item B5): the audience a phrase names ("Software für Architekten", "Lösungen für Pflegedienste") is the
+        // provider's customers, never its own category, offer or topic
+        final List<int[]> audiences = new ArrayList<>();
+        for (final Audiences.Address a : Audiences.read(run.text, run.ctx)) {
+            for (final Audiences.Audience x : a.audiences) {
+                audiences.add(new int[] {x.start, x.end});
+            }
+        }
+        hits.removeIf(h -> audiences.stream().anyMatch(x -> x[0] <= h.start && h.end <= x[1]));
         for (final TermMatcher.Hit<Categories.Entry> h : hits) {
             // 0.12.0 (T0 review): an item of a menu's application areas or markets ("Anwendungen: … Flooring …") and a business
             // network ("mit Partnern in unserem Netzwerk") name no offer, also on a services page
@@ -1302,6 +1311,14 @@ public final class BusinessRules {
         for (final String raw : splitNames(names.replaceAll("\\s+", " ").trim())) {
             final String name = NAME_LABEL.matcher(raw.replaceAll("^[*_\\s]+|[*_\\s]+$", "")).replaceFirst("").replaceAll("[.!:]+$", "")
                     .replaceAll("^[„“\"']|[„“\"']$", "").trim();
+            if (described(name)) {
+                // 0.14.0 (item A1): a client named by a description is a value of the provider at its project, no organisation
+                if (seen.add("description\u0000" + Normalizers.key(name))) {
+                    describe(run, name, at, project, project + " " + context);
+                    n++;
+                }
+                continue;
+            }
             final Mention client = client(run, name, at, seen);
             if (client != null) {
                 purchases(run, client, Math.max(0, run.text.indexOf(name, Math.max(0, at - 5))), project, project + " " + context);
@@ -1505,7 +1522,7 @@ public final class BusinessRules {
 
     /** The client named {@code name} near {@code at}, as {@code client customer_of operator}; null if it is none or named before. */
     private Mention client(final Run run, final String name, final int at, final Set<String> seen) {
-        if (!clientName(name) || anonymised(name) || ownName(run, name) || KgVocabularies.get().vocabularyWord(name)
+        if (!clientName(name) || described(name) || ownName(run, name) || KgVocabularies.get().vocabularyWord(name)
                 || !seen.add(Normalizers.key(name))) {
             return null;
         }
@@ -1569,6 +1586,95 @@ public final class BusinessRules {
         final String company = parts[parts.length - 1].trim();
         final boolean afterRole = parts.length > 2 && ROLE.matcher(String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length - 1))).find();
         return (LEGAL_FORM_ANY_CASE.matcher(company).find() || afterRole) && clientName(company) ? company : null;
+    }
+
+    /** 0.14.0: the word of an organisation a client's description is headed by ("Dienstleister", "…konzern", "…verwaltung", "…fabrik"). */
+    private static final Pattern DESCRIPTION_HEAD = Pattern.compile("(?iu)(?:unternehmen|händler|haendler|dienstleister|versorger|gruppe|konzern"
+            + "|hersteller|mittelständler|mittelstaendler|anbieter|betreiber|verwaltung|fabrik|betrieb|kette|verbund|verein|träger|traeger"
+            + "|company|retailer|provider|group|manufacturer|operator|supplier)$");
+    /** 0.14.0: the preposition after the head of a description ("Dienstleister für …", "Anbieter von …", "…konzern in NRW"). */
+    private static final Pattern DESCRIPTION_LINK = Pattern.compile("(?iu)^(?:für|fuer|von|vom|in|im|aus|der|des|mit|for|of|in|from|with)$");
+    /**
+     * 0.14.0: a head that public bodies and associations carry in their names ("Senatsverwaltung für Stadtentwicklung", "Verein für
+     * Muster", "Betrieb für Bau und Liegenschaften"): a description only with its place ("Stadtverwaltung in Musterland") or after
+     * common adjectives ("Technisch-wissenschaftlicher Verein"), never after a state's adjective ("Bayerische …verwaltung").
+     */
+    private static final Pattern BODY_HEAD = Pattern.compile("(?iu)(?:verwaltung|verein|betrieb|träger|traeger|verbund)$");
+    private static final Pattern PLACE_LINK = Pattern.compile("(?iu)^(?:in|im|aus|from)$");
+    /** 0.14.0: the adjective of a state, a region or the federation: part of a public body's name ("Bayerische", "Hessisches"). */
+    private static final Pattern STATE_ADJECTIVE = Pattern.compile("(?iu)^(?:bayerisch|hessisch|sächsisch|saechsisch|thüringisch|thueringisch"
+            + "|brandenburgisch|niedersächsisch|niedersaechsisch|westfälisch|westfaelisch|rheinisch|badisch|württembergisch|wuerttembergisch"
+            + "|schwäbisch|schwaebisch|fränkisch|fraenkisch|pfälzisch|pfaelzisch|saarländisch|saarlaendisch|mecklenburgisch|pommersch"
+            + "|holsteinisch|hamburgisch|bremisch|berlinisch|bundes|landes|städtisch|staedtisch|kommunal)\\p{L}*$|^Berliner$");
+
+    /**
+     * 0.14.0 (item A1, variant a of the owner's decision of 26 October 2026): true for a client named by a description, not by a
+     * name: no legal form, an organisation's word as its head ({@link #DESCRIPTION_HEAD}) after adjectives or the first halves of
+     * compounds ("Europäische Container-Terminal- und Logistik-Gruppe", "Technisch-wissenschaftlicher Verein", "Global agierendes
+     * …-Unternehmen"), at its end or before a preposition and the rest ("Dienstleister für Tankabrechnungen", "Internationaler
+     * Anbieter von Textil-Management", "Landkreisverwaltung in Musterland"); the head alone is a description only as a compound
+     * ("Energieversorgungskonzern"). The anonymised form of 0.13.0 ({@link #anonymised}) is one.
+     */
+    public static boolean described(final String name) {
+        if (name == null || name.isBlank() || LEGAL_FORM_ANY_CASE.matcher(name).find()) {
+            return false;
+        }
+        final String[] words = name.trim().replaceAll("[.,;:]+$", "").split("\\s+");
+        if (words.length < 2 || legal(name)) {
+            return false; // a head alone is a name or a word ("Konzern", "Musterverein", "Energieversorgungskonzern")
+        }
+        if (anonymised(name)) {
+            return true;
+        }
+        for (int i = 0; i < words.length; i++) {
+            final String w = words[i].replace("-", "");
+            final boolean last = i == words.length - 1;
+            if (DESCRIPTION_HEAD.matcher(w).find() && Character.isUpperCase(words[i].codePointAt(0))
+                    && (last || DESCRIPTION_LINK.matcher(words[i + 1]).matches() && i + 2 < words.length)) {
+                if (!BODY_HEAD.matcher(w).find()) {
+                    return true;
+                }
+                // a public body's or an association's head: its place, or common adjectives only
+                if (!last) {
+                    return PLACE_LINK.matcher(words[i + 1]).matches();
+                }
+                for (int k = 0; k < i; k++) {
+                    if (STATE_ADJECTIVE.matcher(words[k]).find() || words[k].endsWith("-") || !ADJECTIVE.matcher(words[k]).matches()
+                            && !words[k].matches("(?u)\\p{Lu}\\p{Ll}+-\\p{Ll}[\\p{L}-]*")) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            if (!modifier(words[i])) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** A word before the head of a description: an adjective, a hyphenated adjective, the first half of a compound or its joint. */
+    private static boolean modifier(final String w) {
+        return ADJECTIVE.matcher(w).matches() || w.endsWith("-") || w.matches("(?iu)und|and|&|,")
+                || w.matches("(?u)\\p{Lu}\\p{Ll}+-\\p{Ll}[\\p{L}-]*") || w.matches("(?u)\\p{L}\\p{Ll}*weit"); // "Weltweit führender …"
+    }
+
+    /**
+     * 0.14.0 (item A1): a client the provider documents by a description, as a value of the provider ({@code client_description}):
+     * the description, the project with its state and the products of its context. No organisation, no relation, no candidate.
+     */
+    private void describe(final Run run, final String description, final int at, final String project, final String text) {
+        final int start = Math.max(0, run.text.indexOf(description, Math.max(0, at - 5)));
+        final String state = PROJECT_RUNNING.matcher(text).find() ? "running" : PROJECT_DONE.matcher(text).find() ? "completed" : "unknown";
+        final Map<String, Object> v = new TreeMap<>(Map.of("description", Normalizers.clip(description.trim(), 200), "state", state));
+        if (!project.isBlank()) {
+            v.put("project", Normalizers.clip(plain(project), 120));
+        }
+        final Set<String> products = new java.util.TreeSet<>(KgVocabularies.get().signals.products(text));
+        if (!products.isEmpty()) {
+            v.put("products", String.join(",", products));
+        }
+        claim(run, run.subject, Vocabulary.CLIENT_DESCRIPTION, Values.canonical(v), start, start + description.length(), 0.65);
     }
 
     /** 0.13.0: true for an anonymised client ({@link #ANONYMOUS_HEAD}): no legal form, a general organisation word after adjectives. */

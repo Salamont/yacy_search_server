@@ -43,7 +43,7 @@ import java.util.TreeSet;
  */
 public final class Vocabulary {
 
-    public static final String VERSION = "6"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0); 6: facility_kind (0.14.0)
+    public static final String VERSION = "6"; // 5: type_unconfirmed of the LLM tier's places, uncategorized services (0.13.0); 6: facility_kind, client_description (0.14.0)
 
     // entity types (kg_vocab kind 1)
     public static final String ORGANIZATION = "organization";
@@ -173,6 +173,13 @@ public final class Vocabulary {
      */
     public static final String WEBSITE_TECHNOLOGY="website_technology";
     public static final String JOB_STATUS="job_status";
+    /**
+     * 0.14.0 (item A1, variant a of the owner's decision of 26 October 2026): a client a provider documents by a description, not
+     * by a name ("Dienstleister für Tankabrechnungen", "Energieversorgungskonzern in NRW"), as a value of the provider
+     * ({@link #T_JSON}: the description, the project, its state and products): never an organisation, never merged, never a
+     * candidate of the matching.
+     */
+    public static final String CLIENT_DESCRIPTION="client_description";
     public static final String ADVERTISED_BY="advertised_by";
     public static final String RECRUITING_ORGANIZATION="recruiting_organization";
     public static final String DEPLOYMENT_ORGANIZATION="deployment_organization";
@@ -347,6 +354,8 @@ public final class Vocabulary {
         literal(p,BUSINESS_ROLE_EVIDENCE,false,T_JSON);
         literal(p,WEBSITE_TECHNOLOGY,false,T_JSON);
         literal(p,JOB_STATUS,false,T_CODE);
+        // version 6
+        literal(p,CLIENT_DESCRIPTION,false,T_JSON);
         relation(p,ADVERTISED_BY);relation(p,RECRUITING_ORGANIZATION);relation(p,DEPLOYMENT_ORGANIZATION);
         literal(p, CUSTOMER_TYPE, false, T_CODE);
         literal(p, AUDIENCE_SEGMENT, false, T_CODE);

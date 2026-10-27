@@ -209,6 +209,29 @@ public class DerivedServiceTest {
         assertEquals(0, again.inserted + again.updated + again.deleted);
     }
 
+    /** 0.14.0 (item D1): a row naming a merged entity goes also in an incomplete pass, which keeps every other row. */
+    @Test
+    public void aRowOnAMergedEntityGoesAlsoInAnIncompletePass() throws Exception {
+        corpus();
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        final List<String> before = derived(null);
+        final long birke = before.stream().filter(r -> r.contains("|Haus Birke|")).count();
+        assertTrue(before.toString(), birke > 0);
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.executeUpdate("UPDATE kg_entity SET status = 2, merged_into = (SELECT s.subj FROM kg_statement s JOIN kg_vocab v"
+                        + " ON v.term_id = s.pred WHERE v.name = 'name' AND s.obj_val = 'Haus Eiche' LIMIT 1) WHERE ent_rowid IN (SELECT s.subj"
+                        + " FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'name' AND s.obj_val = 'Haus Birke')");
+            }
+            return null;
+        });
+        // a pass whose limit of rows makes it incomplete: it deletes nothing else
+        final KgConfig small = KgTestSupport.config(KgTestSupport.enabled(KgConfig.MATCHES_MAX, "1"));
+        final DerivedService.Result r = new DerivedService(small, this.store, () -> this.now + 1).run();
+        assertEquals(r.json().toString(), birke, r.deleted);
+        assertEquals(before.size() - birke, derived(null).size());
+    }
+
     @Test
     public void theChangeFeedShowsADerivedRowOnlyWithBothCollections() throws Exception {
         corpus();

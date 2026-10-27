@@ -469,6 +469,21 @@ public final class BusinessView {
                 collect(f, docs);
             }
         }
+        // 0.14.0 (item A1): the clients the entity documents by a description ("Dienstleister für …"), at their projects: values of
+        // the entity, never organisations, never matching candidates
+        final JSONArray described = new JSONArray();
+        for (final Fact f : byPredicate.getOrDefault(Vocabulary.CLIENT_DESCRIPTION, List.of())) {
+            final JSONObject value = Values.json(f.stat.objVal);
+            if (value == null || value.optString("description", "").isEmpty()) {
+                continue;
+            }
+            final JSONObject item = KgJson.obj("statement", f.stat.publicId, "description", value.optString("description"), "project",
+                    value.opt("project"), "state", value.opt("state"), "products",
+                    new JSONArray(value.optString("products", "").isEmpty() ? List.of() : List.of(value.optString("products").split(","))));
+            fact(item, f);
+            described.put(item);
+            collect(f, docs);
+        }
         final JSONObject suggestionPage = new Suggestions(this.reader).page(c, ent, 0, MAX_DERIVED, v, permitted);
         final JSONObject matches = new JSONObject();
         final JSONArray suggestionItems = suggestionPage.optJSONArray("items");
@@ -481,9 +496,9 @@ public final class BusinessView {
         }
         final JSONArray customerSuggestions = matches.optJSONArray(Vocabulary.SUGGESTED_CUSTOMER) == null ? new JSONArray()
                 : matches.optJSONArray(Vocabulary.SUGGESTED_CUSTOMER);
-        if (declared.length() > 0 || observed.length() > 0 || customerSuggestions.length() > 0) {
+        if (declared.length() > 0 || observed.length() > 0 || customerSuggestions.length() > 0 || described.length() > 0) {
             KgJson.put(out, "audiences", KgJson.obj("declared", declared, "observed", observed, "suggested",
-                    customerSuggestions));
+                    customerSuggestions, "client_descriptions", described));
         }
         if (matches.length() > 0) {
             KgJson.put(out, "suggested_matches", matches);

@@ -583,4 +583,22 @@ public class BusinessExtractionTest {
         assertEquals(List.of("Ihre Dienstplanung digitalisieren wollen"), valuesOf(ex, site, Vocabulary.NEED));
         assertTrue("its own field names services, not customers", valuesOf(ex, site, Vocabulary.CATEGORY).isEmpty());
     }
+
+    /**
+     * 0.14.0 (item B5): a phrase about a provider's customers ("Software für Architekten") gives it no category, offer or topic of
+     * theirs; the same word as the provider's own offer stays one.
+     */
+    @Test
+    public void aPhraseAboutTheCustomersGivesNoCategory() {
+        final ExtractContext ctx = new ExtractContext(KgVocabularies.get(), Set.of("software", "construction"), false, List.of("muster-web"));
+        final Extraction ex = rules("## Unsere Leistungen\n\nWir entwickeln Software für Architekten und Ingenieurbüros.\n", "https://www.muster-soft.de/leistungen/",
+                ctx, List.of());
+        final List<String> categories = values(ex, Vocabulary.CATEGORY);
+        final List<String> topics = values(ex, Vocabulary.TOPIC);
+        assertTrue(categories.toString(), categories.stream().noneMatch(c -> c.startsWith("construction/architektur")));
+        assertTrue(topics.toString(), topics.stream().noneMatch(c -> c.startsWith("construction/architektur")));
+        final Extraction own = rules("## Unsere Leistungen\n\nArchitektur und Bauleitung aus einer Hand.\n", "https://www.muster-plan.de/leistungen/",
+                ctx, List.of());
+        assertTrue(values(own, Vocabulary.CATEGORY).toString(), values(own, Vocabulary.CATEGORY).contains("construction/architektur"));
+    }
 }

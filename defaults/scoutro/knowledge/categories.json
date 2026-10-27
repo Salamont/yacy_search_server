@@ -1484,6 +1484,24 @@
       "infrastruktur",
       "netzwerk",
       "infrastructure"
+     ],
+     "exclude": [
+      "infrastruktureinrichtung",
+      "verkehrsinfrastruktur",
+      "straßeninfrastruktur",
+      "schieneninfrastruktur",
+      "radverkehrsinfrastruktur",
+      "wasserinfrastruktur",
+      "abwasserinfrastruktur",
+      "energieinfrastruktur",
+      "ladeinfrastruktur",
+      "infrastrukturbau",
+      "infrastrukturmaßnahme",
+      "partnernetzwerk",
+      "unternehmernetzwerk",
+      "kompetenznetzwerk",
+      "pflegenetzwerk",
+      "fachnetzwerk"
      ]
     },
     {
@@ -2037,6 +2055,25 @@
       "architektin",
       "architects",
       "architecture"
+     ],
+     "exclude": [
+      "it-architektur",
+      "softwarearchitektur",
+      "systemarchitektur",
+      "cloud-architektur",
+      "datenarchitektur",
+      "unternehmensarchitektur",
+      "enterprise-architektur",
+      "lösungsarchitektur",
+      "netzwerkarchitektur",
+      "sicherheitsarchitektur",
+      "anwendungsarchitektur",
+      "plattformarchitektur",
+      "informationsarchitektur",
+      "microservice-architektur",
+      "software architecture",
+      "enterprise architecture",
+      "cloud architecture"
      ]
     },
     {

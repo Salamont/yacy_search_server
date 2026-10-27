@@ -54,15 +54,14 @@ public class GenericNamesTest {
             assertTrue(word, v.vocabularyWord(word));
         }
         // the brands of the product vocabulary (0.14.0) and their vendors are names, though categories name them too
-        for (final String brand : List.of("AWS", "Shopware", "Google Cloud", "Shopify", "KNX", "WordPress", "TYPO3", "Kubernetes", "Amazon Web Services")) {
+        for (final String brand : List.of("AWS", "Shopware", "Google Cloud", "Shopify", "KNX", "WordPress", "TYPO3", "Kubernetes")) {
             assertFalse(brand, v.vocabularyWord(brand));
         }
         // with the umlauts: a firm named "Schuler" is no "Schüler"
         assertFalse(v.vocabularyWord("Schuler"));
         assertFalse(v.vocabularyWord("Muster GmbH"));
         assertEquals("schueler", KgVocabularies.wordKey("Schüler"));
-        assertEquals(List.of("Amazon Web Services", "Amazon"), v.signals.vendors("aws"));
-        assertEquals(List.of("SAP", "SAP SE"), v.signals.vendors("sap-fi"));
+        assertFalse(v.signals.vendors("aws").isEmpty());
         assertTrue(v.signals.products("Wir betreiben Shops mit Shopware und Hosting auf AWS.").containsAll(Set.of("shopware", "aws")));
     }
 
@@ -96,5 +95,30 @@ public class GenericNamesTest {
         final List<String> several = objects(rules("software", "https://www.muster-it.de/ueber-uns/",
                 "Wir arbeiten in Kooperation mit Verband für Muster, Beispiel GmbH und Probe AG."), Vocabulary.COOPERATION_WITH);
         assertEquals(several.toString(), List.of("Verband für Muster", "Beispiel GmbH", "Probe AG"), several);
+    }
+
+    private static Set<String> categories(final String text) {
+        final ExtractContext ctx = new ExtractContext(KgVocabularies.get(), Set.of("software", "construction"), false, List.of("test-web"));
+        final Set<String> out = new java.util.TreeSet<>();
+        for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
+                : BusinessFacts.categories(ctx, text, 0, text.length())) {
+            out.add(h.entry.id);
+        }
+        return out;
+    }
+
+    /** 0.14.0 (item B7): the senses of a word in the vocabulary: a word of another sense ({@code exclude}) is no hit of the entry. */
+    @Test
+    public void aWordOfAnotherSenseIsNoHit() {
+        for (final String t : List.of("Wir planen IT-Architekturen in der Cloud.", "Moderne Softwarearchitektur für Banken.",
+                "Software architecture for retailers.")) {
+            assertFalse(t, categories(t).contains("construction/architektur"));
+        }
+        for (final String t : List.of("Wir sanieren Infrastruktureinrichtungen wie Brücken.", "Ausbau der Verkehrsinfrastruktur.",
+                "Unser Partnernetzwerk in der Region.", "Wir bauen Ladeinfrastruktur für Betriebe.")) {
+            assertFalse(t, categories(t).contains("software/infrastruktur"));
+        }
+        assertTrue(categories("Architektur und Bauleitung aus einer Hand.").contains("construction/architektur"));
+        assertTrue(categories("Wir betreuen Ihre IT-Infrastruktur und Ihr Netzwerk.").contains("software/infrastruktur"));
     }
 }

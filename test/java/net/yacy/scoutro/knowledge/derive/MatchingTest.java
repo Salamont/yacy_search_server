@@ -103,6 +103,45 @@ public class MatchingTest {
         });
     }
     /** 0.12.1: the reading of an earlier extractor that the page read again no longer carries feeds no matching. */
+    /**
+     * 0.14.0 (item D1): the contributions naming a merged entity (status 2) are removed, also when no partition is reconciled (a
+     * run of a budget of one); the others stay.
+     */
+    @Test public void contributionsOnAMergedEntityAreRemoved()throws Exception {
+        final String other=KgIds.entityId("organization","test","","other");live(other,"b");
+        store.write(WriteClass.GROWTH,0,c->{
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,candidate_id,rule,"
+                    +"rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation) VALUES(?,?,3,?,?,'it-support','1',?,?,'',"
+                    +"'[]',?,'g')")) {
+                for(int i=0;i<5;i++) {
+                    String to=i<3?candidate:other;
+                    p.setString(1,KgIds.derivedId("suggested_customer",provider,to,"contribution:"+i,"signal"+i));
+                    p.setString(2,KgIds.derivedId("suggested_customer",provider,to,"matching-v1",""));p.setString(3,provider);
+                    p.setString(4,to);p.setString(5,"service"+i);p.setString(6,"signal"+i);p.setLong(7,now);p.addBatch();
+                }
+                p.executeBatch();
+            }
+            try(PreparedStatement p=c.prepareStatement("UPDATE kg_entity SET status=2,merged_into=(SELECT ent_rowid FROM kg_entity WHERE public_id=?)"
+                    +" WHERE public_id=?")){p.setString(1,other);p.setString(2,candidate);p.executeUpdate();}
+            return null;
+        });
+        final JSONObject result=new MatchingService(store,cfg,1).run(now);
+        assertEquals(result.toString(),3,result.getInt("removed_merged"));
+        assertEquals(0L,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution WHERE candidate_id='"+candidate+"'")));
+    }
+    /** 0.14.0 (item A3): the vendor of a product, without its legal form and its country, is no client of it; another company is. */
+    @Test public void theVendorIsNoClientOfItsOwnProduct() {
+        List<String> vendors=List.of("Muster Software","Muster Software SE");
+        assertTrue(MatchingRules.vendor(List.of("Muster Software SE"),vendors));
+        assertTrue(MatchingRules.vendor(List.of("Muster Software Deutschland GmbH"),vendors));
+        assertTrue(MatchingRules.vendor(List.of("Beispiel","Muster Software eG"),vendors));
+        assertFalse(MatchingRules.vendor(List.of("Muster Software Partner GmbH"),vendors));
+        assertFalse(MatchingRules.vendor(List.of("Beispiel AG"),vendors));
+        assertFalse(MatchingRules.vendor(List.of("Muster Software SE"),List.of()));
+        // the vendors of a module are those of its product and vendor (the tree of products.json)
+        net.yacy.scoutro.knowledge.vocab.Signals sig=net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().signals;
+        assertTrue(sig.vendors("sap-fi").containsAll(sig.vendors("sap"))&&!sig.vendors("sap").isEmpty());
+    }
     @Test public void anEarlierReadingOfAPageReadAgainIsNoMatchingInput()throws Exception {
         offer("SAP S/4HANA Beratung");String use=signal("Wir nutzen SAP S/4HANA intern.","job");
         page(use,1,"rule/8");run();

@@ -2,6 +2,7 @@
 package net.yacy.scoutro.knowledge.extract;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -245,5 +246,42 @@ public class DocumentedRelationsTest {
                 "## ****Release-Wechsel**** **S/4HANA**\n\nKunde: Beispiel AG\n\nRolle: Projektleitung\n\nSAP S/4HANA, erfolgreich abgeschlossen.");
         assertEquals(Set.of("Release-Wechsel S/4HANA"), projects(ex));
         assertEquals("Migration nach C#", BusinessRules.plain("## **Migration nach C#**"));
+    }
+
+    /** The client descriptions of the provider (the page's operator). */
+    private static Set<String> descriptions(final Extraction ex) throws Exception {
+        final Set<String> out = new java.util.TreeSet<>();
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.CLIENT_DESCRIPTION.equals(c.predicate)) {
+                final JSONObject v = new JSONObject(c.value);
+                out.add(v.getString("description") + "|" + v.optString("project") + "|" + v.optString("products") + "|" + v.optString("state")
+                        + "|" + ex.mention(c.subject).ref.equals(BusinessRules.SITE_REF));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 0.14.0 (item A1, variant a of the owner's decision of 26 October 2026): a client named by a description is a value of the
+     * provider at its project, never an organisation; a public body's name stays a client.
+     */
+    @Test
+    public void aClientNamedByADescriptionIsAValueOfTheProvider() throws Exception {
+        final Extraction ex = rules("software", "https://www.muster-stellwerk.de/referenzen/",
+                "## Release-Wechsel\n\nKunde: Dienstleister für Musterabrechnungen\n\nProjekt: Wechsel auf SAP S/4HANA\n\nErfolgreich abgeschlossen.\n\n"
+                        + "## Reporting\n\nKunde: Stadtverwaltung in Musterland\n\nProjekt: Berichte mit Power BI\n\n"
+                        + "## Planung\n\nKunde: Senatsverwaltung für Musterentwicklung\n\nProjekt: Planung mit SAP Analytics Cloud");
+        assertEquals(Set.of("Senatsverwaltung für Musterentwicklung"), clients(ex).keySet());
+        assertEquals(Set.of("Dienstleister für Musterabrechnungen|Wechsel auf SAP S/4HANA|sap-s4hana|completed|true",
+                "Stadtverwaltung in Musterland|Berichte mit Power BI|microsoft-power-bi|unknown|true"), descriptions(ex));
+        for (final String d : List.of("Energieversorgungskonzern in Musterland", "Europäische Container-Terminal- und Logistik-Gruppe",
+                "Global agierendes Biotechnologie- und Biomedizin-Unternehmen", "Internationaler Anbieter von Textil-Management",
+                "Papier- und Kartonfabrik", "Technisch-wissenschaftlicher Verein", "Weltweit führender Hersteller von Beschlägen für Fenster")) {
+            assertTrue(d, BusinessRules.described(d));
+        }
+        for (final String n : List.of("Institut für Musterkunde", "Verein für Musterforschung", "Bayerische Muster- und Beispielverwaltung",
+                "Musterverwaltung des Bundes", "Stadtverwaltung Musterstadt", "Konzern", "Musterverein", "Muster Gruppe", "Beispiel Bank eG")) {
+            assertFalse(n, BusinessRules.described(n));
+        }
     }
 }
