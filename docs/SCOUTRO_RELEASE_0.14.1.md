@@ -29,6 +29,8 @@ on the same DATA.
    overlapping kind of service (the axis of 0.13.0, plus hosting) is no customer of it; with another kind it can stay one (an
    agency of a product as the client of its hosting). A provider of the product itself stays a customer where it buys, seeks or
    explicitly uses it itself (the owner's decision of 22 October 2026); postings keep the rule of the employer's delivery roles.
+4. **A candidate that is a provider too keeps its own suggestions:** the checks of R3 and of an employer's delivery roles no
+   longer pass a candidate's offers, read without their collections, through the memo the matching and the read share.
 
 ## What the update does
 

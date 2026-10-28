@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "note": "0.14.1: the role of each product of products.json, read by the matching only, at reading; no part of the extraction's identity (products.json is unchanged, nothing is extracted again). website: the roles that are website technology; on a privacy or cookie notice a statement of such a product states no use and no offer. by_statement: the roles that are website technology only where the statement names the website's delivery (website_words: its CDN, its hosting, the website itself); every other role (crm, erp, marketing automation, ...) stays a use there. A product without a role has its parent's. service_types: kinds of service the matching adds to those of products.json; unnamed_offer: the kinds an offer of a product naming no kind offers.",
+  "note": "0.14.1: the role of each product of products.json, read by the matching only, at reading; no part of the extraction's identity (products.json is unchanged, nothing is extracted again). website: the roles that are website technology; on a privacy or cookie notice a statement of such a product states no use and no offer. by_statement: the roles that are website technology only where the statement names the website's delivery (website_words: its CDN, its web hosting, the website itself; not hosting alone, which a software company's platform has too); every other role (crm, erp, marketing automation, ...) stays a use there. A product without a role has its parent's. service_types: kinds of service the matching adds to those of products.json; unnamed_offer: the kinds an offer of a product naming no kind offers.",
   "website": ["cms", "shop", "site_builder", "cdn", "hosting"],
   "by_statement": ["cloud"],
-  "website_words": ["CDN", "Content Delivery Network", "Content-Delivery-Network", "CloudFront", "Cloud CDN", "Hosting", "Webhosting",
-    "Webspace", "hosten", "hostet", "gehostet", "Website", "Websites", "Webseite", "Webseiten", "Internetseite", "Internetseiten",
+  "website_words": ["CDN", "Content Delivery Network", "Content-Delivery-Network", "CloudFront", "Cloud CDN", "Webhosting",
+    "Webspace", "Website", "Websites", "Webseite", "Webseiten", "Internetseite", "Internetseiten",
     "Homepage", "Internetauftritt", "Webauftritt", "Onlineshop", "Online-Shop", "Webshop", "web page", "web pages"],
   "roles": {
     "sap": "erp",

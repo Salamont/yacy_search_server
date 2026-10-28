@@ -261,8 +261,8 @@ public final class MatchingRules {
             if("planned_migration".equals(context)&&"source".equals(signal.value.optString("system_role")))return null;
             // 0.14.0 (item A3): the vendor of a product is no client of it ("Muster Software SE" for its own product)
             if(vendor(actorNames(signal),KgVocabularies.get().signals.vendors(offer.key)))return null;
-            // 0.14.1 (R1): a privacy or cookie notice names the website's technology, no use of it ("Wir nutzen das Content Delivery
-            // Network Muster CDN"); a business system there (a CRM, an ERP) stays a use
+            // 0.14.1 (R1): a privacy or cookie notice names the website's technology, no use of it ("Unsere Website liefert Muster
+            // CDN aus"); a business system there (a CRM, an ERP) stays a use
             if(BusinessSignals.privacyNotice(signal.url)&&KgVocabularies.get().signals.websiteTechnology(offer.key,signal.text))return null;
             // 0.14.1 (R3): a candidate that offers the product with the same or an overlapping kind of service is a competitor; a
             // documented purchase, support sought for its own migration or an explicitly own use keeps it a customer (the owner's
@@ -379,7 +379,8 @@ public final class MatchingRules {
                 Observation o=Observation.fields(r);
                 boolean of="customer_projects".equals(o.value.optString("context"))&&o.usable()
                         &&!(BusinessSignals.privacyNotice(o.url)&&KgVocabularies.get().signals.websiteTechnology(offer.key,o.text));
-                for(Offer own:of?List.<Offer>of():offers(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))of=true;
+                // offersOf, not the memo of offers: this reading has no collections, a provider's offers from the memo must have them
+                for(Offer own:of?List.<Offer>of():offersOf(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))of=true;
                 if(!of&&List.of("it-support","cad-bim").contains(offer.rule)&&o.usable()&&"service".equals(o.type)&&List.of("name","category").contains(o.predicate)
                         &&KgVocabularies.get().signals.products(o.value.optString("literal",o.text)).contains(offer.key))of=true;
                 if(of&&!Collections.disjoint(kinds(o),provider))return true;
@@ -397,7 +398,8 @@ public final class MatchingRules {
                 +" AND "+current("kg_observation")+" ORDER BY observation_rowid LIMIT 2501")) {
             p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
                 Observation o=Observation.fields(r);
-                for(Offer own:offers(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+                // 0.14.1: offersOf, as in competitorOf (a memoized offer of this reading made the actor's own offers inaccessible)
+                for(Offer own:offersOf(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
                 // 0.12.0 (T6, round 2): a service named or categorized as the product itself ("SAP", software/sap) is a service of it,
                 // also without a word of support (the employer's own consultant posting is then its delivery capacity)
                 if(List.of("it-support","cad-bim").contains(offer.rule)&&o.usable()&&"service".equals(o.type)&&List.of("name","category").contains(o.predicate)

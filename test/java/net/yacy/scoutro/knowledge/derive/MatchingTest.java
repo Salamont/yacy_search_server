@@ -597,10 +597,31 @@ public class MatchingTest {
     @Test public void aCompetitorOfTheSameKindIsNoCustomerButOfAnotherKind()throws Exception {
         String development=offer("Shopware Entwicklung");
         signal("Wir bieten Shopware Entwicklung und Beratung an.","organization");
-        signal("Wir arbeiten jeden Tag mit Shopware.","organization");run();
+        signal("Wir nutzen Shopware im Alltag.","organization");run();
         assertEquals("an agency of the same kind",0,page("a","b").getInt("total"));
         withdraw(development);offer("Shopware Hosting");run();
         assertEquals("the agency as a client of the hosting",1,page("a","b").getInt("total"));
+    }
+    /**
+     * 0.14.1: a candidate that is a provider too keeps its own suggestions within one memo; the check of R3 reads its services
+     * without their collections, and an offer memoized from that reading made them inaccessible.
+     */
+    @Test public void aCandidateThatIsAProviderKeepsItsOffersWithinAMemo()throws Exception {
+        final String third=KgIds.entityId("organization","test","","third");live(third,"b");
+        final String use="Wir verwenden WordPress für unsere Website.";
+        offer("WordPress Support");signal(use,"organization");
+        observation(candidate,"service","name",KgJson.obj("literal","WordPress Hosting"),"WordPress Hosting","b");
+        observation(third,"organization","system_signal",new JSONObject(BusinessSignals.read("system_signal",use,"text","organization","Third").get(0)),use,"b");
+        run();
+        final List<String> ids=store.read(c->{List<String> out=new ArrayList<>();
+            try(Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT public_id FROM kg_match_contribution ORDER BY provider_id='"+provider+"' DESC,public_id")) {
+                while(r.next())out.add(r.getString(1));
+            }return out;});
+        assertEquals("the provider's two clients and the candidate's one",3,ids.size());
+        assertTrue(MatchingRules.openMemo());
+        try {
+            for(String id:ids)assertNotNull(id,store.read(c->MatchingProjection.record(c,id,Viewer.ALL,cfg)));
+        } finally {MatchingRules.closeMemo();}
     }
     /** 0.14.1 (R1): a privacy or cookie notice names the website's technology (a CMS, a shop system), no use of it. */
     @Test public void aPrivacyNoticeNamesNoUseOfWebsiteTechnology()throws Exception {

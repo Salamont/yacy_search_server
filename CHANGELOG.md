@@ -15,6 +15,9 @@ On 0.14.0: no schema change, no extractor version, no re-extraction, no model re
 - **R3:** a candidate offering the product with an overlapping kind of service (the axis of 0.13.0, plus hosting) is a
   competitor, no customer; another kind leaves it a candidate; a provider of the product stays a customer where it buys, seeks
   or explicitly uses it itself.
+- **A candidate that is a provider too keeps its own suggestions:** the checks of R3 and of an employer's delivery roles read a
+  candidate's offers without the memo the matching and the read share (an offer memoized from that reading, without
+  collections, made the candidate's own offers inaccessible).
 - The notes of 0.14.0 give its merge and image digest.
 
 ## 0.14.0 / 1.942-scoutro.49 — names, clients, facilities by their kind, the matching's follow-ups and the clean-up

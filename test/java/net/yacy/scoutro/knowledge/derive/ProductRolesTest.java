@@ -35,10 +35,12 @@ public class ProductRolesTest {
         assertTrue(v.websiteTechnology("shopify","Wir nutzen Shopify für Werbung."));
         assertFalse("a CRM never",v.websiteTechnology("salesforce","Auf unserer Website nutzen wir Salesforce-Formulare."));
         assertFalse("an ERP never",v.websiteTechnology("sap","Wir nutzen SAP."));
-        assertTrue("a cloud platform for the website's delivery",v.websiteTechnology("aws","Wir nutzen CloudFront von Amazon Web Services zur Auslieferung von Bildern."));
-        assertTrue(v.websiteTechnology("google-cloud","Wir nutzen das Content Delivery Network von Google Cloud."));
+        assertTrue("a cloud platform for the website's delivery",v.websiteTechnology("aws","Unsere Bilder liefert CloudFront von AWS aus."));
+        assertTrue(v.websiteTechnology("google-cloud","Ein Content Delivery Network von Google Cloud beschleunigt unsere Seiten."));
         assertTrue(v.websiteTechnology("microsoft-azure","Wir nutzen Microsoft Azure für das Hosting unserer Webseite."));
         assertFalse("a cloud platform for the company's software",v.websiteTechnology("microsoft-azure","Für die Anmeldung in unserer Software verwenden wir Microsoft Azure."));
+        assertFalse("hosting alone: a platform's too",v.websiteTechnology("aws","Für das Hosting unserer Plattform nutzen wir AWS."));
+        assertTrue("the website's hosting",v.websiteTechnology("aws","Unsere Website wird bei Amazon Web Services gehostet."));
         assertFalse("no role, no website",v.websiteTechnology("unknown-product","Website"));
     }
 

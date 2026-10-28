@@ -4460,9 +4460,9 @@ extractor identity).
 **The role of a product** (`product-roles.json`, the matching's file of the product vocabulary): every product has a role (crm,
 erp, office, bi, cms, shop, cloud, …; a product without one has its parent's). `website` lists the roles that are website
 technology (cms, shop, site builder, cdn, hosting), `by_statement` those that are only where a statement names the website's
-delivery (cloud: a cloud platform is website technology in "… zur Auslieferung von Bildern in unserer Website", "für das
-Hosting unserer Webseite", "Content Delivery Network", not in "für die Anmeldung in unserer Software"); `website_words` are
-those words. The file is no part of the vocabulary's identity (`Signals.version` hashes `products.json` and `needs.json` byte by
+delivery (cloud: a cloud platform is website technology in "… liefert die Bilder unserer Website aus", "für das Hosting
+unserer Webseite", "Content Delivery Network", not in "für die Anmeldung in unserer Software" and not by hosting alone,
+"… für das Hosting", which a software company's platform has too); `website_words` are those words. The file is no part of the vocabulary's identity (`Signals.version` hashes `products.json` and `needs.json` byte by
 byte; the extraction never reads the roles): `products.json` stays unchanged, nothing is extracted again, the prompt hash stays.
 An operator's file of the same name in `DATA/SCOUTRO/knowledge/vocabulary/` replaces the shipped one; it is never read as an
 override of the categories. Missing, it gives no roles (no product is website technology, R1 never applies); broken, the same
@@ -4492,6 +4492,13 @@ or a use stated as explicitly its own ("intern", "im eigenen Haus", "für unsere
 A job posting keeps the rule of its employer's delivery roles (section 36, `docs/SCOUTRO_MATCHING.md`): an employer offering the product makes a delivery
 role its capacity, a title alone excludes nothing.
 
+**A candidate's own offers stay accessible.** The check of R3 (and that of an employer's delivery roles, `offersItself`) reads
+the candidate's services without their collections; it reads their offers directly (`offersOf`), never through the memo of
+offers that the matching and the read share. Through the memo such an offer, without collections, became the candidate's own
+offer as a provider and failed the access check: a candidate that is a provider too lost its own suggestions within one memo
+(found by the gate's fixture before the release; since R3 checks every candidate, it would have struck far more often than the
+delivery roles of 0.14.0 did).
+
 ### 45.3 The update
 
 No schema change, no extractor version, no re-extraction, no model request. The vetoes work at reading at once; the hourly
@@ -4504,5 +4511,6 @@ graph is unchanged.
 the roles no part of the identity, an operator's file, a broken and a missing one), `MatchingTest` (a privacy notice names no use
 of website technology and offers none, a CRM there stays a use, a cloud platform there only for the website's delivery, a
 competitor of the same kind and an agency as a client of the hosting, a provider of another kind keeps a competitor a candidate,
-the explicitly own use of a provider of the product), `BusinessSignalsTest` (offers with the reader or others as the user, the
+the explicitly own use of a provider of the product, a candidate that is a provider too keeps its offers within one memo),
+`BusinessSignalsTest` (offers with the reader or others as the user, the
 paths of privacy and cookie notices; the confirmed own uses of 0.12.2 unchanged).

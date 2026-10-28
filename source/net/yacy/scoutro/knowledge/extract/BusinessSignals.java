@@ -78,8 +78,8 @@ public final class BusinessSignals {
             +"|[Ss]chul(?:en|t|e)|[Bb]efähig(?:en|t)|[Cc]oach(?:en|t))\\s+(?:wir\\s+|euch\\s+)?(?:Sie|dich|euch|Ihnen|dir)\\b"
             +"|\\b(?:[Ww]ie|[Dd]ass|[Dd]amit|[Ww]enn|[Oo]b)\\s+du\\b|\\b[Dd]ein(?:e[nmrs]?)?\\b");
     /**
-     * 0.14.1 (R2): others or the reader as the users of a product ("Dadurch können Unternehmen die Vorteile von … nutzen", "So
-     * können Sie …"): the provider describes what its offer gives them, no use of its own.
+     * 0.14.1 (R2): others or the reader as the users of a product ("Damit können Kunden … einsetzen", "So können Sie …"): the
+     * provider describes what its offer gives them, no use of its own.
      */
     private static final Pattern OTHERS_USE=Pattern.compile("(?u)\\b(?:können|kann|könnt|sollen|sollten|dürfen)\\s+(?:(?:Ihre|unsere|alle|viele)\\s+)?"
             +"(?:Unternehmen|Kunden|Firmen|Händler|Teams|Organisationen|Betriebe|Anwender|Nutzer|Mitarbeitende|Sie|du)\\b");
