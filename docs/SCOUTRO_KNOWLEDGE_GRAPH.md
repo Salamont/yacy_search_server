@@ -4431,3 +4431,78 @@ facility only at its place; one per provider, kind and address: three at three a
 `BusinessSignalsTest` (A2, A4), `MatchingTest` (the vendor, contributions on merged entities), `DerivedServiceTest.
 aRowOnAMergedEntityGoesAlsoInAnIncompletePass`, `AudiencesTest.theProviderInTheThirdPersonIsNoTarget`,
 `BusinessExtractionTest.aPhraseAboutTheCustomersGivesNoCategory`. Without their change B5 and D1 fail; neutral texts only.
+
+## 45. The matching of website technology, offers to the reader and competitors (0.14.1, at reading)
+
+### 45.1 Finding
+
+After the update to 0.14.0 the matching held about 40 % more pairs. Almost all of the new ones were of the eight products that
+version 3 of the product vocabulary added for the names (section 44.2), and a sample read with their quotes was about half
+wrong (the private package repository, `docs/SCOUTRO-PLAN-0.14.0.md`, section 15):
+
+- **A privacy or cookie notice read as the company's use:** a notice names the services its website embeds, for the law: the
+  CDN delivering the website's images, a cloud platform's CDN, the line of a consent plugin naming the site's CMS, the same
+  sentences of a site builder on many sites. A craft business is no customer of cloud consulting because its website's images
+  come from a CDN. A business system a notice names ("Als CRM-System nutzen wir …") is the company's use all the same
+  (confirmed in 0.12.2).
+- **The provider's offer to the reader read as use:** "Wir unterstützen Sie dabei, Muster-Cloud zu nutzen", "So können
+  Unternehmen … nutzen", "schulen wir dich in …".
+- **A competitor as a customer:** an agency of a product, an installer working with it, read as a user of it, for providers of
+  the same kind of service.
+- **A provider's offer read from a privacy notice** ("Wir nutzen Muster-Shop, um …" in a shop's notice).
+
+### 45.2 Rules
+
+All three are vetoes at reading, as those of 0.14.0 (section 44.2): they take effect on the stored evidence at once, and the
+next passes of the matching store no contribution they veto. `MatchingRules.VERSION` stays 1; `BusinessSignals.VERSION` 7 (no
+extractor identity).
+
+**The role of a product** (`product-roles.json`, the matching's file of the product vocabulary): every product has a role (crm,
+erp, office, bi, cms, shop, cloud, …; a product without one has its parent's). `website` lists the roles that are website
+technology (cms, shop, site builder, cdn, hosting), `by_statement` those that are only where a statement names the website's
+delivery (cloud: a cloud platform is website technology in "… zur Auslieferung von Bildern in unserer Website", "für das
+Hosting unserer Webseite", "Content Delivery Network", not in "für die Anmeldung in unserer Software"); `website_words` are
+those words. The file is no part of the vocabulary's identity (`Signals.version` hashes `products.json` and `needs.json` byte by
+byte; the extraction never reads the roles): `products.json` stays unchanged, nothing is extracted again, the prompt hash stays.
+An operator's file of the same name in `DATA/SCOUTRO/knowledge/vocabulary/` replaces the shipped one; it is never read as an
+override of the categories. Missing, it gives no roles (no product is website technology, R1 never applies); broken, the same
+and a problem in the vocabulary's status.
+
+**R1, a privacy or cookie notice names no use and no offer of website technology** (`BusinessSignals.privacyNotice`, by the
+URL's path: "/datenschutz", "/datenschutzerklaerung", "/datenschutzhinweise", "/privacy-policy", "/cookie-richtlinie",
+"/data-protection", as a whole segment or with a country's or version's mark, "-eu", "-neu"; not "/datenschutzberatung/" or
+"/blog/privacy-by-design"): on such a page a statement of a product that is website technology in it
+(`Signals.websiteTechnology`) is no use for the matching (`MatchingRules.assess`) and no offer (`MatchingRules.offers`). A CRM,
+an ERP, marketing automation and every other business role stay a use there.
+
+**R2, an offer with the reader or others as the user is no use** (`BusinessSignals.read`): the provider helping the reader to
+use a product ("Wir unterstützen Sie dabei, … zu betreiben", "Wir helfen Ihnen, …", "schulen wir dich in …", the reader
+addressed informally: "Damit du …", "dein Shop") and others or the reader as what can use it ("So können Unternehmen … nutzen",
+"können Sie …") are the provider's offer (`offered_capability`), never its own use. The company's own use stays one.
+
+**R3, a competitor of the same kind is no customer** (`MatchingRules.assess`): a candidate that offers the product itself (an
+offered capability, an assigned service of it or its projects for clients with it) with a kind of service the provider's
+offer has too is a competitor. The kinds are those of the axis of 0.13.0 (`service_types`: consulting, implementation,
+migration, integration, development, operation, training, licence), plus hosting (`product-roles.json`); an offer naming none
+offers the general kinds (`unnamed_offer`: consulting, implementation, migration, integration, development, operation), never
+hosting, training or a licence. So an agency of a product is no customer of another agency of it, but of its hosting or of a
+training in it. **A provider of the product itself stays a customer** (the owner's decision of 22 October 2026) where the graph
+says it buys or seeks the service: a purchase documented by another provider's reference, support sought for its own migration,
+or a use stated as explicitly its own ("intern", "im eigenen Haus", "für unsere Buchhaltung", `BusinessSignals.ownNeedOrUse`).
+A job posting keeps the rule of its employer's delivery roles (section 36, `docs/SCOUTRO_MATCHING.md`): an employer offering the product makes a delivery
+role its capacity, a title alone excludes nothing.
+
+### 45.3 The update
+
+No schema change, no extractor version, no re-extraction, no model request. The vetoes work at reading at once; the hourly
+passes of the matching then store no contribution they veto and remove those they no longer make. Every other part of the
+graph is unchanged.
+
+### 45.4 Tests
+
+`ProductRolesTest` (every product has a role, website technology by role and by statement, the kinds of an offer naming none,
+the roles no part of the identity, an operator's file, a broken and a missing one), `MatchingTest` (a privacy notice names no use
+of website technology and offers none, a CRM there stays a use, a cloud platform there only for the website's delivery, a
+competitor of the same kind and an agency as a client of the hosting, a provider of another kind keeps a competitor a candidate,
+the explicitly own use of a provider of the product), `BusinessSignalsTest` (offers with the reader or others as the user, the
+paths of privacy and cookie notices; the confirmed own uses of 0.12.2 unchanged).

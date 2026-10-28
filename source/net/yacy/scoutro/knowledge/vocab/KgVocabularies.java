@@ -194,13 +194,15 @@ public final class KgVocabularies {
 
     /**
      * The override files of a directory that the vocabularies read, in their order (by name): every {@code *.json} but the
-     * signal files {@code products.json} and {@code needs.json}; empty if there is no such directory.
+     * signal files {@code products.json}, {@code needs.json} and (0.14.1) {@code product-roles.json}; empty if there is no such
+     * directory.
      */
     public static List<File> overrideFiles(final File overrides) {
         if (overrides == null || !overrides.isDirectory()) {
             return Collections.emptyList();
         }
-        final File[] list = overrides.listFiles((d, n) -> n.endsWith(".json") && !n.equals("products.json") && !n.equals("needs.json"));
+        final File[] list = overrides.listFiles((d, n) -> n.endsWith(".json") && !n.equals("products.json") && !n.equals("needs.json")
+                && !n.equals(Signals.ROLES_FILE));
         if (list == null) {
             return Collections.emptyList();
         }
@@ -237,7 +239,7 @@ public final class KgVocabularies {
         final Categories categories = jsons.isEmpty() ? Categories.EMPTY : Categories.read(jsons, names, nace, p);
         problems.addAll(p.list);
         final Signals signals=Signals.load(defaults,overrides,problems);
-        files.add(DEFAULTS+"/products.json");files.add(DEFAULTS+"/needs.json");
+        files.add(DEFAULTS+"/products.json");files.add(DEFAULTS+"/needs.json");files.add(DEFAULTS+"/"+Signals.ROLES_FILE);
         return new Snapshot(nace, categories, signals, problems, files);
     }
 

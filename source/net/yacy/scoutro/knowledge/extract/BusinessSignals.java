@@ -23,9 +23,9 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
 public final class BusinessSignals {
     /** The patterns of the inline expressions, compiled once (0.11.8: they were compiled again on every read of a quote). */
     private static final java.util.concurrent.ConcurrentHashMap<String,Pattern> PATTERNS=new java.util.concurrent.ConcurrentHashMap<>();
-    public static final String VERSION="6"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2);
+    public static final String VERSION="7"; // 4: own use in the clause of its verb, questions, others' use, delivery verbs (0.12.2);
     // 5: a planned migration in the clause of its verb, its product and the company (0.13.0); 6: an own offer is no use, an alternative
-    // to a product names no use of it, the reader's lines of an FAQ (0.14.0)
+    // to a product names no use of it, the reader's lines of an FAQ (0.14.0); 7: an offer with the reader or others as the user (0.14.1)
     private static final Pattern CUSTOMERS=p("Kundenprojekt|Bestandskunden|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
@@ -70,6 +70,28 @@ public final class BusinessSignals {
     /** 0.14.0 (item A2): the provider choosing products for the reader ("wir nutzen die passenden Muster-Lösungen"): its offer, no use. */
     private static final Pattern CHOOSES_FOR_READER=p("\\b(?:wir|we)\\s+(?:nutzen|verwenden|setzen|wählen|waehlen|use|choose)\\s+(?:die|den|das|the)\\s+"
             +"(?:passenden|geeigneten|richtigen|optimalen|besten|right|best|appropriate)\\b");
+    /**
+     * 0.14.1 (R2): the provider helping the reader to use a product ("Wir unterstützen Sie dabei, Muster-Cloud zu nutzen", "schulen
+     * wir dich in der Nutzung von …"): its offer, no use of its own. The reader formally (case-sensitive) or informally.
+     */
+    private static final Pattern HELPS_READER=Pattern.compile("(?u)\\b(?:[Uu]nterstütz(?:en|t|e)|[Hh]elfen|[Hh]ilft|[Bb]egleit(?:en|et|e)|[Bb]eraten|[Bb]erät"
+            +"|[Ss]chul(?:en|t|e)|[Bb]efähig(?:en|t)|[Cc]oach(?:en|t))\\s+(?:wir\\s+|euch\\s+)?(?:Sie|dich|euch|Ihnen|dir)\\b"
+            +"|\\b(?:[Ww]ie|[Dd]ass|[Dd]amit|[Ww]enn|[Oo]b)\\s+du\\b|\\b[Dd]ein(?:e[nmrs]?)?\\b");
+    /**
+     * 0.14.1 (R2): others or the reader as the users of a product ("Dadurch können Unternehmen die Vorteile von … nutzen", "So
+     * können Sie …"): the provider describes what its offer gives them, no use of its own.
+     */
+    private static final Pattern OTHERS_USE=Pattern.compile("(?u)\\b(?:können|kann|könnt|sollen|sollten|dürfen)\\s+(?:(?:Ihre|unsere|alle|viele)\\s+)?"
+            +"(?:Unternehmen|Kunden|Firmen|Händler|Teams|Organisationen|Betriebe|Anwender|Nutzer|Mitarbeitende|Sie|du)\\b");
+    /**
+     * 0.14.1 (R1): the path of a privacy or cookie notice ("/datenschutz/", "/datenschutzerklaerung", "/cookie-richtlinie-eu/",
+     * "/privacy-policy", "/impressum-datenschutz/"), as a whole segment or with a country's or version's mark ("-eu", "-neu"); not a
+     * page offering data protection ("/datenschutzberatung/") or an article about it ("/blog/privacy-by-design").
+     */
+    private static final Pattern PRIVACY_PATH=Pattern.compile("(?iu)(?:^|[/_-])(?:datenschutz(?:erkl(?:ae|ä)rung(?:en)?|hinweise?|bestimmungen"
+            +"|richtlinien?|informationen?|info)?|privacy(?:[-_]?(?:policy|policies|notice|statement))?|data[-_]?protection(?:[-_]?(?:policy|notice"
+            +"|declaration))?|cookies?(?:[-_]?(?:policy|richtlinien?|hinweise?|erkl(?:ae|ä)rung|einstellungen|settings|notice))?|dsgvo|gdpr)"
+            +"(?=(?:[-_](?:eu|de|en|ch|at|neu|alt|\\d{1,4}))?(?:[./]|$))");
     /** 0.14.0 (item A2): a product named as what an offer replaces ("Alternative zu …", "statt …", "anstelle von …", "instead of …"). */
     private static final Pattern ALTERNATIVE=p("\\bAlternativen?\\s+(?:zu|für|fuer)\\s+|\\balternatives?\\s+to\\s+|\\bstatt\\s+|\\banstatt\\s+"
             +"|\\banstelle\\s+(?:von\\s+)?|\\binstead\\s+of\\s+|\\bErsatz\\s+(?:für|fuer)\\s+|\\breplacement\\s+for\\s+");
@@ -335,6 +357,28 @@ public final class BusinessSignals {
         return out;
     }
 
+    /**
+     * 0.14.1 (R3): what keeps a company offering a product a customer of another provider of it (the owner's decision of 22 October
+     * 2026: a provider of the product itself can be a customer): support it seeks for its own migration, or its use stated as
+     * explicitly its own ("intern", "im eigenen Haus", "für unsere Buchhaltung").
+     */
+    public static boolean ownNeedOrUse(String quote) {
+        return quote!=null&&(SOUGHT.matcher(quote).find()&&!STAFF.matcher(quote).find()||EXPLICIT_OWN.matcher(quote).find());
+    }
+
+    /**
+     * 0.14.1 (R1): whether the page at {@code url} is a privacy or cookie notice (by its path, {@link #PRIVACY_PATH}): a notice of
+     * the services a website embeds, written for the law; the matching reads no use or offer of website technology from it.
+     */
+    public static boolean privacyNotice(String url) {
+        if(url==null)return false;
+        String path;
+        try{path=java.net.URI.create(url.trim().replace(" ","%20")).getRawPath();}catch(IllegalArgumentException e){return false;}
+        if(path==null||path.isEmpty())return false;
+        try{path=java.net.URLDecoder.decode(path,java.nio.charset.StandardCharsets.UTF_8);}catch(IllegalArgumentException e){/* keep the raw path */}
+        return PRIVACY_PATH.matcher(path).find();
+    }
+
     /** Whether the page at {@code url} is a reference, case-study or client page (by its path). */
     public static boolean referencePage(String url) {
         if(url==null)return false;
@@ -456,7 +500,9 @@ public final class BusinessSignals {
                     // 0.12.0 (T6): the provider speaking to its reader, or running and supporting systems for others, offers them
                     ||!posting&&(own||named)&&(READER.matcher(quote).find()||OFFER_TO.matcher(quote).find()||serviceOfProduct(quote,vocab))
                     // 0.14.0 (item A2): the provider migrating or running systems for others, or choosing them for the reader
-                    ||!posting&&(MIGRATES_FOR_OTHERS.matcher(quote).find()||(own||named)&&CHOOSES_FOR_READER.matcher(quote).find()))context="offered_capability";
+                    ||!posting&&(MIGRATES_FOR_OTHERS.matcher(quote).find()||(own||named)&&CHOOSES_FOR_READER.matcher(quote).find())
+                    // 0.14.1 (R2): the provider helping the reader to use it, or others and the reader as its users
+                    ||!posting&&(own||named)&&(HELPS_READER.matcher(quote).find()||OTHERS_USE.matcher(quote).find()))context="offered_capability";
             else if(customer)context="customer_projects";
             else if(question||RECOMMENDATION.matcher(quote).find()) context=null;
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";

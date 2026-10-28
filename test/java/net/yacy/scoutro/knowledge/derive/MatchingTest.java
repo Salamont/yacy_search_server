@@ -579,8 +579,63 @@ public class MatchingTest {
         String voice=observation(candidate,"organization","system_signal",KgJson.obj("product","sap","context","internal_use","section","text"),quote,"b");
         run();assertEquals("a client's voice on the candidate's page",0,page("a","b").getInt("total"));
         withdraw(voice);
+        // 0.14.1 (R3, the owner's decision of 28 October 2026): it offers SAP consulting as the provider does, so a use without a word
+        // of its own is a competitor's; its explicitly own use keeps it a customer (aProviderOfAnotherKindKeepsACompetitorACandidate)
         signal("Wir betreiben eine SAP First-Strategie, aber sind genauso offen für alles andere.","organization");run();
+        assertEquals("a competitor of the same kind",0,page("a","b").getInt("total"));
+        signal("Wir nutzen SAP intern für unsere Buchhaltung.","organization");run();
         assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));
+    }
+    /** 0.14.1 (R3): a provider of another kind of service (a training) keeps a company offering the product a candidate. */
+    @Test public void aProviderOfAnotherKindKeepsACompetitorACandidate()throws Exception {
+        offer("SAP Schulung");
+        signal("Wir bieten SAP Beratung und Implementierung an.","organization");
+        signal("Wir betreiben eine SAP-Strategie für alle Standorte.","organization");run();
+        assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));
+    }
+    /** 0.14.1 (R3): an agency of the product is no customer of an agency of the same kind, but of the product's hosting. */
+    @Test public void aCompetitorOfTheSameKindIsNoCustomerButOfAnotherKind()throws Exception {
+        String development=offer("Shopware Entwicklung");
+        signal("Wir bieten Shopware Entwicklung und Beratung an.","organization");
+        signal("Wir arbeiten jeden Tag mit Shopware.","organization");run();
+        assertEquals("an agency of the same kind",0,page("a","b").getInt("total"));
+        withdraw(development);offer("Shopware Hosting");run();
+        assertEquals("the agency as a client of the hosting",1,page("a","b").getInt("total"));
+    }
+    /** 0.14.1 (R1): a privacy or cookie notice names the website's technology (a CMS, a shop system), no use of it. */
+    @Test public void aPrivacyNoticeNamesNoUseOfWebsiteTechnology()throws Exception {
+        offer("WordPress Support");
+        pageUrl="https://candidate.example/cookie-richtlinie/";signal("Wir verwenden WordPress für unsere Website.","organization");pageUrl=null;run();
+        assertEquals("a cookie notice",0,page("a","b").getInt("total"));
+        pageUrl="https://candidate.example/ueber-uns/";signal("Wir verwenden WordPress für unsere Website.","organization");pageUrl=null;run();
+        assertEquals("the same sentence on another page",1,page("a","b").getInt("total"));
+    }
+    /** 0.14.1 (R1, the owner's condition): a business system in a privacy notice (a CRM) stays the company's use. */
+    @Test public void aBusinessSystemInAPrivacyNoticeStaysAUse()throws Exception {
+        offer("Salesforce Beratung");
+        pageUrl="https://candidate.example/datenschutz/";signal("Als CRM-System nutzen wir Salesforce Sales Cloud.","organization");pageUrl=null;run();
+        assertEquals("internal_use",reasons("a","b").getJSONObject(0).getString("context"));
+    }
+    /** 0.14.1 (R1): a cloud platform in a privacy notice is website technology only where the statement names the website's delivery. */
+    @Test public void aCloudPlatformInAPrivacyNoticeIsWebsiteTechnologyOnlyForTheWebsite()throws Exception {
+        offer("Microsoft Azure Beratung");
+        pageUrl="https://candidate.example/datenschutzerklaerung/";signal("Wir nutzen Microsoft Azure für das Hosting unserer Website.","organization");run();
+        assertEquals("the website's hosting",0,page("a","b").getInt("total"));
+        signal("Für die Anmeldung in unserer Software verwenden wir Microsoft Azure.","organization");pageUrl=null;run();
+        assertEquals("the company's own software",1,page("a","b").getInt("total"));
+    }
+    /** 0.14.1 (R1): a shop's privacy notice offers no shop system; the provider's offer on its own page does. */
+    @Test public void aPrivacyNoticeOffersNoWebsiteTechnology()throws Exception {
+        pageUrl="https://provider.example/policies/privacy-policy";
+        observation(provider,"organization","system_signal",KgJson.obj("product","shopify","context","offered_capability","section","text"),
+                "Wir nutzen Shopify, um Werbung von Drittanbietern zu unterstützen.","a");
+        pageUrl=null;signal("Wir betreiben unseren Onlineshop mit Shopify.","organization");run();
+        assertEquals("no offer read from a privacy notice",0,count());
+        pageUrl="https://provider.example/leistungen/";
+        observation(provider,"organization","system_signal",KgJson.obj("product","shopify","context","offered_capability","section","text"),
+                "Wir unterstützen Händler bei der Einrichtung von Shopify.","a");
+        pageUrl=null;run();
+        assertEquals("the offer on its own page",1,page("a","b").getInt("total"));
     }
     /**
      * 0.12.0 (T6, round 2): a client documented by another provider's reference bought the service (regio iT bought SAP S/4HANA
