@@ -85,13 +85,14 @@ public final class BusinessSignals {
             +"(?:Unternehmen|Kunden|Firmen|Händler|Teams|Organisationen|Betriebe|Anwender|Nutzer|Mitarbeitende|Sie|du)\\b");
     /**
      * 0.14.1 (R1): the path of a privacy or cookie notice ("/datenschutz/", "/datenschutzerklaerung", "/cookie-richtlinie-eu/",
-     * "/privacy-policy", "/impressum-datenschutz/"), as a whole segment or with a country's or version's mark ("-eu", "-neu"); not a
-     * page offering data protection ("/datenschutzberatung/") or an article about it ("/blog/privacy-by-design").
+     * "/privacy-policy", "/impressum-datenschutz/"), as a whole segment or with up to two country's or version's marks ("-eu",
+     * "-neu", "-eu-2", "-eu-en"), also without the umlaut ("/datenschutzerklarung") and of a cookie management ("/cookie-verwaltung/");
+     * not a page offering data protection ("/datenschutzberatung/") or an article about it ("/blog/privacy-by-design").
      */
-    private static final Pattern PRIVACY_PATH=Pattern.compile("(?iu)(?:^|[/_-])(?:datenschutz(?:erkl(?:ae|ä)rung(?:en)?|hinweise?|bestimmungen"
+    private static final Pattern PRIVACY_PATH=Pattern.compile("(?iu)(?:^|[/_-])(?:datenschutz(?:erkl(?:ae|ä|a)rung(?:en)?|hinweise?|bestimmungen"
             +"|richtlinien?|informationen?|info)?|privacy(?:[-_]?(?:policy|policies|notice|statement))?|data[-_]?protection(?:[-_]?(?:policy|notice"
-            +"|declaration))?|cookies?(?:[-_]?(?:policy|richtlinien?|hinweise?|erkl(?:ae|ä)rung|einstellungen|settings|notice))?|dsgvo|gdpr)"
-            +"(?=(?:[-_](?:eu|de|en|ch|at|neu|alt|\\d{1,4}))?(?:[./]|$))");
+            +"|declaration))?|cookies?(?:[-_]?(?:policy|richtli\\w*|hinweise?|erkl(?:ae|ä|a)rung|einstellungen|settings|notice|verwaltung))?|dsgvo|gdpr)"
+            +"(?=(?:[-_](?:eu|de|en|ch|at|neu|alt|\\d{1,4})){0,2}(?:[./]|$))");
     /** 0.14.0 (item A2): a product named as what an offer replaces ("Alternative zu …", "statt …", "anstelle von …", "instead of …"). */
     private static final Pattern ALTERNATIVE=p("\\bAlternativen?\\s+(?:zu|für|fuer)\\s+|\\balternatives?\\s+to\\s+|\\bstatt\\s+|\\banstatt\\s+"
             +"|\\banstelle\\s+(?:von\\s+)?|\\binstead\\s+of\\s+|\\bErsatz\\s+(?:für|fuer)\\s+|\\breplacement\\s+for\\s+");

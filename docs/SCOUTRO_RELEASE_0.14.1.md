@@ -20,7 +20,7 @@ on the same DATA.
 
 1. **R1, privacy and cookie notices** (the owner's decision of 28 October 2026): on such a page (by its path) a statement of a
    product whose role is website technology (cms, shop, site builder, cdn, hosting) is neither a use nor an offer for the
-   matching; a cloud platform is website technology there only where the statement names the website's delivery (its CDN, its
+   matching (the paths also with two marks, without the umlaut and of a cookie management: the gate's run 3); a cloud platform is website technology there only where the statement names the website's delivery (its CDN, its
    hosting, the website). CRM, ERP, marketing automation and every other business role stay a use, as the uses of privacy
    notices confirmed in 0.12.2.
 2. **R2, offers to the reader:** the provider helping the reader to use a product and others or the reader as its users are the
@@ -45,13 +45,20 @@ collection worse than 0.13.2: the private package repository, `docs/OPENCODE-GAT
 
 | Gate | Result |
 |---|---|
-| Pairs of the matching, old and new reading | **open** |
+| Runs 1 and 2 (29 October 2026) | stopped at the staging and at a transfer: the pod's exec ran a command twice at the same time (an extraction; a removal beside a making of one directory). The package's transfers and probes are safe for it now; nothing of the application changed |
+| Run 3 (29 October 2026) | **passed in all four collections**, judged in full (every candidate statement read): the business systems named in privacy notices stay, but those of one candidate offering the product itself (R3); the uses of cloud platforms that go all name the website's delivery; the pairs of the products before version 3 of the product vocabulary lose only wrong ones (competitors of the same kind, among them the case the owner decided); the pairs of the eight products of version 3 resting on cookie and privacy notices are gone; of the wrong pairs of the sample about four in five are gone, the rest of known classes (below). No collection worse than 0.13.2 |
+| The completion of R1 (paths with two marks, without the umlaut and of a cookie management; "unserer Seite" as a website word) | measured on the data of run 3: it takes only consent and plugin lines of website technology and one cloud statement on such pages, nothing else |
 
 ## Known limitations
 
 - An installer or agency whose only statement is its work with a product ("Mit Muster-System arbeiten wir") and that offers it
   nowhere in the graph stays a candidate.
 - A competitor's job posting for a developer of the product counts as a need where its title names no delivery role.
+- A consent tool's line naming the website's CMS on a page that is no privacy or cookie notice (an imprint, a page known only by
+  its number) stays a weak use; a cloud statement naming no part of the website (only the cloud provider's services and the
+  legal basis) stays a use; a hosting provider operating cloud platforms for its clients stays a candidate.
+- A reference of a provider outside IT can be given a product its page names elsewhere (a footer, a theme), and a theme's credit
+  or a menu fragment can be read as an offer: the reference reader and the extraction, a later version with a re-extraction.
 - The limitations of 0.14.0 that need a re-extraction stay (a menu item or a theme's default tagline read as an offer,
   organisations named by a privacy notice's phrase, two keys of one facility named by its kind).
 

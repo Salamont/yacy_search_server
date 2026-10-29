@@ -460,9 +460,14 @@ public class BusinessSignalsTest {
         for(String url:List.of("https://muster.example/datenschutz/","https://muster.example/datenschutzerklaerung","https://muster.example/datenschutzerkl%C3%A4rung",
                 "https://muster.example/cookie-richtlinie-eu/","https://muster.example/policies/privacy-policy","https://muster.example/impressum-datenschutz/",
                 "https://muster.example/contact/data-protection/","https://muster.example/unternehmen/datenschutz.html","https://muster.example/pages/datenschutz-neu",
-                "https://muster.example/en/privacy/","https://muster.example/datenschutzhinweise/"))assertTrue(url,BusinessSignals.privacyNotice(url));
+                "https://muster.example/en/privacy/","https://muster.example/datenschutzhinweise/",
+                // two marks, no umlaut, a cookie management (gate of 0.14.1, run 3)
+                "https://muster.example/cookie-richtlinie-eu-2/","https://muster.example/en/cookie-policy-eu-en/","https://muster.example/cookie-verwaltung/",
+                "https://muster.example/datenschutzerklarung.html","https://muster.example/datenschutzerklarung/","https://muster.example/cookie-richtlinien-de/"))
+            assertTrue(url,BusinessSignals.privacyNotice(url));
         for(String url:List.of("https://muster.example/leistungen/datenschutzberatung/","https://muster.example/","https://datenschutz.example/leistungen/",
-                "https://muster.example/cookiecutter-vorlage/","https://muster.example/blog/privacy-by-design-im-shop"))assertFalse(url,BusinessSignals.privacyNotice(url));
+                "https://muster.example/cookiecutter-vorlage/","https://muster.example/blog/privacy-by-design-im-shop","https://muster.example/cookies-backen/"))
+            assertFalse(url,BusinessSignals.privacyNotice(url));
         assertFalse(BusinessSignals.privacyNotice(null));
     }
 }

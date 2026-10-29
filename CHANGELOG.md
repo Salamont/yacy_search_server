@@ -10,7 +10,8 @@ On 0.14.0: no schema change, no extractor version, no re-extraction, no model re
 - **The role of a product** (docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 45): `product-roles.json`, read by the matching only and no
   part of the vocabulary's identity (`products.json` unchanged).
 - **R1:** a privacy or cookie notice names no use and no offer of website technology (a CMS, a shop system, a CDN; a cloud
-  platform only where it names the website's delivery); a business system there (a CRM) stays a use.
+  platform only where it names the website's delivery, also as "unserer Seite"); a business system there (a CRM) stays a use.
+  The notices by their path, also with two marks ("-eu-2"), without the umlaut and of a cookie management.
 - **R2:** an offer with the reader or others as the user of a product is the provider's offer, no use of its own.
 - **R3:** a candidate offering the product with an overlapping kind of service (the axis of 0.13.0, plus hosting) is a
   competitor, no customer; another kind leaves it a candidate; a provider of the product stays a customer where it buys, seeks

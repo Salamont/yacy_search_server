@@ -41,6 +41,8 @@ public class ProductRolesTest {
         assertFalse("a cloud platform for the company's software",v.websiteTechnology("microsoft-azure","Für die Anmeldung in unserer Software verwenden wir Microsoft Azure."));
         assertFalse("hosting alone: a platform's too",v.websiteTechnology("aws","Für das Hosting unserer Plattform nutzen wir AWS."));
         assertTrue("the website's hosting",v.websiteTechnology("aws","Unsere Website wird bei Amazon Web Services gehostet."));
+        assertTrue("the website as 'unserer Seite'",v.websiteTechnology("aws","Auf unserer Seite binden wir einen Dienst von AWS ein."));
+        assertFalse("a side, no website",v.websiteTechnology("aws","Auf der einen Seite betreiben wir unsere Plattform mit AWS."));
         assertFalse("no role, no website",v.websiteTechnology("unknown-product","Website"));
     }
 

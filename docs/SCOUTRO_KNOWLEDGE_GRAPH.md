@@ -4462,7 +4462,8 @@ erp, office, bi, cms, shop, cloud, …; a product without one has its parent's).
 technology (cms, shop, site builder, cdn, hosting), `by_statement` those that are only where a statement names the website's
 delivery (cloud: a cloud platform is website technology in "… liefert die Bilder unserer Website aus", "für das Hosting
 unserer Webseite", "Content Delivery Network", not in "für die Anmeldung in unserer Software" and not by hosting alone,
-"… für das Hosting", which a software company's platform has too); `website_words` are those words. The file is no part of the vocabulary's identity (`Signals.version` hashes `products.json` and `needs.json` byte by
+"… für das Hosting", which a software company's platform has too; "auf unserer Seite" names the website); `website_words` are
+those words. The file is no part of the vocabulary's identity (`Signals.version` hashes `products.json` and `needs.json` byte by
 byte; the extraction never reads the roles): `products.json` stays unchanged, nothing is extracted again, the prompt hash stays.
 An operator's file of the same name in `DATA/SCOUTRO/knowledge/vocabulary/` replaces the shipped one; it is never read as an
 override of the categories. Missing, it gives no roles (no product is website technology, R1 never applies); broken, the same
@@ -4470,7 +4471,8 @@ and a problem in the vocabulary's status.
 
 **R1, a privacy or cookie notice names no use and no offer of website technology** (`BusinessSignals.privacyNotice`, by the
 URL's path: "/datenschutz", "/datenschutzerklaerung", "/datenschutzhinweise", "/privacy-policy", "/cookie-richtlinie",
-"/data-protection", as a whole segment or with a country's or version's mark, "-eu", "-neu"; not "/datenschutzberatung/" or
+"/data-protection", as a whole segment or with up to two country's or version's marks, "-eu", "-neu", "-eu-2", "-eu-en", also
+without the umlaut, "/datenschutzerklarung", and of a cookie management, "/cookie-verwaltung/"; not "/datenschutzberatung/" or
 "/blog/privacy-by-design"): on such a page a statement of a product that is website technology in it
 (`Signals.websiteTechnology`) is no use for the matching (`MatchingRules.assess`) and no offer (`MatchingRules.offers`). A CRM,
 an ERP, marketing automation and every other business role stay a use there.
