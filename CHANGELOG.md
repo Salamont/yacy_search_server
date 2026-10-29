@@ -2,6 +2,25 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.14.1 / 1.942-scoutro.50 — the matching of website technology, offers to the reader and competitors
+
+On 0.14.0: no schema change, no extractor version, no re-extraction, no model request; three rules of the matching at reading
+(`BusinessSignals.VERSION` 7, `MatchingRules.VERSION` stays 1). [Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.14.1.md).
+
+- **The role of a product** (docs/SCOUTRO_KNOWLEDGE_GRAPH.md section 45): `product-roles.json`, read by the matching only and no
+  part of the vocabulary's identity (`products.json` unchanged).
+- **R1:** a privacy or cookie notice names no use and no offer of website technology (a CMS, a shop system, a CDN; a cloud
+  platform only where it names the website's delivery, also as "unserer Seite"); a business system there (a CRM) stays a use.
+  The notices by their path, also with two marks ("-eu-2"), without the umlaut and of a cookie management.
+- **R2:** an offer with the reader or others as the user of a product is the provider's offer, no use of its own.
+- **R3:** a candidate offering the product with an overlapping kind of service (the axis of 0.13.0, plus hosting) is a
+  competitor, no customer; another kind leaves it a candidate; a provider of the product stays a customer where it buys, seeks
+  or explicitly uses it itself.
+- **A candidate that is a provider too keeps its own suggestions:** the checks of R3 and of an employer's delivery roles read a
+  candidate's offers without the memo the matching and the read share (an offer memoized from that reading, without
+  collections, made the candidate's own offers inaccessible).
+- The notes of 0.14.0 give its merge and image digest.
+
 ## 0.14.0 / 1.942-scoutro.49 — names, clients, facilities by their kind, the matching's follow-ups and the clean-up
 
 On 0.13.2: no schema change; one re-extraction of tiers 1 and 2 (`rule/10`, `jsonld/8`, `Vocabulary.VERSION` 6, vocabulary

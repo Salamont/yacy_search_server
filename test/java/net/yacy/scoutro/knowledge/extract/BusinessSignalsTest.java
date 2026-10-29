@@ -437,5 +437,37 @@ public class BusinessSignalsTest {
         for(Claim c:e.claims())found.add(new JSONObject(c.value).getString("product")+":"+new JSONObject(c.value).getString("context"));
         assertEquals("the reader's Office 365 under the FAQ is no use; the company's own SAP below another heading is",
                 Set.of("sap-s4hana:internal_use"),found);
+    }    /**
+     * 0.14.1 (R2): an offer with the reader or others as the user of the product is the provider's offer, no use of its own: the
+     * provider helping the reader to use it, the reader addressed informally, companies or the reader as what can use it. The
+     * company's own use stays one.
+     */
+    @Test public void anOfferWithTheReaderOrOthersAsTheUserIsNoUse() throws Exception {
+        for(String[] c:new String[][]{{"Wir unterstützen Sie dabei, Kubernetes für neue Anwendungen zu nutzen.","kubernetes"},
+                {"So können Unternehmen Kubernetes ohne eigene Administratoren nutzen.","kubernetes"},
+                {"Wir zeigen dir, wie du deinen Laden mit Shopify selbst pflegst.","shopify"},
+                {"Wir helfen Ihnen, Shopware in unserem Rechenzentrum zu betreiben.","shopware"}}) {
+            assertTrue(c[0],ownContexts(c[0],c[1],"").isEmpty());
+            Set<String> contexts=new TreeSet<>();
+            for(String v:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,c[0],"text",Vocabulary.ORGANIZATION,null))contexts.add(new JSONObject(v).getString("context"));
+            assertEquals(c[0],Set.of("offered_capability"),contexts);
+        }
+        assertEquals(Set.of("internal_use"),ownContexts("Wir nutzen Kubernetes für unsere eigene Plattform.","kubernetes",""));
+        assertEquals(Set.of("internal_use"),ownContexts("Als CRM-System nutzen wir Salesforce Sales Cloud.","salesforce",""));
+    }
+    /** 0.14.1 (R1): a privacy or cookie notice by its path, not a page that offers data protection. */
+    @Test public void privacyAndCookieNoticesByTheirPath() {
+        for(String url:List.of("https://muster.example/datenschutz/","https://muster.example/datenschutzerklaerung","https://muster.example/datenschutzerkl%C3%A4rung",
+                "https://muster.example/cookie-richtlinie-eu/","https://muster.example/policies/privacy-policy","https://muster.example/impressum-datenschutz/",
+                "https://muster.example/contact/data-protection/","https://muster.example/unternehmen/datenschutz.html","https://muster.example/pages/datenschutz-neu",
+                "https://muster.example/en/privacy/","https://muster.example/datenschutzhinweise/",
+                // two marks, no umlaut, a cookie management (gate of 0.14.1, run 3)
+                "https://muster.example/cookie-richtlinie-eu-2/","https://muster.example/en/cookie-policy-eu-en/","https://muster.example/cookie-verwaltung/",
+                "https://muster.example/datenschutzerklarung.html","https://muster.example/datenschutzerklarung/","https://muster.example/cookie-richtlinien-de/"))
+            assertTrue(url,BusinessSignals.privacyNotice(url));
+        for(String url:List.of("https://muster.example/leistungen/datenschutzberatung/","https://muster.example/","https://datenschutz.example/leistungen/",
+                "https://muster.example/cookiecutter-vorlage/","https://muster.example/blog/privacy-by-design-im-shop","https://muster.example/cookies-backen/"))
+            assertFalse(url,BusinessSignals.privacyNotice(url));
+        assertFalse(BusinessSignals.privacyNotice(null));
     }
 }

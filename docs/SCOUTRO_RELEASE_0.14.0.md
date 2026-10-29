@@ -9,9 +9,9 @@ operator.
 | What | Value |
 |---|---|
 | Release | a word of the vocabularies names no organisation (the brands of the products are names); one name is never split; a client field ends with its name; "… bei X" names a client only as a name, on a reference page or below a heading of references; a client named by a description is a value of the provider; only white space joins a place's words; a facility named only by its kind is the provider's at its place, one per provider, kind and address; the provider's work for others is its offer, the vendor no client, an FAQ no use; an audience phrase gives no category, the provider in the third person is no target, words of another sense are no hit; rows on merged entities are removed in every pass |
-| Source commit on `main` | **open** (on 0.13.2, `d7fdf60a6842`) |
+| Source commit on `main` | `f7c38c0f98f5` (squash merge of #100, on 0.13.2 `d7fdf60a6842`) |
 | Image | `ghcr.io/salamont/scoutro:1.942-scoutro.49`, alias `0.14.0`, linux/amd64 |
-| Registry digest | **open** until publication |
+| Registry digest | `sha256:00c0dc33e332be94beffed7d842d4f1ae22c0defd2fcee71d343e8003f8501ba` (both tags) |
 | Knowledge graph schema | **9, unchanged** |
 | Extractors | `rule/10` (was 9), `Vocabulary.VERSION` 6 (`facility_kind`, `client_description`), vocabulary package 8 (`products.json` version 3 with the brands and `vendors`, `categories.json` with `exclude`); `jsonld/8` (was 7: a word of the vocabularies names no organisation), in the same re-extraction; `LlmExtractor.VERSION` 6 with `REPLAYS` = {4, 5} (the question's version stays 4); `BusinessSignals.VERSION` 6 and `Audiences.VERSION` 3 (no extractor identity); `MatchingRules.VERSION` stays 1 |
 | Upgrade from | 0.13.2 / `1.942-scoutro.48`, installed in production |

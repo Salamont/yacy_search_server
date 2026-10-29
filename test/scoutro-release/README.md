@@ -14,9 +14,9 @@ python3 test/scoutro-release/check-attribution.py \
 ```
 
 Release acceptance uses NEW disposable data and controlled fixtures only.
-The current prepared candidate is 0.14.0 / 1.942-scoutro.49;
-its release/upgrade/rollback gates are in `docs/SCOUTRO_RELEASE_0.14.0.md`
-(the installed 0.13.2 / 1.942-scoutro.48 in `docs/SCOUTRO_RELEASE_0.13.2.md`).
+The current prepared candidate is 0.14.1 / 1.942-scoutro.50;
+its release/upgrade/rollback gates are in `docs/SCOUTRO_RELEASE_0.14.1.md`
+(the installed 0.14.0 / 1.942-scoutro.49 in `docs/SCOUTRO_RELEASE_0.14.0.md`).
 The previous candidate 0.10.9 / 1.942-scoutro.33 is described in
 `docs/SCOUTRO_RELEASE_0.10.9.md` and `docs/OPENCODE_SCOUTRO_0.10.9_HANDOFF.md`. The additional standalone
 price/provider fix is explicitly deferred; no acceptance claim closes it.

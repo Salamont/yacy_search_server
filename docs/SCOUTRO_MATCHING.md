@@ -108,6 +108,15 @@ quotes from the read-only production analysis, re-run through the shipped parser
   like "SAP-Berater"). An in-house or key-user title ("SAP Inhouse Consultant", "SAP
   Key-User") is the employer's own need and stays a customer reason. The rule version
   stays 1; stored contributions are checked with the title pattern when they are read.
+- 0.14.1 (at reading, `docs/SCOUTRO_KNOWLEDGE_GRAPH.md` section 45): a privacy or cookie
+  notice names no use and no offer of website technology (the role of the product in
+  `product-roles.json`: a CMS, a shop system, a CDN; a cloud platform only where the
+  statement names the website's delivery); a business system there (a CRM) stays a use.
+  An offer with the reader or others as the user is the provider's offer. A candidate
+  offering the same product with an overlapping kind of service is a competitor, no
+  customer; another kind leaves it a candidate, and a documented purchase, support sought
+  for its own migration or an explicitly own use keeps a provider of the product a
+  customer (the owner's decisions of 22 and 28 October 2026).
   A topic of the website (a category the site only names) is no offer and excludes
   nobody.
 - Missing dates stay unknown: no expiry and no present use is inferred

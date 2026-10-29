@@ -197,6 +197,8 @@ public final class MatchingRules {
         // 0.12.1: a service named or categorized as the product itself ("SAP", software/sap) is a service of it, also without a
         // word of support (as for an employer's own postings, offersItself); the product of its name only, never of its quote
         if(service&&List.of("name","category").contains(o.predicate))products.addAll(KgVocabularies.get().signals.products(o.value.optString("literal","")));
+        // 0.14.1 (R1): a privacy or cookie notice offers no website technology ("Wir nutzen Muster-Shop, um …" in a shop's notice)
+        if(BusinessSignals.privacyNotice(o.url))products.removeIf(product->KgVocabularies.get().signals.websiteTechnology(product,o.text));
         for(String product:products) {
             String rule=Set.of("revit","archicad").contains(product)?"cad-bim":"it-support";
             out.add(new Offer(o,rule,product,product+" support",3));
@@ -259,6 +261,13 @@ public final class MatchingRules {
             if("planned_migration".equals(context)&&"source".equals(signal.value.optString("system_role")))return null;
             // 0.14.0 (item A3): the vendor of a product is no client of it ("Muster Software SE" for its own product)
             if(vendor(actorNames(signal),KgVocabularies.get().signals.vendors(offer.key)))return null;
+            // 0.14.1 (R1): a privacy or cookie notice names the website's technology, no use of it ("Unsere Website liefert Muster
+            // CDN aus"); a business system there (a CRM, an ERP) stays a use
+            if(BusinessSignals.privacyNotice(signal.url)&&KgVocabularies.get().signals.websiteTechnology(offer.key,signal.text))return null;
+            // 0.14.1 (R3): a candidate that offers the product with the same or an overlapping kind of service is a competitor; a
+            // documented purchase, support sought for its own migration or an explicitly own use keeps it a customer (the owner's
+            // decision of 22 October 2026), and a posting keeps the rule of its employer's delivery roles below
+            if(!jobBased&&!purchased&&!BusinessSignals.ownNeedOrUse(signal.text)&&competitor(c,signal,offer))return null;
             // 0.12.0 (T6, round 2): a client speaking on the actor's page ("Wir nutzen dab Nexus …" on dab's page) or the actor named
             // as the provider of what another uses is the client's use, not the actor's (veto at reading, as the context check).
             if(!jobBased&&BusinessSignals.customerVoice(signal.text,actorNames(signal)))return null;
@@ -348,6 +357,36 @@ public final class MatchingRules {
             if(v!=null&&product.equals(v.optString("product"))&&context.equals(v.optString("context")))return true;
         }return false;
     }
+    /** 0.14.1 (R3): the kinds of service of an offer's evidence (those it names, else those of an offer naming none). */
+    private static Set<String> kinds(Observation o) {
+        return KgVocabularies.get().signals.offerKinds(o.value.optString("literal",o.text)+" "+o.text);
+    }
+    /**
+     * 0.14.1 (R3): the candidate offers the product itself (an offered capability, an assigned service or its projects for clients
+     * with the product) with a kind of service the provider's offer has too: a competitor, no customer ("Wir arbeiten mit Muster-Shop"
+     * against a Muster-Shop agency). Another kind leaves it a candidate (an agency of a product as the client of its hosting).
+     */
+    private static boolean competitor(Connection c,Observation signal,Offer offer)throws SQLException {
+        Set<String> provider=kinds(offer.evidence);
+        return memo("competitor\0"+signal.actor+"\0"+offer.rule+"\0"+offer.key+"\0"+new TreeSet<>(provider),()->competitorOf(c,signal.actor,offer,provider));
+    }
+    private static boolean competitorOf(Connection c,String actor,Offer offer,Set<String> provider)throws SQLException {
+        try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE organization_id=? AND assertion_status='recorded' AND"
+                +" ((predicate='system_signal' AND json_valid(value) AND json_extract(value,'$.context') IN('offered_capability','customer_projects')"
+                +" AND json_extract(value,'$.product')=?) OR (subject_type='service' AND predicate IN('name','category','description')))"
+                +" AND "+current("kg_observation")+" ORDER BY observation_rowid LIMIT 2501")) {
+            p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
+                Observation o=Observation.fields(r);
+                boolean of="customer_projects".equals(o.value.optString("context"))&&o.usable()
+                        &&!(BusinessSignals.privacyNotice(o.url)&&KgVocabularies.get().signals.websiteTechnology(offer.key,o.text));
+                // offersOf, not the memo of offers: this reading has no collections, a provider's offers from the memo must have them
+                for(Offer own:of?List.<Offer>of():offersOf(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))of=true;
+                if(!of&&List.of("it-support","cad-bim").contains(offer.rule)&&o.usable()&&"service".equals(o.type)&&List.of("name","category").contains(o.predicate)
+                        &&KgVocabularies.get().signals.products(o.value.optString("literal",o.text)).contains(offer.key))of=true;
+                if(of&&!Collections.disjoint(kinds(o),provider))return true;
+            }}
+        }return false;
+    }
     /** The employer offers the same product support itself (an offered capability or an assigned service, as for providers). */
     private static boolean offersItself(Connection c,String actor,Offer offer)throws SQLException {
         return memo("offersItself\0"+actor+"\0"+offer.rule+"\0"+offer.key,()->offersItselfOf(c,actor,offer));
@@ -359,7 +398,8 @@ public final class MatchingRules {
                 +" AND "+current("kg_observation")+" ORDER BY observation_rowid LIMIT 2501")) {
             p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
                 Observation o=Observation.fields(r);
-                for(Offer own:offers(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+                // 0.14.1: offersOf, as in competitorOf (a memoized offer of this reading made the actor's own offers inaccessible)
+                for(Offer own:offersOf(o))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
                 // 0.12.0 (T6, round 2): a service named or categorized as the product itself ("SAP", software/sap) is a service of it,
                 // also without a word of support (the employer's own consultant posting is then its delivery capacity)
                 if(List.of("it-support","cad-bim").contains(offer.rule)&&o.usable()&&"service".equals(o.type)&&List.of("name","category").contains(o.predicate)

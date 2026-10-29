@@ -598,6 +598,7 @@
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
       <classpath><pathelement location="build/scoutro-kg-matching-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
       <arg value="net.yacy.scoutro.knowledge.derive.MatchingTest"/>
+      <arg value="net.yacy.scoutro.knowledge.derive.ProductRolesTest"/>
       <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.BusinessSignalsTest"/>
       <arg value="net.yacy.scoutro.knowledge.store.ObservationStoreTest"/>
