@@ -307,7 +307,7 @@ recreated when it changes.
 
   A blocked merge is recorded as an `identity_conflict` event; the entities stay separate.
 - **Mentions without a merge key** stay document-local entities (`doc_local`). Duplicates are preferred to wrong merges; the detail view lists likely duplicates for later manual handling (out of scope for this version).
-- **Merge:** the older entity survives. The other entity gets `status=2` and a redirect. Its statements are re-pointed; colliding statements are merged by unioning their evidence, and the losing statement ID becomes a redirect. A `redirect` change is written.
+- **Merge:** the older entity survives. The other entity gets `status=2` and a redirect. Its statements are re-pointed; colliding statements are merged by unioning their evidence, and the losing statement ID becomes a redirect. A `redirect` change is written with the scopes of the surviving entity after the merge (0.15.0, M7), and every re-pointed statement gets an `upsert` change (its ID stays, its subject or object changes): a consumer limited to collections that sees the survivor learns the merge and the moved statements (`MergeFeedTest`); before, the redirect carried no scope and reached such a consumer as a `delete`.
 - **No automatic split.** If the evidence behind a merge disappears, the merge stays. The admin maintenance action "re-resolve identities" (package 5, [22.5](#225-identity-rebuild)) rebuilds the graph from Solr in a shadow store with the current rules; the LLM tier answers from the copied cache without new model calls for unchanged text.
 
 ### 4.4 Quality and currency
@@ -1047,6 +1047,8 @@ The automated tests of package 1 reproduce the WAL, interrupt, page-limit and va
   | Otherwise | nothing |
 
   Example: a consumer limited to A that was offline while an object moved A → B → C gets the removal (`KgChangeLogTest.offlineConsumerStillGetsTheRemovalAfterAtoBtoC`).
+
+  A merged entity's `redirect` row holds the surviving entity's collections in `scopes_now` (0.15.0): a viewer that sees the survivor gets the `redirect` with `redirect_to`, also where only the merged entity was in its collections before; a viewer that saw only the merged entity and cannot see the survivor gets a `delete` (`MergeFeedTest`).
 - **Removal notices are never missing, but can be redundant,** for example for an object the consumer never stored. Consumers treat the delete of an unknown ID as a no-op. A notice reveals only an opaque ID, and only to a viewer whose collections contained the object at some time.
 - **Cursor `<epoch>:<seq>`:**
   - The cursor advances over rows the viewer cannot see.
@@ -4530,3 +4532,10 @@ review (`identity_review`); "Öffnungszeiten" is read again (Java 19's ASCII `\b
 tiers 1 and 2 and one replay of the LLM tier without a model request; a backup before the update is mandatory. Tests:
 `FacilityPageTest`, `FacilityGraphTest` (ant target `scoutro-kg-facilities-test`), on the synthetic pages of
 `test/scoutro-kg-facilities/`.
+
+After the validation on the production graph (section 11 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)): after a
+link "Impressum" the operator keeps the contact block its name opens (K1); the LLM tier's address of a place is read only for a
+place the page proves, never on an imprint page, inside a page's imprint, at the imprint operator's address, for a firm's name or
+a town (K2, K6); a merge's `redirect` carries the survivor's collections and the moved statements are `upsert`s, so a consumer
+limited to collections learns the survivor (M7, sections 4.3 and 8.3 above, `MergeFeedTest`). Tests: `OperatorContactRegressionTest`,
+`PlaceAddressRegressionTest`, `FacilityRegressionGraphTest`, `MergeFeedTest`.

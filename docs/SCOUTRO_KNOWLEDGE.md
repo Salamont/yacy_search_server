@@ -139,8 +139,10 @@ A changed vocabulary re-extracts the pages at low priority.
     imprint belong to that operator.
   - A page is an imprint by its address or title, or where the imprint's
     data follow its marker. A menu or footer link "Impressum" names the
-    operator after it, but gives it none of the page's contacts
-    (`rule/11`, [facilities](SCOUTRO_KG_FACILITIES.md)).
+    operator after it and gives it only the contact block its name opens
+    (its footer), never on a facility's page and never where that block
+    describes places the operator runs (`rule/11`,
+    [facilities](SCOUTRO_KG_FACILITIES.md)).
   - The page of one facility (`/einrichtungen/haus-lindenhof/`, titled with
     the facility's name, its full address after the name) names the
     facility with its own address, phone and role mailbox; the operator's

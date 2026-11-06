@@ -1123,7 +1123,12 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
   - Changes: `{"schema","items":[{"seq","kind","id","op","redirect_to","at","record"}],"next","has_more","as_of"}`.
     `op` is `upsert`, `redirect` (merged into `redirect_to`) or `delete`,
     also when the object left the viewer's collections (A → B → C still
-    reaches a consumer of A). With `expand=true` each upsert carries its
+    reaches a consumer of A). A merged entity's `redirect` reaches every
+    viewer that can see the surviving entity (0.15.0), also one limited to
+    the merged entity's collection; the statements the merge moved to the
+    survivor keep their IDs and come as `upsert`s, those that joined a
+    statement of the survivor as `redirect`s. A viewer that cannot see the
+    survivor gets a `delete`. With `expand=true` each upsert carries its
     current record for the viewer. The cursor advances over changes the
     viewer cannot see.
   - Cursor errors: 400 `invalid_cursor` (malformed or ahead of the feed),

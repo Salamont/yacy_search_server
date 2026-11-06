@@ -26,7 +26,8 @@ model gave varied. The code explained all of it (0.14.1):
 
 `RuleExtractor.ADDRESS` reads, as before, street, number, postal code and town, and now also
 
-- a dot between the number and the postal code (`Lindenweg 12. 12345 Musterstadt`): YaCy's text of a `<br>`;
+- a dot between the number and the postal code (`Lindenweg 12. 12345 Musterstadt`): YaCy's text of a `<br>`; also a footer's
+  separator `·`, `•` or `|` (`Baustraße 9 · 45678 Bauhausen`, section 11);
 - a street named by a preposition and its square, field, garden or the like: `Am Markt 5`, `An der Aue 3`, `Zum Anger 1`,
   `Im Musterfeld 2`, `Hinter der Kirche 4` (the preposition starts with a capital; a second capitalised word may follow).
 
@@ -41,9 +42,19 @@ A marker is an imprint's (`RuleExtractor.imprintMarker`):
   DDG, "Vertreten durch", "Geschäftsführer", "Inhaber", "Vorstand", register, court, VAT ID, "Verantwortlich").
 
 A link only (a menu's or a footer's "Impressum") still names the operator after it, as before (the employer of a careers page:
-"Impressum. Datenschutz. Jobs bei uns. Muster Consulting AG, …"), but the operator gets none of the page's register entry, VAT
-ID, IK, address, phone or mailbox, and the page is no `IMPRINT` page for the business rules (no opening hours, fax or contact
-points of the page become the operator's).
+"Impressum. Datenschutz. Jobs bei uns. Muster Consulting AG, …"), and the page is no `IMPRINT` page for the business rules (no
+opening hours, fax or contact points of the page become the operator's). Of the page's contacts the operator gets only **its own
+contact block** (`RuleExtractor.operatorBlock`, K1 of section 11):
+
+- the block its name opens: the name's paragraph and each next short paragraph that is a line of contact data (a street with its
+  number, a postal code with its town, a phone, a mailbox, a label such as "Telefon", "Fax", "Amtsgericht", "USt"), as a footer
+  writes it in one line, with line breaks or in elements of its own (`contactBlockEnd`); there the register entry, VAT ID, IK,
+  address, phone and role mailbox;
+- of the name found after the link, else of a later occurrence of it (the footer of a long page);
+- nothing where the passage from the name to its first value is about places it runs ("betreibt das Haus …", "ist Träger des …",
+  "unsere Häuser", "Standorte", "Niederlassung") or the block holds two different addresses;
+- nothing on a facility's page (section 2.4): there the contacts are the facility's;
+- nothing a second time where the page's one structured organisation is the operator (it gets them by section 2.3).
 
 ### 2.3 The page's one structured subject
 
@@ -97,7 +108,20 @@ Then the rules
   address). Like the mark of an unclear place, they take none of the page's limit of statements: on a full page they displace
   no item published before;
 - sets the place's full address, so it keys the place (`facility_address`): the facility of the overview, of the contact page
-  and of its own page is one entity; the place is no longer unconfirmed (its address proves it).
+  and of its own page is one entity.
+
+Such an address is the place's only where (K2 and K6 of section 11, `LlmExtractor.placeAddress`):
+
+- the page proves the place (`PlaceEvidence.check` with the verdict `PLACE`); an unclear name keeps its mark `type_unconfirmed`
+  and gets no address;
+- the page is no imprint page, and the address does not stand inside the page's imprint (after its marker with the imprint's
+  data): there a unit's name is followed by the operator's address;
+- it is not the address the imprint rules gave the page's operator (its imprint or its own contact block, section 2.2); an
+  organisation that got the page's only address by the fallback of section 2.3 does not count, as that address may be the place's;
+- the name is no firm's (a legal form) and not the address's town.
+
+A street's word before its own word may carry a dot only as a short abbreviation ("St. Anna-Straße"), so the last word of the
+sentence before an address is no part of its street ("Wohnen im Alter. Sonnenweg 3" is "Sonnenweg 3", `PlaceEvidence.KIND_ADDRESS`).
 
 `llm/7` changes what is kept of an answer, not the question (`QUESTION_VERSION` 4, prompt hash unchanged): the stored answers of
 `llm/4`, `llm/5` and `llm/6` are replayed without a model request, page by page (`LlmReplay`, section 40.3 of
@@ -116,6 +140,11 @@ Then the rules
   and the export list it among the `possible_duplicates` of the facility of the same name (as before).
 - **The operator and a facility never merge** (different types, as before). Merges are not undone by a later version: the backup
   taken before the update is the way back, a rebuild (`KgRebuild`) splits wrong merges with the current rules.
+- **A merge in the change feed** (M7 of `SCOUTRO_KG_AGENT_SYNC_PROPOSAL.md`, `Aggregates.redirectedEntity`, `movedStatement`): the
+  merged entity's `redirect` carries the scopes of the surviving entity, so a consumer limited to collections (an agent) that sees
+  the survivor gets the `redirect` with `redirect_to`, not a `delete`; a statement the merge moves to the survivor keeps its ID and
+  is an `upsert`; a statement that joins one of the survivor is a `redirect` to it. A consumer that saw only the merged entity and
+  cannot see the survivor still gets a `delete`; one that saw neither gets nothing.
 
 ## 5. Opening hours (U6)
 
@@ -144,12 +173,18 @@ every collection and needs its own gates (remaining defect R6).
 |---|---|
 | `FacilityPageTest` (15) | tiers 1 and 2 of the invented pages of `test/scoutro-kg-facilities/` through YaCy's HTML parser: the dot and the square in an address; a facility's page names the facility with its own address, phone and role mailbox, keeps its opening hours; the operator's footer address is no facility's address; the operator gets nothing of a facility's page; a menu link "Impressum" gives the operator no contacts; a provider's contact page listing its houses gives the operator none of their addresses; no personal mailbox or person; an overview and a news page are no facility's page; both URLs of a page (with and without its slash) name one facility; an IT company's contact page and a builder's imprint keep their contacts |
 | `FacilityGraphTest` (9) | the corpus through embedded Solr, the real sync and a controlled model into a temporary graph: one entity per facility with its own address, phone and mailbox; the operator's own address only; differing kind guesses keep one facility and are marked `identity_review`; an address named as a site carries its postal code and town; every address value has evidence on its page; no personal mailbox or person; another collection keeps its contacts; the export keeps its records and fields |
+| `OperatorContactRegressionTest` (6) | K1 (section 11): a footer in elements of its own, a footer with line breaks and its register and VAT ID, a contact page with its headquarters and two branches (the operator gets its headquarters only), a sentence about a house the operator runs (none of the house); one set of contacts where the structured organisation is the operator; nothing on a facility's page |
+| `PlaceAddressRegressionTest` (8) | K2 and K6 (section 11) on the LLM tier's `apply`: a named house of an overview keeps its address; on an imprint page, inside a page's imprint and at the imprint operator's address a house gets none (a structured organisation's fallback address does not count); a town and a firm taken for facilities get none; an unclear name keeps its mark and gets none; a street starts after the sentence before it |
+| `FacilityRegressionGraphTest` (7) | a second invented provider end to end: the imprint gives a house none of the operator's address; two houses of one name in two towns stay two, also where an overview lists both; every facility has at most one address and postal code; town, firm and unclear name get no address; the operator keeps its own contacts and none of a house; a consumer of the collection reads no delete for a merged entity |
+| `MergeFeedTest` (3) | M7 with the real publisher and identity resolution: a merge in one collection is a `redirect` for its consumer; a consumer of the merged entity's collection gets the `redirect`, not a `delete`, also where the survivor came from another collection; every statement of the merged entity is an `upsert` or a `redirect` to a statement of the survivor; a consumer of a third collection gets nothing |
 | `FacilityFixtureReport` | not a test: the corpus as tables, for the comparison before and after (section 8) |
 | changed expectations | `CollectionFitTest` (the LLM extractor's version 7), `LlmFactCatalogueTest.locationsAFacilityIsLocatedAtItsSite` (the facility and the site have their address statements now) |
 
-Ant target `scoutro-kg-facilities-test` (both new tests and the extraction, place, identity and replay tests they touch); the CI
-script runs it with every other `scoutro-*-test` target. The tests use the API of 0.14.1, so the same tests run on the former code:
-16 of the 23 tests of the first commit fail there.
+Ant target `scoutro-kg-facilities-test` (the new tests, `KgChangeLogTest` and the extraction, place, identity and replay tests they
+touch); the CI script runs it with every other `scoutro-*-test` target. The tests use the API of 0.14.1, so the same tests run on the
+former code: 16 of the 23 tests of the first commit fail there. Of the 24 regression tests of section 11, 17 fail on the branch's
+state before the corrections (`1bc7478`; one test of the new helper `placeAddress` does not compile there), the other six are guards
+that held before.
 
 ## 8. Comparison of the fixtures
 
@@ -180,6 +215,9 @@ page), with the classes of 0.14.1 (`c6794d2`) and of this branch; the full table
 
 ## 10. Remaining defects and limits
 
+K3 and K5 of section 11 are open as well: a subject's contact on a page of several addresses none of which its name heads, and
+the operation's storage budget for the update (a check of the operator, no change of the code).
+
 | # | What | Effect | Next step |
 |---|---|---|---|
 | R1 | A facility of structured data (JSON-LD `NursingHome` with its declared kind) and the same facility read by the rules or the LLM tier on other pages have different keys (`nursinghome|…` and `|…`) | two entities, shown as possible duplicates | a lookup of the key without its kind for tiers 2 and 3, with the declared kind as a discriminator |
@@ -191,3 +229,24 @@ page), with the classes of 0.14.1 (`c6794d2`) and of this branch; the full table
 | R7 | "Öffnungszeiten der Verwaltung: …" reads the clause after the label, which may end before the hours | the hours of such a label are lost (as before) | the clause reader of `BusinessRules.contacts` |
 | R8 | Country: the address statements have no country (the JSON-LD country is dropped, as before) | Austrian and Swiss postal codes of four digits are no address of the rules | predicate `country` (vocabulary, M4) |
 | R9 | The rules read a facility only on its own page; a page of several facilities with their contacts (a contact page) gives none of them to the rules | the LLM tier names them with their addresses (uncertain), their phones stay unread | a rule for blocks headed by a facility's name on a page of a site's places |
+
+## 11. Validation on the production graph and its corrections (K1, K2, K6, M7)
+
+The branch's state `1bc7478` was checked, read only, against the production graph (Scoutro's verified backup of 2026-11-05,
+schema 9, 243,128 documents, 287,925 active entities; the report lies outside the repository). It found, with the stored quotes of
+the LLM tier and the evidence of the rules:
+
+| # | Finding | Measured | Correction on this branch |
+|---|---|---|---|
+| K1 | After a link to the imprint the operator lost every contact of the page | 22–25 % of the organisations' addresses, phones and mailboxes rested only on such pages (care collection up to 40 %): mostly home, about, contact and other pages of a site with one location and its footer | the operator's own contact block (section 2.2); never on a facility's page, never where the block describes places it runs or holds two addresses |
+| K2 | The full address after a facility's name was read on imprint pages | 86 facility addresses of imprint pages, 20 equal to an organisation's address of the domain | none on imprint pages, inside a page's imprint or at the address the imprint rules gave the page's operator (section 3) |
+| K6 | A town or a firm the model took for a facility was confirmed by the address after it | seen among the 20 cases above | an address only for a proven place, never for a firm's name or the address's town; an unclear name keeps its mark (section 3) |
+| M7 | A merge reached a consumer limited to collections as a `delete` without the survivor, the statements it moved not at all | at least 6,319 new merges (249 facilities, 6,070 sites) of this branch | the redirect with the survivor's scopes, the moved statements as `upsert` (section 4) |
+| — | The last word of a sentence became part of a street ("Alter. Sonnenweg 3") | seen on a fixture | a dot only in an abbreviation before a street's word (section 3) |
+
+What the corrections cost: an operator that a page names only in running text before its footer gets its footer's block (a later
+occurrence); a block that mentions a place word ("Niederlassung Nord") or two addresses gives nothing, as `1bc7478` did; a house
+whose address equals its single-house operator's gets no address from the LLM tier on a page of that operator (the rules still
+read it on the house's own page). The fixtures of `OperatorContactRegressionTest`, `PlaceAddressRegressionTest` and
+`FacilityRegressionGraphTest` are invented pages after the patterns of the production graph (no production data in the
+repository).

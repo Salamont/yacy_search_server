@@ -1,6 +1,6 @@
 # Agent access for portal synchronisation (M5, M6, M7): proposal
 
-Status: **proposal, not implemented.** Follows the facilities' first stage ([SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)),
+Status: **proposal; M7 implemented** (section M7), M5 and M6 not implemented. Follows the facilities' first stage ([SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)),
 which makes the data complete; this proposal makes them reachable and synchronisable for an external agent. Every change is
 additive on the agent path `/scoutro/api/agent/v1`, scoped to the agent's collections, outside every preset; no administrator or
 YaCy route is opened to agents, no scope is widened. Line numbers refer to 0.14.1 (`c6794d2`).
@@ -50,6 +50,10 @@ measured on a copy, never on production.
 
 ## M7 – the change feed for a scoped agent
 
+**Implemented on the branch of the facilities' first stage** (0.15.0, `Aggregates.redirectedEntity`, `redirectedStatement`,
+`movedStatement`, `IdentityResolver.repoint`; `MergeFeedTest`, docs/SCOUTRO_KG_FACILITIES.md section 11). The description below is
+the analysis it followed.
+
 **Problem** (from the code, no test covers it). A merge records the redirect of the merged entity with an empty set of scopes after it
 (`publish/Aggregates.java:161-169` → `store/KgChangeLog.record`, `scopes_now` empty); `KgChangeLog.visibleOp` (`:281-292`) gives a
 viewer that is not `Viewer.ALL` a `delete` instead of the `redirect`. The statements a merge moves to the survivor keep their IDs
@@ -71,6 +75,6 @@ survivor, whose statements are read again; a full export once a week.
 
 ## Order
 
-M7 first (small, makes every merge of stage 1 visible to scoped consumers), then M5 (evidence by URL, the jobs' content hash), then
-M6 (fewer and cheaper reads). None needs a schema change; each needs the release checklist of an agent action (§8.2 of
+M7 first (small, makes every merge of stage 1 visible to scoped consumers; done), then M5 (evidence by URL, the jobs' content hash),
+then M6 (fewer and cheaper reads). None needs a schema change; each needs the release checklist of an agent action (§8.2 of
 `SCOUTRO_KNOWLEDGE_GRAPH.md`).
