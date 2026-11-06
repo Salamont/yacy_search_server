@@ -137,13 +137,25 @@ A changed vocabulary re-extracts the pages at low priority.
     after the imprint marker is the site's operator.
   - The register entry, VAT ID, address, phone and role e-mail of the
     imprint belong to that operator.
+  - A page is an imprint by its address or title, or where the imprint's
+    data follow its marker. A menu or footer link "Impressum" names the
+    operator after it, but gives it none of the page's contacts
+    (`rule/11`, [facilities](SCOUTRO_KG_FACILITIES.md)).
+  - The page of one facility (`/einrichtungen/haus-lindenhof/`, titled with
+    the facility's name, its full address after the name) names the
+    facility with its own address, phone and role mailbox; the operator's
+    footer stays the operator's.
   - On other pages, contact data is attached only if the page's structured
-    data describes exactly one organisation or facility. Nothing is guessed.
+    data describes exactly one organisation or facility: the address its
+    name heads, else the page's only address. Nothing is guessed.
 - **The LLM tier adds relations the rules cannot read.** Examples: "operates
   Haus Lindenhof" in running text, or "offers day care".
   - Every entity and every relation needs a quote of at most 200 characters,
     copied verbatim from the page. Anything not found in the text is dropped.
   - Contact data, persons and identifiers are never taken from the model.
+    Where the model names a facility and the page writes its full address
+    right after the name (or a site's name is its address), Scoutro reads
+    that address from the page's text (`llm/7`); it stays `uncertain`.
   - A fact that only the LLM tier supports stays `uncertain`. A verbatim
     quote proves that the page says it, not that the model read the
     relation correctly.
@@ -177,7 +189,10 @@ A changed vocabulary re-extracts the pages at low priority.
   legal name on that domain, for example as the parent organisation of a
   facility page, is that operator; two such names that are not the operator
   never merge with each other. A facility merges only with type, kind, name
-  and **full address** equal.
+  and **full address** equal. The kind counts only where structured data
+  declare it; the LLM tier's guess of a kind keys nothing, and a guess that
+  differs from the entity's is recorded as an `identity_review` event
+  (`llm/7`, [facilities](SCOUTRO_KG_FACILITIES.md)).
 - **Never by name, phone, e-mail or postal code alone.** Such pairs are
   shown as *possible duplicates* in the object view. Duplicates are
   preferred to wrong merges.
@@ -712,8 +727,10 @@ This is the default. The page shows the LLM tier as `off`.
 ## 12. Known limits
 
 - **German imprints first.** Rule extraction knows German and English
-  imprint and contact pages. Facts on other pages come from structured data
-  or, optionally, the LLM tier.
+  imprint and contact pages and the pages of one facility. Facts on other
+  pages come from structured data or, optionally, the LLM tier. The remaining
+  limits of facilities are listed in
+  [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md#10-remaining-defects-and-limits).
 - **No manual curation.** No manual merge, split or edit of facts. Possible
   duplicates are shown, not merged. The rebuild re-applies the rules.
 - **IDs can change in a rebuild, and old IDs redirect.** An entity's ID

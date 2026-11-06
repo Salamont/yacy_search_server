@@ -4516,3 +4516,17 @@ competitor of the same kind and an agency as a client of the hosting, a provider
 the explicitly own use of a provider of the product, a candidate that is a provider too keeps its offers within one memo),
 `BusinessSignalsTest` (offers with the reader or others as the user, the
 paths of privacy and cookie notices; the confirmed own uses of 0.12.2 unchanged).
+
+## 46. Facilities, stage 1: addresses, facility pages and identities (development, `rule/11`, `llm/7`)
+
+Not released. The finding of `edelsenior-web` (facilities without an address of their own, up to 17 entities per facility,
+addresses as names of sites, varying kinds), its causes in the code of 0.14.1 and the rules of this stage are in
+[SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md): a dot between number and postal code and streets named by their square in
+the address of the rules; a menu or footer link "Impressum" is no imprint (it still names the operator, without the page's
+contacts); the page of one facility names the facility with its own address, phone and role mailbox (`FacilityPage`); the page's
+one structured subject gets the address its name heads; the LLM tier's named facilities and address-named sites get the full
+address the page writes (read from the text, never from the model, `uncertain`); a guessed kind keys nothing and is marked for
+review (`identity_review`); "Öffnungszeiten" is read again (Java 19's ASCII `\b`). Schema 9 unchanged; one re-extraction of
+tiers 1 and 2 and one replay of the LLM tier without a model request; a backup before the update is mandatory. Tests:
+`FacilityPageTest`, `FacilityGraphTest` (ant target `scoutro-kg-facilities-test`), on the synthetic pages of
+`test/scoutro-kg-facilities/`.
