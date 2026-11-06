@@ -213,22 +213,33 @@ public class FacilityPageTest {
     }
 
     /**
-     * A menu or footer link "Impressum" makes no page an imprint: the operator it names after it (the employer of a careers page)
-     * gets none of the page's addresses, phones or mailboxes, nor its identifiers.
+     * A menu or footer link "Impressum" makes no page an imprint. The operator it names after it (the employer of a careers page)
+     * gets none of a facility page's contacts; elsewhere it gets only its own block, the one its name opens in the footer (K1 of the
+     * validation on the production graph, docs/SCOUTRO_KG_FACILITIES.md), never a facility's address, phone or mailbox.
      */
     @Test
     public void aMenuLinkImpressumMakesNoPageAnImprint() throws Exception {
-        for (final String[] page : new String[][] {{"care-facility-lindenhof.html", "/einrichtungen/haus-lindenhof/"},
-                {"care-facilities-overview.html", "/einrichtungen/"}, {"care-contact.html", "/kontakt/"}}) {
+        final Extraction facilityPage = care("care-facility-lindenhof.html", "/einrichtungen/haus-lindenhof/");
+        final Mention fop = facilityPage.mention(RuleExtractor.OPERATOR_REF);
+        if (fop != null) {
+            assertEquals("Muster Altenhilfe gGmbH", fop.name);
+            for (final String p : new String[] {Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.PHONE, Vocabulary.EMAIL,
+                    Vocabulary.ID_REGISTER, Vocabulary.ID_VAT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
+                assertEquals("facility page " + p, List.of(), values(facilityPage, fop, p));
+            }
+        }
+        for (final String[] page : new String[][] {{"care-facilities-overview.html", "/einrichtungen/"}, {"care-contact.html", "/kontakt/"}}) {
             final Extraction ex = care(page[0], page[1]);
             final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
-            if (op != null) {
-                assertEquals("Muster Altenhilfe gGmbH", op.name);
-                for (final String p : new String[] {Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.PHONE, Vocabulary.EMAIL,
-                        Vocabulary.ID_REGISTER, Vocabulary.ID_VAT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
-                    assertEquals(page[0] + " " + p, List.of(), values(ex, op, p));
-                }
+            assertNotNull(page[0] + " " + ex.mentions(), op);
+            assertEquals("Muster Altenhilfe gGmbH", op.name);
+            assertEquals(page[0], List.of("Trägerstraße 1, 10115 Musterstadt"), values(ex, op, Vocabulary.ADDRESS));
+            assertEquals(page[0], List.of("+49301111111"), values(ex, op, Vocabulary.PHONE));
+            assertEquals(page[0], List.of("verwaltung@muster-altenhilfe.de"), values(ex, op, Vocabulary.EMAIL));
+            for (final String p : new String[] {Vocabulary.ID_REGISTER, Vocabulary.ID_VAT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
+                assertEquals(page[0] + " " + p, List.of(), values(ex, op, p));
             }
+            nothingOf(ex, op, "Lindenweg", "Am Markt", "Seeufer", "12345", "23456", "34567", "+49302222222", "+49403333333");
         }
     }
 

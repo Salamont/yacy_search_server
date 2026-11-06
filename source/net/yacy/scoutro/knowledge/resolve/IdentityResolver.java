@@ -709,6 +709,8 @@ public final class IdentityResolver {
             }
         }
         if (existing == null) {
+            // M7: the statement keeps its ID and gets the survivor as subject or object; the feed carries its upsert
+            agg.movedStatement(tx, stmt);
             try (PreparedStatement ps = tx.prepareStatement(newObj != null
                     ? "UPDATE kg_statement SET obj_ent = ?, obj_key = ? WHERE stmt_rowid = ?"
                     : "UPDATE kg_statement SET subj = ? WHERE stmt_rowid = ?")) {

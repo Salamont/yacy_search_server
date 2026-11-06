@@ -408,8 +408,13 @@ public final class PlaceEvidence {
      * 17", "Am Musterbach 1. 12345 Musterstadt", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt"). A word
      * after a dot is no part of the street ("Muster e.K. Musterstraße 9" is "Musterstraße 9").
      */
-    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}.])((?:\\p{Lu}[\\p{L}.'-]*\\s+)?\\p{Lu}[\\p{L}'-]*"
-            + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:\\p{Lu}[\\p{L}.'-]*\\s+)?(?:Straße|Strasse|Weg|Gasse"
+    /**
+     * A word before a street's own word ("Bad Homburger Weg", "St. Anna-Straße"): a word without a dot, or a short abbreviation with
+     * one ("St.", "Dr.", "Prof."). 0.15.0: never the last word of a sentence before it ("Wohnen im Alter. Sonnenweg 3" is "Sonnenweg").
+     */
+    private static final String STREET_WORD = "(?:\\p{Lu}[\\p{L}'-]*|\\p{Lu}\\p{L}{0,3}\\.)";
+    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}.])((?:" + STREET_WORD + "\\s+)?\\p{Lu}[\\p{L}'-]*"
+            + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:" + STREET_WORD + "\\s+)?(?:Straße|Strasse|Weg|Gasse"
             + "|Platz|Allee|Ring|Damm|Ufer|Chaussee|Markt)|(?i:am|an\\s+der|an\\s+den|im|in\\s+der|auf\\s+dem|auf\\s+der|zum|zur)\\s+\\p{Lu}"
             + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+(?:\\s+(?:am|an\\s+der|im|ob\\s+der)"
             + "\\s+\\p{Lu}[\\p{L}-]+)?))?|(?<!\\d)(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+))");

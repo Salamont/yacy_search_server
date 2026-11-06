@@ -73,7 +73,9 @@ public final class RuleExtractor {
     // 9: audiences in the clause of the address, one client per provider site, names of project profiles, uncategorized offer items (0.13.0)
     // 10: a word of the vocabularies names no organisation, no split inside a name, a client after "bei" is a name, a field ends with its name (0.14.0)
     // 11: a dot between number and postal code, streets named by their square, a menu link "Impressum" is no imprint, a facility's page
-    //     names the facility with its own address and contacts, the page's one organisation gets only an address its name heads (0.15.0)
+    //     names the facility with its own address and contacts, the page's one organisation gets only an address its name heads; after a
+    //     link to the imprint the operator gets the contact block its name opens, never on a facility's page; "·", "•" and "|" may stand
+    //     between number and postal code (0.15.0)
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
@@ -184,7 +186,7 @@ public final class RuleExtractor {
             + "[ \\t]+[A-ZÄÖÜ][\\p{L}\\-]+(?:[ \\t]+[A-ZÄÖÜ][\\p{L}\\-]+)?"
             + "|[A-ZÄÖÜ][\\p{L}.\\-]*(?:[ \\t]+[\\p{L}.\\-]+){0,3}?(?i:straße|strasse|str\\.|weg|allee|platz|gasse|ring|damm|ufer|chaussee|steig|pfad"
             + "|markt|hof|berg|feld|garten|park|graben|kamp|stieg|tor|brücke|bruecke|zeile|wall|anger|aue|chaussee))\\s+"
-            + "([0-9]{1,4}\\s?[a-zA-Z]?(?:\\s?[-–/]\\s?[0-9]{1,4}\\s?[a-zA-Z]?)?)(?![0-9])\\s*[,;.]?\\s*(?:D\\s?-\\s?)?([0-9]{5})\\s+"
+            + "([0-9]{1,4}\\s?[a-zA-Z]?(?:\\s?[-–/]\\s?[0-9]{1,4}\\s?[a-zA-Z]?)?)(?![0-9])\\s*[,;.·•|]?\\s*(?:D\\s?-\\s?)?([0-9]{5})\\s+"
             + CITY_STOP + "([A-ZÄÖÜ][\\p{L}\\-]+(?:[ \\-]" + CITY_STOP + "(?:am|an\\s+der|a\\.\\s?d\\.|im|in|bei|ob\\s+der|[A-ZÄÖÜ(][\\p{L}.)\\-]+)){0,3})");
 
     private final int maxExcerpt;
@@ -278,7 +280,7 @@ public final class RuleExtractor {
         final FacilityPage.Page facilityPage = imprintPage(url, titles) ? null
                 : FacilityPage.detect(text, url, titles, ctx != null && ctx.operatesPlaces());
         if (marker != null) {
-            imprint(text, marker[0], host, cc, out, subjects, imprint);
+            imprint(text, marker[0], host, cc, out, subjects, imprint, facilityPage != null);
         }
         final Mention facility = facilityPage == null ? null : facility(text, facilityPage, cc, out, subjects);
         if (!imprint && subjects.size() == 1 && subjects.get(0) != facility) {
@@ -465,8 +467,13 @@ public final class RuleExtractor {
         return -1;
     }
 
+    /**
+     * The operator an imprint marker names and its data. {@code contacts}: the marker opens the imprint, whose identifiers and
+     * contacts after the name are the operator's. Else the marker is a link to the imprint (rule/11): the operator is named, and
+     * gets only its own contact block ({@link #operatorBlock}), never on a facility's page ({@code facilityPage}).
+     */
     private void imprint(final String text, final int markerAt, final String host, final String cc, final Extraction out,
-            final List<Mention> structured, final boolean contacts) {
+            final List<Mention> structured, final boolean contacts, final boolean facilityPage) {
         final int end = Math.min(text.length(), markerAt + WINDOW);
         // the operator's own sections only: the insurer's, the chamber's or the web agency's name and contacts are theirs
         final List<int[]> ranges = operatorRanges(text, markerAt, end);
@@ -510,10 +517,137 @@ public final class RuleExtractor {
             claim(out, m, Vocabulary.NAME, m.name, text, nameStart, nameEnd);
         }
         if (!contacts) {
-            return; // rule/11: a link to the imprint names the operator, the page's identifiers and contacts are not the imprint's
+            // rule/11: a link to the imprint names the operator; the page's identifiers and contacts are not the imprint's, only the
+            // block its name opens is its own (a footer "Muster GmbH · Musterstraße 1 · 12345 Musterstadt · Tel. …"). On a facility's
+            // page the contacts are the facility's (K1 and H5 of docs/SCOUTRO_KG_FACILITIES.md)
+            if (!facilityPage && !sameSubject(structured, m)) {
+                // the block of the name found after the link, else of a later occurrence of it (the footer of a long page)
+                final List<int[]> all = operatorRanges(text, markerAt, text.length());
+                final List<Integer> ends = new ArrayList<>(List.of(nameEnd));
+                for (final int[] at : PlaceEvidence.occurrences(text, m.name)) {
+                    if (at[0] > nameEnd && inside(all, at[0])) {
+                        ends.add(at[1]);
+                    }
+                }
+                for (final int e : ends) {
+                    if (operatorBlock(text, all, e, cc, out, m)) {
+                        break;
+                    }
+                }
+            }
+            return;
         }
+        identifiers(text, from(ranges, nameStart), out, m);
+        // contact values follow the name; searching from its end keeps the name out of the street
+        contact(text, from(ranges, nameEnd), cc, out, m);
+    }
 
-        final List<int[]> after = from(ranges, nameStart);
+    /** Words of a passage about the places an organisation runs ("betreibt fünf Häuser", "Träger des Seniorenzentrums", "unsere Standorte"). */
+    private static final Pattern RUNS_PLACES = Pattern.compile("(?iu)(?<![\\p{L}])(?:betreib(?:t|en|e)|betrieben|tr(?:ä|ae)ger(?:in|s)?"
+            + "|h(?:ä|ae)us(?:er|ern|es)?|einrichtung(?:en)?|standort(?:e|en|es)?|filiale(?:n)?|niederlassung(?:en)?|zweigstelle(?:n)?"
+            + "|heim(?:e|en)?|zentren|wohngruppe(?:n)?|kitas?|praxen|befindet\\s+sich|befinden\\s+sich)(?![\\p{L}])");
+
+    /**
+     * rule/11 (K1 of the validation on the production graph, docs/SCOUTRO_KG_FACILITIES.md): after a link to the imprint, the
+     * operator's own contact block, the one its name opens ({@link #contactBlockEnd}), as a footer writes it ("Muster GmbH ·
+     * Musterstraße 1 · 12345 Musterstadt · Tel. … · HRB 1234"): its identifiers, address, phone and mailbox. Nothing if
+     * the passage from the name to its first value is about places the organisation runs ("betreibt das Haus am See", "unsere
+     * Häuser") or the block holds two different addresses: whose each is, is not guessed.
+     */
+    private boolean operatorBlock(final String text, final List<int[]> ranges, final int nameEnd, final String cc, final Extraction out,
+            final Mention m) {
+        final List<int[]> block = new ArrayList<>();
+        final int end = contactBlockEnd(text, nameEnd);
+        for (final int[] r : from(ranges, nameEnd)) {
+            if (r[0] < end) {
+                block.add(new int[] {r[0], Math.min(r[1], end)});
+            }
+        }
+        if (block.isEmpty()) {
+            return false;
+        }
+        int first = end;
+        final java.util.Set<String> distinct = new java.util.HashSet<>();
+        for (final int[] r : block) {
+            int at = r[0];
+            while (at < r[1]) {
+                final Matcher am = findAddress(text, at, r[1]);
+                if (am == null) {
+                    break;
+                }
+                first = Math.min(first, am.start());
+                distinct.add(compact(am.group(1)) + "|" + am.group(2).replace(" ", "") + "|" + am.group(3));
+                at = am.end();
+            }
+            for (final Pattern value : new Pattern[] {PHONE, EMAIL}) {
+                final Matcher vm = value.matcher(text).region(r[0], r[1]);
+                if (vm.find()) {
+                    first = Math.min(first, vm.start());
+                }
+            }
+        }
+        if (first >= end || distinct.size() > 1 || RUNS_PLACES.matcher(text).region(nameEnd, first).find()) {
+            return false; // no value of the operator in the block, or not its own
+        }
+        identifiers(text, block, out, m);
+        contact(text, block, cc, out, m);
+        return true;
+    }
+
+    /**
+     * True if the page's one structured subject is the organisation {@code m} names (its key): then that subject gets the page's
+     * contacts its name heads ({@link #subjectContact}), and the operator the link names gets them not a second time.
+     */
+    private static boolean sameSubject(final List<Mention> structured, final Mention m) {
+        if (structured.size() != 1 || !Vocabulary.ORGANIZATION.equals(structured.get(0).type)) {
+            return false;
+        }
+        final String key = Normalizers.key(m.name);
+        return key != null && key.equals(Normalizers.key(structured.get(0).name));
+    }
+
+    /** A short line of a contact block: a label of a contact or an identifier, a postal code with a town, a street with its number, a mailbox, a number. */
+    private static final Pattern CONTACT_LINE = Pattern.compile("(?iu)^[\\s*_#>-]*(?:(?:tel(?:efon)?|fon|phone|fax|telefax|mobil|e-?mail|mail|web|internet"
+            + "|anschrift|adresse|postanschrift|sitz|amtsgericht|registergericht|handelsregister|hr[ab]|ust|steuer)(?![\\p{L}])|www\\.|[0-9]{5}\\s+\\p{Lu}"
+            + "|\\p{Lu}[\\p{L}.\\-]+(?:[ \\t]+[\\p{L}.\\-]+){0,3}[ \\t]+[0-9]{1,4}\\s?[a-zA-Z]?(?![\\p{L}\\p{N}])|[A-Za-z0-9._%+\\-]+@|\\+?[0-9][0-9 /()\\-]{5,})");
+    private static final int CONTACT_LINE_MAX = 100;
+    private static final int CONTACT_BLOCK_MAX = 600;
+
+    /**
+     * The end of the contact block that starts at {@code from} (rule/11, K1): its paragraph, then each next short paragraph that is a
+     * line of contact data ({@link #CONTACT_LINE}). YaCy writes each block element of a page as a paragraph of its own, so a footer
+     * "Muster GmbH | Musterweg 4 | 45678 Musterstadt | Tel. …" in elements of its own is several short paragraphs; a paragraph of
+     * running text ends it.
+     */
+    static int contactBlockEnd(final String text, final int from) {
+        int end = paragraphEnd(text, from);
+        while (end < text.length() && end - from < CONTACT_BLOCK_MAX) {
+            int next = end;
+            while (next < text.length() && Character.isWhitespace(text.charAt(next))) {
+                next++;
+            }
+            if (next >= text.length() || next - end > 4) {
+                break;
+            }
+            final int nextEnd = paragraphEnd(text, next);
+            final String line = text.substring(next, nextEnd).trim();
+            if (line.isEmpty() || line.length() > CONTACT_LINE_MAX || !CONTACT_LINE.matcher(line).find()) {
+                break;
+            }
+            end = nextEnd;
+        }
+        return Math.min(end, from + CONTACT_BLOCK_MAX);
+    }
+
+    /** The end of the paragraph at {@code from}: the next blank line, at most {@link #CONTACT_BLOCK_MAX} characters on. */
+    private static int paragraphEnd(final String text, final int from) {
+        final int blank = text.indexOf("\n\n", from);
+        final int max = Math.min(text.length(), from + CONTACT_BLOCK_MAX);
+        return blank >= 0 && blank < max ? blank : max;
+    }
+
+    /** The register entry, VAT ID and IK of the operator {@code m} in the ranges: the first of each, as strong keys and statements. */
+    private void identifiers(final String text, final List<int[]> after, final Extraction out, final Mention m) {
         int[] ra = null;
         Normalizers.Register reg = null;
         for (final int[] r : after) {
@@ -560,8 +694,6 @@ public final class RuleExtractor {
                 break;
             }
         }
-        // contact values follow the name; searching from its end keeps the name out of the street
-        contact(text, from(ranges, nameEnd), cc, out, m);
     }
 
     /**
