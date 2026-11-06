@@ -96,25 +96,31 @@ public class FacilityGraphTest extends LlmFixture {
     }
 
     /** A page of a fixture as the crawl stores it: YaCy's text and title, the CMS plugin's organisation node on the care site. */
-    private SolrInputDocument page(final String id, final String file, final String url, final String collection, final String ld) throws Exception {
+    static SolrInputDocument page(final LlmFixture f, final String id, final String file, final String url, final String collection,
+            final String ld) throws Exception {
         final String[] p = net.yacy.scoutro.knowledge.extract.FacilityPageTest.parsed(file, url);
-        return doc(id, url, collection, ld, p[0], p[1]);
+        return f.doc(id, url, collection, ld, p[0], p[1]);
+    }
+
+    /** The fixture corpus: the care provider's pages (the detail page of one facility under two URLs) and an IT company's contact page. */
+    static List<SolrInputDocument> docs(final LlmFixture f) throws Exception {
+        final String ld = net.yacy.scoutro.knowledge.extract.FacilityPageTest.OPERATOR_LD;
+        final List<SolrInputDocument> docs = new ArrayList<>();
+        docs.add(page(f, "IMPRINmalten", "care-operator-imprint.html", SITE + "/impressum/", CARE, ld));
+        docs.add(page(f, "OVERVImalten", "care-facilities-overview.html", SITE + "/einrichtungen/", CARE, ld));
+        docs.add(page(f, "CONTACmalten", "care-contact.html", SITE + "/kontakt/", CARE, ld));
+        docs.add(page(f, "LINDENmalten", "care-facility-lindenhof.html", SITE + "/einrichtungen/haus-lindenhof/", CARE, ld));
+        docs.add(page(f, "MARKTAmalten", "care-facility-am-markt.html", SITE + "/einrichtungen/seniorenzentrum-am-markt", CARE, ld));
+        docs.add(page(f, "SEEAAAmalten", "care-facility-am-see.html", SITE + "/einrichtungen/haus-am-see", CARE, ld));
+        docs.add(page(f, "SEESLAmalten", "care-facility-am-see.html", SITE + "/einrichtungen/haus-am-see/", CARE, ld));
+        docs.add(page(f, "NEWSAAmalten", "care-news.html", SITE + "/aktuelles/sommerfest/", CARE, ld));
+        docs.add(page(f, "ITCONTbeisit", "software-contact.html", "https://www.beispiel-it.de/kontakt/", SOFTWARE,
+                "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Beispiel IT GmbH\",\"url\":\"https://www.beispiel-it.de/\"}"));
+        return docs;
     }
 
     private void corpus() throws Exception {
-        final String ld = net.yacy.scoutro.knowledge.extract.FacilityPageTest.OPERATOR_LD;
-        final List<SolrInputDocument> docs = new ArrayList<>();
-        docs.add(page("IMPRINmalten", "care-operator-imprint.html", SITE + "/impressum/", CARE, ld));
-        docs.add(page("OVERVImalten", "care-facilities-overview.html", SITE + "/einrichtungen/", CARE, ld));
-        docs.add(page("CONTACmalten", "care-contact.html", SITE + "/kontakt/", CARE, ld));
-        docs.add(page("LINDENmalten", "care-facility-lindenhof.html", SITE + "/einrichtungen/haus-lindenhof/", CARE, ld));
-        docs.add(page("MARKTAmalten", "care-facility-am-markt.html", SITE + "/einrichtungen/seniorenzentrum-am-markt", CARE, ld));
-        docs.add(page("SEEAAAmalten", "care-facility-am-see.html", SITE + "/einrichtungen/haus-am-see", CARE, ld));
-        docs.add(page("SEESLAmalten", "care-facility-am-see.html", SITE + "/einrichtungen/haus-am-see/", CARE, ld));
-        docs.add(page("NEWSAAmalten", "care-news.html", SITE + "/aktuelles/sommerfest/", CARE, ld));
-        docs.add(page("ITCONTbeisit", "software-contact.html", "https://www.beispiel-it.de/kontakt/", SOFTWARE,
-                "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Beispiel IT GmbH\",\"url\":\"https://www.beispiel-it.de/\"}"));
-        addAll(docs);
+        addAll(docs(this));
         settleSync();
         settleLlm();
     }

@@ -95,7 +95,12 @@ public final class BusinessRules {
     /** What a page is about, from its path and titles (several at once). */
     public enum PageKind { HOME, SERVICES, PRICES, CAREERS, PARTNERS, REFERENCES, ABOUT, AUDIENCE, CONTACT, IMPRINT,
         /** 0.12.0: a page of one service of the site ("/sap-beratung/sap-cash-management/"): its title names what it offers. */
-        SERVICE_DETAIL }
+        SERVICE_DETAIL,
+        /**
+         * 0.15.0 (rule/11): the page of one facility of the provider ({@link FacilityPage}); never by its address alone, the rules set
+         * it when the page names the facility with its full address. Its contacts are the facility's.
+         */
+        FACILITY }
 
     /** True for the confidence of a structurally evidenced offer ({@link #STRUCTURAL_CONFIDENCE}). */
     public static boolean structural(final double confidence) {
@@ -2054,7 +2059,8 @@ public final class BusinessRules {
     // ------------------------------------------------------------- contacts
 
     private static final Pattern FAX = Pattern.compile("(?i)(?:\\bTele)?\\bfax(?:nummer)?\\.?\\s*:?\\s*((?:\\+|00)?[0-9][0-9 ()/\\-.]{5,24}[0-9])");
-    private static final Pattern HOURS = Pattern.compile("(?iu)\\b(sprechzeiten|bürozeiten|buerozeiten|telefonzeiten|servicezeiten"
+    // rule/11: no word boundary escape before the label: since Java 19 it bounds ASCII words only, so "Öffnungszeiten" never matched
+    private static final Pattern HOURS = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(sprechzeiten|bürozeiten|buerozeiten|telefonzeiten|servicezeiten"
             + "|öffnungszeiten|oeffnungszeiten|opening\\s+hours|office\\s+hours)\\s*:?\\s*");
     private static final Pattern DAYS = Pattern.compile("(?iu)\\b(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag"
             + "|sonntag|mon|tue|wed|thu|fri|sat|sun)\\b");
@@ -2068,7 +2074,7 @@ public final class BusinessRules {
 
     private void contacts(final Run run, final List<String> outbound) {
         final boolean contactish = run.kinds.contains(PageKind.CONTACT) || run.kinds.contains(PageKind.IMPRINT) || run.kinds.contains(PageKind.HOME)
-                || run.kinds.contains(PageKind.ABOUT);
+                || run.kinds.contains(PageKind.ABOUT) || run.kinds.contains(PageKind.FACILITY);
         if (!contactish) {
             return;
         }

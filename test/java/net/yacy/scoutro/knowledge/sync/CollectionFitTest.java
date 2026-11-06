@@ -233,7 +233,7 @@ public class CollectionFitTest {
     public void onlyTheHomePagesFirstRequestCarriesTheQuestionAndNothingElseChanges() throws Exception {
         assertEquals("the prompt hash of 0.11.5", PROMPT_HASH_0115, LlmExtractor.PROMPT_HASH);
         assertEquals("system prompt and schema of 0.11.5", PROMPT_AND_SCHEMA_0115, sha(LlmExtractor.SYSTEM_PROMPT + "\u0000" + LlmExtractor.SCHEMA));
-        assertEquals("6", LlmExtractor.VERSION);
+        assertEquals("7", LlmExtractor.VERSION); // 0.15.0: what is kept of an answer changed, not the question
         add("AAAAAAhome01", "https://drolshagens-muster.de/", List.of(BAU), HOME);
         add("AAAAAAimpr02", "https://drolshagens-muster.de/impressum", List.of(BAU), "Impressum. Drolshagens Feinkost GmbH, Musterweg 1.");
         settle();

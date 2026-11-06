@@ -212,12 +212,33 @@ public class FacilityPageTest {
         }
     }
 
+    /**
+     * A menu or footer link "Impressum" makes no page an imprint: the operator it names after it (the employer of a careers page)
+     * gets none of the page's addresses, phones or mailboxes, nor its identifiers.
+     */
     @Test
     public void aMenuLinkImpressumMakesNoPageAnImprint() throws Exception {
-        final Extraction ex = care("care-facility-lindenhof.html", "/einrichtungen/haus-lindenhof/");
-        assertNull("no operator is read from a menu link: " + ex.mentions(), ex.mention(RuleExtractor.OPERATOR_REF));
-        final Extraction overview = care("care-facilities-overview.html", "/einrichtungen/");
-        assertNull(overview.mentions().toString(), overview.mention(RuleExtractor.OPERATOR_REF));
+        for (final String[] page : new String[][] {{"care-facility-lindenhof.html", "/einrichtungen/haus-lindenhof/"},
+                {"care-facilities-overview.html", "/einrichtungen/"}, {"care-contact.html", "/kontakt/"}}) {
+            final Extraction ex = care(page[0], page[1]);
+            final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
+            if (op != null) {
+                assertEquals("Muster Altenhilfe gGmbH", op.name);
+                for (final String p : new String[] {Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.PHONE, Vocabulary.EMAIL,
+                        Vocabulary.ID_REGISTER, Vocabulary.ID_VAT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
+                    assertEquals(page[0] + " " + p, List.of(), values(ex, op, p));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void aProvidersContactPageListingItsHousesGivesTheOperatorNoneOfTheirAddresses() throws Exception {
+        final Extraction ex = care("care-contact.html", "/kontakt/", OPERATOR_LD);
+        for (final Mention o : organisations(ex)) {
+            nothingOf(ex, o, "Lindenweg", "Am Markt", "12345", "23456", "+49302222222", "+49403333333");
+        }
+        assertTrue("a contact page is no facility's page", facilities(ex).isEmpty());
     }
 
     @Test
@@ -225,7 +246,8 @@ public class FacilityPageTest {
         final Extraction ex = care("care-facility-lindenhof.html", "/einrichtungen/haus-lindenhof/", OPERATOR_LD);
         final Mention f = facility(ex, "Haus Lindenhof");
         assertNotNull(ex.mentions().toString(), f);
-        final List<String> hours = values(ex, f, Vocabulary.OFFICE_HOURS);
+        final List<String> hours = new ArrayList<>(values(ex, f, Vocabulary.OFFICE_HOURS));
+        hours.addAll(values(ex, f, Vocabulary.OPENING_HOURS));
         assertEquals(hours.toString(), 1, hours.size());
         assertTrue(hours.get(0), hours.get(0).contains("Montag bis Freitag 8:00 bis 16:00 Uhr"));
     }

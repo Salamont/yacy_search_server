@@ -101,6 +101,8 @@ public final class IdentityResolver {
         public int created;
         public int merged;
         public int conflicts;
+        /** 0.15.0: identities marked for review (a guessed kind that differs from the entity's). */
+        public int reviews;
     }
 
     static final String DOMAIN_OPERATOR_VALUE = "operator";
@@ -165,9 +167,11 @@ public final class IdentityResolver {
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.address != null && m.address.complete()
                 && m.name != null && domain != null && m.kindKey == null) {
-            // the facility kind is part of the key: a day care and a residential home at one address are two facilities
+            // the facility kind is part of the key: a day care and a residential home at one address are two facilities. 0.15.0
+            // (docs/SCOUTRO_KG_FACILITIES.md): only a declared kind (structured data, tier 1); the LLM tier's guess of a kind varies
+            // from page to page and keys no place, as the kind of a facility named by its kind did not since 0.14.0
             out.add(new Key(Vocabulary.FACILITY_ADDRESS, m.type + "@" + domain,
-                    (m.subkind == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
+                    (declaredKind(m) == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.kindKey != null && domain != null) {
             // 0.14.0: a facility named only by its kind, by its kind and place: one per provider, kind and address (its shown name
@@ -265,6 +269,13 @@ public final class IdentityResolver {
             }
         }
         attach(tx, primary, keys, found);
+        if (m.subkind != null && m.kindKey == null && declaredKind(m) == null && (Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type))) {
+            // 0.15.0: a guess of a kind that differs from the entity's is no merge discriminator any more; it is marked for review
+            final String kind = subkind(tx, primary);
+            if (kind != null && !kind.equals(m.subkind)) {
+                review(tx, agg, primary, m, "facility kind differs (" + kind + " / guessed " + m.subkind + ")");
+            }
+        }
         if (m.subkind != null) {
             try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_entity SET subkind = ? WHERE ent_rowid = ? AND subkind IS NULL")) {
                 ps.setString(1, m.subkind);
@@ -399,9 +410,21 @@ public final class IdentityResolver {
             }
         }
         final String kind = subkind(tx, ent);
-        // 0.14.0: a facility named only by its kind is decided by its kind and place, not by the model's guess of its kind
-        return kind == null || m.subkind == null || m.kindKey != null || kind.equals(m.subkind);
+        // 0.14.0: a facility named only by its kind is decided by its kind and place, not by the model's guess of its kind; 0.15.0:
+        // a named facility neither (the guess is marked for review where it differs, see resolve)
+        return kind == null || m.subkind == null || m.kindKey != null || kind.equals(m.subkind) || declaredKind(m) == null;
     }
+
+    /**
+     * 0.15.0: the kind of a facility or site its structured data declare (tier 1); null for the LLM tier's guess of a kind
+     * ({@code llm_kinds}), which the model states differently on every page, and without a kind.
+     */
+    static String declaredKind(final Mention m) {
+        return m.subkind == null || m.tier == GUESSED_KINDS ? null : m.subkind;
+    }
+
+    /** The tier whose kinds of facilities are guesses (the LLM tier). */
+    private static final int GUESSED_KINDS = net.yacy.scoutro.knowledge.extract.LlmExtractor.TIER;
 
     /** The legal forms of the entity's names and aliases (0.13.0, the clients of a provider's pages). */
     private java.util.Set<String> legalForms(final Connection tx, final long ent) throws SQLException {
@@ -724,6 +747,12 @@ public final class IdentityResolver {
             ps.setLong(2, existing);
             ps.executeUpdate();
         }
+    }
+
+    /** 0.15.0: an identity a person should look at; nothing is merged or split by it (event {@code identity_review}). */
+    private void review(final Connection tx, final Aggregates agg, final long a, final Mention m, final String why) throws SQLException {
+        this.counters.reviews++;
+        KgStore.event(tx, 2, "identity_review", why + ": " + publicId(tx, a) + " (" + m.type + " " + Normalizers.clip(m.name, 80) + ")", agg.now());
     }
 
     private void conflict(final Connection tx, final Aggregates agg, final long a, final Long b, final Mention m, final String why)
