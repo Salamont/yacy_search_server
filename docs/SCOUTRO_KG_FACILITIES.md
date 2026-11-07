@@ -182,7 +182,7 @@ every collection and needs its own gates (remaining defect R6).
 | `PlaceAddressRegressionTest` (8) | K2 and K6 (section 11) on the LLM tier's `apply`: a named house of an overview keeps its address; on an imprint page, inside a page's imprint and at the imprint operator's address a house gets none (a structured organisation's fallback address does not count); a town and a firm taken for facilities get none; an unclear name keeps its mark and gets none; a street starts after the sentence before it |
 | `FacilityRegressionGraphTest` (7) | a second invented provider end to end: the imprint gives a house none of the operator's address; two houses of one name in two towns stay two, also where an overview lists both; every facility has at most one address and postal code; town, firm and unclear name get no address; the operator keeps its own contacts and none of a house; a consumer of the collection reads no delete for a merged entity |
 | `MergeFeedTest` (3) | M7 with the real publisher and identity resolution: a merge in one collection is a `redirect` for its consumer; a consumer of the merged entity's collection gets the `redirect`, not a `delete`, also where the survivor came from another collection; every statement of the merged entity is an `upsert` or a `redirect` to a statement of the survivor; a consumer of a third collection gets nothing |
-| `PortalRegressionTest` (16) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street |
+| `PortalRegressionTest` (29) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street. Request 10 (12.6, 12.8): a booking tool's provider on a services page names no operator; a privacy notice names the site's own company of its footer, its controller of a "Verantwortlicher im Sinne …" sentence, and a combined imprint/privacy page keeps the identifiers; an imprint with a lower-case brand ("uib-beispiel GmbH") and a hosting notice; footer formats ("Tel.:. ", a dash, "Str.30"); two offices in one block; a partner page; a list of services; a footer's imprint of persons; names after years, quotes, marks and "Firma", the site's own name (`brandName`, `brandWord`), "Pr. Oldendorf" |
 | `FacilityFixtureReport` | not a test: the corpus as tables, for the comparison before and after (section 8) |
 | changed expectations | `CollectionFitTest` (the LLM extractor's version 7), `LlmFactCatalogueTest.locationsAFacilityIsLocatedAtItsSite` (the facility and the site have their address statements now) |
 
@@ -345,10 +345,42 @@ answers of `llm/7` are replayed once, as those of 4 to 6 were.
 ### 12.6 The operator named after a link only
 
 After a link to the imprint (no imprint's data), the operator is the organisation with a legal form in the window after the link
-whose name is the site's (`RuleExtractor.brandName`: the registrable domain's label, "&" read as "und", is part of the name's
-letters, or the name's first word of four letters or more is the label: "Bügler Haustechnik GmbH & Co. KG" on buegler.com,
-"Alberring – Ambulante Pflege GmbH & Co. KG" on alberring.de), else the first whose name heads a contact block
-(`headsContacts`), else the first. An imprint's own operator is still the first organisation after its marker.
+that the site vouches for, in this order (`RuleExtractor.imprint`, the second round of corrections after the interim evaluation
+of the full run, "request 10"):
+
+1. its name is the site's (`brandName`: the registrable domain's label, "&" read as "und", is part of the name's letters, "Bügler
+   Haustechnik GmbH & Co. KG" on buegler.com; the label without its digits, "Pro Human … GmbH" on prohuman24.de; every part of a
+   hyphenated label, "Hoog & Sohn GmbH" on hoog-sohn.de; the first part or the name's first word of four letters or more where it is
+   at least two fifths of the label, "Saalfeld e.K." on saalfeld-olching.de, "Claaßen GmbH" on claassen-maschinenbau.de; never a
+   short start of a longer word: "Sozial-Hilfsverein Dühren e.V." is not sozialstation-sinsheim.de);
+2. the page's title, its main heading or a copyright line names it (`vouched`; the copyright line up to a web agency's credit,
+   "© 2026 Muster GmbH · Webdesign: Pixel GmbH" vouches for Muster only; the name without its legal form where six letters or
+   more are left, "Anfahrt - Pflegedienst Diana Demling" for "Diana Demling e.K.");
+3. its name heads a contact block (`headsContacts`), the candidate's own block included; on a page of three or more different
+   addresses (a list of services, a directory, a partner page) only the block that holds the page's first address counts
+   (`manyAddresses`): a partner's or a listed service's block is no evidence.
+
+A name none of these vouch for names nobody: the first legal form after the link was a club the page sponsors, a certifier, a
+partner, a listed service or the provider of a cookie notice ("CloudFlare Inc", "Sendinblue GmbH" of a booking tool, "Hetzner
+Online GmbH" of a hosting notice). The sentences that name a provider ("Anbieter ist die … GmbH, …", `SERVICE_PROVIDER_PHRASE`;
+"Hosting-Anbieter", "Webhoster", "Auftragsverarbeiter", "Newsletter-Anbieter", `PROVIDER_PHRASE`) open another party's section on
+every page but the imprint, whose "Anbieter ist …" names the operator itself; on a page of the site such a section ends with its
+paragraph and the provider's contact lines (`contactBlockEnd`), on a privacy notice with the next label of the operator's data. A
+footer's own small imprint that names persons only ("Impressum. Inhaltlich verantwortlich gemäß § 6 TDG: …, HRA 535/10") still
+lets the page's first link name the operator by these rules (`firstImprintLink`).
+
+The name itself (`nameStart`): a word in lower case that is the site's own name starts it ("uib GmbH" on uib.de, "bks FINANZ
+Vermittlung AG" on bks-finanz.de, "von Nassau GmbH" on vonnassau.de, `brandWord`), the parts of a coordination stay joined
+("Putz-, Stuck-, Dämmtechnik GmbH"), a quoted name starts after its quote and ends at it („Deutsche Kinderhospiz Dienste e.V.“),
+Markdown marks and no-break spaces before it are none of it, and it starts after a year ("50 Jahre …"), an address to the reader
+("Ihr …", "Unser …", "Willkommen bei …"), "Firma" and the end of a sentence or a clause ("Zukunft! Bei …", "Träger: …").
+
+Privacy notices (F4, 12.4) read the same way: a link to the imprint names an operator there too, but only one whose name is the
+site's or one the title or the copyright line vouches for (a provider's block of contacts is no evidence on a privacy notice; the
+hosting provider "Hetzner Online GmbH, Industriestr. 25 …" stays nobody), and the controller's own marker now also reads
+"Verantwortlicher im Sinne der Datenschutzgesetze … ist:" and "Verantwortliche(r) i. S. d. DSGVO"; the controller it names must
+be the site's name, head a contact block or be vouched for, else the next candidate is tried. A combined page
+("/impressum-datenschutz/") is an imprint. An imprint's own operator is still the first organisation after its marker.
 
 ### 12.7 What stays open
 
@@ -356,6 +388,69 @@ letters, or the name's first word of four letters or more is the label: "Bügler
   `SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md`.
 - A care provider's page named by a service ("Hilfe im Alltag", "Seniorenberatung") or by its street on a place's detail page
   stays a facility's page with that name; a business's place named by its town alone ("Karlsruhe") keeps that name.
-- The operator's name after a link only still depends on the first legal form where neither the brand nor a contact block decides
-  ("Umwandlung zur GmbH" of a sentence about the company's conversion).
+- After a link only, a page whose operator is neither the site's name nor vouched for by its title, heading or copyright line
+  and heads no contact block names nobody: its footer's contacts go to no organisation (the imprint page names the operator).
+  A junk candidate the site vouches for by accident stays possible ("Umwandlung zur GmbH" of a sentence about the company's
+  conversion where the title repeats it).
+- A name whose words before the legal form are in lower case is cut there ("Gemeinnütziger Verein für psychosoziale Unterstützung
+  in Bielefeld e.V." is read as "Die Grille e.V." from the menu, "ADVISA Unternehmensberatung / Akademie GmbH" as "Akademie
+  GmbH"); the imprint page's full name keys the entity, the cut name is a second organisation of the domain.
+- On a page of two offices the second office's phone and mailbox go to nobody; a page with two different phone numbers and no
+  block of the operator's name gives none of them (see 12.8); a page of three or more addresses gives only what the name's block
+  holds.
 - The replay of the LLM tier's answers runs for hours on one core (`LlmReplay.todo`, one query per page); the operation plans it.
+
+### 12.8 The operator's contacts after the link, second round (K1, request 10)
+
+The interim evaluation of the full run with the first `rule/12` lost tier-2 contacts of organisations on 274 pages against
+`rule/10`. Each page was read with both versions (`MentionDiag`, `DebugFallback` of the validation tools); the remaining losses
+and their corrections:
+
+- the block of the name (`operatorBlock`) ends before a second different address instead of giving nothing ("J.F. Trubel GmbH.
+  Lindenallee 9. 36179 Bebra. Tel. … \n Wollweberstr. 22. 36251 Bad Hersfeld. Tel. …": the first address and its phone are the
+  operator's); every occurrence of the name on the page, above the link too, adds the values the earlier blocks did not give;
+  the identifiers come from the first block only;
+- the page's only phone number and its only role mailbox are the operator's where no block of the name gave them (`singleValue`:
+  a header line "Tel. 09221 / 69006-0 | service@…", a footer without an address "Tel.: 08207 – 8001. E-Mail: info@…", one number
+  above the offices' addresses), not one a person's name or a place heads, never one of two, and not on a page of three or more
+  addresses;
+- the labels and numbers as YaCy's text writes them: "Tel.:. 02302 940 40 10" (a label in its own element), "**Phone. **:. +49 …"
+  (bold marks), "08207 – 8001" (a dash), "Telefon (08142) 2367" (a bracket first), the number right after the street's
+  abbreviation ("Ofener Str.30"), the town "Pr. Oldendorf";
+- a page with a link to the imprint is a page kind of its own (`PageKind.IMPRINT_LINK`, never a privacy notice): the business
+  rules read its footer's fax and hours as on a contact page, as `rule/10` did when every such page counted as an imprint;
+- the operator's name before its street is no part of the street, the sentence after the town is none of it (12.5).
+
+Of the 274 pages, 72 still differ from `rule/10` in a tier-2 contact of an organisation: in most the value changed rather than
+vanished (the address right after the name instead of a later one, "Mushardstraße" instead of "Mushardstr.", a trailing word
+cut, a template's mailbox "info@joomshaper.com" or a partner's mailbox gone), in the rest the `rule/10` operator was a third
+party or a cut name and its contacts went with it, or the page holds two offices or several phone numbers whose holders are not
+guessed. The full run measures the loss per predicate against the one-per-cent criterion.
+
+### 12.9 Merges by a document's earlier mention (the identity resolver)
+
+The interim evaluation counted 1 117 organisation merges of the full run, 513 of them between entities without a common name.
+Their mechanism: the `doc_local` key of a page's operator mention (`organization#<doc>=rule:operator`) stays with the entity the
+old rules named on that page (a cookie provider "CloudFlare Inc", a cut name). Read again under the right name, the mention found
+that entity by its `doc_local` key and the right organisation by its `site_operator` key, and merged the two; the older survived,
+at times the wrongly named one, and the loser's keys (the wrong legal name as `site_operator` of the domain) moved to the
+survivor, where later mentions of other names joined in. The two "cross-domain" merges were of this kind too (losers created in
+the run without a domain of their own).
+
+`IdentityResolver.resolve` now treats a `doc_local` key whose entity has names and none of them is the mention's (`namedOtherwise`,
+`Normalizers.key`) as a conflict (`identity_conflict`, "same mention of another name"), not as the primary: the mention goes to
+the entity of its own name or a new one; the earlier entity keeps its keys but none of the page's facts (they are retracted with
+the page's re-extraction), so it ends without statements where the page was its only source. Entities without names (the
+domain's unnamed operator) and mentions without a name are unaffected; a mention read again under its own name stays one entity
+as before. Nothing else of `merge` changes: real groups still merge by a common legal name, register or VAT ID on the same
+domain. What stays: wrong `site_operator` keys that earlier merges already moved onto production entities stay there (they
+are scoped to their domain and join nothing across domains); an operator read under a cut name is a second organisation of the
+domain, not a merge. Tests: `OperatorIdentityTest` (a mention read again under another name is no merge, joins the organisation
+of its own name, stays one under its own name).
+
+### 12.10 Extractor versions
+
+`rule/12` and `llm/8` are kept for this second round: no release and no production graph has carried `rule/11` or the first
+`rule/12` (they ran on the discarded validation copies only), and production is at `rule/10`, so the update is one re-extraction
+of tiers 1 and 2 and one replay of the LLM tier either way. The LLM tier's rules did not change in this round (`LlmExtractor`
+version 8, `REPLAYS` = {4, 5, 6, 7}).

@@ -269,4 +269,187 @@ public class PortalRegressionTest {
         assertNotNull(ex.mentions().toString(), op);
         assertEquals(List.of("Musterweg 5, 12345 Musterstadt"), values(ex, op, Vocabulary.ADDRESS));
     }
+
+    // ------------------------------------------------------------------------------------------------ operator identity (request 10)
+
+    /** A booking tool's notice ("Anbieter ist die … GmbH, …") on a normal page names no operator; the copyright line's company is it. */
+    @Test
+    public void softwareAServiceProvidersNoticeOnAPageNamesNoOperator() throws Exception {
+        final Extraction ex = page("software-booking-notice.html", "https://www.beispiel-digital.de/leistungen/app-entwicklung/", "software");
+        final Mention op = operator(ex);
+        assertEquals("Beispiel Digital GmbH", op.name);
+        assertEquals(List.of("+493812100000"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("mail@beispiel-digital.de"), values(ex, op, Vocabulary.EMAIL));
+        nothingOf(ex, op, "Beispielallee", "Berlin", "Terminwerk");
+        noSiteOperatorNamed(ex, "Terminwerk");
+    }
+
+    /** A privacy notice without a controller's marker: the site's own company heading the footer's contact block is the operator. */
+    @Test
+    public void aPrivacyNoticeNamesTheSitesOwnCompanyOfItsContactBlock() throws Exception {
+        final Extraction ex = page("org-privacy-brand-contact.html", "https://www.loga-beispiel.de/datenschutz/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Loga Beispiel Bau GmbH", op.name);
+        assertEquals(List.of("Hansaweg 10-12, 68169 Beispielstadt"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+496214963200"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("+496214963201"), values(ex, op, Vocabulary.FAX));
+        assertEquals(List.of("info@loga-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+        nothingOf(ex, op, "Serverstraße", "Beispielhausen", "Dublin", "Hostwerk");
+        noSiteOperatorNamed(ex, "Hostwerk", "Analytics");
+    }
+
+    /** "Verantwortlicher im Sinne der Datenschutzgesetze … ist:" opens the controller's block of a privacy notice. */
+    @Test
+    public void aPrivacyNoticesControllerSentenceNamesTheController() throws Exception {
+        final Extraction ex = page("org-privacy-controller-sentence.html", "https://www.advis-beispiel.de/datenschutzerklaerung.html", "software");
+        final Mention op = operator(ex);
+        assertEquals("ADVIS Beratung GmbH", op.name);
+        assertEquals(List.of("Oberer Weg 64, 97980 Bad Beispielheim"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("Bad Beispielheim"), values(ex, op, Vocabulary.LOCALITY));
+        assertEquals(List.of("+4979319230000"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("+4979319230001"), values(ex, op, Vocabulary.FAX));
+        assertEquals(List.of("info@advis-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+        noSiteOperatorNamed(ex, "Analytics");
+    }
+
+    /** A combined page ("/impressum-datenschutz/") is an imprint: its identifiers and contacts are the operator's, the processors are none. */
+    @Test
+    public void aCombinedImprintAndPrivacyPageKeepsTheOperatorsIdentifiers() throws Exception {
+        final Extraction ex = page("org-imprint-privacy-combined.html", "https://www.muster-dach.de/impressum-datenschutz/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Muster Dach GmbH", op.name);
+        assertEquals(List.of("Dachstraße 7, 44787 Bochum"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+492341234567"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@muster-dach.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals("DE123456789", op.strongKeys.get(Vocabulary.VAT));
+        assertNotNull(allValues(ex, op).toString(), op.strongKeys.get(Vocabulary.REGISTER));
+        nothingOf(ex, op, "Versandstraße", "Wellington", "Beispiel Versand", "Beispiel Craft");
+        noSiteOperatorNamed(ex, "Beispiel Versand", "Beispiel Craft");
+    }
+
+    /** An imprint whose operator writes its name in lower case ("uib-beispiel GmbH"): that name, not the hosting provider's after it. */
+    @Test
+    public void softwareAnImprintWithALowerCaseBrandNamesIt() throws Exception {
+        final Extraction ex = page("software-imprint-lowercase-brand.html", "https://uib-beispiel.de/de/imprint/", "software");
+        final Mention op = operator(ex);
+        assertEquals("uib-beispiel GmbH", op.name);
+        assertEquals(List.of("Bonifatiusplatz 1B, 55118 Mainz"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+4961312750000"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@uib-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals("DE123456789", op.strongKeys.get(Vocabulary.VAT));
+        nothingOf(ex, op, "Industriestr", "Beispielhausen", "Hetzwerk");
+        noSiteOperatorNamed(ex, "Hetzwerk");
+    }
+
+    /** A footer in YaCy's text: a label in its own element ("Tel.:. 0441 …"), a dash in the number, the number right after "Str.". */
+    @Test
+    public void constructionAFootersFormatsOfLabelsNumbersAndStreetsAreRead() throws Exception {
+        final Extraction ex = page("construction-footer-formats.html", "https://www.beispiel-zimmerei.de/leistungen/holzbau/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Beispiel Zimmerei GmbH", op.name);
+        assertEquals(List.of("Ofener Str. 30, 26121 Oldenburg"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+494412197300"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@beispiel-zimmerei.de"), values(ex, op, Vocabulary.EMAIL));
+    }
+
+    /** Two offices in one block: the name's own part ends before the second address; the page's only mailbox is the operator's. */
+    @Test
+    public void constructionTwoOfficesInOneBlockGiveTheOperatorTheFirstAndTheOnlyMailbox() throws Exception {
+        final Extraction ex = page("construction-two-offices.html", "https://www.trubel-beispiel.de/", "construction");
+        final Mention op = operator(ex);
+        assertTrue(op.name, op.name.endsWith("Trubel Beispiel GmbH"));
+        assertEquals(List.of("Lindenallee 9, 36179 Bebra"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("Bebra"), values(ex, op, Vocabulary.LOCALITY));
+        assertEquals(List.of("+4966229270000"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@trubel-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+        nothingOf(ex, op, "Wollweberstr", "Bad Hersfeld", "5030000");
+    }
+
+    /** A partner page: the partners' contact blocks come first, the operator's name is the site's and stands in the footer. */
+    @Test
+    public void constructionAPartnerPageNamesTheSiteNotAPartner() throws Exception {
+        final Extraction ex = page("construction-partner-page.html", "https://saalfeld-beispiel.de/partnerunternehmen/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Saalfeld Beispiel e.K.", op.name);
+        assertEquals(List.of("Hauptstraße 84, 82140 Olching"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+49814223670"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@saalfeld-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+        nothingOf(ex, op, "Remscheid", "Karlsfeld", "Markt Schwaben", "vailant", "gittfried");
+        noSiteOperatorNamed(ex, "Vailant", "Gienger", "Gittfried");
+    }
+
+    /** A list of services with their contacts: none of them is the operator; the association the copyright line names is, without the quote. */
+    @Test
+    public void careAListOfServicesNamesTheAssociationOfTheCopyrightLineOnly() throws Exception {
+        final Extraction ex = page("care-directory-list.html", "https://www.kinderhilfe-beispiel.de/medizinische-hilfe/", "care");
+        final Mention op = operator(ex);
+        assertEquals("Deutsche Kinderhilfe Beispiel e.V.", op.name);
+        nothingOf(ex, op, "Unna", "Seminarstraße", "Alexanderstraße", "Viktoriastraße", "assistenz-beispiel", "sozialamt@");
+        noSiteOperatorNamed(ex, "Assistenz im Alltag", "Universitätskinderklinik", "Beispiel Karree");
+    }
+
+    /** A footer's own small imprint names persons only: the company of the page's contact box, which the copyright line vouches for, is the operator. */
+    @Test
+    public void constructionAFootersImprintOfPersonsStillNamesTheCompanyOfTheContactBox() throws Exception {
+        final Extraction ex = page("construction-footer-mini-imprint.html", "https://glaser-beispiel.de/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Hugo Beispiel Glas GmbH & Co. KG", op.name);
+        assertEquals(List.of("Beispielstraße 12, 10405 Berlin"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+493044000900"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@glaser-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+    }
+
+    // ------------------------------------------------------------------------------------------------ names and the site's own name
+
+    private static String operatorOf(final String text, final String url) {
+        final Extraction ex = new Extraction(50);
+        new RuleExtractor(200, 65536).extract(text, url, java.net.URI.create(url).getHost(), "de", ex);
+        final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
+        return op == null ? null : op.name;
+    }
+
+    @Test
+    public void namesStartAfterYearsQuotesAndMarksAndKeepTheirJoinedParts() {
+        final String imprint = "Impressum. Angaben gemäß § 5 TMG. ";
+        assertEquals("Kirchliche Sozialstation Beispielstadt e.V.",
+                operatorOf(imprint + "50 Jahre Kirchliche Sozialstation Beispielstadt e.V.\nMusterweg 1\n12345 Musterstadt", "https://www.sozialstation-beispielstadt.de/impressum/"));
+        assertEquals("Michael Beispiel Putz-, Stuck-, Dämmtechnik GmbH",
+                operatorOf(imprint + "Die Michael Beispiel Putz-, Stuck-, Dämmtechnik GmbH\nMusterweg 1\n12345 Musterstadt", "https://www.mb-putz.de/impressum/"));
+        assertEquals("Deutsche Kinderhilfe Beispiel e.V.",
+                operatorOf(imprint + "Träger: „Deutsche Kinderhilfe Beispiel e.V.“\nMusterweg 1\n12345 Musterstadt", "https://www.kinderhilfe-beispiel.de/impressum/"));
+        assertEquals("Hermann von Beispiel GmbH",
+                operatorOf(imprint + "Hermann von Beispiel GmbH\nMusterweg 1\n12345 Musterstadt", "https://vonbeispiel.de/impressum/"));
+        assertEquals("Beispiel GmbH",
+                operatorOf(imprint + "Betrieben von Beispiel GmbH\nMusterweg 1\n12345 Musterstadt", "https://www.beispiel.de/impressum/"));
+        assertEquals("Fleischmann Beispiel GmbH & Co. KG",
+                operatorOf(imprint + "|  Fleischmann Beispiel GmbH & Co. KG\nMusterweg 1\n12345 Musterstadt", "https://www.fleischmann-beispiel.de/impressum/"));
+    }
+
+    @Test
+    public void theSitesOwnName() {
+        assertTrue(RuleExtractor.brandName("Bügler Haustechnik GmbH & Co. KG", "www.buegler.com"));
+        assertTrue(RuleExtractor.brandName("Hoog & Sohn GmbH", "www.hoog-sohn.de"));
+        assertTrue(RuleExtractor.brandName("Saalfeld Beispiel e.K.", "saalfeld-olching.de"));
+        assertTrue(RuleExtractor.brandName("J.F. Trubel GmbH", "www.trubel-bebra.de"));
+        assertTrue(RuleExtractor.brandName("Maschinen- und Metallbau Claaßen GmbH", "www.claassen-maschinenbau.de"));
+        assertTrue(RuleExtractor.brandName("Pro Human Häusliche Pflege GmbH", "www.prohuman24.de"));
+        assertFalse("a short start of a longer word", RuleExtractor.brandName("Sozial-Hilfsverein Dühren e.V.", "sozialstation-sinsheim.de"));
+        assertFalse(RuleExtractor.brandName("Deutsche Kinderhilfe e.V.", "www.deutsche-datenschutzkanzlei.de"));
+        assertFalse(RuleExtractor.brandName("Hetzner Online GmbH", "uib.de"));
+        assertTrue(RuleExtractor.brandWord("uib", "uib.de"));
+        assertTrue(RuleExtractor.brandWord("bks", "www.bks-finanz.de"));
+        assertFalse(RuleExtractor.brandWord("die", "www.muster.de"));
+        assertFalse(RuleExtractor.brandWord("von", "www.beispiel.de"));
+    }
+
+    @Test
+    public void aTownAbbreviatedWithPrIsReadWhole() {
+        final Extraction ex = new Extraction(50);
+        new RuleExtractor(200, 65536).extract("Impressum. Angaben gemäß § 5 TMG. Muster Maler e.K.\nAlter Markt 1\n32361 Pr. Oldendorf\nTel. 05742 55710",
+                "https://www.muster-maler.de/impressum/", "www.muster-maler.de", "de", ex);
+        final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
+        assertNotNull(ex.mentions().toString(), op);
+        assertEquals(List.of("Alter Markt 1, 32361 Pr. Oldendorf"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("Pr. Oldendorf"), values(ex, op, Vocabulary.LOCALITY));
+    }
 }

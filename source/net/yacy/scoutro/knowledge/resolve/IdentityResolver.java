@@ -228,6 +228,13 @@ public final class IdentityResolver {
                 conflict(tx, agg, ent, null, m, "product page of another name");
                 continue;
             }
+            if (Vocabulary.DOC_LOCAL.equals(f.getKey().scheme) && namedOtherwise(tx, ent, m)) {
+                // rule/12 (docs/SCOUTRO_KG_FACILITIES.md section 12): the document's earlier mention under another name is another
+                // organisation (a cookie provider the old rules took for the operator): its keys would carry the new name's declared
+                // operator into it, and the old name's keys into the new one. The mention goes to the entity of its own name
+                conflict(tx, agg, ent, null, m, "same mention of another name");
+                continue;
+            }
             if (!compatible(tx, ent, m, keys)) {
                 conflict(tx, agg, ent, null, m, "mention contradicts entity");
                 continue;
@@ -443,6 +450,36 @@ public final class IdentityResolver {
             }
         }
         return out;
+    }
+
+    /**
+     * True if the entity has names or aliases and none is the mention's name ({@link Normalizers#key}); false for a mention without
+     * a name or an entity without names (nothing contradicts).
+     */
+    private boolean namedOtherwise(final Connection tx, final long ent, final Mention m) throws SQLException {
+        final String key = Normalizers.key(m.name);
+        if (key == null) {
+            return false;
+        }
+        boolean named = false;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred IN (?, ?) AND obj_val IS NOT NULL")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.predicate(Vocabulary.NAME));
+            ps.setInt(3, this.terms.predicate(Vocabulary.ALIAS));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    final String other = Normalizers.key(rs.getString(1));
+                    if (other == null) {
+                        continue;
+                    }
+                    if (key.equals(other)) {
+                        return false;
+                    }
+                    named = true;
+                }
+            }
+        }
+        return named;
     }
 
     /** True if the entity has a name or alias of the mention's name ({@link Normalizers#key}); false without names. */

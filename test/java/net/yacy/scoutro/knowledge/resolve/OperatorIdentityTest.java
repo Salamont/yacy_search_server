@@ -234,4 +234,48 @@ public class OperatorIdentityTest {
                 "https://www.muster-bau.de", "\"legalName\":\"Muster Bau AG\""), "Muster Bau. Home.");
         assertEquals("another legal name is another company", 2L, organisations("Muster Bau"));
     }
+
+    // ---------------------------------------------------------------- rule/12: a document's mention under another name (request 10)
+
+    /** The redirects of merged entities. */
+    private long redirects() throws Exception {
+        return this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_entity_redirect"));
+    }
+
+    /**
+     * rule/12 (docs/SCOUTRO_KG_FACILITIES.md section 12): a page read again names another operator than before (the old rules took
+     * a cookie provider for it): the document-local key of the earlier mention joins nothing of another name. The new name gets its
+     * own entity, the old one keeps none of the page's facts, nothing is merged.
+     */
+    @Test
+    public void aMentionReadAgainUnderAnotherNameIsNoMerge() throws Exception {
+        final String url = "https://www.beispiel-bau.de/impressum/";
+        publish("IMPRINThst21", url, null, "Impressum. Angaben gemäß § 5 TMG. Wolkenwerk Inc\nServerweg 1\n12345 Musterstadt");
+        assertEquals(1L, organisations("Wolkenwerk Inc"));
+        publish("IMPRINThst21", url, null, "Impressum. Angaben gemäß § 5 TMG. Beispiel Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        assertEquals("the page's new name has its own organisation", 1L, organisations("Beispiel Bau GmbH"));
+        assertEquals("the old name keeps none of the page's facts", 0L, organisations("Wolkenwerk Inc"));
+        assertEquals("nothing is merged", 0L, redirects());
+    }
+
+    /** The corrected mention joins the organisation of its own name, seen on another page of the domain, and not the old entity. */
+    @Test
+    public void aMentionReadAgainJoinsTheOrganisationOfItsOwnName() throws Exception {
+        publish("IMPRINThst22", "https://www.muster-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Wolkenwerk Inc\nServerweg 1\n12345 Musterstadt");
+        publish("KONTAKThst22", "https://www.muster-bau.de/kontakt/", null, "Kontakt. Angaben gemäß § 5 TMG. Muster Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        assertEquals(1L, organisations("Muster Bau GmbH"));
+        publish("IMPRINThst22", "https://www.muster-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Muster Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        assertEquals("one organisation of the name, with both pages", 1L, organisations("Muster Bau GmbH"));
+        assertEquals(0L, organisations("Wolkenwerk Inc"));
+        assertEquals("the old entity is not merged into the organisation", 0L, redirects());
+    }
+
+    /** The same name read again stays one entity (the document-local key keeps re-extraction stable). */
+    @Test
+    public void aMentionReadAgainUnderItsNameStaysOne() throws Exception {
+        publish("IMPRINThst23", "https://www.stabil-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Stabil Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        publish("IMPRINThst23", "https://www.stabil-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Stabil Bau GmbH\nBauweg 2\n12345 Musterstadt");
+        assertEquals(1L, organisations("Stabil Bau GmbH"));
+        assertEquals(0L, redirects());
+    }
 }

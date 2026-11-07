@@ -40,3 +40,13 @@ above, after the patterns of the validation with the full production data; no re
 | `org-privacy-processors.html` | F4: a privacy notice with its controller and three processors (newsletter, hosting, analytics): the controller is the operator, no processor is |
 | `org-privacy-link-only.html` | F4: a privacy notice without a controller, with a link to the imprint and two providers named: nobody is the operator |
 | `org-imprint-towns.html` | addresses: a town of two words with a prefix ("Bad Rappenau") and the sentence after it; "St. Ingbert" |
+| `software-booking-notice.html` | request 10: a booking tool's notice ("Anbieter ist die Terminwerk Service GmbH, …") on a services page names no operator; the copyright line's company is it and gets the page's only phone and mailbox |
+| `org-privacy-brand-contact.html` | request 10: a privacy notice without a controller's marker; the site's own company heads the footer's contact block (address, phone, fax, mailbox), the analytics and hosting providers are none |
+| `org-privacy-controller-sentence.html` | request 10: "Verantwortlicher im Sinne der Datenschutzgesetze … ist:" opens the controller's block (a town "Bad Beispielheim"); a reCAPTCHA provider after it is none |
+| `org-imprint-privacy-combined.html` | request 10: a combined page `/impressum-datenschutz/` is an imprint: register, VAT ID, address and contacts are the operator's, the processors of the privacy part are none |
+| `software-imprint-lowercase-brand.html` | request 10: an imprint whose operator writes its name in lower case ("uib-beispiel GmbH"), with a hosting provider's section after it |
+| `construction-footer-formats.html` | request 10: a footer in YaCy's text: "Tel.:. 0441 – 2197300" (label in its own element, a dash in the number), "Ofener Str.30" (the number right after the abbreviation) |
+| `construction-two-offices.html` | request 10: two offices in one block after the name: the first address and its phone are the operator's, the page's only mailbox too; the second office's values are not guessed |
+| `construction-partner-page.html` | request 10: a partner page whose partners' contact blocks come first; the operator's name is the site's and stands in the footer |
+| `care-directory-list.html` | request 10: a list of services with their contact blocks (a clinic, a UG, offices): none is the operator; the association of the copyright line is, named without its quotes |
+| `construction-footer-mini-imprint.html` | request 10: a footer's own small imprint ("Inhaltlich verantwortlich gemäß § 6 TDG: …, HRA 535/10") names persons only; the company of the contact box, vouched for by the copyright line, is the operator |

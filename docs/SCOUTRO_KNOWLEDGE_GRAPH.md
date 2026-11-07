@@ -4533,6 +4533,16 @@ tiers 1 and 2 and one replay of the LLM tier without a model request; a backup b
 `FacilityPageTest`, `FacilityGraphTest` (ant target `scoutro-kg-facilities-test`), on the synthetic pages of
 `test/scoutro-kg-facilities/`.
 
+The validation with the full production data (`rule/12`, `llm/8`, section 12 of the same document) added: facility pages only
+where the field's providers run places or the page is one of the site's places (a business's service, project or team page is
+none); the operator after a link to the imprint is the organisation the site vouches for (its name is the site's, its title,
+heading or copyright line names it, or its name heads a contact block), never the provider of a cookie, booking or hosting notice
+("Anbieter ist die … GmbH"), and it keeps the page's only address, phone and mailbox; privacy notices name their controller or
+the site's own company only; towns of two words ("Bad Rappenau"); and the identity resolver no longer joins a page's mention to
+the entity the old rules named on that page under another name (`doc_local` key, `identity_conflict` "same mention of another
+name"), which had merged cookie providers and cut names into real organisations. Tests: `PortalRegressionTest`,
+`OperatorIdentityTest` (same ant target).
+
 After the validation on the production graph (section 11 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)): after a
 link "Impressum" the operator keeps the contact block its name opens (K1); the LLM tier's address of a place is read only for a
 place the page proves, never on an imprint page, inside a page's imprint, at the imprint operator's address, for a firm's name or

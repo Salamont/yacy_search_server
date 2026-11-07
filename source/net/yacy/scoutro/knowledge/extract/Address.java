@@ -48,7 +48,7 @@ public final class Address {
      * "Bernau bei Berlin", "Rothenburg ob der Tauber", "Limburg a. d. Lahn") or a qualifier in parentheses ("Halle (Saale)", "Essen
      * (Oldenburg)"). No sentence's end and no word of the sentence after it is part of the town. No capturing group inside.
      */
-    public static final String TOWN = "(?:" + TOWN_PREFIX + "\\s+" + NOT_A_TOWN + "|St\\.\\s?|Skt\\.\\s?)?\\p{Lu}[\\p{L}\\-]+"
+    public static final String TOWN = "(?:" + TOWN_PREFIX + "\\s+" + NOT_A_TOWN + "|St\\.\\s?|Skt\\.\\s?|Pr\\.\\s?)?\\p{Lu}[\\p{L}\\-]+"
             + "(?:(?<=-Bad|-Sankt|-St\\.)\\s+\\p{Lu}[\\p{L}\\-]+)?"
             + "(?:\\s+(?:am|an\\s+der|an\\s+den|a\\.\\s?d\\.|im|in\\s+der|bei|ob\\s+der|vor\\s+der|unter\\s+dem|auf\\s+der|zu|an|i\\.\\s?d\\.)\\s+"
             + NOT_A_TOWN + "\\p{Lu}[\\p{L}\\-]+|\\s+(?:i\\.\\s?Br\\.|a\\.\\s?M\\.)|\\s+\\(\\p{Lu}[\\p{L}\\-.]+(?:\\s\\p{Lu}[\\p{L}\\-.]+)?\\))?";
