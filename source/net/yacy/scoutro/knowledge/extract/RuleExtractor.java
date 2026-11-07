@@ -69,13 +69,18 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "11"; // 7: money roles, offer cue for services (WP-F); 8: structural and consulting offer evidence, service pages (0.12.0);
+    public static final String VERSION = "12"; // 7: money roles, offer cue for services (WP-F); 8: structural and consulting offer evidence, service pages (0.12.0);
     // 9: audiences in the clause of the address, one client per provider site, names of project profiles, uncategorized offer items (0.13.0)
     // 10: a word of the vocabularies names no organisation, no split inside a name, a client after "bei" is a name, a field ends with its name (0.14.0)
     // 11: a dot between number and postal code, streets named by their square, a menu link "Impressum" is no imprint, a facility's page
     //     names the facility with its own address and contacts, the page's one organisation gets only an address its name heads; after a
     //     link to the imprint the operator gets the contact block its name opens, never on a facility's page; "·", "•" and "|" may stand
     //     between number and postal code (0.15.0)
+    // 12: the validation with the full production data (docs/SCOUTRO_KG_FACILITIES.md section 12): after a link to the imprint the
+    //     operator gets the page's only address with its phone, mailbox and fax (K1); a facility's page only where the field's providers
+    //     run places or the page is one of a site's places or names an establishment, never a service, project or article page (F3);
+    //     a privacy notice names only its controller, never a processor (F4); the town of an address is one word, or two with a known
+    //     prefix or a binder, never the sentence after it (addresses)
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
@@ -86,8 +91,17 @@ public final class RuleExtractor {
     private static final Pattern CANDIDATE_TITLE = Pattern.compile(
             "(?i)\\b(?:impressum|imprint|legal notice|kontakt|contact|über uns|ueber uns|about us|standorte?|leistungen|einrichtungen)\\b");
     private static final Pattern IMPRINT_MARKER = Pattern.compile(
-            "(?i)(?:\\bimpressum\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|\\bimprint\\b|\\blegal\\s+notice\\b"
-            + "|diensteanbieter\\b|verantwortlich\\s+(?:i\\.\\s?s\\.\\s?d\\.|im\\s+sinne))");
+            "(?iu)(?:\\bimpressum\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|\\bimprint\\b|\\blegal\\s+notice\\b"
+            + "|diensteanbieter\\b|verantwortlich\\s+(?:i\\.\\s?s\\.\\s?d\\.|im\\s+sinne)"
+            // rule/12: the controller a privacy notice names ("Verantwortliche Stelle", "Verantwortlich für die Datenverarbeitung")
+            + "|verantwortliche[rs]?\\s+stelle|datenschutzrechtlich\\s+verantwortlich\\p{L}*"
+            + "|verantwortlich\\p{L}*\\s+(?:f(?:ü|ue)r\\s+die\\s+(?:daten)?verarbeitung|gem(?:ä|ae)(?:ß|ss)\\s+(?:art\\.?\\s*4|dsgvo)|nach\\s+(?:art\\.?\\s*4|der\\s+dsgvo)))");
+    /** A privacy notice by its path or title (rule/12): a link to the imprint names no operator there, only the controller it states. */
+    private static final Pattern PRIVACY_PATH = Pattern.compile("(?iu)(?:^|/)(?:datenschutz\\p{L}*|privacy(?:[-_]policy)?|dsgvo|gdpr"
+            + "|datenschutzhinweise?|datenschutzerkl\\p{L}*)(?:[./_\\-]|$)");
+    private static final Pattern PRIVACY_TITLE = Pattern.compile("(?iu)(?<![\\p{L}])(?:datenschutz\\p{L}*|privacy(?:\\s+policy)?)(?![\\p{L}])");
+    /** The window after the controller's marker on a privacy notice: its name and contact block only, never the processors below. */
+    private static final int PRIVACY_WINDOW = 600;
     /** The words of a marker that are also a menu's or a footer's link to the imprint ("- Impressum", "Impressum | Datenschutz"). */
     private static final Pattern LINK_MARKER = Pattern.compile("(?i)^(?:impressum|imprint|legal\\s+notice)$");
     /**
@@ -115,7 +129,17 @@ public final class RuleExtractor {
     private static final Pattern THIRD_PARTY_PHRASE = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
             + "zust(?:ä|ae)ndige[rns]?\\s+(?:kammer|berufskammer|aufsichtsbeh(?:ö|oe)rde|beh(?:ö|oe)rde)"
             + "|mitglied(?:schaft)?\\s+(?:der|des|in\\s+der|im)\\s+[\\p{L}-]*(?:kammer|verband|verbandes)(?![\\p{L}])"
-            + "|(?:name|sitz|anschrift)(?:\\s+und\\s+(?:sitz|anschrift))?\\s+des\\s+versicherers|geltungsraum\\s+der\\s+versicherung)");
+            + "|(?:name|sitz|anschrift)(?:\\s+und\\s+(?:sitz|anschrift))?\\s+des\\s+versicherers|geltungsraum\\s+der\\s+versicherung"
+            + ")");
+    /**
+     * rule/12 (F4 of docs/SCOUTRO_KG_FACILITIES.md section 12): on a privacy notice, the phrases that open the section of a processor
+     * ("Anbieter ist die Muster Versand GmbH", "Auftragsverarbeiter", "Hoster"): such an organisation is never the site's operator.
+     * Only on a privacy notice: an imprint writes "Anbieter dieser Website ist …" of the operator itself.
+     */
+    private static final Pattern PROCESSOR_PHRASE = Pattern.compile("(?iu)(?<![\\p{L}])(?:anbieter\\s+(?:ist|sind|dieses\\s+dienstes|des\\s+dienstes"
+            + "|dieser\\s+plattform|des\\s+plugins|dieses\\s+plugins)(?![\\p{L}])|auftragsverarbeit\\p{L}*|hosting-?anbieter|webhoster|hoster(?![\\p{L}])"
+            + "|versanddienstleister|zahlungsdienstleister|newsletter-?(?:anbieter|dienst(?:leister)?|versand)|wir\\s+nutzen|wir\\s+verwenden"
+            + "|wir\\s+setzen|eingesetzt\\s+wird|zum\\s+einsatz\\s+kommt)");
     /**
      * Headings of such a section: they count only as a label with a colon or as a heading of their own (a line or a
      * sentence of its own, as YaCy's text has a {@code <br>} or a heading: "### Berufshaftpflichtversicherung."), never
@@ -171,23 +195,26 @@ public final class RuleExtractor {
             + "(?<![A-Za-z])((?:DE|ATU|CHE|BE|NL|FR|LU|DK|PL|CZ|IT|ES|SE|FI|IE|PT|SK|SI|HU|GB)[ \\t.\\-]?[0-9](?:[ \\t.\\-]?[0-9A-Z]){6,13})");
     private static final Pattern PHONE = Pattern.compile(
             "(?i)(?:\\bTel(?:efon)?\\.?|\\bPhone|\\bFon|\\bTelefonnummer|\\bT\\.)\\s*:?\\s*((?:\\+|00)?[0-9][0-9 ()/\\-.]{5,24}[0-9])");
+    /** A fax number by its label (rule/12: part of the operator's own contact block, as the business rules read it on contact pages). */
+    private static final Pattern FAX = Pattern.compile("(?i)(?:\\bTele)?\\bfax(?:nummer)?\\.?\\s*:?\\s*((?:\\+|00)?[0-9][0-9 ()/\\-.]{5,24}[0-9])");
     private static final Pattern EMAIL = Pattern.compile("[A-Za-z0-9._%+\\-]{1,64}@[A-Za-z0-9\\-]+(?:\\.[A-Za-z0-9\\-]+)*\\.[A-Za-z]{2,24}");
     private static final Pattern IK = Pattern.compile("(?i)\\bIK(?:-?(?:Nr\\.?|Nummer))?\\s*:?\\s*([0-9]{9})\\b");
-    private static final String CITY_STOP = "(?!(?:Tel|Telefon|Fax|E-?Mail|Mail|Web|Internet|Deutschland|Germany|Österreich|Austria|Schweiz"
-            + "|Registergericht|Amtsgericht|Handelsregister|Geschäftsführ|Geschaeftsfuehr|Vertreten|USt|Steuer|Phone|Mobil|Kontakt|Vorstand"
-            + "|Inhaber|Verantwortlich|Sitz)\\b)";
     /**
      * A postal address: street, number, postal code, town. rule/11 (docs/SCOUTRO_KG_FACILITIES.md): a dot may stand between the
      * number and the postal code, as YaCy's text has a {@code <br>} ("Lindenweg 12. 12345 Musterstadt"), and a street may be named
-     * by a preposition and its square, field or garden ("Am Markt 5", "An der Aue 3", "Zum Anger 1").
+     * by a preposition and its square, field or garden ("Am Markt 5", "An der Aue 3", "Zum Anger 1"). rule/12 (section 12): the
+     * town is {@link Address#TOWN}, shared with the place reader of the LLM tier: a town of two words only with a known prefix
+     * ("Bad Rappenau", "St. Ingbert", "Heilbad Heiligenstadt") or a binder ("Frankfurt am Main"); the end of a sentence and the
+     * words after it never belong to it ("Musterstadt. Diese Seite" is "Musterstadt").
      */
     private static final Pattern ADDRESS = Pattern.compile(
             "((?:Am|An\\s+der|An\\s+den|Auf\\s+dem|Auf\\s+der|Im|In\\s+der|In\\s+den|Zum|Zur|Unter\\s+den|Vor\\s+dem|Hinter\\s+dem|Hinter\\s+der)"
             + "[ \\t]+[A-ZÄÖÜ][\\p{L}\\-]+(?:[ \\t]+[A-ZÄÖÜ][\\p{L}\\-]+)?"
-            + "|[A-ZÄÖÜ][\\p{L}.\\-]*(?:[ \\t]+[\\p{L}.\\-]+){0,3}?(?i:straße|strasse|str\\.|weg|allee|platz|gasse|ring|damm|ufer|chaussee|steig|pfad"
+            + "|(?<![\\p{L}\\p{N}])(?!(?:GmbH|gGmbH|AG|KG|UG|OHG|GbR|SE|mbH)(?![\\p{L}]))[A-ZÄÖÜ][\\p{L}.\\-]*(?:[ \\t]+[\\p{L}.\\-]+){0,3}?"
+            + "(?i:straße|strasse|str\\.|weg|allee|platz|gasse|ring|damm|ufer|chaussee|steig|pfad"
             + "|markt|hof|berg|feld|garten|park|graben|kamp|stieg|tor|brücke|bruecke|zeile|wall|anger|aue|chaussee))\\s+"
             + "([0-9]{1,4}\\s?[a-zA-Z]?(?:\\s?[-–/]\\s?[0-9]{1,4}\\s?[a-zA-Z]?)?)(?![0-9])\\s*[,;.·•|]?\\s*(?:D\\s?-\\s?)?([0-9]{5})\\s+"
-            + CITY_STOP + "([A-ZÄÖÜ][\\p{L}\\-]+(?:[ \\-]" + CITY_STOP + "(?:am|an\\s+der|a\\.\\s?d\\.|im|in|bei|ob\\s+der|[A-ZÄÖÜ(][\\p{L}.)\\-]+)){0,3})");
+            + Address.NOT_A_TOWN + "(" + Address.TOWN + ")");
 
     private final int maxExcerpt;
     private final int maxInput;
@@ -276,11 +303,14 @@ public final class RuleExtractor {
         // such a link the operator is still named (the employer of a careers page), but it gets none of the page's contacts
         final int[] marker = imprintMarker(text, url, titles);
         final boolean imprint = marker != null && marker[1] == 1;
-        // rule/11: the page of one facility of the provider names it with its own address and contacts; its facts are its own
-        final FacilityPage.Page facilityPage = imprintPage(url, titles) ? null
+        final boolean privacy = privacyPage(url, titles);
+        // rule/11: the page of one facility of the provider names it with its own address and contacts; its facts are its own.
+        // rule/12 (section 12): only where the field's providers run places, or the page is one of a site's places or names an
+        // establishment of the business; never a page of a service, a project, an article or a vacancy
+        final FacilityPage.Page facilityPage = imprintPage(url, titles) || privacy ? null
                 : FacilityPage.detect(text, url, titles, ctx != null && ctx.operatesPlaces());
         if (marker != null) {
-            imprint(text, marker[0], host, cc, out, subjects, imprint, facilityPage != null);
+            imprint(text, marker[0], privacy, host, cc, out, subjects, imprint, facilityPage);
         }
         final Mention facility = facilityPage == null ? null : facility(text, facilityPage, cc, out, subjects);
         if (!imprint && subjects.size() == 1 && subjects.get(0) != facility) {
@@ -298,6 +328,19 @@ public final class RuleExtractor {
             // a facility's page: its own part, before the operator's footer, is the facility's
             final String own = facilityPage == null ? text : text.substring(0, facilityPage.ownEnd);
             this.business.extract(own, url, host, language, outbound, out, ctx, kinds, subject, titles);
+            if (facility != null) {
+                // rule/12: the trade of a facility's page is its operator's too (the operator lost its industry where a facility's page
+                // was its only source, F3 of section 12)
+                final Mention operator = out.mention(OPERATOR_REF) != null ? out.mention(OPERATOR_REF)
+                        : subjects.size() == 1 && Vocabulary.ORGANIZATION.equals(subjects.get(0).type) ? subjects.get(0) : null;
+                if (operator != null && operator != facility) {
+                    for (final Claim c : new ArrayList<>(out.claims())) {
+                        if (c.subject.equals(facility.ref) && (Vocabulary.INDUSTRY.equals(c.predicate) || Vocabulary.INDUSTRY_CATEGORY.equals(c.predicate))) {
+                            out.add(new Claim(operator.ref, c.predicate, null, c.value, c.tier, c.kind, c.hedged, c.locator, c.excerpt, c.confidence));
+                        }
+                    }
+                }
+            }
             if(subject!=null && !kinds.contains(BusinessRules.PageKind.CAREERS))
                 // a reference page describes client work (BusinessSignals.REFERENCES); the locator stays "text"
                 BusinessSignals.extract(own,subject,out,2,Claim.KIND_RULE,BusinessSignals.referencePage(url)?BusinessSignals.REFERENCES:"text","text");
@@ -339,18 +382,42 @@ public final class RuleExtractor {
      */
     static int[] imprintMarker(final String text, final String url, final List<String> titles) {
         final boolean page = imprintPage(url, titles);
+        // rule/12 (F4 of section 12): on a privacy notice the words "Verantwortlich" and "Anbieter" stand everywhere, and the first
+        // organisation after a link to the imprint was a processor the notice names (a newsletter or hosting provider): there a link
+        // names nobody, only the controller's own marker does ("Verantwortliche Stelle ist …")
+        final boolean privacy = !page && privacyPage(url, titles);
         final Matcher m = IMPRINT_MARKER.matcher(text);
         int link = -1;
         while (m.find()) {
-            if (page || !LINK_MARKER.matcher(m.group().trim()).matches()
-                    || IMPRINT_DATA.matcher(text).region(m.end(), Math.min(text.length(), m.end() + IMPRINT_DATA_WINDOW)).find()) {
+            final boolean word = LINK_MARKER.matcher(m.group().trim()).matches();
+            if (page || !word || !privacy && IMPRINT_DATA.matcher(text).region(m.end(), Math.min(text.length(), m.end() + IMPRINT_DATA_WINDOW)).find()) {
                 return new int[] {m.end(), 1};
             }
-            if (link < 0) {
+            if (link < 0 && !privacy) {
                 link = m.end();
             }
         }
         return link < 0 ? null : new int[] {link, 0};
+    }
+
+    /** True for a privacy notice by its address or its title (rule/12). */
+    static boolean privacyPage(final String url, final List<String> titles) {
+        try {
+            final String path = url == null ? null : new URI(url).getRawPath();
+            if (path != null && PRIVACY_PATH.matcher(java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8)).find()) {
+                return true;
+            }
+        } catch (final Exception e) {
+            // no path: the title decides
+        }
+        if (titles != null) {
+            for (final String t : titles) {
+                if (t != null && PRIVACY_TITLE.matcher(t).find()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -472,14 +539,16 @@ public final class RuleExtractor {
      * contacts after the name are the operator's. Else the marker is a link to the imprint (rule/11): the operator is named, and
      * gets only its own contact block ({@link #operatorBlock}), never on a facility's page ({@code facilityPage}).
      */
-    private void imprint(final String text, final int markerAt, final String host, final String cc, final Extraction out,
-            final List<Mention> structured, final boolean contacts, final boolean facilityPage) {
-        final int end = Math.min(text.length(), markerAt + WINDOW);
-        // the operator's own sections only: the insurer's, the chamber's or the web agency's name and contacts are theirs
-        final List<int[]> ranges = operatorRanges(text, markerAt, end);
+    private void imprint(final String text, final int markerAt, final boolean privacy, final String host, final String cc, final Extraction out,
+            final List<Mention> structured, final boolean contacts, final FacilityPage.Page facilityPage) {
+        final int end = Math.min(text.length(), markerAt + (privacy ? PRIVACY_WINDOW : WINDOW));
+        // the operator's own sections only: the insurer's, the chamber's or the web agency's name and contacts are theirs; on a
+        // privacy notice, the processors' too (rule/12)
+        final List<int[]> ranges = operatorRanges(text, markerAt, end, privacy);
         String legal = null;
         int nameStart = -1;
         int nameEnd = -1;
+        int best = -1;
         search: for (final int[] r : ranges) {
             final Matcher lf = LEGAL_FORM.matcher(text).region(r[0], r[1]);
             while (lf.find()) {
@@ -487,10 +556,26 @@ public final class RuleExtractor {
                 if (start >= 0) {
                     final String candidate = Normalizers.legalName(text.substring(start, lf.end()));
                     if (candidate != null && candidate.length() >= 4) {
-                        legal = candidate;
-                        nameStart = start;
-                        nameEnd = lf.end();
-                        break search;
+                        if (contacts) {
+                            // an imprint names its operator first
+                            legal = candidate;
+                            nameStart = start;
+                            nameEnd = lf.end();
+                            break search;
+                        }
+                        // rule/12 (K1 and F4 of section 12): after a link only, the first organisation with a legal form was a club the
+                        // page sponsors, a certifier or a partner; the operator is the one whose name is the site's ("Bügler Haustechnik
+                        // GmbH & Co. KG" on buegler.com), else the one whose name heads a contact block, else the first
+                        final int score = brandName(candidate, host) ? 2 : headsContacts(text, candidate, lf.end()) ? 1 : 0;
+                        if (score > best) {
+                            best = score;
+                            legal = candidate;
+                            nameStart = start;
+                            nameEnd = lf.end();
+                            if (score == 2) {
+                                break search;
+                            }
+                        }
                     }
                 }
             }
@@ -520,19 +605,28 @@ public final class RuleExtractor {
             // rule/11: a link to the imprint names the operator; the page's identifiers and contacts are not the imprint's, only the
             // block its name opens is its own (a footer "Muster GmbH · Musterstraße 1 · 12345 Musterstadt · Tel. …"). On a facility's
             // page the contacts are the facility's (K1 and H5 of docs/SCOUTRO_KG_FACILITIES.md)
-            if (!facilityPage && !sameSubject(structured, m)) {
-                // the block of the name found after the link, else of a later occurrence of it (the footer of a long page)
-                final List<int[]> all = operatorRanges(text, markerAt, text.length());
+            if (!sameSubject(structured, m)) {
+                // the block of the name found after the link, else of a later occurrence of it (the footer of a long page). rule/12: on a
+                // facility's page too, where the block stands in the operator's footer after the page's own part and holds another
+                // address than the facility's (F2 of section 12: the operator keeps its own contacts)
+                final List<int[]> all = operatorRanges(text, markerAt, text.length(), privacy);
                 final List<Integer> ends = new ArrayList<>(List.of(nameEnd));
                 for (final int[] at : PlaceEvidence.occurrences(text, m.name)) {
                     if (at[0] > nameEnd && inside(all, at[0])) {
                         ends.add(at[1]);
                     }
                 }
+                boolean own = false;
                 for (final int e : ends) {
-                    if (operatorBlock(text, all, e, cc, out, m)) {
+                    if (operatorBlock(text, all, e, cc, out, m, facilityPage)) {
+                        own = true;
                         break;
                     }
+                }
+                if (!own && !privacy && facilityPage == null) {
+                    // rule/12 (K1 of section 12): a footer without the name before its data ("Kontakt · Musterweg 3 · 12345 Musterstadt ·
+                    // info@… · Fax …") is the operator's where it is the page's only address and no place heads it
+                    singleAddress(text, operatorRanges(text, 0, text.length()), cc, out, m);
                 }
             }
             return;
@@ -555,7 +649,10 @@ public final class RuleExtractor {
      * Häuser") or the block holds two different addresses: whose each is, is not guessed.
      */
     private boolean operatorBlock(final String text, final List<int[]> ranges, final int nameEnd, final String cc, final Extraction out,
-            final Mention m) {
+            final Mention m, final FacilityPage.Page facility) {
+        if (facility != null && nameEnd < facility.ownEnd) {
+            return false; // on a facility's page only the operator's footer after the page's own part (rule/12)
+        }
         final List<int[]> block = new ArrayList<>();
         final int end = contactBlockEnd(text, nameEnd);
         for (final int[] r : from(ranges, nameEnd)) {
@@ -589,9 +686,111 @@ public final class RuleExtractor {
         if (first >= end || distinct.size() > 1 || RUNS_PLACES.matcher(text).region(nameEnd, first).find()) {
             return false; // no value of the operator in the block, or not its own
         }
+        if (facility != null && facility.address() != null && facility.address().street != null && facility.address().number != null
+                && distinct.contains(compact(facility.address().street) + "|" + facility.address().number.replace(" ", "") + "|" + facility.address().postalCode)) {
+            return false; // the facility's address is not the operator's
+        }
         identifiers(text, block, out, m);
         contact(text, block, cc, out, m);
         return true;
+    }
+
+    /**
+     * rule/12 (K1 of the validation with the full production data, docs/SCOUTRO_KG_FACILITIES.md section 12): the operator named
+     * after a link to the imprint gets the page's only postal address with the phone, mailbox and fax after it, where no block of
+     * its own name gave them ({@link #operatorBlock}). Before, 1 195 fax, 635 mailbox and 525 phone statements of organisations
+     * rested on such footers, written without the name before them ("Kontakt. Musterweg 3. 12345 Musterstadt. info@… Tel. …").
+     * Nothing where the page holds two different addresses (whose each is, is not guessed) or a place heads the address
+     * ({@link #placeHeaded}: "Haus Lindenhof, Lindenweg 12, …", "Niederlassung Nord", "betreibt das Haus …"): the place's.
+     */
+    private void singleAddress(final String text, final List<int[]> ranges, final String cc, final Extraction out, final Mention m) {
+        Matcher only = null;
+        final java.util.Set<String> distinct = new java.util.HashSet<>();
+        for (final int[] r : ranges) {
+            int at = r[0];
+            while (at < r[1]) {
+                final Matcher am = findAddress(text, at, r[1]);
+                if (am == null) {
+                    break;
+                }
+                distinct.add(compact(am.group(1)) + "|" + am.group(2).replace(" ", "") + "|" + am.group(3));
+                if (only == null) {
+                    only = am;
+                }
+                at = am.end();
+            }
+        }
+        if (only == null || distinct.size() != 1 || placeHeaded(text, only.start(), m.name)) {
+            return;
+        }
+        // the address and, as a footer writes them after it, the first phone, mailbox and fax from a little before the address on
+        contact(text, from(ranges, Math.max(0, only.start() - 300)), cc, out, m);
+    }
+
+    /**
+     * True if a place heads the address at {@code at}: its line or one of the two units before it names a place ("Haus Lindenhof",
+     * "Niederlassung Nord", "Standort Hamburg") or speaks of places the organisation runs ({@link #RUNS_PLACES}), the operator's own
+     * name apart.
+     */
+    private static boolean placeHeaded(final String text, final int at, final String operatorName) {
+        int line = at;
+        while (line > 0 && text.charAt(line - 1) != '\n') {
+            line--;
+        }
+        final List<String> units = new ArrayList<>();
+        units.add(text.substring(line, at));
+        int from = at;
+        for (int i = 0; i < 2; i++) {
+            final int[] u = previousUnit(text, from, Math.max(0, at - 400));
+            if (u == null) {
+                break;
+            }
+            units.add(text.substring(u[0], u[1]));
+            from = u[0];
+        }
+        for (final String unit : units) {
+            final String rest = operatorName == null ? unit : unit.replace(operatorName, " ");
+            if (RUNS_PLACES.matcher(rest).find() || PlaceEvidence.placeWord(rest) && PlaceEvidence.properName(rest)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * rule/12: true if the organisation's name is the site's name: the registrable domain's label, "&" and "+" read as "und", is a
+     * part of the name's letters ("Bügler Haustechnik GmbH & Co. KG" on buegler.com, "Hoog & Sohn GmbH" on hoogundsohn.de), or the
+     * name's first word of four letters or more is the label ("Alberring – Ambulante Pflege GmbH & Co. KG" on alberring.de).
+     */
+    static boolean brandName(final String name, final String host) {
+        final String domain = Normalizers.registrableDomain(host);
+        if (name == null || domain == null || domain.indexOf('.') < 0) {
+            return false;
+        }
+        final String label = compact(domain.substring(0, domain.indexOf('.')));
+        if (label.length() < 4) {
+            return false;
+        }
+        final String letters = compact(name.replace("&", " und ").replace("+", " und "));
+        if (letters.contains(label)) {
+            return true;
+        }
+        final Matcher w = Pattern.compile("[\\p{L}\\p{N}]+").matcher(name);
+        return w.find() && compact(w.group()).length() >= 4 && label.startsWith(compact(w.group()));
+    }
+
+    /** rule/12: true if an occurrence of the name at or after {@code from} opens a contact block with a value in it ({@link #contactBlockEnd}). */
+    private static boolean headsContacts(final String text, final String name, final int from) {
+        for (final int[] at : PlaceEvidence.occurrences(text, name)) {
+            if (at[1] < from) {
+                continue;
+            }
+            final int end = contactBlockEnd(text, at[1]);
+            if (findAddress(text, at[1], end) != null || PHONE.matcher(text).region(at[1], end).find() || EMAIL.matcher(text).region(at[1], end).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -702,10 +901,15 @@ public final class RuleExtractor {
      * the operator's data ({@link #OPERATOR_PHRASE}, {@link #OPERATOR_LABEL}) or to {@code to}.
      */
     static List<int[]> operatorRanges(final String text, final int from, final int to) {
+        return operatorRanges(text, from, to, false);
+    }
+
+    /** {@link #operatorRanges(String, int, int)}; with {@code privacy}, the processors' sections of a privacy notice are others' too (rule/12). */
+    static List<int[]> operatorRanges(final String text, final int from, final int to, final boolean privacy) {
         final List<int[]> out = new ArrayList<>();
         int at = from;
         while (at < to) {
-            final int[] third = thirdPartyLabel(text, at, to);
+            final int[] third = thirdPartyLabel(text, at, to, privacy);
             if (third == null) {
                 out.add(new int[] {at, to});
                 break;
@@ -723,9 +927,10 @@ public final class RuleExtractor {
     }
 
     /** The first label of another party's section in [from, to), as [start, end), or null. */
-    private static int[] thirdPartyLabel(final String text, final int from, final int to) {
+    private static int[] thirdPartyLabel(final String text, final int from, final int to, final boolean privacy) {
         int[] best = null;
-        for (final Pattern p : new Pattern[] {THIRD_PARTY_PHRASE, THIRD_PARTY_HEADING, THIRD_PARTY_LABEL}) {
+        for (final Pattern p : privacy ? new Pattern[] {THIRD_PARTY_PHRASE, THIRD_PARTY_HEADING, THIRD_PARTY_LABEL, PROCESSOR_PHRASE}
+                : new Pattern[] {THIRD_PARTY_PHRASE, THIRD_PARTY_HEADING, THIRD_PARTY_LABEL}) {
             final Matcher m = p.matcher(text).region(from, to).useTransparentBounds(true);
             while (m.find() && (best == null || m.start() < best[0])) {
                 if (p != THIRD_PARTY_HEADING || colonAfter(text, m.end(), to) || unitStart(text, m.start()) && unitEnd(text, m.end(), to)) {
@@ -992,7 +1197,12 @@ public final class RuleExtractor {
     /** Address, phone and e-mail found in the ranges are attached to {@code m}; the first of each. */
     private void contact(final String text, final List<int[]> ranges, final String cc, final Extraction out, final Mention m) {
         for (final int[] r : ranges) {
-            final Matcher am = findAddress(text, r[0], r[1]);
+            Matcher am = findAddress(text, r[0], r[1]);
+            // rule/12: the organisation's own name before its street is no part of the street ("Condrobs e.V. Musterstraße 47")
+            while (am != null && m.name != null && am.group(1).length() > m.name.length() && compact(am.group(1)).startsWith(compact(m.name))
+                    && compact(m.name).length() >= 4) {
+                am = findAddress(text, am.start(1) + m.name.length(), r[1]);
+            }
             if (am != null) {
                 final Address a = new Address(am.group(1), am.group(2), am.group(3), am.group(4).trim(), null);
                 if (m.address == null && a.complete()) {
@@ -1022,6 +1232,17 @@ public final class RuleExtractor {
                     claim(out, m, Vocabulary.EMAIL, mail, text, em.start(), em.end());
                     break mail;
                 }
+            }
+        }
+        // rule/12: the fax of the block, as the business rules read it on contact pages (the same claim is kept once)
+        for (final int[] r : ranges) {
+            final Matcher fm = FAX.matcher(text).region(r[0], r[1]);
+            if (fm.find()) {
+                final String fax = Normalizers.phone(fm.group(1), cc);
+                if (fax != null) {
+                    claim(out, m, Vocabulary.FAX, fax, text, fm.start(), fm.end());
+                }
+                break;
             }
         }
     }

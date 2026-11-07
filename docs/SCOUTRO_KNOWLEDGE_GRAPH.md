@@ -4519,7 +4519,7 @@ the explicitly own use of a provider of the product, a candidate that is a provi
 `BusinessSignalsTest` (offers with the reader or others as the user, the
 paths of privacy and cookie notices; the confirmed own uses of 0.12.2 unchanged).
 
-## 46. Facilities, stage 1: addresses, facility pages and identities (development, `rule/11`, `llm/7`)
+## 46. Facilities, stage 1: addresses, facility pages and identities (development, `rule/12`, `llm/8`)
 
 Not released. The finding of `edelsenior-web` (facilities without an address of their own, up to 17 entities per facility,
 addresses as names of sites, varying kinds), its causes in the code of 0.14.1 and the rules of this stage are in
@@ -4539,3 +4539,14 @@ place the page proves, never on an imprint page, inside a page's imprint, at the
 a town (K2, K6); a merge's `redirect` carries the survivor's collections and the moved statements are `upsert`s, so a consumer
 limited to collections learns the survivor (M7, sections 4.3 and 8.3 above, `MergeFeedTest`). Tests: `OperatorContactRegressionTest`,
 `PlaceAddressRegressionTest`, `FacilityRegressionGraphTest`, `MergeFeedTest`.
+
+After the validation with the full production data (section 12 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md), `rule/12`,
+`llm/8` with `REPLAYS` = {4, 5, 6, 7}): after a link "Impressum" the operator gets the page's only address with its phone, mailbox
+and fax where no block of its name gives them, unless a place heads the address (K1), and its own footer on a facility's page (F2);
+a facility's page of a field whose providers do not run places (construction, software, coaching) is a detail page of the site's
+places or names an establishment of the business, never a service, project, article, team or directions page (F3), and its trade
+is the operator's too; a privacy notice names its controller only, never a processor (F4); the town of an address is one pattern
+for the rules and the place reader (`Address.TOWN`: "Bad Rappenau", "St. Ingbert", "Frankfurt am Main", never the sentence after
+it); after a link only, the operator is the organisation whose name is the site's. The durable review mark of R4 is a proposal
+([SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md](SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md)), no schema change. Tests: `PortalRegressionTest`
+on invented pages of the four fields.

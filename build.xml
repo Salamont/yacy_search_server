@@ -622,6 +622,7 @@
       <arg value="net.yacy.scoutro.knowledge.extract.FacilityPageTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.FacilityGraphTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.OperatorContactRegressionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.PortalRegressionTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.PlaceAddressRegressionTest"/>
       <arg value="net.yacy.scoutro.knowledge.sync.FacilityRegressionGraphTest"/>
       <arg value="net.yacy.scoutro.knowledge.publish.MergeFeedTest"/>

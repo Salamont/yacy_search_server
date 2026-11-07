@@ -223,10 +223,14 @@ public class FacilityPageTest {
         final Mention fop = facilityPage.mention(RuleExtractor.OPERATOR_REF);
         if (fop != null) {
             assertEquals("Muster Altenhilfe gGmbH", fop.name);
-            for (final String p : new String[] {Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.PHONE, Vocabulary.EMAIL,
-                    Vocabulary.ID_REGISTER, Vocabulary.ID_VAT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
+            // rule/12: the operator keeps its own footer block on a facility's page, nothing of the facility (section 12, F2)
+            for (final String a : values(facilityPage, fop, Vocabulary.ADDRESS)) {
+                assertEquals("Trägerstraße 1, 10115 Musterstadt", a);
+            }
+            for (final String p : new String[] {Vocabulary.ID_REGISTER, Vocabulary.ID_VAT, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
                 assertEquals("facility page " + p, List.of(), values(facilityPage, fop, p));
             }
+            nothingOf(facilityPage, fop, "Lindenweg", "12345", "+49302222222", "haus.lindenhof@", "Montag bis Freitag");
         }
         for (final String[] page : new String[][] {{"care-facilities-overview.html", "/einrichtungen/"}, {"care-contact.html", "/kontakt/"}}) {
             final Extraction ex = care(page[0], page[1]);

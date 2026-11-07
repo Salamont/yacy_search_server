@@ -91,7 +91,11 @@ public final class PlaceEvidence {
             "presse", "impressum", "datenschutz", "datenschutzerklarung", "home", "startseite", "leistungen", "unsere leistungen",
             "service", "services", "downloads", "download", "anfahrt", "galerie", "unternehmen", "philosophie", "geschichte", "historie",
             "partner", "faq", "sitemap", "login", "suche", "agb", "contact", "contact us", "about", "about us", "career", "careers",
-            "references", "projects", "imprint", "legal notice", "privacy", "privacy policy", "company", "history", "gallery", "search");
+            "references", "projects", "imprint", "legal notice", "privacy", "privacy policy", "company", "history", "gallery", "search",
+            // rule/12 (F3 of docs/SCOUTRO_KG_FACILITIES.md section 12): headings of a site's sections that stood as facilities; not the
+            // headings of a list of places ("Unsere Standorte", "Unsere Angebote"), which make no list a menu
+            "so finden sie uns", "so erreichen sie uns", "mitarbeiter", "mitarbeiterinnen", "ansprechpartner", "kontaktdaten",
+            "offnungszeiten", "oeffnungszeiten", "unser team", "das team", "uber mich", "ueber mich", "mein angebot", "handel und ausstellung");
     /**
      * The names of a website's sections that never name an offer either ("Kontakt", "Über uns", "Referenzen", "Jobs"), folded: a
      * service of such a name is a page label too. Labels that may name an offer ("News", "Downloads", "Service", "Partner") are
@@ -172,6 +176,36 @@ public final class PlaceEvidence {
     public static boolean pageLabel(final String name) {
         return name != null && PAGE_LABELS.contains(fold(name));
     }
+
+    /**
+     * rule/12: true if the name reads as a sentence or a headline of an article, not as a place's name: five words or more, two of
+     * them lower-case words of four letters or more ("Ausstellungsraum seit April wieder geöffnet", "Handwerk trifft Künstliche
+     * Intelligenz – ein Blick zurück"), or a colon inside it ("Händelhaus Halle: Barrierefreiheit im Dachgeschoss").
+     */
+    static boolean sentenceLike(final String name) {
+        if (name == null) {
+            return false;
+        }
+        return name.indexOf(':') >= 0 || words(name) >= 5 && lowerWords(name) >= 2;
+    }
+
+    /**
+     * rule/12: true if the name is the heading of a category of a site, no place: its last word is a generic noun or a plural of
+     * offers ("Soziotherapeutische Einrichtungen", "Unsere Angebote", "Ambulante Dienste"), and no number makes it one place.
+     */
+    static boolean categoryHeading(final String name) {
+        if (name == null || NUMBER.matcher(name).find()) {
+            return false;
+        }
+        final String[] words = fold(name).split(" ");
+        final String last = words[words.length - 1];
+        return words.length <= 3 && (GENERIC.contains(last) || CATEGORY_WORDS.contains(last));
+    }
+
+    /** The last words of a category's heading ({@link #categoryHeading}), folded. */
+    private static final Set<String> CATEGORY_WORDS = folded("einrichtungen", "angebote", "leistungen", "dienste", "hilfen", "bereiche", "services",
+            "wohnformen", "wohnangebote", "betreuungsangebote", "pflegeangebote", "beratungsangebote", "hauser", "haeuser", "standorte", "filialen",
+            "niederlassungen", "praxen", "kitas", "schulen", "projekte", "referenzen", "produkte", "losungen", "loesungen");
 
     /** True if the name is the name of a website's section that never names an offer ({@link #SECTION_LABELS}): no service. */
     public static boolean sectionLabel(final String name) {
@@ -412,12 +446,16 @@ public final class PlaceEvidence {
      * A word before a street's own word ("Bad Homburger Weg", "St. Anna-Straße"): a word without a dot, or a short abbreviation with
      * one ("St.", "Dr.", "Prof."). 0.15.0: never the last word of a sentence before it ("Wohnen im Alter. Sonnenweg 3" is "Sonnenweg").
      */
-    private static final String STREET_WORD = "(?:\\p{Lu}[\\p{L}'-]*|\\p{Lu}\\p{L}{0,3}\\.)";
+    private static final String STREET_WORD = "(?:(?!GmbH|AG|KG|UG|OHG|GbR|SE)\\p{Lu}[\\p{L}'-]*|\\p{Lu}\\p{L}{0,3}\\.)";
+    /**
+     * The town after the postal code: {@link Address#TOWN}, shared with the rules (rule/12, llm/8): "Bad Rappenau", "St. Ingbert",
+     * "Frankfurt am Main", "Halle (Saale)"; never the sentence after it.
+     */
     private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}.])((?:" + STREET_WORD + "\\s+)?\\p{Lu}[\\p{L}'-]*"
             + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:" + STREET_WORD + "\\s+)?(?:Straße|Strasse|Weg|Gasse"
             + "|Platz|Allee|Ring|Damm|Ufer|Chaussee|Markt)|(?i:am|an\\s+der|an\\s+den|im|in\\s+der|auf\\s+dem|auf\\s+der|zum|zur)\\s+\\p{Lu}"
-            + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+(?:\\s+(?:am|an\\s+der|im|ob\\s+der)"
-            + "\\s+\\p{Lu}[\\p{L}-]+)?))?|(?<!\\d)(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+))");
+            + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+" + Address.NOT_A_TOWN + "(" + Address.TOWN + "))?"
+            + "|(?<!\\d)(\\d{5})\\s+" + Address.NOT_A_TOWN + "(" + Address.TOWN + "))");
     /**
      * A town after the kind in its clause: "… an unserem Standort Musterstadt", "… an unserem Hauptstandort in Musterstadt", "… in
      * Musterstadt", "… im Musterdorf".
@@ -483,7 +521,9 @@ public final class PlaceEvidence {
      * with {@code town}, a town after it in its clause; null outside such a block (a menu, the provider describing itself).
      */
     private static Place placeAt(final String text, final int[] at, final boolean town) {
-        if (navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1])) {
+        // rule/12, llm/8: a heading ("# Praxis Hamburg-Altona") is content, whatever menu stands before it; a name in a run of short
+        // segments is a menu's only where a section's label stands right beside it (a heading followed by the address block is none)
+        if (!heading(text, at[0]) && navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1], 1)) {
             return null;
         }
         final int[] seg = segment(text, at[0], at[1]);
@@ -790,9 +830,26 @@ public final class PlaceEvidence {
 
     /** True if one of the two segments before or after the occurrence is the label of a site's section: a menu. */
     static boolean labelNear(final String text, final int start, final int end) {
+        return labelNear(text, start, end, 2);
+    }
+
+    /** True if the occurrence's line is a heading of the page text as YaCy writes it ("# Haus Lindenhof", "## Kontakt"). */
+    static boolean heading(final String text, final int at) {
+        int line = at;
+        while (line > 0 && text.charAt(line - 1) != '\n') {
+            line--;
+        }
+        while (line < at && text.charAt(line) == ' ') {
+            line++;
+        }
+        return line < text.length() && text.charAt(line) == '#';
+    }
+
+    /** {@link #labelNear(String, int, int)} within {@code reach} segments before and after the occurrence. */
+    static boolean labelNear(final String text, final int start, final int end, final int reach) {
         final int[] seg = segment(text, start, end);
         int at = seg[0];
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < reach; i++) {
             final int p = previousContent(text, at);
             if (p < 0) {
                 break;
@@ -804,7 +861,7 @@ public final class PlaceEvidence {
             at = prev[0];
         }
         at = seg[1];
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < reach; i++) {
             final int n = nextContent(text, at);
             if (n >= text.length()) {
                 break;

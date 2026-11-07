@@ -81,13 +81,13 @@ public final class LlmExtractor {
      * on an imprint page, inside the page's imprint, for the imprint operator's address, a firm's name or a town (K2, K6); a guess of
      * a kind keys no place; again what is kept of an answer, not the question (docs/SCOUTRO_KG_FACILITIES.md).
      */
-    public static final String VERSION = "7";
+    public static final String VERSION = "8"; // 8 (rule/12, docs/SCOUTRO_KG_FACILITIES.md section 12): the town of a place's address as the rules read it
     /**
      * The versions whose stored answers this version reads again without a model request (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40):
      * their change to this one is the validation only, so their tier-3 evidence is rebuilt into the answer, validated with the
      * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
      */
-    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4", "5", "6");
+    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4", "5", "6", "7");
     /**
      * The version of the question (prompt, schema and the requests' form): part of the prompt hash and of the cache key. A version
      * in {@link #REPLAYS} changes what is kept of an answer, not the question, so it keeps the question's version: a cached answer

@@ -1,7 +1,9 @@
-# Facilities, stage 1: addresses, facility pages and identities (rule/11, llm/7)
+# Facilities, stage 1: addresses, facility pages and identities (rule/12, llm/8)
 
 Status: development branch, **not released**. Knowledge graph schema 9, unchanged; no new table, no new predicate, no API change.
-Extractors: `rule/11` (was 10), `llm/7` (was 6; `REPLAYS` = {4, 5, 6}); `jsonld/8`, `metadata/1` and the vocabularies unchanged.
+Extractors: `rule/12` (was 10; 11 on this branch before section 12), `llm/8` (was 6; 7 before section 12; `REPLAYS` = {4, 5, 6, 7});
+`jsonld/8`, `metadata/1` and the vocabularies unchanged. Sections 2 to 11 describe `rule/11` and `llm/7`; section 12 what
+`rule/12` and `llm/8` change after the validation with the full production data.
 Background: the analysis `SCOUTRO_PORTAL_DATA_INTEGRATION_ANALYSIS.md` (outside this repository) and the read-only production
 diagnosis of collection `edelsenior-web` (owner, November 2026).
 
@@ -53,8 +55,11 @@ contact block** (`RuleExtractor.operatorBlock`, K1 of section 11):
 - of the name found after the link, else of a later occurrence of it (the footer of a long page);
 - nothing where the passage from the name to its first value is about places it runs ("betreibt das Haus …", "ist Träger des …",
   "unsere Häuser", "Standorte", "Niederlassung") or the block holds two different addresses;
-- nothing on a facility's page (section 2.4): there the contacts are the facility's;
-- nothing a second time where the page's one structured organisation is the operator (it gets them by section 2.3).
+- nothing on a facility's page (section 2.4): there the contacts are the facility's (`rule/12`, section 12.2: the operator's own
+  footer block after the page's own part, with another address than the facility's, is the operator's);
+- nothing a second time where the page's one structured organisation is the operator (it gets them by section 2.3);
+- `rule/12` (section 12.1): where no block of its name gives a value, the page's only address with the phone, mailbox and fax after
+  it, unless a place heads the address.
 
 ### 2.3 The page's one structured subject
 
@@ -177,6 +182,7 @@ every collection and needs its own gates (remaining defect R6).
 | `PlaceAddressRegressionTest` (8) | K2 and K6 (section 11) on the LLM tier's `apply`: a named house of an overview keeps its address; on an imprint page, inside a page's imprint and at the imprint operator's address a house gets none (a structured organisation's fallback address does not count); a town and a firm taken for facilities get none; an unclear name keeps its mark and gets none; a street starts after the sentence before it |
 | `FacilityRegressionGraphTest` (7) | a second invented provider end to end: the imprint gives a house none of the operator's address; two houses of one name in two towns stay two, also where an overview lists both; every facility has at most one address and postal code; town, firm and unclear name get no address; the operator keeps its own contacts and none of a house; a consumer of the collection reads no delete for a merged entity |
 | `MergeFeedTest` (3) | M7 with the real publisher and identity resolution: a merge in one collection is a `redirect` for its consumer; a consumer of the merged entity's collection gets the `redirect`, not a `delete`, also where the survivor came from another collection; every statement of the merged entity is an `upsert` or a `redirect` to a statement of the survivor; a consumer of a third collection gets nothing |
+| `PortalRegressionTest` (16) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street |
 | `FacilityFixtureReport` | not a test: the corpus as tables, for the comparison before and after (section 8) |
 | changed expectations | `CollectionFitTest` (the LLM extractor's version 7), `LlmFactCatalogueTest.locationsAFacilityIsLocatedAtItsSite` (the facility and the site have their address statements now) |
 
@@ -250,3 +256,106 @@ whose address equals its single-house operator's gets no address from the LLM ti
 read it on the house's own page). The fixtures of `OperatorContactRegressionTest`, `PlaceAddressRegressionTest` and
 `FacilityRegressionGraphTest` are invented pages after the patterns of the production graph (no production data in the
 repository).
+
+## 12. Validation with the full production data and its corrections (rule/12, llm/8)
+
+The branch's state `4b680bd` (`rule/11`, `llm/7`) was run against the production graph of 2026-11-05 (`Neu.zip`, schema 9,
+243 128 documents) with the Solr export of 2026-11-06 (273 449 documents, every stored field) in an isolated environment, both
+before (`c6794d2`) and after, without a model request (the stored answers replayed); the report lies outside the repository. The
+facilities of the care collection gained what stage 1 was for (91 → 1 336 with an address), but four classes of errors reached
+the other collections and the operators. Their corrections are `rule/12` and `llm/8`; the versions re-extract the rules' tiers of
+every page once and replay the LLM tier's answers once more, as section 6 describes.
+
+| # | Finding (full production data) | Measured | Correction |
+|---|---|---|---|
+| K1 | After a link to the imprint the operator got only the block its name opens; a footer written without the name before its data ("Kontakt · Musterweg 3 · 12345 Musterstadt · info@… · Fax …") gave it nothing | 1 195 fax, 635 mailbox, 525 phone and 215 address statements of organisations lost; 849, 589, 476 and 79 organisations without such a statement afterwards | section 12.1 |
+| F2 | On a facility's page the operator got nothing, not even its own footer | part of K1 | section 12.2 |
+| F3 | A page whose heading equals its last path segment and is followed by an address became a facility's page: a service ("Rollladen und Raffstore"), a project ("Bürgerhaus …"), an article, a team page ("Mitarbeiter"), a directions page ("So finden Sie uns") | construction collection: 73 per cent of the rules' facility pages were none; 624 industries and 51 office hours of operators moved to such facilities; facilities with their operator's address 343 → 738 | section 12.3 |
+| F4 | On a privacy notice the word "Verantwortlich" made a footer's link to the imprint an imprint, and the first organisation after it (a newsletter, hosting or analytics provider) the site's operator | 41 processors named as operators, 4 of them merged into the operator's entity | section 12.4 |
+| — | The town of an address took the sentence after it, or stopped before its second word | 463 organisation addresses and 486 towns ending with a dot ("Bad Rappenau."), 79 towns cut to their prefix ("St", "Bad", "Heilbad") | section 12.5 |
+| — | After a link only, the first organisation with a legal form was a club the page sponsors, a certifier or a partner | seen on home and contact pages with the operator's own block later on the page | section 12.6 |
+| R4 | The events of the ring were driven out by the run (516 conflicts before, 6 after) | confirmed | proposal `SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md`, no schema change here |
+
+### 12.1 The operator's contacts after a link to the imprint (K1)
+
+Where no block of the operator's name gives a value (section 2.2), the operator gets the page's **only** postal address with the
+first phone, role mailbox and fax from a little before the address on (`RuleExtractor.singleAddress`), on every page but a privacy
+notice and a facility's page. Nothing where the page holds two different addresses outside the sections of other parties (whose
+each is, is not guessed), or a place heads the address (`placeHeaded`): its line or one of the two units before it names a place
+("Haus Lindenhof, Lindenweg 12, …", "Niederlassung Nord", "Standort Hamburg") or speaks of places the organisation runs
+("betreibt das Haus …", "unsere Häuser"), the operator's own name apart. The fax of a contact block is read by the rules too
+(`RuleExtractor.contact`, as the business rules read it on contact pages; a claim is kept once).
+
+### 12.2 The operator's footer on a facility's page (F2)
+
+On a facility's page the operator gets the block its name opens where the block stands after the page's own part (the footer,
+`FacilityPage.Page.ownEnd`) and holds another address than the facility's; nothing of the page's own part, never the facility's
+address, and not the fallback of section 12.1 (the only address of such a page may be the facility's).
+
+### 12.3 What is a facility's page (F3)
+
+`FacilityPage.detect` keeps the three conditions of section 2.4 and adds, for every field:
+
+- no page under a path of articles, projects, references, vacancies, prices or galleries, or a dated path of a blog
+  (`/2026/10/09/…`), whatever its heading;
+- no heading that reads as a sentence or a headline (five words or more with two lower-case words, or a colon:
+  "Ausstellungsraum seit April wieder geöffnet", "Händelhaus Halle: Barrierefreiheit im Dachgeschoss"), or as a category of the site
+  ("Soziotherapeutische Einrichtungen", "Unsere Angebote"), or holds a legal form; a leading article YaCy's text ends with a dot is
+  none of the name ("Der. Standort Freiburg" is "Standort Freiburg");
+- "So finden Sie uns", "Mitarbeiter", "Ansprechpartner", "Kontaktdaten", "Öffnungszeiten", "Über mich", "Mein Angebot" are page
+  labels (`PlaceEvidence.PAGE_LABELS`), as "Kontakt" and "Team" were.
+
+For a field whose providers do not run the places they name (`operates_places` false: construction, software, coaching), a page is
+a facility's only where it is a detail page of the site's places (`/standorte/…`, `/niederlassungen/…`, `/filialen/…`,
+`/locations/…`, `/offices/…`, `/kontakt/…`; not `/haeuser/…`, which lists house models there) or its heading names an establishment
+of the business (`FacilityPage.BUSINESS_PLACE` with a proper name: "Niederlassung Nord", "Büro Leipzig", "Geschäftsstelle Landshut",
+"Praxis Hamburg-Altona"); no page of services, offers or products; the address must stand right after the name (`fullPlace`; the one
+address of a page's own part was the headquarters' on a branch's page); a place named by its town is at that town ("Karlsruhe" at
+76133 Karlsruhe; "Maler Musterdorf" with the headquarters' address in another town describes a service area, no place). A care
+provider's pages keep the rules of section 2.4.
+
+The trade of a facility's page (`industry`, `industry_category`) is its operator's too: the operator lost its industry where a
+facility's page was its only source.
+
+The place reader shared with the LLM tier (`PlaceEvidence.placeAt`) treats a heading ("# Praxis Hamburg-Altona") as content,
+whatever menu stands before it, and a name in a run of short segments as a menu's only where a section's label stands right beside
+it: a heading followed by its address block is none.
+
+### 12.4 Privacy notices (F4)
+
+A privacy notice (`RuleExtractor.privacyPage`: its path `/datenschutz…`, `/privacy…`, `/dsgvo`, or its title) names only the
+controller its own marker states ("Verantwortliche Stelle", "Verantwortlich für die Datenverarbeitung", "Verantwortlich im Sinne
+…", `IMPRINT_MARKER`), with the name and contact block within 600 characters after it; a link to the imprint names nobody there,
+and the sections of processors ("Anbieter ist die …", "Auftragsverarbeiter", "Hoster", "Versanddienstleister",
+`PROCESSOR_PHRASE`) are others' sections on such a page (`operatorRanges` with `privacy`). A privacy notice is no facility's
+page either.
+
+### 12.5 Towns
+
+The town of an address is one pattern for the rules and the place reader (`Address.TOWN`): a prefix of `Address.TOWN_PREFIX`
+("Bad", "Sankt", "Heilbad", "Neu", "Klein", "Groß", "Bergisch", "Schwäbisch", …) or "St."/"Skt." with the town's word, or one word
+("Musterstadt", "Garmisch-Partenkirchen", "Horn-Bad Meinberg"); then, if the page writes it, a binder with a capitalised word
+("Frankfurt am Main", "Brandenburg an der Havel", "Bernau bei Berlin", "Rothenburg ob der Tauber", "Limburg a. d. Lahn") or a
+qualifier in parentheses ("Halle (Saale)", "Essen (Oldenburg)"). No sentence's end and no word of the sentence after it is part of
+the town ("Musterstadt. Diese Seite" is "Musterstadt"); a word that is no town after a postal code or a prefix ("Telefon",
+"Diese", "OT") ends it (`Address.NOT_A_TOWN`). A legal form is no part of a street ("GmbH Musterweg 5" is "Musterweg 5"), nor is
+the organisation's own name before it ("Muster e.V. Musterstraße 47"). The change of the place reader is `llm/8`: the stored
+answers of `llm/7` are replayed once, as those of 4 to 6 were.
+
+### 12.6 The operator named after a link only
+
+After a link to the imprint (no imprint's data), the operator is the organisation with a legal form in the window after the link
+whose name is the site's (`RuleExtractor.brandName`: the registrable domain's label, "&" read as "und", is part of the name's
+letters, or the name's first word of four letters or more is the label: "Bügler Haustechnik GmbH & Co. KG" on buegler.com,
+"Alberring – Ambulante Pflege GmbH & Co. KG" on alberring.de), else the first whose name heads a contact block
+(`headsContacts`), else the first. An imprint's own operator is still the first organisation after its marker.
+
+### 12.7 What stays open
+
+- K3 (several addresses, none headed by the subject's name) and R1 to R9 as in section 10; R4 as the proposal
+  `SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md`.
+- A care provider's page named by a service ("Hilfe im Alltag", "Seniorenberatung") or by its street on a place's detail page
+  stays a facility's page with that name; a business's place named by its town alone ("Karlsruhe") keeps that name.
+- The operator's name after a link only still depends on the first legal form where neither the brand nor a contact block decides
+  ("Umwandlung zur GmbH" of a sentence about the company's conversion).
+- The replay of the LLM tier's answers runs for hours on one core (`LlmReplay.todo`, one query per page); the operation plans it.

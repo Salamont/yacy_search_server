@@ -139,10 +139,13 @@ A changed vocabulary re-extracts the pages at low priority.
     imprint belong to that operator.
   - A page is an imprint by its address or title, or where the imprint's
     data follow its marker. A menu or footer link "Impressum" names the
-    operator after it and gives it only the contact block its name opens
-    (its footer), never on a facility's page and never where that block
-    describes places the operator runs (`rule/11`,
-    [facilities](SCOUTRO_KG_FACILITIES.md)).
+    operator after it and gives it the contact block its name opens (its
+    footer), else the page's only address with its phone, mailbox and fax
+    unless a place heads it; never where that block describes places the
+    operator runs, and on a facility's page only its own footer after the
+    page's own part (`rule/12`, [facilities](SCOUTRO_KG_FACILITIES.md)).
+    A privacy notice names only the controller it states, never a
+    newsletter or hosting provider.
   - The page of one facility (`/einrichtungen/haus-lindenhof/`, titled with
     the facility's name, its full address after the name) names the
     facility with its own address, phone and role mailbox; the operator's
@@ -157,7 +160,7 @@ A changed vocabulary re-extracts the pages at low priority.
   - Contact data, persons and identifiers are never taken from the model.
     Where the model names a facility and the page writes its full address
     right after the name (or a site's name is its address), Scoutro reads
-    that address from the page's text (`llm/7`); it stays `uncertain`.
+    that address from the page's text (`llm/8`); it stays `uncertain`.
   - A fact that only the LLM tier supports stays `uncertain`. A verbatim
     quote proves that the page says it, not that the model read the
     relation correctly.
@@ -194,7 +197,7 @@ A changed vocabulary re-extracts the pages at low priority.
   and **full address** equal. The kind counts only where structured data
   declare it; the LLM tier's guess of a kind keys nothing, and a guess that
   differs from the entity's is recorded as an `identity_review` event
-  (`llm/7`, [facilities](SCOUTRO_KG_FACILITIES.md)).
+  (`llm/8`, [facilities](SCOUTRO_KG_FACILITIES.md)).
 - **Never by name, phone, e-mail or postal code alone.** Such pairs are
   shown as *possible duplicates* in the object view. Duplicates are
   preferred to wrong merges.

@@ -25,6 +25,34 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  */
 public final class Address {
 
+    /**
+     * A word that is no town after a postal code ("12345 Telefon …"), as a negative lookahead; also inside {@link #TOWN}, before
+     * the word after a prefix ("Bad") or a binder ("an der").
+     */
+    public static final String NOT_A_TOWN = "(?!(?:Tel|Telefon|Telefax|Fax|Fon|E-?Mail|Mail|Web|Internet|Deutschland|Germany|Österreich|Austria"
+            + "|Schweiz|Registergericht|Amtsgericht|Handelsregister|Geschäftsführ|Geschaeftsfuehr|Vertreten|USt|Steuer|Phone|Mobil|Kontakt|Vorstand"
+            + "|Inhaber|Verantwortlich|Sitz|OT|Ortsteil|Postfach|Diese|Dieser|Unsere|Unser|Ihre|Ihr|Alle|Wir|Sie|Hier|Mehr|Weitere|Zur|Zum|Und)"
+            + "(?![\\p{L}]))";
+    /**
+     * A prefix of a town of two words ("Bad Rappenau", "Sankt Augustin", "Neu Wulmstorf", "Bergisch Gladbach", "Heilbad Heiligenstadt"):
+     * only after such a word a second plain word is the town's (rule/12, docs/SCOUTRO_KG_FACILITIES.md section 12). Before, any
+     * capitalised word after the town's first word was taken ("Musterstadt. Diese Seite" gave "Musterstadt. Diese"), and a
+     * prefix with a dot was cut ("St. Ingbert" gave "St").
+     */
+    public static final String TOWN_PREFIX = "(?:Bad|Sankt|Heilbad|Seebad|Ostseebad|Nordseebad|Kurort|Lutherstadt|Hansestadt|Neu|Alt|Klein|Groß"
+            + "|Gross|Hohen|Ober|Unter|Nieder|Markt|Schloß|Schloss|Bergisch|Schwäbisch|Fränkisch|Hessisch|Westfälisch|Hohenlohe|Löwenberger|Abu)";
+    /**
+     * The name of a town after its postal code, as the rules and the place reader share it (rule/12, llm/8): a prefix word of
+     * {@link #TOWN_PREFIX} or "St."/"Skt." with the town's word, or one word ("Musterstadt", "Garmisch-Partenkirchen", "Horn-Bad
+     * Meinberg"); then, if the page writes it, a binder with a capitalised word ("Frankfurt am Main", "Brandenburg an der Havel",
+     * "Bernau bei Berlin", "Rothenburg ob der Tauber", "Limburg a. d. Lahn") or a qualifier in parentheses ("Halle (Saale)", "Essen
+     * (Oldenburg)"). No sentence's end and no word of the sentence after it is part of the town. No capturing group inside.
+     */
+    public static final String TOWN = "(?:" + TOWN_PREFIX + "\\s+" + NOT_A_TOWN + "|St\\.\\s?|Skt\\.\\s?)?\\p{Lu}[\\p{L}\\-]+"
+            + "(?:(?<=-Bad|-Sankt|-St\\.)\\s+\\p{Lu}[\\p{L}\\-]+)?"
+            + "(?:\\s+(?:am|an\\s+der|an\\s+den|a\\.\\s?d\\.|im|in\\s+der|bei|ob\\s+der|vor\\s+der|unter\\s+dem|auf\\s+der|zu|an|i\\.\\s?d\\.)\\s+"
+            + NOT_A_TOWN + "\\p{Lu}[\\p{L}\\-]+|\\s+(?:i\\.\\s?Br\\.|a\\.\\s?M\\.)|\\s+\\(\\p{Lu}[\\p{L}\\-.]+(?:\\s\\p{Lu}[\\p{L}\\-.]+)?\\))?";
+
     public final String street;
     public final String number;
     public final String postalCode;

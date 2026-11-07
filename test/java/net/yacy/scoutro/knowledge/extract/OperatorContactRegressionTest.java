@@ -102,16 +102,24 @@ public class OperatorContactRegressionTest {
     }
 
     /** The facilities' own pages stay as they were: the operator gets none of them (H5), with or without its structured node. */
+    /**
+     * rule/12 (F2 of docs/SCOUTRO_KG_FACILITIES.md section 12): on a facility's page the operator gets its own footer block after the
+     * page's own part, never the facility's address, phone or mailbox, and nothing of a page whose footer holds the facility's address.
+     */
     @Test
-    public void onAFacilitysPageTheOperatorStillGetsNothing() throws Exception {
+    public void onAFacilitysPageTheOperatorGetsItsOwnFooterOnly() throws Exception {
         for (final String[] page : new String[][] {{"care-facility-lindenhof.html", "/einrichtungen/haus-lindenhof/"},
                 {"care-facility-am-markt.html", "/einrichtungen/seniorenzentrum-am-markt"}, {"care-facility-am-see.html", "/einrichtungen/haus-am-see"}}) {
             final Extraction ex = care(page[0], page[1]);
             final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
             if (op != null) {
-                for (final String p : new String[] {Vocabulary.ADDRESS, Vocabulary.PHONE, Vocabulary.EMAIL, Vocabulary.ID_VAT, Vocabulary.ID_REGISTER}) {
+                for (final String a : values(ex, op, Vocabulary.ADDRESS)) {
+                    assertEquals(page[0], "Trägerstraße 1, 10115 Musterstadt", a);
+                }
+                for (final String p : new String[] {Vocabulary.ID_VAT, Vocabulary.ID_REGISTER, Vocabulary.OFFICE_HOURS, Vocabulary.OPENING_HOURS}) {
                     assertEquals(page[0] + " " + p, List.of(), values(ex, op, p));
                 }
+                nothingOf(ex, op, "Lindenweg", "Am Markt 5", "Seeufer", "12345", "23456", "34567", "+49302222222", "+49403333333", "haus.", "pflege.");
             }
         }
     }

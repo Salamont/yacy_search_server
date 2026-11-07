@@ -43,7 +43,36 @@ public final class FacilityPage {
     /** A segment of a site's places in an address; the next segment is one place's page. */
     private static final Pattern PLACES = Pattern.compile("(?iu)^(?:unsere-|our-)?(?:einrichtungen|einrichtung|standorte?|h(?:ae|ä)user"
             + "|pflegeheime|pflegeeinrichtungen|seniorenzentren|seniorenheime|seniorenresidenzen|altenheime|wohnangebote|wohnen|tagespflegen"
-            + "|filialen|niederlassungen|zweigstellen|praxen|kliniken|kitas|locations?|branches|offices|sites)$");
+            + "|filialen|niederlassungen|zweigstellen|praxen|kliniken|kitas|locations?|branches|offices|sites|kontakt|contact)$");
+    /**
+     * rule/12 (F3): the segments of a business's places ("/standorte/", "/niederlassungen/", "/kontakt/"): on a page of a field whose
+     * providers do not run the places they name, only these make a detail page a place's; "/haeuser/" there lists house models.
+     */
+    private static final Pattern BUSINESS_PLACES = Pattern.compile("(?iu)^(?:unsere-|our-)?(?:standorte?|filialen|niederlassungen|zweigstellen"
+            + "|gesch(?:ae|ä)ftsstellen|b(?:ue|ü)ros|locations?|branches|offices|sites|kontakt|contact)$");
+    /**
+     * rule/12 (F3 of docs/SCOUTRO_KG_FACILITIES.md section 12): a path of articles, projects, references, vacancies, prices or
+     * galleries, or a dated path of a blog: no page of one facility, whatever its heading. Before, a construction company's project
+     * page ("Bürgerhaus Musterstadt") and an article with the company's address below became facilities with that address.
+     */
+    private static final Pattern NOT_A_FACILITY_PATH = Pattern.compile("(?iu)(?:^|/)(?:blog|news|aktuelles|aktuell|presse|press|magazin|magazine"
+            + "|artikel|beitrag|beitraege|beiträge|ratgeber|wissen|insights|events?|veranstaltungen|termine|glossar|faq|projekte?|projects?"
+            + "|referenzen?|references?|case-stud(?:y|ies)|bauvorhaben|objekte|karriere|jobs?|stellen\\p{L}*|careers?|preise|kosten|pricing"
+            + "|downloads?|galerie|gallery|\\d{4}/\\d{1,2})(?:[./_\\-]|/|$)");
+    /**
+     * rule/12: on a page of a field whose providers do not run the places they name (construction, software, coaching), a page of
+     * services, offers or products is no facility's page either; a care provider's offer pages name its homes.
+     */
+    private static final Pattern OFFER_PATH = Pattern.compile("(?iu)(?:^|/)(?:leistungen?|unsere-leistungen|angebote?|services?|produkte?|products?"
+            + "|portfolio|loesungen|lösungen|solutions|sortiment|technik)(?:[./_\\-]|/|$)");
+    /**
+     * rule/12: a word of an establishment of a business ("Niederlassung Nord", "Büro Leipzig", "Geschäftsstelle Landshut", "Standort
+     * Herrsching", "Showroom Berlin"): on a page of a field whose providers do not run the places they name, a facility's page names
+     * such an establishment or is one of the site's places by its address; a building, a service or a product is none.
+     */
+    static final Pattern BUSINESS_PLACE = Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:zweig|zweit|haupt)?niederlassung(?:en)?|zweigstelle|filiale"
+            + "|gesch(?:ä|ae)ftsstelle|standort|(?:haupt|firmen|unternehmens)sitz|zentrale|b(?:ü|ue)ro|office|branch|store|shop|showroom|lager"
+            + "|werk|werkstatt|werkst(?:ä|ae)tte|praxis|studio|ausstellung|laden|rechenzentrum)(?![\\p{L}])");
     /** A last segment that is an index or a list, never one place's page. */
     private static final Pattern NOT_A_PLACE_SEGMENT = Pattern.compile("(?iu)^(?:index(?:\\.\\w+)?|uebersicht|übersicht|alle|liste|karte|map"
             + "|page|seite|\\d+)$");
@@ -104,16 +133,23 @@ public final class FacilityPage {
         final String last = segments.get(segments.size() - 1);
         boolean detail = false;
         for (int i = 0; i < segments.size() - 1; i++) {
-            if (PLACES.matcher(segments.get(i)).matches()) {
+            if ((operatesPlaces ? PLACES : BUSINESS_PLACES).matcher(segments.get(i)).matches()) {
                 detail = true;
             }
         }
         detail &= !PLACES.matcher(last).matches() && !NOT_A_PLACE_SEGMENT.matcher(last).matches();
         String host = null;
+        String path = "";
         try {
-            host = new URI(url).getHost();
+            final URI u = new URI(url);
+            host = u.getHost();
+            path = u.getPath() == null ? "" : u.getPath();
         } catch (final Exception e) {
             host = null;
+        }
+        // rule/12 (F3): an article, a project, a vacancy; for a business a page of its services or products
+        if (!detail && (NOT_A_FACILITY_PATH.matcher(path).find() || !operatesPlaces && OFFER_PATH.matcher(path).find())) {
+            return null;
         }
         final String domain = net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host);
         final String brand = domain == null || domain.indexOf('.') < 0 ? "" : RuleExtractor.compact(domain.substring(0, domain.indexOf('.')));
@@ -123,7 +159,18 @@ public final class FacilityPage {
                 continue;
             }
             // the site's name in every title ("… – Muster Altenhilfe") and an organisation by its legal form are the operator's
-            if (compact.equals(brand) || organisation(text, name) || PlaceEvidence.kindOnly(name)) {
+            if (compact.equals(brand) || organisation(text, name) || PlaceEvidence.kindOnly(name)
+                    || net.yacy.scoutro.knowledge.resolve.Normalizers.legalForm(name) != null) {
+                continue;
+            }
+            // rule/12 (F3): a headline, a sentence or a category's heading names no facility ("Ausstellungsraum seit April wieder
+            // geöffnet", "Soziotherapeutische Einrichtungen"); a business's facility names an establishment, else the page is one of
+            // the site's places by its address
+            if (PlaceEvidence.sentenceLike(name) || PlaceEvidence.categoryHeading(name)) {
+                continue;
+            }
+            final boolean establishment = BUSINESS_PLACE.matcher(name).find() && PlaceEvidence.properName(name);
+            if (!operatesPlaces && !detail && !establishment) {
                 continue;
             }
             final PlaceEvidence.Result r = PlaceEvidence.check(text, name, null, url, Vocabulary.FACILITY, false, operatesPlaces);
@@ -132,8 +179,18 @@ public final class FacilityPage {
             }
             final PlaceEvidence.Place place = PlaceEvidence.fullPlace(text, name);
             if (place != null) {
+                if (!operatesPlaces && !establishment && !inName(name, place.address.locality)) {
+                    // rule/12: a business's place named by its town ("Karlsruhe", "Büro Leipzig") is at that town; a page "Maler
+                    // Musterdorf" with the headquarters' address in another town describes a service area, no place
+                    continue;
+                }
                 final int blockEnd = blockEnd(text, place.end);
                 return new Page(name, place, place.nameStart, blockEnd, ownEnd(text, blockEnd));
+            }
+            if (!operatesPlaces) {
+                // rule/12: a business's page gives its establishment's address right after the name, or the page is none's (the one
+                // address of a page's own part was the headquarters' on a branch's page)
+                continue;
             }
             // the page's own part (after its heading, before the operator's footer) gives exactly one full address: the facility's
             final int[] heading = heading(text, name);
@@ -149,6 +206,27 @@ public final class FacilityPage {
             }
         }
         return null;
+    }
+
+    /** True if the name holds the town's name, or the town's the name's ("Karlsruhe" at 76133 Karlsruhe, "Büro Leipzig" in Leipzig). */
+    static boolean inName(final String name, final String locality) {
+        if (name == null || locality == null) {
+            return false;
+        }
+        final String n = PlaceEvidence.fold(name);
+        final String town = PlaceEvidence.fold(locality.replaceAll("\\s*\\(.*\\)$", ""));
+        if (town.isEmpty() || n.isEmpty()) {
+            return false;
+        }
+        if (n.contains(town) || town.contains(n)) {
+            return true;
+        }
+        for (final String w : n.split(" ")) {
+            if (w.length() >= 4 && town.contains(w)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** True if the page writes the name with a legal form right after it ("Muster Altenhilfe gGmbH"): an organisation. */
@@ -215,7 +293,9 @@ public final class FacilityPage {
     }
 
     private static void add(final Set<String> out, final String raw) {
-        final String n = raw.replace("*", "").replace("_", " ").replaceAll("\\s+", " ").trim().replaceAll("[.:]+$", "").trim();
+        // rule/12: a leading article YaCy's text ends with a dot ("Der. Standort Freiburg.") is none of the name
+        final String n = raw.replace("*", "").replace("_", " ").replaceAll("\\s+", " ").trim().replaceAll("[.:]+$", "")
+                .replaceFirst("(?iu)^(?:der|die|das|unser|unsere)\\.?\\s+", "").trim();
         if (n.length() >= 4 && n.length() <= 80) {
             out.add(n);
         }
