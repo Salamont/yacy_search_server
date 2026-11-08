@@ -50,3 +50,10 @@ above, after the patterns of the validation with the full production data; no re
 | `construction-partner-page.html` | request 10: a partner page whose partners' contact blocks come first; the operator's name is the site's and stands in the footer |
 | `care-directory-list.html` | request 10: a list of services with their contact blocks (a clinic, a UG, offices): none is the operator; the association of the copyright line is, named without its quotes |
 | `construction-footer-mini-imprint.html` | request 10: a footer's own small imprint ("Inhaltlich verantwortlich gemäß § 6 TDG: …, HRA 535/10") names persons only; the company of the contact box, vouched for by the copyright line, is the operator |
+| `org-privacy-controller-no-legal-form.html` | third round: a privacy notice whose controller has no legal form; the hosting provider after the next heading ("## 2. Hosting") is nobody |
+| `software-privacy-dpo-section.html` | third round: the controller's block ends with the next heading; the external data protection officer's block ("Kontaktdaten des Datenschutzbeauftragten") names no operator; a lower-case brand word inside the name ("x-beispiel technologies GmbH") |
+| `software-imprint-exclamation-name.html` | third round: an imprint of a company whose name ends with "!" ("WAUU! GmbH"), with register, VAT ID, address and contacts |
+| `software-privacy-providers-list.html` | third round: "Eingesetzte Dienste und Diensteanbieter" of a privacy notice is no imprint's marker; the site's own company under "Verantwortlicher" is the operator |
+| `construction-head-office.html` | third round: of several offices the one headed "Hauptsitz" is the operator's; addresses in list items, phone numbers with brackets |
+| `construction-subject-contact-block.html` | third round: the page's structured operator (JSON-LD) gets the "Kontakt" block after its "Anschrift" block: phone, fax, mailbox |
+| `coaching-mobile-number.html` | third round: a mobile number ("Mobil:") is the operator's phone where the page gives no other; a personal mailbox stays none of its |

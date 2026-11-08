@@ -452,4 +452,119 @@ public class PortalRegressionTest {
         assertEquals(List.of("Alter Markt 1, 32361 Pr. Oldendorf"), values(ex, op, Vocabulary.ADDRESS));
         assertEquals(List.of("Pr. Oldendorf"), values(ex, op, Vocabulary.LOCALITY));
     }
+
+    // ------------------------------------------------------------------------------------------------ third round (after the second full run)
+
+    /** A privacy notice whose controller has no legal form: the hosting provider after the next heading is not the operator. */
+    @Test
+    public void aPrivacyNoticesControllerWithoutALegalFormLeavesTheHostingProviderNobody() throws Exception {
+        final Extraction ex = page("org-privacy-controller-no-legal-form.html", "https://gb-hessen.de/datenschutz.html", "construction");
+        noSiteOperatorNamed(ex, "Hetzwerk");
+        for (final Mention m : ex.mentions()) {
+            nothingOf(ex, m, "Industriestr", "Beispielhausen", "Hetzwerk");
+        }
+    }
+
+    /** The controller's block ends with the next heading; the external data protection officer's block names no operator. */
+    @Test
+    public void softwareAPrivacyNoticeNamesTheControllerNotTheDataProtectionOfficer() throws Exception {
+        final Extraction ex = page("software-privacy-dpo-section.html", "https://x-beispiel.com/datenschutzerklaerung", "software");
+        final Mention op = operator(ex);
+        assertEquals("x-beispiel technologies GmbH", op.name);
+        assertEquals(List.of("Rosenkavalierplatz 10, 81925 München"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+49899292740"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("datenschutz@x-beispiel.com"), values(ex, op, Vocabulary.EMAIL));
+        nothingOf(ex, op, "Sandstraße", "DataSchutz", "452459");
+        noSiteOperatorNamed(ex, "DataSchutz");
+    }
+
+    /** A company whose name ends with an exclamation mark keeps it; its imprint's identifiers and contacts are its own. */
+    @Test
+    public void softwareAnImprintOfANameWithAnExclamationMark() throws Exception {
+        final Extraction ex = page("software-imprint-exclamation-name.html", "https://www.wauu.de/impressum", "software");
+        final Mention op = operator(ex);
+        assertEquals("WAUU! GmbH", op.name);
+        assertEquals(List.of("Lotter Straße 47 – 48, 49078 Osnabrück"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+4954133034100"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@wauu.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals("DE123456789", op.strongKeys.get(Vocabulary.VAT));
+        assertNotNull(allValues(ex, op).toString(), op.strongKeys.get(Vocabulary.REGISTER));
+    }
+
+    /** "Eingesetzte Dienste und Diensteanbieter" of a privacy notice is no imprint's marker; the site's own company is the operator. */
+    @Test
+    public void softwareAPrivacyNoticesListOfProvidersNamesNoOperator() throws Exception {
+        final Extraction ex = page("software-privacy-providers-list.html", "https://ra-beispiel-koeln.de/datenschutzinformation/", "software");
+        final Mention op = operator(ex);
+        assertEquals("RA-BEISPIEL Vertriebs GmbH", op.name);
+        assertEquals(List.of("Auf der Kaule 23, 51427 Bergisch Gladbach"), values(ex, op, Vocabulary.ADDRESS));
+        nothingOf(ex, op, "Bahnhofstraße", "Eppelborn", "HostBeispiel");
+        noSiteOperatorNamed(ex, "HostBeispiel");
+    }
+
+    /** Of several offices the one headed "Hauptsitz" is the operator's; addresses in list items, numbers with brackets. */
+    @Test
+    public void constructionTheHeadOfficeOfSeveralOfficesIsTheOperators() throws Exception {
+        final Extraction ex = page("construction-head-office.html", "https://safety-beispiel.de/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Safety Beispiel GmbH", op.name);
+        assertEquals(List.of("Gewerbeweg 5, 03044 Cottbus"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+49355431220"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("+493554312220"), values(ex, op, Vocabulary.FAX));
+        assertEquals(List.of("info@safety-beispiel.de"), values(ex, op, Vocabulary.EMAIL));
+        nothingOf(ex, op, "Forster Landstraße", "Spremberg", "608180", "608186");
+    }
+
+    /** The page's structured operator gets the phone, fax and mailbox of the "Kontakt" block after its address block. */
+    @Test
+    public void constructionTheStructuredSubjectGetsTheContactBlockAfterItsAddress() throws Exception {
+        final String jsonld = "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"@id\":\"https://www.beispiel-gmbh.de/#organization\","
+                + "\"name\":\"Anton Beispiel GmbH\",\"url\":\"https://www.beispiel-gmbh.de\"}";
+        final Extraction ex = page("construction-subject-contact-block.html", "https://www.beispiel-gmbh.de/elektro", "construction", jsonld);
+        Mention subject = null;
+        for (final Mention m : organisations(ex)) {
+            if ("Anton Beispiel GmbH".equals(m.name) && m.tier == 1) {
+                subject = m;
+            }
+        }
+        assertNotNull(ex.mentions().toString(), subject);
+        assertEquals(List.of("Ziepelkamp 25, 26901 Lorup"), values(ex, subject, Vocabulary.ADDRESS));
+        assertEquals(List.of("+495954444"), values(ex, subject, Vocabulary.PHONE));
+        assertEquals(List.of("+495954497"), values(ex, subject, Vocabulary.FAX));
+        assertEquals(List.of("info@beispiel-gmbh.de"), values(ex, subject, Vocabulary.EMAIL));
+    }
+
+    /** A mobile number is the operator's phone where the page gives no other; a personal mailbox stays none of its. */
+    @Test
+    public void coachingAMobileNumberIsThePhoneWhereThereIsNoOther() throws Exception {
+        final Extraction ex = page("coaching-mobile-number.html", "https://muster-coaching.de/", "coaching");
+        final Mention op = operator(ex);
+        assertEquals("Muster Coaching GmbH", op.name);
+        assertEquals(List.of("Am Müllerwald 27, 55120 Mainz"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+491733819635"), values(ex, op, Vocabulary.PHONE));
+        assertTrue(values(ex, op, Vocabulary.EMAIL).toString(), values(ex, op, Vocabulary.EMAIL).isEmpty());
+    }
+
+    @Test
+    public void namesKeepTheSitesOwnWordsAndStopAtOtherWords() {
+        final String imprint = "Impressum. Angaben gemäß § 5 TMG. ";
+        assertEquals("x-beispiel technologies GmbH",
+                operatorOf(imprint + "x-beispiel technologies GmbH\nMusterweg 1\n12345 Musterstadt", "https://x-beispiel.com/impressum"));
+        assertEquals("medinix information systems GmbH",
+                operatorOf(imprint + "medinix information systems GmbH\nMusterweg 1\n12345 Musterstadt", "https://medinix.com/impressum/"));
+        assertEquals("Gofresh GmbH",
+                operatorOf(imprint + "Gofresh and Couchplay are registered trademarks of Gofresh GmbH\nMusterweg 1\n12345 Musterstadt", "https://www.couchplay.tv/privacy.php"));
+        assertEquals("Stefan Muster", operatorOfDeclared(imprint + "Stefan Muster\nMusterweg 1\n12345 Musterstadt\nUSt-IdNr.: DE123456789",
+                "https://sanitaer-muster.de/impressum/", "Stefan Muster"));
+    }
+
+    /** The operator of a text whose structured data declare one organisation of the given name. */
+    private static String operatorOfDeclared(final String text, final String url, final String declared) {
+        final Extraction ex = new Extraction(50);
+        final Mention s = ex.add(new Mention("jsonld:0", Vocabulary.ORGANIZATION, 1));
+        s.name = declared;
+        new RuleExtractor(200, 65536).extract(text, url, java.net.URI.create(url).getHost(), "de", ex);
+        final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
+        return op == null ? null : op.name;
+    }
 }

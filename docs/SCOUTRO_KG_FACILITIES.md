@@ -182,7 +182,7 @@ every collection and needs its own gates (remaining defect R6).
 | `PlaceAddressRegressionTest` (8) | K2 and K6 (section 11) on the LLM tier's `apply`: a named house of an overview keeps its address; on an imprint page, inside a page's imprint and at the imprint operator's address a house gets none (a structured organisation's fallback address does not count); a town and a firm taken for facilities get none; an unclear name keeps its mark and gets none; a street starts after the sentence before it |
 | `FacilityRegressionGraphTest` (7) | a second invented provider end to end: the imprint gives a house none of the operator's address; two houses of one name in two towns stay two, also where an overview lists both; every facility has at most one address and postal code; town, firm and unclear name get no address; the operator keeps its own contacts and none of a house; a consumer of the collection reads no delete for a merged entity |
 | `MergeFeedTest` (3) | M7 with the real publisher and identity resolution: a merge in one collection is a `redirect` for its consumer; a consumer of the merged entity's collection gets the `redirect`, not a `delete`, also where the survivor came from another collection; every statement of the merged entity is an `upsert` or a `redirect` to a statement of the survivor; a consumer of a third collection gets nothing |
-| `PortalRegressionTest` (29) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street. Request 10 (12.6, 12.8): a booking tool's provider on a services page names no operator; a privacy notice names the site's own company of its footer, its controller of a "Verantwortlicher im Sinne …" sentence, and a combined imprint/privacy page keeps the identifiers; an imprint with a lower-case brand ("uib-beispiel GmbH") and a hosting notice; footer formats ("Tel.:. ", a dash, "Str.30"); two offices in one block; a partner page; a list of services; a footer's imprint of persons; names after years, quotes, marks and "Firma", the site's own name (`brandName`, `brandWord`), "Pr. Oldendorf" |
+| `PortalRegressionTest` (37) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street. Request 10 (12.6, 12.8): a booking tool's provider on a services page names no operator; a privacy notice names the site's own company of its footer, its controller of a "Verantwortlicher im Sinne …" sentence, and a combined imprint/privacy page keeps the identifiers; an imprint with a lower-case brand ("uib-beispiel GmbH") and a hosting notice; footer formats ("Tel.:. ", a dash, "Str.30"); two offices in one block; a partner page; a list of services; a footer's imprint of persons; names after years, quotes, marks and "Firma", the site's own name (`brandName`, `brandWord`), "Pr. Oldendorf". Third round (after the second full run): a controller without legal form leaves the hosting provider nobody; the data protection officer's block; "WAUU! GmbH"; a privacy notice's list of providers; the head office of several offices; the structured subject's contact block; a mobile number; brand words inside names |
 | `FacilityFixtureReport` | not a test: the corpus as tables, for the comparison before and after (section 8) |
 | changed expectations | `CollectionFitTest` (the LLM extractor's version 7), `LlmFactCatalogueTest.locationsAFacilityIsLocatedAtItsSite` (the facility and the site have their address statements now) |
 
@@ -370,17 +370,27 @@ footer's own small imprint that names persons only ("Impressum. Inhaltlich veran
 lets the page's first link name the operator by these rules (`firstImprintLink`).
 
 The name itself (`nameStart`): a word in lower case that is the site's own name starts it ("uib GmbH" on uib.de, "bks FINANZ
-Vermittlung AG" on bks-finanz.de, "von Nassau GmbH" on vonnassau.de, `brandWord`), the parts of a coordination stay joined
-("Putz-, Stuck-, Dämmtechnik GmbH"), a quoted name starts after its quote and ends at it („Deutsche Kinderhospiz Dienste e.V.“),
-Markdown marks and no-break spaces before it are none of it, and it starts after a year ("50 Jahre …"), an address to the reader
-("Ihr …", "Unser …", "Willkommen bei …"), "Firma" and the end of a sentence or a clause ("Zukunft! Bei …", "Träger: …").
+Vermittlung AG" on bks-finanz.de, "von Nassau GmbH" on vonnassau.de, `brandWord`) or stays inside it where the brand word stands
+within two words before ("x-cellent technologies GmbH", "medinix information systems GmbH", not "… are registered trademarks of
+Gofresh GmbH"), the parts of a coordination stay joined ("Putz-, Stuck-, Dämmtechnik GmbH"), a quoted name starts after its quote
+and ends at it („Deutsche Kinderhospiz Dienste e.V.“), Markdown marks and no-break spaces before it are none of it, and it starts
+after a year ("50 Jahre …"), an address to the reader ("Ihr …", "Unser …", "Willkommen bei …"), "Firma" and the end of a sentence
+or a clause before an earlier word ("Zukunft! Bei …", "Träger: …"; "MUUUH! GmbH" keeps its mark). The site's own name
+(`brandName`) also allows one short missing part of a hyphenated label ("ra-micro-koeln" for "RA-MICRO Vertriebs GmbH").
 
 Privacy notices (F4, 12.4) read the same way: a link to the imprint names an operator there too, but only one whose name is the
 site's or one the title or the copyright line vouches for (a provider's block of contacts is no evidence on a privacy notice; the
 hosting provider "Hetzner Online GmbH, Industriestr. 25 …" stays nobody), and the controller's own marker now also reads
 "Verantwortlicher im Sinne der Datenschutzgesetze … ist:" and "Verantwortliche(r) i. S. d. DSGVO"; the controller it names must
-be the site's name, head a contact block or be vouched for, else the next candidate is tried. A combined page
-("/impressum-datenschutz/") is an imprint. An imprint's own operator is still the first organisation after its marker.
+be the site's name, head a contact block or be vouched for, else the next candidate is tried. The second full run (12.8) showed
+hosting providers and external data protection officers still named where the controller has no legal form ("Verantwortlich …
+ist: Generation Deutschland – Landesverband Hessen … ## 2. Hosting. Diese Website wird gehostet bei der Hetzner Online GmbH, …")
+or a list of processors carries the word "Diensteanbieter": the controller's block now ends with the next heading, "gehostet bei",
+the data protection officer's phrases and the headings "Hosting", "Server-Logfiles" and "Datenschutzbeauftragter" open another
+party's section on a privacy notice (`PRIVACY_HEADING`), and "Diensteanbieter" is no imprint's marker there. A combined page
+("/impressum-datenschutz/") and a "Legal Disclosure" are imprints. An imprint's own operator is still the first organisation after
+its marker; a sole trader the page's structured data declare as the organisation ("Stefan Muster" as the site's publisher) is read
+as such from any address of the imprint, not the first only.
 
 ### 12.7 What stays open
 
@@ -419,9 +429,14 @@ and their corrections:
   abbreviation ("Ofener Str.30"), the town "Pr. Oldendorf";
 - a page with a link to the imprint is a page kind of its own (`PageKind.IMPRINT_LINK`, never a privacy notice): the business
   rules read its footer's fax and hours as on a contact page, as `rule/10` did when every such page counted as an imprint;
-- the operator's name before its street is no part of the street, the sentence after the town is none of it (12.5).
+- the operator's name before its street is no part of the street, the sentence after the town is none of it (12.5);
+- after the second full run: of several offices the one headed "Hauptsitz", "Zentrale" or "Firmensitz" is the operator's
+  (`HEAD_OFFICE`); addresses written as list items ("- Gewerbeweg 5. \n- 03044 Cottbus") and numbers with a bracket first
+  ("(03 55) 4 31 22-0"); a mobile number ("Mobil:") is the phone only where the ranges give no landline; the page's structured
+  operator (JSON-LD) gets the "Kontakt" block after its "Anschrift" block and the page's only phone and mailbox too
+  (`subjectContact`); an office heading ("#### Geschäftsstelle", "Büro", "Zentrale") continues a contact block.
 
-Of the 274 pages, 72 still differ from `rule/10` in a tier-2 contact of an organisation: in most the value changed rather than
+Of the 274 pages, 71 still differ from `rule/10` in a tier-2 contact of an organisation: in most the value changed rather than
 vanished (the address right after the name instead of a later one, "Mushardstraße" instead of "Mushardstr.", a trailing word
 cut, a template's mailbox "info@joomshaper.com" or a partner's mailbox gone), in the rest the `rule/10` operator was a third
 party or a cut name and its contacts went with it, or the page holds two offices or several phone numbers whose holders are not

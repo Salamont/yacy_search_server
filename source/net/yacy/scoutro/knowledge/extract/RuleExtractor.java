@@ -89,7 +89,7 @@ public final class RuleExtractor {
             "(?i)(?:^|/)(?:impressum|imprint|legal-?notice|anbieterkennzeichnung|kontakt|contact|about|about-us|ueber-uns|uber-uns|über-uns"
             + "|wir|team|standort|standorte|location|locations|einrichtungen|leistungen|services|angebot|angebote)(?:[./_\\-]|$)");
     private static final Pattern CANDIDATE_TITLE = Pattern.compile(
-            "(?i)\\b(?:impressum|imprint|legal notice|kontakt|contact|über uns|ueber uns|about us|standorte?|leistungen|einrichtungen)\\b");
+            "(?i)\\b(?:impressum|imprint|legal notice|legal disclosure|kontakt|contact|über uns|ueber uns|about us|standorte?|leistungen|einrichtungen)\\b");
     private static final Pattern IMPRINT_MARKER = Pattern.compile(
             "(?iu)(?:\\bimpressum\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|\\bimprint\\b|\\blegal\\s+notice\\b"
             + "|diensteanbieter\\b|verantwortlich\\s+(?:i\\.\\s?s\\.\\s?d\\.|im\\s+sinne))");
@@ -160,7 +160,13 @@ public final class RuleExtractor {
      * Online GmbH, Industriestr. 25 …" as well as a privacy notice's): its section is another party's.
      */
     private static final Pattern PROVIDER_PHRASE = Pattern.compile("(?iu)(?<![\\p{L}])(?:auftragsverarbeit\\p{L}*|hosting-?(?:anbieter|provider|partner)"
-            + "|webhoster|hoster(?![\\p{L}])|versanddienstleister|zahlungsdienstleister|newsletter-?(?:anbieter|dienst(?:leister)?|versand))");
+            + "|webhoster|hoster(?![\\p{L}])|versanddienstleister|zahlungsdienstleister|newsletter-?(?:anbieter|dienst(?:leister)?|versand)"
+            // "Diese Website wird gehostet bei der Hetzner Online GmbH, …", the external data protection officer's block
+            + "|gehostet\\s+(?:bei|von|durch)|datenschutzbeauftragte[rn]?\\s+(?:des\\s+verantwortlichen\\s+)?(?:ist|sind|lautet)"
+            + "|(?:kontaktdaten|name\\s+und\\s+anschrift|anschrift|kontakt)\\s+(?:des|unseres|der|unserer)\\s+(?:externen\\s+)?datenschutzbeauftragten)");
+    /** Headings of a privacy notice that open a provider's or another party's section (rule/12): only on privacy notices. */
+    private static final Pattern PRIVACY_HEADING = Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:externes\\s+)?(?:web)?hosting(?:\\s*(?:&|und)\\s*server-?logfiles)?"
+            + "|server-?logfiles|content\\s+delivery\\s+network|(?:externe[rn]?\\s+)?datenschutzbeauftragte[rn]?)(?![\\p{L}])");
     /**
      * Headings of such a section: they count only as a label with a colon or as a heading of their own (a line or a
      * sentence of its own, as YaCy's text has a {@code <br>} or a heading: "### Berufshaftpflichtversicherung."), never
@@ -218,6 +224,8 @@ public final class RuleExtractor {
     private static final Pattern PHONE = Pattern.compile(
             // rule/12: "Tel.:. 02302 …" (YaCy's text of a label in its own element) and dashes between the groups ("08207 – 8001")
             "(?i)(?:\\bTel(?:efon)?\\.?|\\bPhone|\\bFon|\\bTelefonnummer|\\bT\\.)[\\s:.*]*((?:\\+|00)?\\(?[0-9][0-9 ()/\\-.–—]{5,24}[0-9])");
+    /** A mobile number by its label (rule/12): the operator's phone only where the page gives no other ("Mobil: +49 173 …"). */
+    private static final Pattern MOBILE = Pattern.compile("(?i)\\bMobil(?:e|tel(?:efon)?|funk)?[\\s:.*]*((?:\\+|00)?\\(?[0-9][0-9 ()/\\-.–—]{5,24}[0-9])");
     /** A fax number by its label (rule/12: part of the operator's own contact block, as the business rules read it on contact pages). */
     private static final Pattern FAX = Pattern.compile("(?i)(?:\\bTele)?\\bfax(?:nummer)?\\.?[\\s:.*]*((?:\\+|00)?\\(?[0-9][0-9 ()/\\-.–—]{5,24}[0-9])");
     private static final Pattern EMAIL = Pattern.compile("[A-Za-z0-9._%+\\-]{1,64}@[A-Za-z0-9\\-]+(?:\\.[A-Za-z0-9\\-]+)*\\.[A-Za-z]{2,24}");
@@ -240,7 +248,8 @@ public final class RuleExtractor {
             // rule/12: the number may follow the street's abbreviation without a space ("Ofener Str.30")
             + "|wiese|hain|heide|busch|siedlung|promenade|passage|terrasse|horst|steige))\\s*"
             // rule/12: two separators between number and postal code ("Rathausstraße 2,. 86863", YaCy's text of a break after a comma)
-            + "([0-9]{1,4}\\s?[a-zA-Z]?(?:\\s?[-–/]\\s?[0-9]{1,4}\\s?[a-zA-Z]?)?)(?![0-9])(?:\\s*[,;.·•|]){0,2}\\s*(?:D\\s?-\\s?)?([0-9]{5})\\s+"
+            // rule/12: a list's marker before the postal code ("- Gewerbeweg 5. \n- 03044 Cottbus")
+            + "([0-9]{1,4}\\s?[a-zA-Z]?(?:\\s?[-–/]\\s?[0-9]{1,4}\\s?[a-zA-Z]?)?)(?![0-9])(?:\\s*[,;.·•|]){0,2}\\s*(?:-\\s+)?(?:D\\s?-\\s?)?([0-9]{5})\\s+"
             + Address.NOT_A_TOWN + "(" + Address.TOWN + ")");
 
     private final int maxExcerpt;
@@ -392,8 +401,8 @@ public final class RuleExtractor {
         out.ranTier(2);
     }
 
-    private static final Pattern IMPRINT_PATH = Pattern.compile("(?i)(?:^|/)(?:impressum|imprint|legal-?notice|anbieterkennzeichnung)(?:[./_\\-]|$)");
-    private static final Pattern IMPRINT_TITLE = Pattern.compile("(?iu)\\b(?:impressum|imprint|legal\\s+notice|anbieterkennzeichnung)\\b");
+    private static final Pattern IMPRINT_PATH = Pattern.compile("(?i)(?:^|/)(?:impressum|imprint|legal-?(?:notice|disclosure)|anbieterkennzeichnung)(?:[./_\\-]|$)");
+    private static final Pattern IMPRINT_TITLE = Pattern.compile("(?iu)\\b(?:impressum|imprint|legal\\s+(?:notice|disclosure)|anbieterkennzeichnung)\\b");
 
     /** True for an imprint page by its address or its title. */
     static boolean imprintPage(final String url, final List<String> titles) {
@@ -431,6 +440,9 @@ public final class RuleExtractor {
         final Matcher m = IMPRINT_MARKER.matcher(text);
         int link = -1;
         while (m.find()) {
+            if (privacy && m.group().toLowerCase(Locale.ROOT).startsWith("diensteanbieter")) {
+                continue; // "Eingesetzte Dienste und Diensteanbieter" of a privacy notice names the processors (rule/12)
+            }
             final boolean word = LINK_MARKER.matcher(m.group().trim()).matches();
             if (page || !word || !privacy && IMPRINT_DATA.matcher(text).region(m.end(), Math.min(text.length(), m.end() + IMPRINT_DATA_WINDOW)).find()) {
                 return new int[] {m.end(), 1};
@@ -545,7 +557,17 @@ public final class RuleExtractor {
         for (final Matcher am : found) {
             final int head = headedBy(text, am.start(), subject.name);
             if (head >= 0) {
-                contact(text, List.of(new int[] {head, FacilityPage.blockEnd(text, am.end())}), cc, out, subject);
+                // rule/12: the block runs through the contact lines after the address ("### Anschrift. Muster GmbH. Musterweg 1. 12345
+                // Musterstadt. ### Kontakt. Telefon: … E-Mail: …"), and the page's only phone and mailbox are the subject's too
+                contact(text, List.of(new int[] {head, Math.max(FacilityPage.blockEnd(text, am.end()), contactBlockEnd(text, am.end()))}), cc, out, subject);
+                if (facility == null && distinct.size() <= 2) {
+                    singleValue(text, ranges, out, subject, PHONE, Vocabulary.PHONE, v -> Normalizers.phone(v, cc));
+                    singleValue(text, ranges, out, subject, MOBILE, Vocabulary.PHONE, v -> Normalizers.phone(v, cc));
+                    singleValue(text, ranges, out, subject, EMAIL, Vocabulary.EMAIL, v -> {
+                        final String mail = Normalizers.email(v);
+                        return mail != null && Normalizers.roleEmail(mail) ? mail : null;
+                    });
+                }
                 return;
             }
         }
@@ -590,8 +612,15 @@ public final class RuleExtractor {
      */
     private boolean imprint(final String text, final int markerAt, final boolean privacy, final String host, final String cc, final Extraction out,
             final List<Mention> structured, final boolean contacts, final FacilityPage.Page facilityPage, final List<String> titles) {
-        // the controller's marker of a privacy notice opens its own block only; a link reads as on any page (rule/12)
-        final int end = Math.min(text.length(), markerAt + (privacy && contacts ? PRIVACY_WINDOW : WINDOW));
+        // the controller's marker of a privacy notice opens its own block only, up to the next heading ("## 2. Hosting"); a link reads
+        // as on any page (rule/12)
+        int end = Math.min(text.length(), markerAt + (privacy && contacts ? PRIVACY_WINDOW : WINDOW));
+        if (privacy && contacts) {
+            final Matcher h = HEADING.matcher(text).region(Math.min(text.length(), markerAt + 40), end);
+            if (h.find()) {
+                end = h.start();
+            }
+        }
         // the operator's own sections only: the insurer's, the chamber's or the web agency's name and contacts are theirs; on a
         // privacy notice, the processors' too (rule/12)
         final List<int[]> ranges = operatorRanges(text, markerAt, end, privacy, !contacts);
@@ -817,6 +846,28 @@ public final class RuleExtractor {
         if (only != null && distinct.size() == 1 && !placeHeaded(text, only.start(), m.name)) {
             // the address and, as a footer writes them after it, the first phone, mailbox and fax from a little before the address on
             contact(text, from(ranges, Math.max(0, only.start() - 300)), cc, out, m);
+        } else if (distinct.size() > 1) {
+            // rule/12: of several offices the one headed "Hauptsitz", "Zentrale" or "Firmensitz" is the operator's own ("### Hauptsitz
+            // Cottbus. Gewerbeweg 5. 03044 Cottbus. Tel. … ### Spremberg. …")
+            Matcher seat = null;
+            int seats = 0;
+            for (final int[] r : ranges) {
+                int at = r[0];
+                while (at < r[1]) {
+                    final Matcher am = findAddress(text, at, r[1]);
+                    if (am == null) {
+                        break;
+                    }
+                    if (HEAD_OFFICE.matcher(unitsBefore(text, am.start())).find()) {
+                        seats++;
+                        seat = seat == null ? am : seat;
+                    }
+                    at = am.end();
+                }
+            }
+            if (seats == 1) {
+                contact(text, List.of(new int[] {Math.max(0, seat.start() - 200), contactBlockEnd(text, seat.end())}), cc, out, m);
+            }
         }
         if (distinct.size() >= 3) {
             return; // a page of many addresses (a list of services, a directory): whose its numbers are is not guessed
@@ -825,6 +876,7 @@ public final class RuleExtractor {
         // its name gave them: a header line or a footer without an address ("Tel.: 08207 – 8001. E-Mail: info@…"), one number above the
         // offices' addresses. Not a number a person's name or a place heads, and never one of two
         singleValue(text, ranges, out, m, PHONE, Vocabulary.PHONE, v -> Normalizers.phone(v, cc));
+        singleValue(text, ranges, out, m, MOBILE, Vocabulary.PHONE, v -> Normalizers.phone(v, cc));
         singleValue(text, ranges, out, m, EMAIL, Vocabulary.EMAIL, v -> {
             final String mail = Normalizers.email(v);
             return mail != null && Normalizers.roleEmail(mail) ? mail : null;
@@ -895,6 +947,29 @@ public final class RuleExtractor {
         return false;
     }
 
+    /** The label of the head office among several offices (rule/12). */
+    private static final Pattern HEAD_OFFICE = Pattern.compile("(?iu)(?<![\\p{L}])(?:hauptsitz|zentrale|firmensitz|unternehmenssitz|hauptverwaltung|stammhaus"
+            + "|hauptgesch(?:ä|ae)ftsstelle|headquarters?|head\\s+office)(?![\\p{L}])");
+
+    /** The line of {@code at} and the two units before it, as {@link #placeHeaded} reads them. */
+    private static String unitsBefore(final String text, final int at) {
+        int line = at;
+        while (line > 0 && text.charAt(line - 1) != '\n') {
+            line--;
+        }
+        final StringBuilder out = new StringBuilder(text.substring(line, at));
+        int from = line;
+        for (int i = 0; i < 2; i++) {
+            final int[] u = previousUnit(text, from, Math.max(0, at - 400));
+            if (u == null) {
+                break;
+            }
+            out.append('\n').append(text, u[0], u[1]);
+            from = u[0];
+        }
+        return out.toString();
+    }
+
     /** The labels of an organisation's own seat before its address (rule/12): none of them names another place. */
     private static final Pattern OWN_SEAT_LABEL = Pattern.compile("(?iu)(?<![\\p{L}])(?:standorte?|b(?:ü|ue)ro|zentrale|hauptsitz|firmensitz|unternehmenssitz"
             + "|sitz|verwaltung|kontakt|kontaktdaten|anschrift|adresse|postanschrift|hier\\s+finden\\s+sie\\s+uns|so\\s+finden\\s+sie\\s+uns)(?![\\p{L}])");
@@ -926,15 +1001,29 @@ public final class RuleExtractor {
         }
         final String[] parts = raw.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+");
         if (parts.length > 1) {
+            // every part of three letters or more is in the name, one short part (a town, "ra-beispiel-koeln" for "RA-BEISPIEL Vertriebs
+            // GmbH") may be missing
+            int missing = 0;
+            int matched = 0;
             boolean all = true;
             for (final String part : parts) {
                 final String c = compact(part);
-                all &= c.length() < 3 || letters.contains(c);
+                if (c.length() < 3) {
+                    continue;
+                }
+                if (letters.contains(c)) {
+                    matched = Math.max(matched, c.length());
+                } else if (c.length() <= 5 && missing++ == 0) {
+                    all = false;
+                } else {
+                    missing = 2;
+                    all = false;
+                }
             }
             // or its first part, the brand before the trade or the town ("claassen-maschinenbau", "saalfeld-olching"), where it is
             // most of the label ("deutsche-datenschutzkanzlei" vouches for no "Deutsche …")
             final String first = compact(parts[0]);
-            if (all || first.length() >= 4 && letters.contains(first) && first.length() * 5 >= label.length() * 2) {
+            if (all && matched > 0 || matched >= 4 && missing <= 1 || first.length() >= 4 && letters.contains(first) && first.length() * 5 >= label.length() * 2) {
                 return true;
             }
         }
@@ -951,6 +1040,36 @@ public final class RuleExtractor {
         // e.V." is not sozialstation-sinsheim.de, rule/12)
         final String rest = label.substring(word.length());
         return word.length() * 5 >= label.length() * 2 || letters.contains(rest);
+    }
+
+    /**
+     * True if one of the two words before {@code at} (above {@code floor}) is a brand word of the site ({@link #brandWord}): "x-cellent
+     * technologies GmbH", "medinix information systems GmbH", "ADVISA Unternehmensberatung / Akademie GmbH"; not "… are registered
+     * trademarks of Gofresh GmbH".
+     */
+    private static boolean brandAhead(final String text, final int at, final int floor, final String host) {
+        if (host == null) {
+            return false;
+        }
+        int j = at;
+        for (int n = 0; n < 2; n++) {
+            while (j > floor && (text.charAt(j - 1) == ' ' || text.charAt(j - 1) == '\t')) {
+                j--;
+            }
+            if (j <= floor || isBreak(text.charAt(j - 1))) {
+                return false;
+            }
+            int k = j;
+            while (k > floor && !Character.isWhitespace(text.charAt(k - 1)) && !isBreak(text.charAt(k - 1))) {
+                k--;
+            }
+            final String w = text.substring(k, j).toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}&+-]", "");
+            if (brandWord(w, host)) {
+                return true;
+            }
+            j = k;
+        }
+        return false;
     }
 
     /**
@@ -1019,6 +1138,8 @@ public final class RuleExtractor {
 
     /** A Markdown heading of the first level, as YaCy's text writes the page's main heading. */
     private static final Pattern MAIN_HEADING = Pattern.compile("(?m)^#\\s+([^\\n]{1,120}?)\\s*$");
+    /** Any Markdown heading, as YaCy's text writes a page's headings. */
+    private static final Pattern HEADING = Pattern.compile("(?m)^#{1,6}\\s+\\S");
 
     /** rule/12: true if an occurrence of the name at or after {@code from} opens a contact block with a value in it ({@link #contactBlockEnd}). */
     static boolean headsContacts(final String text, final String name, final int from) {
@@ -1086,7 +1207,9 @@ public final class RuleExtractor {
 
     /** A short line of a contact block: a label of a contact or an identifier, a postal code with a town, a street with its number, a mailbox, a number. */
     private static final Pattern CONTACT_LINE = Pattern.compile("(?iu)^[\\s*_#>-]*(?:(?:tel(?:efon)?|fon|phone|fax|telefax|mobil|e-?mail|mail|web|internet"
-            + "|anschrift|adresse|postanschrift|sitz|kontakt|kontaktdaten|(?:ö|oe)ffnungszeiten|amtsgericht|registergericht|handelsregister|hr[ab]|ust|steuer)(?![\\p{L}])"
+            + "|anschrift|adresse|postanschrift|sitz|kontakt|kontaktdaten|(?:ö|oe)ffnungszeiten|amtsgericht|registergericht|handelsregister|hr[ab]|ust|steuer"
+            // rule/12: the heading of the organisation's own office inside its block ("#### Geschäftsstelle", "Büro", "Zentrale")
+            + "|gesch(?:ä|ae)ftsstelle|b(?:ü|ue)ro|zentrale|hauptsitz|firmensitz|besuchsadresse|postadresse|hausanschrift)(?![\\p{L}])"
             + "|www\\.|https?://|[0-9]{5}\\s+\\p{Lu}"
             + "|\\p{Lu}[\\p{L}.\\-]+(?:[ \\t]+[\\p{L}.\\-]+){0,3}[ \\t]+[0-9]{1,4}\\s?[a-zA-Z]?(?![\\p{L}\\p{N}])|[A-Za-z0-9._%+\\-]+@|\\+?[0-9][0-9 /()\\-]{5,})");
     /** A paragraph of separators only ("·", "**", "---"), as a footer in elements of its own has between its lines (rule/12). */
@@ -1234,11 +1357,12 @@ public final class RuleExtractor {
         }
         if (privacy) {
             patterns.add(PROCESSOR_PHRASE);
+            patterns.add(PRIVACY_HEADING);
         }
         for (final Pattern p : patterns) {
             final Matcher m = p.matcher(text).region(from, to).useTransparentBounds(true);
             while (m.find() && (best == null || m.start() < best[0])) {
-                if (p != THIRD_PARTY_HEADING || colonAfter(text, m.end(), to) || unitStart(text, m.start()) && unitEnd(text, m.end(), to)) {
+                if (p != THIRD_PARTY_HEADING && p != PRIVACY_HEADING || colonAfter(text, m.end(), to) || unitStart(text, m.start()) && unitEnd(text, m.end(), to)) {
                     best = new int[] {m.start(), m.end(), p == SERVICE_PROVIDER_PHRASE || p == PROVIDER_PHRASE || p == PROCESSOR_PHRASE ? 1 : 0};
                     break;
                 }
@@ -1418,33 +1542,39 @@ public final class RuleExtractor {
      * names nobody; without such a confirmation the operator stays unnamed.
      */
     static int[] plainOperatorName(final String text, final List<int[]> ranges, final String host, final List<Mention> structured) {
+        // rule/12: every address of the ranges, not the first only (a header's address line stands before the imprint's own)
+        int tried = 0;
         for (final int[] r : ranges) {
-            final Matcher am = findAddress(text, r[0], r[1]);
-            if (am == null) {
-                continue;
-            }
-            int at = am.start();
-            for (int n = 0; n < NAME_UNITS; n++) {
-                final int[] u = previousUnit(text, at, r[0]);
-                if (u == null) {
+            int from = r[0];
+            while (from < r[1] && tried < 4) {
+                final Matcher am = findAddress(text, from, r[1]);
+                if (am == null) {
                     break;
                 }
-                int start = u[0];
-                final Matcher label = NAME_LABEL.matcher(text).region(u[0], u[1]);
-                if (label.lookingAt()) {
-                    start = label.end();
+                tried++;
+                int at = am.start();
+                for (int n = 0; n < NAME_UNITS; n++) {
+                    final int[] u = previousUnit(text, at, r[0]);
+                    if (u == null) {
+                        break;
+                    }
+                    int start = u[0];
+                    final Matcher label = NAME_LABEL.matcher(text).region(u[0], u[1]);
+                    if (label.lookingAt()) {
+                        start = label.end();
+                    }
+                    while (start < u[1] && Character.isWhitespace(text.charAt(start))) {
+                        start++;
+                    }
+                    final int[] above = previousUnit(text, u[0], r[0]);
+                    final boolean afterRole = above != null && PERSON_ROLE_UNIT.matcher(text.substring(above[0], above[1])).matches();
+                    if (start < u[1] && !afterRole && plausibleName(text, start, text.substring(start, u[1]), host, structured)) {
+                        return new int[] {start, u[1]};
+                    }
+                    at = u[0];
                 }
-                while (start < u[1] && Character.isWhitespace(text.charAt(start))) {
-                    start++;
-                }
-                final int[] above = previousUnit(text, u[0], r[0]);
-                final boolean afterRole = above != null && PERSON_ROLE_UNIT.matcher(text.substring(above[0], above[1])).matches();
-                if (start < u[1] && !afterRole && plausibleName(text, start, text.substring(start, u[1]), host, structured)) {
-                    return new int[] {start, u[1]};
-                }
-                at = u[0];
+                from = am.end();
             }
-            return null;
         }
         return null;
     }
@@ -1454,8 +1584,17 @@ public final class RuleExtractor {
         if (name.length() < 2 || name.length() > 80 || name.indexOf(':') >= 0 || name.indexOf('§') >= 0 || name.indexOf('@') >= 0
                 || !(Character.isUpperCase(name.codePointAt(0)) || Character.isDigit(name.charAt(0)))
                 || IMPRINT_MARKER.matcher(name).find() || OPERATOR_PHRASE.matcher(name).find() || OPERATOR_LABEL.matcher(name).find()
-                || LEGAL_FORM.matcher(name).find()
-                || BusinessFacts.personLike(name)) {
+                || LEGAL_FORM.matcher(name).find()) {
+            return false;
+        }
+        // rule/12: the page's structured data declares this organisation, a sole trader's own name included ("Stefan Muster" as the
+        // publisher of stefan-muster.de): then the person check below does not apply
+        final String compactName = compact(name);
+        boolean declared = false;
+        for (final Mention s : structured) {
+            declared |= Vocabulary.ORGANIZATION.equals(s.type) && structured.size() == 1 && compactName.length() >= 3 && compactName.equals(compact(s.name));
+        }
+        if (!declared && BusinessFacts.personLike(name)) {
             return false;
         }
         // a person named by a role or a salutation right before the line ("Inhaber:", "Herr")
@@ -1541,16 +1680,19 @@ public final class RuleExtractor {
                 break;
             }
         }
-        phone: for (final int[] r : ranges) {
-            if (has(out, m, Vocabulary.PHONE)) {
-                break phone;
-            }
-            final Matcher pm = PHONE.matcher(text).region(r[0], r[1]);
-            while (pm.find()) {
-                final String phone = Normalizers.phone(pm.group(1), cc);
-                if (phone != null) {
-                    claim(out, m, Vocabulary.PHONE, phone, text, pm.start(), pm.end());
+        // the landline first, a mobile number only where the ranges give no other phone (rule/12)
+        for (final Pattern label : new Pattern[] {PHONE, MOBILE}) {
+            phone: for (final int[] r : ranges) {
+                if (has(out, m, Vocabulary.PHONE)) {
                     break phone;
+                }
+                final Matcher pm = label.matcher(text).region(r[0], r[1]);
+                while (pm.find()) {
+                    final String phone = Normalizers.phone(pm.group(1), cc);
+                    if (phone != null) {
+                        claim(out, m, Vocabulary.PHONE, phone, text, pm.start(), pm.end());
+                        break phone;
+                    }
                 }
             }
         }
@@ -1633,8 +1775,8 @@ public final class RuleExtractor {
             }
             final String word = text.substring(lead, j);
             final String lw = word.toLowerCase(Locale.ROOT);
-            if (word.endsWith(".") && !ABBREVIATIONS.contains(lw) || word.matches(".*[!?:;]$")) {
-                break; // end of the previous sentence or clause ("Zukunft! Bei …", "Träger: …")
+            if (word.endsWith(".") && !ABBREVIATIONS.contains(lw) || words > 0 && word.matches(".*[!?:;]$")) {
+                break; // end of the previous sentence or clause ("Zukunft! Bei …", "Träger: …"); "MUUUH! GmbH" keeps its mark
             }
             final String bare = lw.replaceAll("[^\\p{L}\\p{N}&+-]", "");
             // rule/12: the site's own name may start with a word in lower case, a stop word even ("von Nassau GmbH" on vonnassau.de)
@@ -1643,6 +1785,13 @@ public final class RuleExtractor {
                 break;
             }
             final char first = word.charAt(0);
+            if (!Character.isUpperCase(first) && !Character.isDigit(first) && first != '"' && first != '„' && !brand && !CONNECTORS.contains(bare)
+                    && !CONNECTORS.contains(lw) && brandAhead(text, k, floor, host)) {
+                // rule/12: a word in lower case inside the site's own name ("x-cellent technologies GmbH", "Lebenshilfe für Menschen mit
+                // Behinderung Kreisvereinigung Main-Taunus e.V."): the brand word before it keeps the name whole
+                i = k;
+                continue;
+            }
             if (Character.isUpperCase(first) || Character.isDigit(first) || first == '"' || first == '„' || brand) {
                 if (first == '"' || first == '„') {
                     start = lead + 1; // a quoted name starts after its quote („Deutsche Kinderhospiz Dienste e.V.“) and ends there
