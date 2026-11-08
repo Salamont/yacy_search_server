@@ -558,6 +558,132 @@ public class PortalRegressionTest {
                 "https://sanitaer-muster.de/impressum/", "Stefan Muster"));
     }
 
+    // ------------------------------------------------------------------------------------ 12.11 (request 11): identifiers behind the block
+
+    /** A privacy notice whose controller follows "gilt für die Datenverarbeitung durch:" keeps its register entry and VAT ID. */
+    @Test
+    public void constructionAPrivacyArticleNamesItsControllerWithRegisterAndVat() throws Exception {
+        final Extraction ex = page("construction-privacy-article.html",
+                "https://www.muster-hausservice.de/index.php?option=com_content&view=article&id=3&Itemid=5", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Muster Hausservice GmbH", op.name);
+        assertEquals(List.of("Finkenweg 9, 14656 Brieselang"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+49301234560"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@muster-hausservice.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals(List.of("DE123456789"), values(ex, op, Vocabulary.ID_VAT));
+        assertEquals(List.of("HRB 12345 B, Amtsgericht Charlottenburg"), values(ex, op, Vocabulary.ID_REGISTER));
+        noSiteOperatorNamed(ex, "Wolkenwerk");
+    }
+
+    /** The misspelling "Impresum" (path and title) is an imprint: the whole window gives the operator its identifiers. */
+    @Test
+    public void constructionAMisspeltImprintIsAnImprintWithRegisterAndVat() throws Exception {
+        final Extraction ex = page("construction-imprint-misspelt.html", "https://www.muster-bau-adelsdorf.de/kontakt/impresum", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Muster Bau GmbH", op.name);
+        assertEquals(List.of("Industriestraße 21, 91325 Adelsdorf"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+4991951234"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("+4991955678"), values(ex, op, Vocabulary.FAX));
+        assertEquals(List.of("HRB 3111, Amtsgericht Fürth"), values(ex, op, Vocabulary.ID_REGISTER));
+        assertEquals(List.of("DE111222333"), values(ex, op, Vocabulary.ID_VAT));
+        noSiteOperatorNamed(ex, "Wolkenwerk");
+    }
+
+    /** An imprint inside a privacy notice with sub-headings of its own data ("## Vertreten durch …", "## Kontakt:") is read whole. */
+    @Test
+    public void constructionAPrivacyPageWithSubheadingsKeepsTheControllersContactsAndIdentifiers() throws Exception {
+        final Extraction ex = page("construction-privacy-subheadings.html", "https://www.muster-haustechnik.de/privacy-policy", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Muster Haustechnik GmbH", op.name);
+        assertEquals(List.of("Hauptstraße 11 d, 85716 Unterschleißheim"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals("the landline, not the mobile number", List.of("+49891234567"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("info@muster-haustechnik.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals(List.of("HRB 218780, Amtsgericht München"), values(ex, op, Vocabulary.ID_REGISTER));
+        assertEquals(List.of("DE234565602"), values(ex, op, Vocabulary.ID_VAT));
+        noSiteOperatorNamed(ex, "Wolkenwerk");
+    }
+
+    /** A privacy notice without the controller's marker: the operator's footer block, then the lines of its identifiers after it. */
+    @Test
+    public void softwareAPrivacyPageWithoutTheControllersMarkerGivesTheOperatorTheIdentifiersAfterItsBlock() throws Exception {
+        final Extraction ex = page("software-footer-identifiers.html", "https://www.muster-it.de/dsgvo.php", "software");
+        final Mention op = operator(ex);
+        assertEquals("Muster IT GmbH", op.name);
+        assertEquals(List.of("Am Brünnele 2a, 89291 Holzheim"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+49730212340"), values(ex, op, Vocabulary.PHONE));
+        assertEquals(List.of("+497302123455"), values(ex, op, Vocabulary.FAX));
+        assertEquals(List.of("post@muster-it.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals(List.of("DE184191578"), values(ex, op, Vocabulary.ID_VAT));
+        noSiteOperatorNamed(ex, "Wolkenwerk");
+    }
+
+    /** An English legal notice of a group under a numeric address: the operator's block and its identifiers, not the next company's. */
+    @Test
+    public void constructionAnEnglishLegalNoticeOfTwoCompaniesGivesTheOperatorItsOwnVatOnly() throws Exception {
+        final Extraction ex = page("construction-legal-notice-two-companies.html", "https://www.muster-metall-gruppe.com/?page_id=621&lang=en", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Muster Metallwerke GmbH", op.name);
+        assertEquals(List.of("Am Römerkastell 6, 66121 Saarbrücken"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("DE138112082"), values(ex, op, Vocabulary.ID_VAT));
+        for (final Mention o : organisations(ex)) {
+            assertFalse("the French company's VAT ID is nobody else's: " + values(ex, o, Vocabulary.ID_VAT),
+                    values(ex, o, Vocabulary.ID_VAT).contains("FR70353143522"));
+        }
+    }
+
+    /** The general partner named after the footer's block is another company: its register entry is not the operator's. */
+    @Test
+    public void softwareAFooterNamingTheGeneralPartnerGivesTheOperatorNoRegisterOfAnotherCompany() throws Exception {
+        final Extraction ex = page("software-footer-general-partner.html", "https://www.muster-dienste.de/leistungen/", "software");
+        final Mention op = operator(ex);
+        assertEquals("Muster Dienste GmbH & Co. KG", op.name);
+        assertEquals(List.of("Falkenweg 31, 50935 Köln"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("+492211234567"), values(ex, op, Vocabulary.PHONE));
+        assertTrue("the general partner's register entry is not the operator's: " + values(ex, op, Vocabulary.ID_REGISTER),
+                values(ex, op, Vocabulary.ID_REGISTER).isEmpty());
+    }
+
+    /** A controller written before its inline address is named without the comma. */
+    @Test
+    public void organisationAControllerBeforeItsInlineAddressIsNamedWithoutTheComma() throws Exception {
+        final Extraction ex = page("org-privacy-controller-inline-address.html", "https://www.glaserei-muster.de/datenschutzerklaerung/", "construction");
+        final Mention op = operator(ex);
+        assertEquals("Glaserei Muster", op.name);
+        assertEquals(List.of("Im Felde 12, 52249 Eschweiler"), values(ex, op, Vocabulary.ADDRESS));
+        assertEquals(List.of("info@glaserei-muster.de"), values(ex, op, Vocabulary.EMAIL));
+        assertEquals(List.of("+492403961396"), values(ex, op, Vocabulary.PHONE));
+    }
+
+    /** "mit" joins the parts of a name; "bei" still opens a phrase before one; punctuation after a name is none of it. */
+    @Test
+    public void namesKeepMitInsideAndLoseThePunctuationAfterThem() {
+        final String imprint = "Impressum. Angaben gemäß § 5 TMG. ";
+        assertEquals("Unternehmensgruppe Muster Häusliche Pflege mit Stil GmbH", operatorOf(imprint
+                + "Unternehmensgruppe Muster Häusliche Pflege mit Stil GmbH\nMusterweg 1\n12345 Musterstadt", "https://seniorenzentrum-beispiel.de/impressum/"));
+        assertEquals("Menschen mit Behinderung Beispielstadt e.V.", operatorOf(imprint
+                + "Menschen mit Behinderung Beispielstadt e.V.\nMusterweg 1\n12345 Musterstadt", "https://www.mmb-beispielstadt.de/impressum/"));
+        assertEquals("Muster GmbH", operatorOf(imprint + "Willkommen bei Muster GmbH\nMusterweg 1\n12345 Musterstadt", "https://www.muster.de/impressum/"));
+        assertEquals("Glaserei Muster", RuleExtractor.trimName("Glaserei Muster,"));
+        assertEquals("Muster-Bau", RuleExtractor.trimName("**Muster-Bau -"));
+        assertEquals("Muster e.V.", RuleExtractor.trimName(" Muster e.V. "));
+    }
+
+    /**
+     * An imprint's dispute resolution passage names nobody, the operator's plain name is read instead; a body that runs its own site
+     * ("Schlichtungsstelle Bau e.V." as the imprint's first organisation) stays its operator (`ImprintOperatorTest`).
+     */
+    @Test
+    public void anImprintsDisputeResolutionBodyIsNobody() {
+        final String imprint = "Impressum. Angaben gemäß § 5 TMG. ";
+        assertEquals("PLANBOX Beispiel", operatorOf(imprint + "PLANBOX Beispiel\nMusterweg 1\n12345 Musterstadt\nTelefon: 0123 456789\n\n"
+                + "Streitbeilegung. Wir nehmen an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teil. Zuständig ist die "
+                + "Universalschlichtungsstelle des Zentrums für Schlichtung e.V., Straßburger Straße 8, 77694 Kehl am Rhein.", "https://planbox-beispiel.de/impressum/"));
+        assertEquals("Muster Elektro GmbH", operatorOf(imprint + "Muster Elektro GmbH\nMusterweg 1\n12345 Musterstadt\nTelefon: 0123 456789\n\n"
+                + "Streitschlichtung. Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit. Wir sind nicht bereit, an "
+                + "Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen. Allgemeine Verbraucherschlichtungsstelle des Zentrums für "
+                + "Schlichtung e.V., Straßburger Str. 8, 77694 Kehl, mail@verbraucher-beispiel.de", "https://www.muster-elektro.de/impressum/"));
+    }
+
     /** The operator of a text whose structured data declare one organisation of the given name. */
     private static String operatorOfDeclared(final String text, final String url, final String declared) {
         final Extraction ex = new Extraction(50);

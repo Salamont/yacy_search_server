@@ -4560,3 +4560,12 @@ for the rules and the place reader (`Address.TOWN`: "Bad Rappenau", "St. Ingbert
 it); after a link only, the operator is the organisation whose name is the site's. The durable review mark of R4 is a proposal
 ([SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md](SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md)), no schema change. Tests: `PortalRegressionTest`
 on invented pages of the four fields.
+
+After the third full run (section 12.11 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)): a strong identifier (`vat`,
+`register`, `ik`) held by an organisation of another domain joins a mention only where a word of the names or the place (postal
+code, town) agrees; two companies of different names in different towns that publish one VAT ID stay apart, the resolver records
+`identity_review` ("identifier of another domain's organisation …") and both carry the identifier as a statement, so the contested
+value can be listed from the graph (the durable mark stays the proposal's section 5). The operator's register entry and VAT ID
+after its contact block on a page not recognised as an imprint, the controller's sub-headings inside a privacy notice and the
+misspelling "Impresum" are read; "mit" joins the parts of a name, punctuation after a plain name is dropped, an imprint's dispute
+resolution passage is a provider's section. Tests: `OperatorIdentityTest`, `PortalRegressionTest`.

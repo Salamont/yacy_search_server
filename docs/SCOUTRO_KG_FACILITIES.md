@@ -182,7 +182,7 @@ every collection and needs its own gates (remaining defect R6).
 | `PlaceAddressRegressionTest` (8) | K2 and K6 (section 11) on the LLM tier's `apply`: a named house of an overview keeps its address; on an imprint page, inside a page's imprint and at the imprint operator's address a house gets none (a structured organisation's fallback address does not count); a town and a firm taken for facilities get none; an unclear name keeps its mark and gets none; a street starts after the sentence before it |
 | `FacilityRegressionGraphTest` (7) | a second invented provider end to end: the imprint gives a house none of the operator's address; two houses of one name in two towns stay two, also where an overview lists both; every facility has at most one address and postal code; town, firm and unclear name get no address; the operator keeps its own contacts and none of a house; a consumer of the collection reads no delete for a merged entity |
 | `MergeFeedTest` (3) | M7 with the real publisher and identity resolution: a merge in one collection is a `redirect` for its consumer; a consumer of the merged entity's collection gets the `redirect`, not a `delete`, also where the survivor came from another collection; every statement of the merged entity is an `upsert` or a `redirect` to a statement of the survivor; a consumer of a third collection gets nothing |
-| `PortalRegressionTest` (37) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street. Request 10 (12.6, 12.8): a booking tool's provider on a services page names no operator; a privacy notice names the site's own company of its footer, its controller of a "Verantwortlicher im Sinne …" sentence, and a combined imprint/privacy page keeps the identifiers; an imprint with a lower-case brand ("uib-beispiel GmbH") and a hosting notice; footer formats ("Tel.:. ", a dash, "Str.30"); two offices in one block; a partner page; a list of services; a footer's imprint of persons; names after years, quotes, marks and "Firma", the site's own name (`brandName`, `brandWord`), "Pr. Oldendorf". Third round (after the second full run): a controller without legal form leaves the hosting provider nobody; the data protection officer's block; "WAUU! GmbH"; a privacy notice's list of providers; the head office of several offices; the structured subject's contact block; a mobile number; brand words inside names |
+| `PortalRegressionTest` (46) | `rule/12` (section 12) on invented pages of the four portals' fields: a footer without the name keeps the operator's address, phone, fax and mailbox (construction, coaching); a service page, a project page, a dated article, a team page, a directions page and a care provider's category page are no facility's page; a branch, an office named by its town and a practice named as such are; a privacy notice names its controller and no processor, and nobody without a controller; towns of two words ("Bad Rappenau", "St. Ingbert", "Frankfurt am Main", "Halle (Saale)") in the rules and the place reader, and the sentence after a town is none of it; a legal form is no part of a street. Request 10 (12.6, 12.8): a booking tool's provider on a services page names no operator; a privacy notice names the site's own company of its footer, its controller of a "Verantwortlicher im Sinne …" sentence, and a combined imprint/privacy page keeps the identifiers; an imprint with a lower-case brand ("uib-beispiel GmbH") and a hosting notice; footer formats ("Tel.:. ", a dash, "Str.30"); two offices in one block; a partner page; a list of services; a footer's imprint of persons; names after years, quotes, marks and "Firma", the site's own name (`brandName`, `brandWord`), "Pr. Oldendorf". Third round (after the second full run): a controller without legal form leaves the hosting provider nobody; the data protection officer's block; "WAUU! GmbH"; a privacy notice's list of providers; the head office of several offices; the structured subject's contact block; a mobile number; brand words inside names. Fourth round (12.11): a privacy article whose controller follows "gilt für die Datenverarbeitung durch:", a misspelt imprint ("Impresum"), a privacy notice with sub-headings of the controller's data, a privacy notice without the controller's marker whose operator's identifiers follow its footer block, an English legal notice of two companies, a footer naming the general partner (no register of another company), a controller before its inline address (no comma), names with "mit", trimmed names, the dispute resolution body as nobody |
 | `FacilityFixtureReport` | not a test: the corpus as tables, for the comparison before and after (section 8) |
 | changed expectations | `CollectionFitTest` (the LLM extractor's version 7), `LlmFactCatalogueTest.locationsAFacilityIsLocatedAtItsSite` (the facility and the site have their address statements now) |
 
@@ -407,7 +407,11 @@ as such from any address of the imprint, not the first only.
   GmbH"); the imprint page's full name keys the entity, the cut name is a second organisation of the domain.
 - On a page of two offices the second office's phone and mailbox go to nobody; a page with two different phone numbers and no
   block of the operator's name gives none of them (see 12.8); a page of three or more addresses gives only what the name's block
-  holds.
+  holds. A register entry or VAT ID on a page without a contact block of the operator's name (an "about us" page: "Der Verein ist
+  eingetragen im Vereinsregister VR …") or in a footer whose name variant differs from the operator's is not read (12.11).
+- An identifier shared by two organisations of different names in different towns is marked for review and joins nothing (12.11);
+  one shared by organisations of different names at one seat, or where one side states no place, still joins them, as a VAT
+  group's members or a brand and its legal name do.
 - The replay of the LLM tier's answers runs for hours on one core (`LlmReplay.todo`, one query per page); the operation plans it.
 
 ### 12.8 The operator's contacts after the link, second round (K1, request 10)
@@ -469,3 +473,67 @@ of its own name, stays one under its own name).
 `rule/12` (they ran on the discarded validation copies only), and production is at `rule/10`, so the update is one re-extraction
 of tiers 1 and 2 and one replay of the LLM tier either way. The LLM tier's rules did not change in this round (`LlmExtractor`
 version 8, `REPLAYS` = {4, 5, 6, 7}).
+
+### 12.11 Fourth round after the third full run (request 11)
+
+The third full run (`045c779`) met the criteria (no new third-party operator, unexplained losses of organisation contacts below
+one per cent per predicate, the portal types, Hermes) and left a few concrete findings; each is corrected here with a test on an
+invented page and checked on the real page it came from. `rule/12` and `llm/8` stay (12.10).
+
+**An identifier shared across domains (`IdentityResolver.resolve`).** Two companies of different names in different towns
+(a care service in Bochum, a restoration workshop in Schwerin) had become one organisation because both imprints publish the same
+VAT ID (one copied from the other, or a VAT group whose members use the parent's ID). A strong identifier (`vat`, `register`,
+`ik`) found on an organisation whose domain-scoped keys (`site_operator`, `domain_operator`, `operator_name`, `ld_id`) name only
+other domains now joins the mention only where the two agree in a word of their names (legal forms, connectors and generic words
+such as "Pflege", "Holding", "Service" do not count, `nameWords`) or in their place (a postal code or a town in common). Where
+both contradict, names and places, the resolver records `identity_review` ("identifier of another domain's organisation (vat
+DE…): <domain> '<name>' in <town> / '<other name>' in <other town>") and the mention goes to the entity of its own domain or a
+new one; the key stays with the entity that holds it (the key table holds one entity per key), the mention's own
+`identifier:vat` statement is written as the page states it, so both organisations carry the value and the contested identifier
+is visible in the graph (`SELECT obj_val FROM kg_statement … GROUP BY obj_val HAVING count(DISTINCT subj) > 1` on the
+identifier predicates). Where one side states no name or no place, or where name or place agree, nothing changes: the same
+company on two of its domains (a family of portals with one imprint) stays one organisation, as do a brand and its legal name at
+one seat. The durable record of such reviews is part of the proposal `SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md` (section 5
+there); the event ring stays the only record on this branch. Tests: `OperatorIdentityTest` (another name in another town is no
+merge and one review; the same company on two domains is one organisation; another name in the same town still joins).
+
+**Identifiers behind the contact block.** Of 14 unexplained losses of VAT IDs and register entries in the third run, 12 had one
+cause: on a page the rules do not take for an imprint (a misspelt path "/kontakt/impresum", an English legal notice under
+`?page_id=…`, a CMS article `index.php?option=…`, `dsgvo.php`, a privacy notice whose controller marker is not known) the link
+to the imprint is the marker and the operator gets only the contact block its name opens (12.1, 12.8); its representatives,
+register entry and VAT ID stand after that block ("Geschäftsführer … Registergericht … USt-ID") and fell out. Now:
+- the lines right after the block are the operator's own where they are labels or values of its representatives and
+  identifiers (`identifierTail`, `IDENTIFIER_LABEL`: "Vertreten durch", "Geschäftsführer", "Registergericht", "HRB 1234",
+  "USt-IdNr.", "Company management", "Registration court", "VAT …"; `IDENTIFIER_VALUE`: a short line of a person's or a town's
+  name or an identifier, "Bernd Beispiel.", "Memmingen. HRB 7539.", "DE123456789."; a line of contacts written with `<br>` as one
+  paragraph), up to running text, a heading of something else, a menu word ("Impressum", "Datenschutz"), another address,
+  another party's section ("Zuständige Kammer", the data protection officer) or another organisation with a legal form (the
+  general partner "Persönlich haftende Gesellschafterin: … Verwaltungs GmbH" ends the tail before its own register entry); at
+  most 600 characters, only where the block was not cut by a second address and gave no identifier itself;
+- inside a privacy notice the controller's block (12.4, bounded by the next heading since the third round) continues over a
+  sub-heading of its own data ("## Vertreten durch den Geschäftsführer", "## Kontakt:", "## Registereintrag",
+  `CONTROLLER_HEADING`, never one of the data protection officer): phone, mailbox, register entry and VAT ID after such a heading
+  are the controller's;
+- the misspelling "Impresum" (path, title and marker) is an imprint; "Diese Datenschutz-Information gilt für die Datenverarbeitung
+  durch:" is a controller's marker (`PRIVACY_MARKER`).
+Of the real pages, nine now give their identifiers again (two losses were correct: the register of the data protection officer's
+law firm, the register of a general partner); what stays: a register entry on an "about us" or "history" page without a contact
+block of the operator's name, a footer whose name variant differs from the operator's ("EMI Metall+Montage" and "EMI Metall +
+Montage"), and a contact page of several offices (12.7). Tests: `PortalRegressionTest` (a privacy article with the controller's
+identifiers, a misspelt imprint, a privacy notice with sub-headings, a privacy notice without the controller's marker, an English
+legal notice of two companies, a footer naming the general partner).
+
+**Names.** "mit" is a connector inside a name, no longer a word that opens a phrase before one: in the imprints and privacy
+notices of the production index "Ambulante Pflege mit Herz GmbH", "Menschen mit Behinderung e.V.", "Technik mit System GmbH",
+"PflegeTeam mit Vertrauen GmbH" stand about 60 times against 7 phrases such as "Zusammenarbeit mit Muster GmbH" (which now keep
+their first word; "bei" still opens a phrase: "Daten bei …", "Jobs bei …", "Website bei Hetzner Online GmbH"). A plain name loses
+the punctuation after it (`trimName`: "Glaserei Muster," before its inline address, "Muster-Bau -" before a tagline). The
+dispute resolution passage of an imprint ("Zuständig ist die Universalschlichtungsstelle des Zentrums für Schlichtung e.V., …",
+"vor einer Verbraucherschlichtungsstelle", "Online-Streitbeilegung", "Streitbeilegungsverfahren", "an die Schlichtungsstelle
+wenden") opens a provider's section wherever it stands (`PROVIDER_PHRASE`: on a page of the site its own paragraph, on the imprint
+up to the next label of the operator's data), so the operator's plain name is read instead of the body, and the body's mailbox
+and fax are nobody's; a body that runs its own site ("Schlichtungsstelle Bau e.V." as the imprint's first organisation) is still
+its operator, as the phrases name the passage, not the word. What stays: a name cut at a dash or a colon ("dab: Daten – Analysen &
+Beratung GmbH" is read as "Analysen & Beratung GmbH"; the dash separates the parts of most titles), and an analytics service named
+inside a combined imprint ("einen Analysedienst der Adobe Inc.", one page). Tests: `PortalRegressionTest` (names with "mit", trimmed
+names, the dispute resolution body).

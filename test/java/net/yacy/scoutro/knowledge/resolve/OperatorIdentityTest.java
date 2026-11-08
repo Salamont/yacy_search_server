@@ -278,4 +278,55 @@ public class OperatorIdentityTest {
         assertEquals(1L, organisations("Stabil Bau GmbH"));
         assertEquals(0L, redirects());
     }
+
+    // ---------------------------------------------------------------- 12.11 (request 11): an identifier shared across domains
+
+    /** The identity reviews whose reason begins with {@code prefix}. */
+    private long reviews(final String prefix) throws Exception {
+        return this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'identity_review' AND detail LIKE '" + prefix + "%'"));
+    }
+
+    /**
+     * 12.11: two companies of different names in different towns whose imprints publish the same VAT ID (one copied from the other,
+     * or a VAT group) stay two organisations; the shared identifier is marked for a person's review, nothing is merged.
+     */
+    @Test
+    public void anIdentifierOfAnotherDomainsCompanyOfAnotherNameInAnotherTownIsNoMerge() throws Exception {
+        publish("IMPRINThst31", "https://www.alpha-seniorendienst.de/impressum", null, "Impressum. Angaben gemäß § 5 TMG. Alpha Seniorendienst GmbH\n"
+                + "Am Heerbusch 10\n44894 Bochum\nRegistergericht: Amtsgericht Bochum, HRB 17170\n"
+                + "Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: DE114103514");
+        assertEquals(1L, organisations("Alpha Seniorendienst GmbH"));
+        publish("IMPRINThst32", "https://beta-holzwerkstatt.eu/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Beta Holzwerkstatt GmbH\n"
+                + "Wismarsche Str. 119\n19053 Schwerin\nUmsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: DE 114 103 514");
+        assertEquals("two companies, two organisations", 1L, organisations("Beta Holzwerkstatt GmbH"));
+        assertEquals(1L, organisations("Alpha Seniorendienst GmbH"));
+        assertEquals("nothing is merged", 0L, redirects());
+        assertEquals("the shared identifier is marked for review", 1L, reviews("identifier of another domain"));
+    }
+
+    /** The same company on two of its domains (a family of portals with one imprint) is one organisation: its name agrees. */
+    @Test
+    public void theSameCompanyOnTwoDomainsIsOneOrganisation() throws Exception {
+        final String imprint = "Impressum. Angaben gemäß § 5 TMG. Gamma Portale GmbH & Co. KG\nPretzfelder Str. 7\n90425 Nürnberg\nUSt-IdNr.: DE257013307";
+        publish("IMPRINThst33", "https://www.dachdecker-beispiel.org/impressum/", null, imprint);
+        publish("IMPRINThst34", "https://www.maler-beispiel.org/impressum/", null, imprint);
+        assertEquals("one organisation of both domains", 1L, organisations("Gamma Portale GmbH & Co. KG"));
+        assertEquals(0L, reviews("identifier of another domain"));
+    }
+
+    /** Another name on another domain at the same seat (a brand and its legal name, a group's companies): the identifier still joins them. */
+    @Test
+    public void anIdentifierOfAnotherDomainWithAnotherNameInTheSameTownStillJoins() throws Exception {
+        publish("IMPRINThst35", "https://www.delta-holding.de/impressum/", null,
+                "Impressum. Angaben gemäß § 5 TMG. Delta Holding GmbH\nMusterweg 1\n12345 Musterstadt\nUSt-IdNr.: DE999999999");
+        publish("IMPRINThst36", "https://www.epsilon-service.de/impressum/", null,
+                "Impressum. Angaben gemäß § 5 TMG. Epsilon Service GmbH\nMusterweg 1\n12345 Musterstadt\nUSt-IdNr.: DE999999999");
+        assertEquals(1L, organisations("Delta Holding GmbH"));
+        assertEquals(1L, organisations("Epsilon Service GmbH"));
+        final long holders = this.store.read(c -> KgStore.queryLong(c, "SELECT count(DISTINCT e.ent_rowid) FROM kg_entity e"
+                + " JOIN kg_statement s ON s.subj = e.ent_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE e.status = 1 AND v.name = 'name'"
+                + " AND s.obj_val IN ('Delta Holding GmbH', 'Epsilon Service GmbH')"));
+        assertEquals("one organisation holds both names", 1L, holders);
+        assertEquals(0L, reviews("identifier of another domain"));
+    }
 }

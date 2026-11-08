@@ -81,3 +81,32 @@ anyway (R8, the predicate `country`). Until then the events stay the only record
 re-extraction overwrites them (the report of the validation keeps the counts).
 
 **No migration on the stage-1 branch.** This document is the proposal the owner decides on.
+
+## 5. A fourth kind: an identifier shared across domains (request 11, section 12.11 of the facilities document)
+
+The third full run with the production data joined two companies of different names in different towns because both imprints
+publish the same VAT ID. The resolver now refuses such a join (the names share no word, the places differ) and records
+`identity_review` with the identifier, both names and both towns ("identifier of another domain's organisation (vat DE…):
+<domain> '<name>' in <town> / '<other name>' in <other town>: <entity id> (organization <name>)"). It is the first review that
+involves **two** entities and a value a person must look up (whose VAT ID is it, is one imprint wrong, is it a VAT group), so a
+durable mark needs, beyond section 2:
+
+| Field | Why |
+|---|---|
+| the other entity | the organisation that holds the key (`other_rowid` of 3.1 fits) |
+| the identifier (scheme and value) | what the two share; the reason text holds it today |
+| both places | the contradiction a person checks first |
+
+Until the table of 3.1 exists, the contested identifiers are visible in the graph without the events: the refused mention still
+writes its own `identifier:vat` or `identifier:register` statement, so two active organisations carry the same value:
+
+```
+SELECT s.obj_val, count(DISTINCT s.subj) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred
+ JOIN kg_entity e ON e.ent_rowid = s.subj WHERE v.name IN ('identifier:vat', 'identifier:register') AND e.status = 1
+ GROUP BY s.obj_val HAVING count(DISTINCT s.subj) > 1;
+```
+
+Every row is either such a refused join or a group that legitimately shares an ID (the VAT group of 12.11); the key table tells
+which entity holds the key. The validation tools of the full runs list them (`multidomain.py`). Recommendation unchanged: 3.1 as
+schema 10 with the fields above; the `kind` gains a value 4 (identifier shared), `reason` keeps the text, `other_rowid` the
+holder of the key.

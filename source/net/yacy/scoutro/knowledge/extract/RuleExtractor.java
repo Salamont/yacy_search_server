@@ -91,7 +91,7 @@ public final class RuleExtractor {
     private static final Pattern CANDIDATE_TITLE = Pattern.compile(
             "(?i)\\b(?:impressum|imprint|legal notice|legal disclosure|kontakt|contact|über uns|ueber uns|about us|standorte?|leistungen|einrichtungen)\\b");
     private static final Pattern IMPRINT_MARKER = Pattern.compile(
-            "(?iu)(?:\\bimpressum\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|\\bimprint\\b|\\blegal\\s+notice\\b"
+            "(?iu)(?:\\bimpres{1,2}um\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|\\bimprint\\b|\\blegal\\s+notice\\b"
             + "|diensteanbieter\\b|verantwortlich\\s+(?:i\\.\\s?s\\.\\s?d\\.|im\\s+sinne))");
     /**
      * rule/12: the controller a privacy notice names ("Verantwortliche Stelle", "Verantwortlich für die Datenverarbeitung"); a marker
@@ -100,7 +100,9 @@ public final class RuleExtractor {
     private static final Pattern PRIVACY_MARKER = Pattern.compile("(?iu)(?<![\\p{L}])(?:verantwortliche[rs]?\\s+stelle|datenschutzrechtlich\\s+verantwortlich\\p{L}*"
             + "|verantwortlich\\p{L}*\\s+(?:f(?:ü|ue)r\\s+die\\s+(?:daten)?verarbeitung|gem(?:ä|ae)(?:ß|ss)\\s+(?:art\\.?\\s*4|dsgvo)|nach\\s+(?:art\\.?\\s*4|der\\s+dsgvo)"
             // "Verantwortlicher im Sinne der Datenschutzgesetze ist:" (the imprint's marker wants the word without its ending)
-            + "|im\\s+sinne|i\\.\\s?s\\.\\s?d\\.))");
+            + "|im\\s+sinne|i\\.\\s?s\\.\\s?d\\.)"
+            // 12.11: "Diese Datenschutz-Information gilt für die Datenverarbeitung durch: Muster GmbH …"
+            + "|datenverarbeitung\\s+durch\\s*:)");
     /** A privacy notice by its path or title (rule/12): a link to the imprint names no operator there, only the controller it states. */
     private static final Pattern PRIVACY_PATH = Pattern.compile("(?iu)(?:^|/)(?:datenschutz\\p{L}*|privacy(?:[-_]policy)?|dsgvo|gdpr"
             + "|datenschutzhinweise?|datenschutzerkl\\p{L}*)(?:[./_\\-]|$)");
@@ -108,7 +110,7 @@ public final class RuleExtractor {
     /** The window after the controller's marker on a privacy notice: its name and contact block only, never the processors below. */
     private static final int PRIVACY_WINDOW = 600;
     /** The words of a marker that are also a menu's or a footer's link to the imprint ("- Impressum", "Impressum | Datenschutz"). */
-    private static final Pattern LINK_MARKER = Pattern.compile("(?i)^(?:impressum|imprint|legal\\s+notice)$");
+    private static final Pattern LINK_MARKER = Pattern.compile("(?i)^(?:impres{1,2}um|imprint|legal\\s+notice)$");
     /**
      * The data an imprint states after its marker (rule/11): its legal basis, its operator's representatives, register and VAT ID.
      * A menu or footer link "Impressum" is followed by none of them within {@link #IMPRINT_DATA_WINDOW} characters.
@@ -123,13 +125,19 @@ public final class RuleExtractor {
             + "|gGmbH|GmbH|G\\.\\s?m\\.\\s?b\\.\\s?H\\.?|gAG|KGaA|AG|e\\.\\s?V\\.|eG|PartG(?:\\s*mbB)?|OHG|KG|GbR|SE|e\\.\\s?K\\.|Stiftung|Ltd\\.?|Inc\\.?|LLC";
     private static final Pattern LEGAL_FORM = Pattern.compile("(?<![\\p{L}\\p{N}])(?:" + LEGAL_FORM_TOKENS + ")(?![\\p{L}\\p{N}])");
     private static final Set<String> CONNECTORS = new TreeSet<>(java.util.Arrays.asList(
-            "und", "&", "für", "fuer", "der", "die", "das", "des", "von", "am", "an", "im", "in", "zu", "zur", "zum", "-", "+", "of", "and", "the"));
+            "und", "&", "für", "fuer", "der", "die", "das", "des", "von", "am", "an", "im", "in", "zu", "zur", "zum", "-", "+", "of", "and", "the",
+            // 12.11: "mit" joins the parts of a name far more often than it opens a phrase before one: in the imprints and privacy
+            // notices of the production index "Ambulante Pflege mit Herz GmbH", "Menschen mit Behinderung e.V.", "Technik mit System
+            // GmbH", "PflegeTeam mit Vertrauen GmbH" stand 60 times against 7 phrases such as "Zusammenarbeit mit Muster GmbH"
+            "mit"));
     private static final Set<String> STOP_BEFORE_NAME = new TreeSet<>(java.util.Arrays.asList(
             "die", "der", "durch", "vertreten", "betreiber", "anbieter", "inhaber", "herausgeber", "betrieben", "von", "ist", "sind",
             "wird", "werden", "the", "by", "operated", "dieser", "diese", "website", "webseite", "seite", "internetseite",
             // rule/12: "40 Jahre Kirchliche Sozialstation Sinsheim e.V.", "Ihr Dachdeckermeisterbetrieb Lott e.K.", "Firma Elektro
             // Strüben e.K.", "Willkommen bei Muster GmbH": the organisation's name starts after such words
-            "jahre", "jahren", "ihr", "ihre", "ihrem", "ihren", "unser", "unsere", "unserer", "unserem", "bei", "beim", "mit", "als",
+            // ("bei" opens a phrase in nearly every case: "Daten bei …", "Jobs bei …", "Website bei Hetzner Online GmbH"; "mit" is a
+            // connector inside names, see CONNECTORS, 12.11)
+            "jahre", "jahren", "ihr", "ihre", "ihrem", "ihren", "unser", "unsere", "unserer", "unserem", "bei", "beim", "als",
             "firma", "fa.", "willkommen"));
 
     /**
@@ -163,7 +171,13 @@ public final class RuleExtractor {
             + "|webhoster|hoster(?![\\p{L}])|versanddienstleister|zahlungsdienstleister|newsletter-?(?:anbieter|dienst(?:leister)?|versand)"
             // "Diese Website wird gehostet bei der Hetzner Online GmbH, …", the external data protection officer's block
             + "|gehostet\\s+(?:bei|von|durch)|datenschutzbeauftragte[rn]?\\s+(?:des\\s+verantwortlichen\\s+)?(?:ist|sind|lautet)"
-            + "|(?:kontaktdaten|name\\s+und\\s+anschrift|anschrift|kontakt)\\s+(?:des|unseres|der|unserer)\\s+(?:externen\\s+)?datenschutzbeauftragten)");
+            + "|(?:kontaktdaten|name\\s+und\\s+anschrift|anschrift|kontakt)\\s+(?:des|unseres|der|unserer)\\s+(?:externen\\s+)?datenschutzbeauftragten"
+            // 12.11: the dispute resolution passage of an imprint ("Zuständig ist die Universalschlichtungsstelle des Zentrums für
+            // Schlichtung e.V., …", "vor einer Verbraucherschlichtungsstelle", "Online-Streitbeilegung"): the passage, never the bare
+            // word (a body that runs its own site, "Schlichtungsstelle Bau e.V.", stays its operator)
+            + "|zust(?:ä|ae)ndig(?:e|er|en)?\\s+(?:ist\\s+|sind\\s+)?(?:die\\s+|der\\s+)?(?:universal|verbraucher|allgemeine\\s+)?schlichtungsstelle"
+            + "|(?:universal|verbraucher)schlichtungsstelle\\p{L}*|vor\\s+einer\\s+(?:verbraucher)?schlichtungsstelle|an\\s+die\\s+schlichtungsstelle\\s+wenden"
+            + "|schlichtungsstelle\\s+nach\\s+dem|streitbeilegungsverfahren|online-?\\s?streitbeilegung|streitschlichtung(?![\\p{L}]))");
     /** Headings of a privacy notice that open a provider's or another party's section (rule/12): only on privacy notices. */
     private static final Pattern PRIVACY_HEADING = Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:externes\\s+)?(?:web)?hosting(?:\\s*(?:&|und)\\s*server-?logfiles)?"
             + "|server-?logfiles|content\\s+delivery\\s+network|(?:externe[rn]?\\s+)?datenschutzbeauftragte[rn]?)(?![\\p{L}])");
@@ -401,8 +415,9 @@ public final class RuleExtractor {
         out.ranTier(2);
     }
 
-    private static final Pattern IMPRINT_PATH = Pattern.compile("(?i)(?:^|/)(?:impressum|imprint|legal-?(?:notice|disclosure)|anbieterkennzeichnung)(?:[./_\\-]|$)");
-    private static final Pattern IMPRINT_TITLE = Pattern.compile("(?iu)\\b(?:impressum|imprint|legal\\s+(?:notice|disclosure)|anbieterkennzeichnung)\\b");
+    // 12.11: the misspelling "Impresum" of real imprint pages ("/kontakt/impresum", "Impresum & Datenschutz") is an imprint too
+    private static final Pattern IMPRINT_PATH = Pattern.compile("(?i)(?:^|/)(?:impres{1,2}um|imprint|legal-?(?:notice|disclosure)|anbieterkennzeichnung)(?:[./_\\-]|$)");
+    private static final Pattern IMPRINT_TITLE = Pattern.compile("(?iu)\\b(?:impres{1,2}um|imprint|legal\\s+(?:notice|disclosure)|anbieterkennzeichnung)\\b");
 
     /** True for an imprint page by its address or its title. */
     static boolean imprintPage(final String url, final List<String> titles) {
@@ -616,9 +631,20 @@ public final class RuleExtractor {
         // as on any page (rule/12)
         int end = Math.min(text.length(), markerAt + (privacy && contacts ? PRIVACY_WINDOW : WINDOW));
         if (privacy && contacts) {
-            final Matcher h = HEADING.matcher(text).region(Math.min(text.length(), markerAt + 40), end);
-            if (h.find()) {
+            int at = Math.min(text.length(), markerAt + 40);
+            while (at < end) {
+                final Matcher h = HEADING.matcher(text).region(at, end);
+                if (!h.find()) {
+                    break;
+                }
+                final int lineEnd = lineEnd(text, h.start());
+                if (CONTROLLER_HEADING.matcher(text.substring(h.start(), lineEnd)).find()) {
+                    // 12.11: a sub-heading of the controller's own data ("## Vertreten durch …", "## Kontakt:") continues its block
+                    at = lineEnd;
+                    continue;
+                }
                 end = h.start();
+                break;
             }
         }
         // the operator's own sections only: the insurer's, the chamber's or the web agency's name and contacts are theirs; on a
@@ -689,7 +715,7 @@ public final class RuleExtractor {
             nameStart = plain[0];
             nameEnd = plain[1];
             m = out.add(new Mention(OPERATOR_REF, Vocabulary.ORGANIZATION, 2));
-            m.name = text.substring(nameStart, nameEnd);
+            m.name = trimName(text.substring(nameStart, nameEnd));
             // no legal name to key a declared operator by: the name belongs to the site's operator of the domain
             m.domainOperator = true;
             claim(out, m, Vocabulary.NAME, m.name, text, nameStart, nameEnd);
@@ -815,6 +841,22 @@ public final class RuleExtractor {
         }
         identifiers(text, own, out, m);
         contact(text, own, cc, out, m);
+        if (cut >= end && !m.strongKeys.containsKey(Vocabulary.REGISTER) && !m.strongKeys.containsKey(Vocabulary.VAT)) {
+            // 12.11: on a page not recognised as an imprint (a misspelt path, an English legal notice under a numeric address, a privacy
+            // notice without the controller's marker) the register entry and VAT ID stand after the block's contacts, behind the
+            // representatives ("Geschäftsführer … Registergericht … USt-ID"): the lines of identifiers right after the block are the
+            // operator's own, up to a heading, running text, another organisation or another party's section
+            final int tailEnd = identifierTail(text, end, m);
+            if (tailEnd > end) {
+                final List<int[]> tail = new ArrayList<>();
+                for (final int[] r : from(ranges, end)) {
+                    if (r[0] < tailEnd) {
+                        tail.add(new int[] {r[0], Math.min(r[1], tailEnd)});
+                    }
+                }
+                identifiers(text, tail, out, m);
+            }
+        }
         return true;
     }
 
@@ -1140,6 +1182,19 @@ public final class RuleExtractor {
     private static final Pattern MAIN_HEADING = Pattern.compile("(?m)^#\\s+([^\\n]{1,120}?)\\s*$");
     /** Any Markdown heading, as YaCy's text writes a page's headings. */
     private static final Pattern HEADING = Pattern.compile("(?m)^#{1,6}\\s+\\S");
+    /**
+     * 12.11: a heading inside the controller's block of a privacy notice that opens its own data, not another party's ("## Vertreten
+     * durch den Geschäftsführer", "## Kontakt:", "## Registereintrag"); never one of the data protection officer.
+     */
+    private static final Pattern CONTROLLER_HEADING = Pattern.compile("(?iu)^#{1,6}\\s+[*_]*(?!.*datenschutzbeauftragt)(?:kontakt|anschrift|adresse|postanschrift"
+            + "|telefon|e-?mail|vertreten|vertretungsberechtigt|gesch(?:ä|ae)ftsf(?:ü|ue)hr|inhaber|vorstand|register|handelsregister|umsatzsteuer|ust"
+            + "|angaben\\s+gem|verantwortlich|impressum|name\\s+und\\s+anschrift)");
+
+    /** The end of the line at {@code at} (the index of its line break, or the text's end). */
+    private static int lineEnd(final String text, final int at) {
+        final int nl = text.indexOf('\n', at);
+        return nl < 0 ? text.length() : nl;
+    }
 
     /** rule/12: true if an occurrence of the name at or after {@code from} opens a contact block with a value in it ({@link #contactBlockEnd}). */
     static boolean headsContacts(final String text, final String name, final int from) {
@@ -1241,6 +1296,74 @@ public final class RuleExtractor {
             end = nextEnd;
         }
         return Math.min(end, from + CONTACT_BLOCK_MAX);
+    }
+
+    /** A label of the operator's representatives and identifiers (12.11): the lines that follow a contact block on an imprint. */
+    private static final Pattern IDENTIFIER_LABEL = Pattern.compile("(?iu)(?:vertreten\\s+durch|vertretungsberechtigt|gesch(?:ä|ae)ftsf(?:ü|ue)hr"
+            + "|inhaber(?:in)?(?![\\p{L}])|vorstand|vorsitzende|gesellschafter|registergericht|registernummer|register-?nr|handelsregister|vereinsregister"
+            + "|partnerschaftsregister|genossenschaftsregister|amtsgericht|(?<![\\p{L}])(?:HRA|HRB|VR|PR|GnR)\\s*:?\\s*[0-9]|ust\\.?\\s?-?\\s?id|umsatzsteuer"
+            + "|steuernummer|steuer-?nr|(?<![\\p{L}])vat(?![\\p{L}])|company\\s+management|managing\\s+director|registration\\s+court|registered\\s+office"
+            + "|register\\s+(?:court|number)|sitz\\s+der\\s+gesellschaft|(?<![\\p{L}])verantwortlich|berufsbezeichnung|inhaltlich)");
+    /**
+     * A short value line of such a block (12.11): a person's or a town's name, an identifier ("Bernd Beispiel.", "Dr. Erika Muster.",
+     * "Memmingen. HRB 7539.", "DE123456789.").
+     */
+    private static final Pattern IDENTIFIER_VALUE = Pattern.compile("(?u)^[\\s*_]*(?:(?:Dr\\.|Prof\\.|Dipl\\.-?\\p{L}+\\.?)\\s+)?\\p{Lu}[\\p{L}.\\-]+"
+            + "(?:\\s+(?:\\p{Lu}[\\p{L}.\\-]+|von|van|de|der|zu))*[.,]?(?:\\s+\\p{Lu}{2,3}\\s?[0-9][0-9 ]{0,10}\\.?)?[\\s*_]*$"
+            + "|^[\\s*_]*(?:DE|ATU|CHE|[A-Z]{2})\\s?[0-9][0-9 .]{6,14}\\.?[\\s*_]*$");
+    private static final int IDENTIFIER_TAIL_MAX = 600;
+    /** Words of a menu or a footer's links: a line of one of them ends the identifiers' lines. */
+    private static final Set<String> MENU_WORDS = new TreeSet<>(java.util.Arrays.asList("impressum", "datenschutz", "datenschutzerklärung", "kontakt",
+            "agb", "sitemap", "home", "startseite", "login", "suche", "menü", "menu", "news", "aktuelles", "karriere", "jobs", "links"));
+
+    /**
+     * The end of the operator's identifier lines after its contact block that ends at {@code from} (12.11): the paragraphs that are
+     * labels or values of its representatives, register entry and VAT ID, or short name-shaped values, up to running text, a heading
+     * of something else, a menu word, an address, another party's section or another organisation with a legal form; at most
+     * {@link #IDENTIFIER_TAIL_MAX} characters.
+     */
+    static int identifierTail(final String text, final int from, final Mention m) {
+        int end = from;
+        while (end < text.length() && end - from < IDENTIFIER_TAIL_MAX) {
+            int next = end;
+            while (next < text.length() && Character.isWhitespace(text.charAt(next))) {
+                next++;
+            }
+            if (next >= text.length() || next - end > 4) {
+                break;
+            }
+            final int nextEnd = paragraphEnd(text, next);
+            final String line = text.substring(next, nextEnd).trim();
+            if (line.isEmpty() || SEPARATOR_LINE.matcher(line).matches()) {
+                end = nextEnd;
+                continue;
+            }
+            if (!identifierLine(text, next, nextEnd, line, m)) {
+                break;
+            }
+            end = nextEnd;
+        }
+        return Math.min(end, from + IDENTIFIER_TAIL_MAX);
+    }
+
+    static boolean identifierLine(final String text, final int from, final int to, final String line, final Mention m) {
+        if (thirdPartyLabel(text, from, to, false, true) != null || findAddress(text, from, to) != null) {
+            return false; // another party's section, or another block of contacts
+        }
+        final String bare = line.replaceAll("^[\\s*_#>-]+|[\\s*_.:]+$", "").toLowerCase(Locale.ROOT);
+        if (MENU_WORDS.contains(bare)) {
+            return false;
+        }
+        if (LEGAL_FORM.matcher(line).find() && (m.name == null || !line.contains(m.name))) {
+            return false; // another organisation (the general partner, a partner): its identifiers are not the operator's
+        }
+        if (IDENTIFIER_LABEL.matcher(line).find()) {
+            return true;
+        }
+        if (line.length() <= 200 && CONTACT_LINE.matcher(line).find()) {
+            return true; // a line of contacts written with <br> is one paragraph longer than a contact block's line; the identifiers follow it
+        }
+        return line.length() <= 60 && IDENTIFIER_VALUE.matcher(line).matches();
     }
 
     /** The end of the paragraph at {@code from}: the next blank line, at most {@link #CONTACT_BLOCK_MAX} characters on. */
@@ -1739,6 +1862,25 @@ public final class RuleExtractor {
      */
     static int nameStart(final String text, final int formStart, final int floor) {
         return nameStart(text, formStart, floor, null);
+    }
+
+    /** Punctuation after a name that is none of it ("Glaserei Muster," before its inline address, "Muster-Bau -" before a tagline; 12.11). */
+    private static final String TRAILING_MARKS = ",;:-–—·•|*_";
+
+    /** The name without the marks before it and the punctuation after it (12.11). */
+    static String trimName(final String name) {
+        if (name == null) {
+            return null;
+        }
+        int a = 0;
+        int b = name.length();
+        while (a < b && (Character.isWhitespace(name.charAt(a)) || LEADING_MARKS.indexOf(name.charAt(a)) >= 0)) {
+            a++;
+        }
+        while (b > a && (Character.isWhitespace(name.charAt(b - 1)) || TRAILING_MARKS.indexOf(name.charAt(b - 1)) >= 0)) {
+            b--;
+        }
+        return b > a ? name.substring(a, b) : name;
     }
 
     /** Marks before a name that are no part of it: Markdown, quotes of lists and no-break or zero-width spaces (rule/12). */

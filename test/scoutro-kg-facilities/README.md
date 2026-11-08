@@ -57,3 +57,10 @@ above, after the patterns of the validation with the full production data; no re
 | `construction-head-office.html` | third round: of several offices the one headed "Hauptsitz" is the operator's; addresses in list items, phone numbers with brackets |
 | `construction-subject-contact-block.html` | third round: the page's structured operator (JSON-LD) gets the "Kontakt" block after its "Anschrift" block: phone, fax, mailbox |
 | `coaching-mobile-number.html` | third round: a mobile number ("Mobil:") is the operator's phone where the page gives no other; a personal mailbox stays none of its |
+| `construction-privacy-article.html` | request 11: a privacy notice (a CMS article under a numeric address) whose controller follows "gilt für die Datenverarbeitung durch:" with its address, phone, fax, mailbox, VAT ID and register entry; the hosting provider below is nobody |
+| `construction-imprint-misspelt.html` | request 11: an imprint under the misspelt path and title "Impresum", its register entry and VAT ID after the heading "Vertretungsberechtigter Geschäftsführer" |
+| `construction-privacy-subheadings.html` | request 11: an imprint inside a privacy notice with sub-headings of its own data ("## Vertreten durch …", "## Kontakt:"): phone, mailbox, register entry and VAT ID stay the controller's |
+| `software-footer-identifiers.html` | request 11: a privacy notice without the controller's marker; the operator's block of company data and the lines of its representative and identifiers after it (labels and values in paragraphs of their own) |
+| `construction-legal-notice-two-companies.html` | request 11: an English legal notice of a group under a numeric address; the operator's block and its VAT ID, never the next company's |
+| `software-footer-general-partner.html` | request 11: a footer naming the general partner ("Persönlich haftende Gesellschafterin: … Verwaltungs GmbH") after the operator's block: its register entry is not the operator's |
+| `org-privacy-controller-inline-address.html` | request 11: a controller written before its inline address ("Glaserei Muster, Im Felde 12, …") is named without the comma |

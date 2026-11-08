@@ -26,6 +26,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import net.yacy.scoutro.knowledge.KgIds;
 import net.yacy.scoutro.knowledge.extract.Mention;
@@ -234,6 +236,17 @@ public final class IdentityResolver {
                 // operator into it, and the old name's keys into the new one. The mention goes to the entity of its own name
                 conflict(tx, agg, ent, null, m, "same mention of another name");
                 continue;
+            }
+            if (Vocabulary.STRONG_SCHEMES.contains(f.getKey().scheme) && Vocabulary.ORGANIZATION.equals(m.type) && domain != null
+                    && ofAnotherDomain(tx, ent, domain)) {
+                // rule/12 (docs/SCOUTRO_KG_FACILITIES.md 12.11): an identifier an organisation of another domain holds joins the mention
+                // only where its name or its place agrees; two companies of different names in different towns that publish one VAT ID
+                // (an imprint copied from another site, a VAT group) stay apart and are marked for a person's review
+                final String why = contradiction(tx, ent, m, domain, f.getKey());
+                if (why != null) {
+                    review(tx, agg, ent, m, why);
+                    continue;
+                }
             }
             if (!compatible(tx, ent, m, keys)) {
                 conflict(tx, agg, ent, null, m, "mention contradicts entity");
@@ -480,6 +493,117 @@ public final class IdentityResolver {
             }
         }
         return named;
+    }
+
+    /**
+     * True if the entity's domain-scoped keys ({@code site_operator}, {@code domain_operator}, {@code operator_name}, {@code ld_id})
+     * name domains and none of them is {@code domain} or a host of it (12.11); false for an entity without such keys.
+     */
+    private boolean ofAnotherDomain(final Connection tx, final long ent, final String domain) throws SQLException {
+        boolean scoped = false;
+        for (final String key : keysOf(tx, ent).keySet()) {
+            final int nul = key.indexOf('\u0000');
+            final String scheme = key.substring(0, nul);
+            if (!(Vocabulary.SITE_OPERATOR.equals(scheme) || Vocabulary.DOMAIN_OPERATOR.equals(scheme)
+                    || Vocabulary.OPERATOR_NAME.equals(scheme) || Vocabulary.LD_ID.equals(scheme))) {
+                continue;
+            }
+            final String scope = key.substring(nul + 1);
+            final int at = scope.indexOf('@');
+            if (at < 0) {
+                continue;
+            }
+            final String d = scope.substring(at + 1);
+            if (d.equals(domain) || d.endsWith("." + domain)) {
+                return false;
+            }
+            scoped = true;
+        }
+        return scoped;
+    }
+
+    /** Words of a name that tell nothing about the company: legal forms, connectors, generic words of the fields (12.11). */
+    private static final Set<String> NAME_NOISE = new TreeSet<>(java.util.Arrays.asList(
+            "gmbh", "ggmbh", "mbh", "ag", "gag", "kgaa", "kg", "ohg", "gbr", "ug", "se", "eg", "ev", "partg", "mbb", "ltd", "inc", "llc", "co",
+            "haftungsbeschrankt", "haftungsbeschränkt", "und", "der", "die", "das", "des", "von", "für", "fur", "am", "an", "im", "in", "zu", "zur", "zum",
+            "the", "of", "and", "mit", "bei", "haus", "pflege", "pflegedienst", "pflegeheim", "seniorenzentrum", "seniorenresidenz", "residenz",
+            "zentrum", "gruppe", "group", "holding", "verwaltung", "verwaltungs", "service", "services", "deutschland", "germany", "international",
+            "bau", "elektro", "technik", "systems", "system", "solutions", "consulting", "partner", "partners", "praxis", "stiftung", "verein",
+            "ambulante", "ambulanter", "dienst", "dienste", "team", "unternehmensgruppe"));
+
+    /** The words of a name that may identify the company (12.11): the comparison form's words of three letters and more, without noise. */
+    static Set<String> nameWords(final String name) {
+        final Set<String> out = new TreeSet<>();
+        final String key = Normalizers.key(name);
+        if (key != null) {
+            for (final String w : key.split(" ")) {
+                if (w.length() >= 3 && !NAME_NOISE.contains(w)) {
+                    out.add(w);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The values of the entity's statements of a predicate. */
+    private List<String> values(final Connection tx, final long ent, final String predicate) throws SQLException {
+        final List<String> out = new ArrayList<>();
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred = ? AND obj_val IS NOT NULL")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.predicate(predicate));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getString(1));
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 12.11: why the identifier {@code k} does not join the mention to this organisation of another domain, or null where the two
+     * agree in a word of their names or in their place, or where one side states no name or no place (nothing contradicts). A
+     * contradiction needs both: different names (no word in common) and different places (no postal code and no town in common).
+     */
+    private String contradiction(final Connection tx, final long ent, final Mention m, final String domain, final Key k) throws SQLException {
+        final Set<String> mine = nameWords(m.name);
+        mine.addAll(nameWords(m.legalName));
+        final List<String> theirNames = values(tx, ent, Vocabulary.NAME);
+        final Set<String> theirs = new TreeSet<>();
+        for (final String n : theirNames) {
+            theirs.addAll(nameWords(n));
+        }
+        if (mine.isEmpty() || theirs.isEmpty()) {
+            return null;
+        }
+        for (final String w : mine) {
+            if (theirs.contains(w)) {
+                return null;
+            }
+        }
+        final String myTown = m.address == null ? null : Normalizers.key(m.address.locality);
+        final String myZip = m.address == null ? null : m.address.postalCode;
+        if (myTown == null && myZip == null) {
+            return null;
+        }
+        final List<String> towns = values(tx, ent, Vocabulary.LOCALITY);
+        final List<String> zips = values(tx, ent, Vocabulary.POSTAL_CODE);
+        if (towns.isEmpty() && zips.isEmpty()) {
+            return null;
+        }
+        for (final String t : towns) {
+            if (myTown != null && myTown.equals(Normalizers.key(t))) {
+                return null;
+            }
+        }
+        for (final String z : zips) {
+            if (myZip != null && myZip.equals(z.trim())) {
+                return null;
+            }
+        }
+        return "identifier of another domain's organisation (" + k.scheme + " " + k.value + "): " + domain + " '" + Normalizers.clip(m.name, 60)
+                + "' in " + (m.address.locality != null ? m.address.locality : m.address.postalCode) + " / '" + Normalizers.clip(theirNames.get(0), 60)
+                + "' in " + (towns.isEmpty() ? zips.get(0) : towns.get(0));
     }
 
     /** True if the entity has a name or alias of the mention's name ({@link Normalizers#key}); false without names. */
