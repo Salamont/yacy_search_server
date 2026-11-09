@@ -2,6 +2,34 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.14.2 / 1.942-scoutro.51 — facilities, stage 1: addresses, facility pages and identities
+
+On 0.14.1: knowledge graph schema 9 unchanged, no new table, predicate or API route; one re-extraction of tiers 1 and 2 of every
+tracked page (`rule/12`, was 10; `jsonld/8`, `metadata/1` and the vocabularies unchanged) and one replay of the LLM tier's stored
+answers **without a model request** (`llm/8`, was 6; `REPLAYS` = {4, 5, 6, 7}). The update merges entities (facilities of one
+address, organisations of one name or identifier), so **a backup before the update is mandatory**; it is the only way back.
+Application code exactly that of pull request #102 at `ecdf0ff32e14` (validated with five full before/after runs on archived
+production data); this release adds only the version metadata, the release notes and the publication workflow's tags.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.14.2.md); details: docs/SCOUTRO_KG_FACILITIES.md.
+
+- **Addresses:** a dot or a footer's `·`, `•`, `|` between house number and postal code; streets named by a preposition and
+  their square ("Am Markt 5"); towns of two words ("Bad Rappenau", "Frankfurt am Main"); the sentence after a town is none of it.
+- **Facility pages (`FacilityPage`):** a page of one of a site's places (a care home, a branch, an office named by its town)
+  gives the facility its own address, postal code, town, phone and role mailbox; never a service, project, article, team or
+  directions page.
+- **The imprint and the operator:** a menu or footer link "Impressum" no longer makes a page an imprint; the operator after such
+  a link is named only with evidence (the site's own name, title or copyright, its own contact block) and gets that block, never
+  on a facility's page. Providers of hosting, newsletters, cookies, payment, data protection officers, dispute resolution bodies
+  and image credits are another party's section. Privacy notices name their controller, never a processor.
+- **LLM tier (`llm/8`):** a named facility's full address written right after its name becomes its address, read from the
+  page's text, never from the model; only for a proven place, never on imprint pages or at the operator's address.
+- **Identities:** a guessed facility kind keys nothing and blocks no merge (a difference is the event `identity_review`);
+  nothing is merged by name alone; a document-local key of another name is a conflict, not a merge; a VAT id, register entry or
+  IK of another domain's organisation joins only where a word of the names or the place agrees, else `identity_review`.
+- **Change feed (M7):** a merged entity's `redirect` carries the survivor's collections; moved statements stay `upsert`s, so a
+  consumer limited to collections (an agent) gets the redirect instead of a `delete`. After the update agents run a full sync.
+- **Opening hours:** "Öffnungszeiten:" is read again (no `\b` before an umlaut in `BusinessRules.HOURS`).
+
 ## 0.14.1 / 1.942-scoutro.50 — the matching of website technology, offers to the reader and competitors
 
 On 0.14.0: no schema change, no extractor version, no re-extraction, no model request; three rules of the matching at reading
@@ -20,6 +48,7 @@ On 0.14.0: no schema change, no extractor version, no re-extraction, no model re
   candidate's offers without the memo the matching and the read share (an offer memoized from that reading, without
   collections, made the candidate's own offers inaccessible).
 - The notes of 0.14.0 give its merge and image digest.
+- Merge `c6794d24fc9f`; image `ghcr.io/salamont/scoutro:1.942-scoutro.50@sha256:76075e6386c0e19ba43774bee133d570b9689d8f5d70d104bacfc38697463e32` (alias `0.14.1`).
 
 ## 0.14.0 / 1.942-scoutro.49 — names, clients, facilities by their kind, the matching's follow-ups and the clean-up
 
