@@ -171,11 +171,15 @@ public final class RuleExtractor {
             + "|webhoster|hoster(?![\\p{L}])|versanddienstleister|zahlungsdienstleister|newsletter-?(?:anbieter|dienst(?:leister)?|versand)"
             // "Diese Website wird gehostet bei der Hetzner Online GmbH, …", the external data protection officer's block
             + "|gehostet\\s+(?:bei|von|durch)|datenschutzbeauftragte[rn]?\\s+(?:des\\s+verantwortlichen\\s+)?(?:ist|sind|lautet)"
-            + "|(?:kontaktdaten|name\\s+und\\s+anschrift|anschrift|kontakt)\\s+(?:des|unseres|der|unserer)\\s+(?:externen\\s+)?datenschutzbeauftragten"
-            // 12.11: the dispute resolution passage of an imprint ("Zuständig ist die Universalschlichtungsstelle des Zentrums für
-            // Schlichtung e.V., …", "vor einer Verbraucherschlichtungsstelle", "Online-Streitbeilegung"): the passage, never the bare
-            // word (a body that runs its own site, "Schlichtungsstelle Bau e.V.", stays its operator)
-            + "|zust(?:ä|ae)ndig(?:e|er|en)?\\s+(?:ist\\s+|sind\\s+)?(?:die\\s+|der\\s+)?(?:universal|verbraucher|allgemeine\\s+)?schlichtungsstelle"
+            + "|(?:kontaktdaten|name\\s+und\\s+anschrift|anschrift|kontakt)\\s+(?:des|unseres|der|unserer)\\s+(?:externen\\s+)?datenschutzbeauftragten)");
+    /**
+     * 12.11: the dispute resolution passage of an imprint ("Zuständig ist die Universalschlichtungsstelle des Zentrums für Schlichtung
+     * e.V., …", "vor einer Verbraucherschlichtungsstelle", "Online-Streitbeilegung"): the passage, never the bare word (a body that runs
+     * its own site, "Schlichtungsstelle Bau e.V.", stays its operator). Its section is its paragraph, on every page: an imprint writes
+     * the passage before or between the operator's own blocks as often as after them, and the body's name and contacts stand in it.
+     */
+    private static final Pattern DISPUTE_PHRASE = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
+            + "zust(?:ä|ae)ndig(?:e|er|en)?\\s+(?:ist\\s+|sind\\s+)?(?:die\\s+|der\\s+)?(?:universal|verbraucher|allgemeine\\s+)?schlichtungsstelle"
             + "|(?:universal|verbraucher)schlichtungsstelle\\p{L}*|vor\\s+einer\\s+(?:verbraucher)?schlichtungsstelle|an\\s+die\\s+schlichtungsstelle\\s+wenden"
             + "|schlichtungsstelle\\s+nach\\s+dem|streitbeilegungsverfahren|online-?\\s?streitbeilegung|streitschlichtung(?![\\p{L}]))");
     /** Headings of a privacy notice that open a provider's or another party's section (rule/12): only on privacy notices. */
@@ -190,7 +194,10 @@ public final class RuleExtractor {
             + "(?:berufs|betriebs|verm(?:ö|oe)gensschaden)[\\s-]?haftpflicht\\p{L}*|haftpflichtversicherung\\p{L}*|versicherer"
             + "|aufsichtsbeh(?:ö|oe)rde\\p{L}*|berufskammer|kammer(?:zugeh(?:ö|oe)rigkeit)?"
             + "|(?:eu-?|online-?)?streitschlichtung|(?:verbraucher)?streitbeilegung(?:\\s*/\\s*(?:universal)?schlichtungsstelle)?"
-            + "|(?:universal|verbraucher)?schlichtungsstelle|web-?design|bildnachweis\\p{L}*|bildquellen?|bildrechte\\p{L}*|fotonachweis\\p{L}*)"
+            // 12.11: "Bildquellen / Bildurheberrechte:", "Quellenangaben für die verwendeten Bilder und Grafiken:" (image credits name
+            // suppliers with a legal form)
+            + "|(?:universal|verbraucher)?schlichtungsstelle|web-?design|bildnachweis\\p{L}*|bildquellen?(?:\\s*/\\s*bildurheberrechte?)?"
+            + "|bildrechte\\p{L}*|fotonachweis\\p{L}*|quellenangaben?(?:\\s+f(?:ü|ue)r\\s+(?:die\\s+)?(?:verwendeten\\s+)?(?:bilder|fotos|grafiken)(?:\\s+und\\s+grafiken)?)?)"
             // not "Hosting": a service an IT company offers under that heading (its provider's section opens with "Anbieter ist …")
             + "(?![\\p{L}])");
     /** Words that open such a section only as a label with a colon ("Design: Pixel Agentur GmbH"). */
@@ -1459,6 +1466,11 @@ public final class RuleExtractor {
                 // rule/12: on a page of the site a provider's sentence ("Anbieter ist die … GmbH, …") is one paragraph with the provider's
                 // address; the page's own footer after it is the operator's again, whether a label opens it or not
                 resume = Math.min(resume, contactBlockEnd(text, third[1]));
+            } else if (third[2] == 2) {
+                // 12.11: the dispute resolution passage is its paragraph on every page, the imprint too: imprints write the body's name
+                // and contacts in that paragraph and the operator's own footer right after it ("Wir nehmen an einem Streitbeilegungsverfahren
+                // … teil. Zuständig ist die Universalschlichtungsstelle …, Straßburger Straße 8, 77694 Kehl. \n\n **Muster GmbH.** …")
+                resume = Math.min(resume, paragraphEnd(text, third[1]));
             }
             if (resume >= to) {
                 break;
@@ -1470,11 +1482,12 @@ public final class RuleExtractor {
 
     /**
      * The first label of another party's section in [from, to), as [start, end, kind), or null; the kind is 1 for a sentence naming
-     * a provider ({@link #SERVICE_PROVIDER_PHRASE}, {@link #PROVIDER_PHRASE}, {@link #PROCESSOR_PHRASE}), 0 for a heading or a label.
+     * a provider ({@link #SERVICE_PROVIDER_PHRASE}, {@link #PROVIDER_PHRASE}, {@link #PROCESSOR_PHRASE}), 2 for the dispute
+     * resolution passage ({@link #DISPUTE_PHRASE}, its paragraph only), 0 for a heading or a label.
      */
     private static int[] thirdPartyLabel(final String text, final int from, final int to, final boolean privacy, final boolean link) {
         int[] best = null;
-        final List<Pattern> patterns = new ArrayList<>(List.of(THIRD_PARTY_PHRASE, THIRD_PARTY_HEADING, THIRD_PARTY_LABEL, PROVIDER_PHRASE));
+        final List<Pattern> patterns = new ArrayList<>(List.of(THIRD_PARTY_PHRASE, THIRD_PARTY_HEADING, THIRD_PARTY_LABEL, PROVIDER_PHRASE, DISPUTE_PHRASE));
         if (privacy || link) {
             patterns.add(SERVICE_PROVIDER_PHRASE);
         }
@@ -1486,7 +1499,7 @@ public final class RuleExtractor {
             final Matcher m = p.matcher(text).region(from, to).useTransparentBounds(true);
             while (m.find() && (best == null || m.start() < best[0])) {
                 if (p != THIRD_PARTY_HEADING && p != PRIVACY_HEADING || colonAfter(text, m.end(), to) || unitStart(text, m.start()) && unitEnd(text, m.end(), to)) {
-                    best = new int[] {m.start(), m.end(), p == SERVICE_PROVIDER_PHRASE || p == PROVIDER_PHRASE || p == PROCESSOR_PHRASE ? 1 : 0};
+                    best = new int[] {m.start(), m.end(), p == DISPUTE_PHRASE ? 2 : p == SERVICE_PROVIDER_PHRASE || p == PROVIDER_PHRASE || p == PROCESSOR_PHRASE ? 1 : 0};
                     break;
                 }
             }

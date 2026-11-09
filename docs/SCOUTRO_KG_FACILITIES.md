@@ -530,10 +530,14 @@ their first word; "bei" still opens a phrase: "Daten bei …", "Jobs bei …", "
 the punctuation after it (`trimName`: "Glaserei Muster," before its inline address, "Muster-Bau -" before a tagline). The
 dispute resolution passage of an imprint ("Zuständig ist die Universalschlichtungsstelle des Zentrums für Schlichtung e.V., …",
 "vor einer Verbraucherschlichtungsstelle", "Online-Streitbeilegung", "Streitbeilegungsverfahren", "an die Schlichtungsstelle
-wenden") opens a provider's section wherever it stands (`PROVIDER_PHRASE`: on a page of the site its own paragraph, on the imprint
-up to the next label of the operator's data), so the operator's plain name is read instead of the body, and the body's mailbox
-and fax are nobody's; a body that runs its own site ("Schlichtungsstelle Bau e.V." as the imprint's first organisation) is still
-its operator, as the phrases name the passage, not the word. What stays: a name cut at a dash or a colon ("dab: Daten – Analysen &
+wenden") opens another party's section wherever it stands (`DISPUTE_PHRASE`): its paragraph, on the imprint too, since imprints
+write the passage before or between the operator's own blocks as often as after them and the body's name and contacts stand in
+that paragraph (the fourth full run showed that a section up to the next operator label dropped real operators and their
+contacts, a section over the following contact lines ate the operator's footer). So the operator's plain name is read instead
+of the body, and the body's mailbox and fax are nobody's; a body that runs its own site ("Schlichtungsstelle Bau e.V." as the
+imprint's first organisation) is still its operator, as the phrases name the passage, not the word. Image credits ("Bildquellen /
+Bildurheberrechte:", "Quellenangaben für die verwendeten Bilder und Grafiken:") open another party's section as the other
+credit headings do (`THIRD_PARTY_HEADING`): a window maker or an IT supplier named there is no operator. What stays: a name cut at a dash or a colon ("dab: Daten – Analysen &
 Beratung GmbH" is read as "Analysen & Beratung GmbH"; the dash separates the parts of most titles), and an analytics service named
 inside a combined imprint ("einen Analysedienst der Adobe Inc.", one page). Tests: `PortalRegressionTest` (names with "mit", trimmed
 names, the dispute resolution body).
