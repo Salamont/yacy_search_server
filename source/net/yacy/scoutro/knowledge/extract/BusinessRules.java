@@ -95,7 +95,18 @@ public final class BusinessRules {
     /** What a page is about, from its path and titles (several at once). */
     public enum PageKind { HOME, SERVICES, PRICES, CAREERS, PARTNERS, REFERENCES, ABOUT, AUDIENCE, CONTACT, IMPRINT,
         /** 0.12.0: a page of one service of the site ("/sap-beratung/sap-cash-management/"): its title names what it offers. */
-        SERVICE_DETAIL }
+        SERVICE_DETAIL,
+        /**
+         * 0.15.0 (rule/11): the page of one facility of the provider ({@link FacilityPage}); never by its address alone, the rules set
+         * it when the page names the facility with its full address. Its contacts are the facility's.
+         */
+        FACILITY,
+        /**
+         * rule/12: a page with a menu or footer link to the imprint, not the imprint itself (rule/11 tells them apart). Its footer's
+         * fax and hours are the site's ({@link #contacts}); its text gives no industry and no identifiers. Last, so that no
+         * ordinal of the kinds before it changes.
+         */
+        IMPRINT_LINK }
 
     /** True for the confidence of a structurally evidenced offer ({@link #STRUCTURAL_CONFIDENCE}). */
     public static boolean structural(final double confidence) {
@@ -2053,8 +2064,9 @@ public final class BusinessRules {
 
     // ------------------------------------------------------------- contacts
 
-    private static final Pattern FAX = Pattern.compile("(?i)(?:\\bTele)?\\bfax(?:nummer)?\\.?\\s*:?\\s*((?:\\+|00)?[0-9][0-9 ()/\\-.]{5,24}[0-9])");
-    private static final Pattern HOURS = Pattern.compile("(?iu)\\b(sprechzeiten|bürozeiten|buerozeiten|telefonzeiten|servicezeiten"
+    private static final Pattern FAX = Pattern.compile("(?i)(?:\\bTele)?\\bfax(?:nummer)?\\.?[\\s:.*]*((?:\\+|00)?\\(?[0-9][0-9 ()/\\-.–—]{5,24}[0-9])");
+    // rule/11: no word boundary escape before the label: since Java 19 it bounds ASCII words only, so "Öffnungszeiten" never matched
+    private static final Pattern HOURS = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(sprechzeiten|bürozeiten|buerozeiten|telefonzeiten|servicezeiten"
             + "|öffnungszeiten|oeffnungszeiten|opening\\s+hours|office\\s+hours)\\s*:?\\s*");
     private static final Pattern DAYS = Pattern.compile("(?iu)\\b(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag"
             + "|sonntag|mon|tue|wed|thu|fri|sat|sun)\\b");
@@ -2063,17 +2075,17 @@ public final class BusinessRules {
     private static final Pattern FORM = Pattern.compile("(?iu)\\b(?:kontaktformular|contact\\s+form|formular)\\b");
     private static final Pattern DEPARTMENT = Pattern.compile("(?u)\\b(?:Abteilung|Bereich|Team|Department)\\s+(\\p{Lu}[\\p{L}\\-]{2,30}(?:\\s+(?:und|&)\\s+"
             + "\\p{Lu}[\\p{L}\\-]{2,30})?)\\s*:?");
-    private static final Pattern PHONE = Pattern.compile("(?i)(?:\\bTel(?:efon)?\\.?|\\bPhone|\\bFon|\\bT\\.)\\s*:?\\s*((?:\\+|00)?[0-9][0-9 ()/\\-.]{5,24}[0-9])");
+    private static final Pattern PHONE = Pattern.compile("(?i)(?:\\bTel(?:efon)?\\.?|\\bPhone|\\bFon|\\bT\\.)[\\s:.*]*((?:\\+|00)?\\(?[0-9][0-9 ()/\\-.–—]{5,24}[0-9])");
     private static final Pattern EMAIL = Pattern.compile("[A-Za-z0-9._%+\\-]{1,64}@[A-Za-z0-9\\-]+(?:\\.[A-Za-z0-9\\-]+)*\\.[A-Za-z]{2,24}");
 
     private void contacts(final Run run, final List<String> outbound) {
         final boolean contactish = run.kinds.contains(PageKind.CONTACT) || run.kinds.contains(PageKind.IMPRINT) || run.kinds.contains(PageKind.HOME)
-                || run.kinds.contains(PageKind.ABOUT);
+                || run.kinds.contains(PageKind.ABOUT) || run.kinds.contains(PageKind.FACILITY) || run.kinds.contains(PageKind.IMPRINT_LINK);
         if (!contactish) {
             return;
         }
         // the fax and the contact points of the operator's insurer, chamber or web agency are theirs
-        final List<int[]> own = RuleExtractor.operatorRanges(run.text, 0, run.text.length());
+        final List<int[]> own = RuleExtractor.operatorRanges(run.text, 0, run.text.length(), false, !run.kinds.contains(PageKind.IMPRINT));
         final Matcher fx = FAX.matcher(run.text);
         while (fx.find()) {
             if (!RuleExtractor.inside(own, fx.start())) {
@@ -2153,7 +2165,7 @@ public final class BusinessRules {
     }
 
     /** True if a person's name is right before {@code at} (a personal extension, a recruiter). */
-    private static boolean personBefore(final String text, final int at) {
+    static boolean personBefore(final String text, final int at) {
         final int from = Math.max(0, at - 60);
         return Normalizers.excerpt(text, from, at).contains("[…]");
     }

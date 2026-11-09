@@ -611,6 +611,35 @@
     </java>
   </target>
 
+  <target name="scoutro-kg-facilities-test" depends="compile" description="facilities, stage 1: facility pages, addresses, the imprint marker, places of the LLM tier, their identities and the feed of merges on synthetic HTML fixtures (docs/SCOUTRO_KG_FACILITIES.md)">
+    <mkdir dir="build/scoutro-kg-facilities-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-facilities-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/**/*.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-facilities-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.extract.FacilityPageTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.FacilityGraphTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.OperatorContactRegressionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.PortalRegressionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.PlaceAddressRegressionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.FacilityRegressionGraphTest"/>
+      <arg value="net.yacy.scoutro.knowledge.publish.MergeFeedTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.KgChangeLogTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.ExtractorsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.ImprintOperatorTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.BusinessExtractionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.KgProductionCasesTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.PlaceEvidenceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.KindFacilityTest"/>
+      <arg value="net.yacy.scoutro.knowledge.resolve.OperatorIdentityTest"/>
+      <arg value="net.yacy.scoutro.knowledge.publish.ImprintOperatorIdentityTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.IdentityChangesTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmReplayTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-collection-decisions-test" depends="compile" description="durable collection decisions: store, index hook, crawl starts, apply and reassign (docs/SCOUTRO_COLLECTION_DECISIONS.md)">
     <mkdir dir="build/scoutro-collection-decisions-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-collection-decisions-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

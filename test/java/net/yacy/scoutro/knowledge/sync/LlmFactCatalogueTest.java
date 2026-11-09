@@ -114,8 +114,15 @@ public class LlmFactCatalogueTest extends LlmFixture {
                 // a site located at a service: the relation's types are refused
                 + "{\"subject\":\"e2\",\"predicate\":\"located_at\",\"object\":\"e1\",\"quote\":\"Das Haus Lindenhof befindet sich in der Musterstraße 1\"}],"
                 + "\"values\":[]}");
-        assertEquals(List.of("Haus Lindenhof located_at Musterstraße 1, 10115 Berlin"
-                + " | Das Haus Lindenhof befindet sich in der Musterstraße 1, 10115 Berlin"), facts("AAAAAAcat003"));
+        // 0.15.0 (llm/7): the address the page writes right after the facility, and the address the site's name is, are their
+        // address statements, read from the page's text (docs/SCOUTRO_KG_FACILITIES.md)
+        assertEquals(List.of("Haus Lindenhof address Musterstraße 1, 10115 Berlin | Haus Lindenhof befindet sich in der Musterstraße 1, 10115 Berlin",
+                "Haus Lindenhof locality Berlin | Haus Lindenhof befindet sich in der Musterstraße 1, 10115 Berlin",
+                "Haus Lindenhof located_at Musterstraße 1, 10115 Berlin | Das Haus Lindenhof befindet sich in der Musterstraße 1, 10115 Berlin",
+                "Haus Lindenhof postal_code 10115 | Haus Lindenhof befindet sich in der Musterstraße 1, 10115 Berlin",
+                "Musterstraße 1, 10115 Berlin address Musterstraße 1, 10115 Berlin | in der Musterstraße 1, 10115 Berlin",
+                "Musterstraße 1, 10115 Berlin locality Berlin | in der Musterstraße 1, 10115 Berlin",
+                "Musterstraße 1, 10115 Berlin postal_code 10115 | in der Musterstraße 1, 10115 Berlin"), facts("AAAAAAcat003"));
         assertEquals(1, samples("claim_subject_type_mismatch"));
     }
 

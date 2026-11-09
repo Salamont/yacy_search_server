@@ -307,7 +307,7 @@ recreated when it changes.
 
   A blocked merge is recorded as an `identity_conflict` event; the entities stay separate.
 - **Mentions without a merge key** stay document-local entities (`doc_local`). Duplicates are preferred to wrong merges; the detail view lists likely duplicates for later manual handling (out of scope for this version).
-- **Merge:** the older entity survives. The other entity gets `status=2` and a redirect. Its statements are re-pointed; colliding statements are merged by unioning their evidence, and the losing statement ID becomes a redirect. A `redirect` change is written.
+- **Merge:** the older entity survives. The other entity gets `status=2` and a redirect. Its statements are re-pointed; colliding statements are merged by unioning their evidence, and the losing statement ID becomes a redirect. A `redirect` change is written with the scopes of the surviving entity after the merge (0.15.0, M7), and every re-pointed statement gets an `upsert` change (its ID stays, its subject or object changes): a consumer limited to collections that sees the survivor learns the merge and the moved statements (`MergeFeedTest`); before, the redirect carried no scope and reached such a consumer as a `delete`.
 - **No automatic split.** If the evidence behind a merge disappears, the merge stays. The admin maintenance action "re-resolve identities" (package 5, [22.5](#225-identity-rebuild)) rebuilds the graph from Solr in a shadow store with the current rules; the LLM tier answers from the copied cache without new model calls for unchanged text.
 
 ### 4.4 Quality and currency
@@ -1047,6 +1047,8 @@ The automated tests of package 1 reproduce the WAL, interrupt, page-limit and va
   | Otherwise | nothing |
 
   Example: a consumer limited to A that was offline while an object moved A → B → C gets the removal (`KgChangeLogTest.offlineConsumerStillGetsTheRemovalAfterAtoBtoC`).
+
+  A merged entity's `redirect` row holds the surviving entity's collections in `scopes_now` (0.15.0): a viewer that sees the survivor gets the `redirect` with `redirect_to`, also where only the merged entity was in its collections before; a viewer that saw only the merged entity and cannot see the survivor gets a `delete` (`MergeFeedTest`).
 - **Removal notices are never missing, but can be redundant,** for example for an object the consumer never stored. Consumers treat the delete of an unknown ID as a no-op. A notice reveals only an opaque ID, and only to a viewer whose collections contained the object at some time.
 - **Cursor `<epoch>:<seq>`:**
   - The cursor advances over rows the viewer cannot see.
@@ -4516,3 +4518,54 @@ competitor of the same kind and an agency as a client of the hosting, a provider
 the explicitly own use of a provider of the product, a candidate that is a provider too keeps its offers within one memo),
 `BusinessSignalsTest` (offers with the reader or others as the user, the
 paths of privacy and cookie notices; the confirmed own uses of 0.12.2 unchanged).
+
+## 46. Facilities, stage 1: addresses, facility pages and identities (development, `rule/12`, `llm/8`)
+
+Not released. The finding of `edelsenior-web` (facilities without an address of their own, up to 17 entities per facility,
+addresses as names of sites, varying kinds), its causes in the code of 0.14.1 and the rules of this stage are in
+[SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md): a dot between number and postal code and streets named by their square in
+the address of the rules; a menu or footer link "Impressum" is no imprint (it still names the operator, without the page's
+contacts); the page of one facility names the facility with its own address, phone and role mailbox (`FacilityPage`); the page's
+one structured subject gets the address its name heads; the LLM tier's named facilities and address-named sites get the full
+address the page writes (read from the text, never from the model, `uncertain`); a guessed kind keys nothing and is marked for
+review (`identity_review`); "Öffnungszeiten" is read again (Java 19's ASCII `\b`). Schema 9 unchanged; one re-extraction of
+tiers 1 and 2 and one replay of the LLM tier without a model request; a backup before the update is mandatory. Tests:
+`FacilityPageTest`, `FacilityGraphTest` (ant target `scoutro-kg-facilities-test`), on the synthetic pages of
+`test/scoutro-kg-facilities/`.
+
+The validation with the full production data (`rule/12`, `llm/8`, section 12 of the same document) added: facility pages only
+where the field's providers run places or the page is one of the site's places (a business's service, project or team page is
+none); the operator after a link to the imprint is the organisation the site vouches for (its name is the site's, its title,
+heading or copyright line names it, or its name heads a contact block), never the provider of a cookie, booking or hosting notice
+("Anbieter ist die … GmbH"), and it keeps the page's only address, phone and mailbox; privacy notices name their controller or
+the site's own company only; towns of two words ("Bad Rappenau"); and the identity resolver no longer joins a page's mention to
+the entity the old rules named on that page under another name (`doc_local` key, `identity_conflict` "same mention of another
+name"), which had merged cookie providers and cut names into real organisations. Tests: `PortalRegressionTest`,
+`OperatorIdentityTest` (same ant target).
+
+After the validation on the production graph (section 11 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)): after a
+link "Impressum" the operator keeps the contact block its name opens (K1); the LLM tier's address of a place is read only for a
+place the page proves, never on an imprint page, inside a page's imprint, at the imprint operator's address, for a firm's name or
+a town (K2, K6); a merge's `redirect` carries the survivor's collections and the moved statements are `upsert`s, so a consumer
+limited to collections learns the survivor (M7, sections 4.3 and 8.3 above, `MergeFeedTest`). Tests: `OperatorContactRegressionTest`,
+`PlaceAddressRegressionTest`, `FacilityRegressionGraphTest`, `MergeFeedTest`.
+
+After the validation with the full production data (section 12 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md), `rule/12`,
+`llm/8` with `REPLAYS` = {4, 5, 6, 7}): after a link "Impressum" the operator gets the page's only address with its phone, mailbox
+and fax where no block of its name gives them, unless a place heads the address (K1), and its own footer on a facility's page (F2);
+a facility's page of a field whose providers do not run places (construction, software, coaching) is a detail page of the site's
+places or names an establishment of the business, never a service, project, article, team or directions page (F3), and its trade
+is the operator's too; a privacy notice names its controller only, never a processor (F4); the town of an address is one pattern
+for the rules and the place reader (`Address.TOWN`: "Bad Rappenau", "St. Ingbert", "Frankfurt am Main", never the sentence after
+it); after a link only, the operator is the organisation whose name is the site's. The durable review mark of R4 is a proposal
+([SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md](SCOUTRO_KG_IDENTITY_REVIEW_PROPOSAL.md)), no schema change. Tests: `PortalRegressionTest`
+on invented pages of the four fields.
+
+After the third full run (section 12.11 of [SCOUTRO_KG_FACILITIES.md](SCOUTRO_KG_FACILITIES.md)): a strong identifier (`vat`,
+`register`, `ik`) held by an organisation of another domain joins a mention only where a word of the names or the place (postal
+code, town) agrees; two companies of different names in different towns that publish one VAT ID stay apart, the resolver records
+`identity_review` ("identifier of another domain's organisation …") and both carry the identifier as a statement, so the contested
+value can be listed from the graph (the durable mark stays the proposal's section 5). The operator's register entry and VAT ID
+after its contact block on a page not recognised as an imprint, the controller's sub-headings inside a privacy notice and the
+misspelling "Impresum" are read; "mit" joins the parts of a name, punctuation after a plain name is dropped, an imprint's dispute
+resolution passage is a provider's section. Tests: `OperatorIdentityTest`, `PortalRegressionTest`.

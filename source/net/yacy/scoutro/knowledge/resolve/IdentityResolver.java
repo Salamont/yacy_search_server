@@ -26,6 +26,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import net.yacy.scoutro.knowledge.KgIds;
 import net.yacy.scoutro.knowledge.extract.Mention;
@@ -101,6 +103,8 @@ public final class IdentityResolver {
         public int created;
         public int merged;
         public int conflicts;
+        /** 0.15.0: identities marked for review (a guessed kind that differs from the entity's). */
+        public int reviews;
     }
 
     static final String DOMAIN_OPERATOR_VALUE = "operator";
@@ -165,9 +169,11 @@ public final class IdentityResolver {
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.address != null && m.address.complete()
                 && m.name != null && domain != null && m.kindKey == null) {
-            // the facility kind is part of the key: a day care and a residential home at one address are two facilities
+            // the facility kind is part of the key: a day care and a residential home at one address are two facilities. 0.15.0
+            // (docs/SCOUTRO_KG_FACILITIES.md): only a declared kind (structured data, tier 1); the LLM tier's guess of a kind varies
+            // from page to page and keys no place, as the kind of a facility named by its kind did not since 0.14.0
             out.add(new Key(Vocabulary.FACILITY_ADDRESS, m.type + "@" + domain,
-                    (m.subkind == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
+                    (declaredKind(m) == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.kindKey != null && domain != null) {
             // 0.14.0: a facility named only by its kind, by its kind and place: one per provider, kind and address (its shown name
@@ -224,6 +230,24 @@ public final class IdentityResolver {
                 conflict(tx, agg, ent, null, m, "product page of another name");
                 continue;
             }
+            if (Vocabulary.DOC_LOCAL.equals(f.getKey().scheme) && namedOtherwise(tx, ent, m)) {
+                // rule/12 (docs/SCOUTRO_KG_FACILITIES.md section 12): the document's earlier mention under another name is another
+                // organisation (a cookie provider the old rules took for the operator): its keys would carry the new name's declared
+                // operator into it, and the old name's keys into the new one. The mention goes to the entity of its own name
+                conflict(tx, agg, ent, null, m, "same mention of another name");
+                continue;
+            }
+            if (Vocabulary.STRONG_SCHEMES.contains(f.getKey().scheme) && Vocabulary.ORGANIZATION.equals(m.type) && domain != null
+                    && ofAnotherDomain(tx, ent, domain)) {
+                // rule/12 (docs/SCOUTRO_KG_FACILITIES.md 12.11): an identifier an organisation of another domain holds joins the mention
+                // only where its name or its place agrees; two companies of different names in different towns that publish one VAT ID
+                // (an imprint copied from another site, a VAT group) stay apart and are marked for a person's review
+                final String why = contradiction(tx, ent, m, domain, f.getKey());
+                if (why != null) {
+                    review(tx, agg, ent, m, why);
+                    continue;
+                }
+            }
             if (!compatible(tx, ent, m, keys)) {
                 conflict(tx, agg, ent, null, m, "mention contradicts entity");
                 continue;
@@ -265,6 +289,13 @@ public final class IdentityResolver {
             }
         }
         attach(tx, primary, keys, found);
+        if (m.subkind != null && m.kindKey == null && declaredKind(m) == null && (Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type))) {
+            // 0.15.0: a guess of a kind that differs from the entity's is no merge discriminator any more; it is marked for review
+            final String kind = subkind(tx, primary);
+            if (kind != null && !kind.equals(m.subkind)) {
+                review(tx, agg, primary, m, "facility kind differs (" + kind + " / guessed " + m.subkind + ")");
+            }
+        }
         if (m.subkind != null) {
             try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_entity SET subkind = ? WHERE ent_rowid = ? AND subkind IS NULL")) {
                 ps.setString(1, m.subkind);
@@ -399,9 +430,21 @@ public final class IdentityResolver {
             }
         }
         final String kind = subkind(tx, ent);
-        // 0.14.0: a facility named only by its kind is decided by its kind and place, not by the model's guess of its kind
-        return kind == null || m.subkind == null || m.kindKey != null || kind.equals(m.subkind);
+        // 0.14.0: a facility named only by its kind is decided by its kind and place, not by the model's guess of its kind; 0.15.0:
+        // a named facility neither (the guess is marked for review where it differs, see resolve)
+        return kind == null || m.subkind == null || m.kindKey != null || kind.equals(m.subkind) || declaredKind(m) == null;
     }
+
+    /**
+     * 0.15.0: the kind of a facility or site its structured data declare (tier 1); null for the LLM tier's guess of a kind
+     * ({@code llm_kinds}), which the model states differently on every page, and without a kind.
+     */
+    static String declaredKind(final Mention m) {
+        return m.subkind == null || m.tier == GUESSED_KINDS ? null : m.subkind;
+    }
+
+    /** The tier whose kinds of facilities are guesses (the LLM tier). */
+    private static final int GUESSED_KINDS = net.yacy.scoutro.knowledge.extract.LlmExtractor.TIER;
 
     /** The legal forms of the entity's names and aliases (0.13.0, the clients of a provider's pages). */
     private java.util.Set<String> legalForms(final Connection tx, final long ent) throws SQLException {
@@ -420,6 +463,147 @@ public final class IdentityResolver {
             }
         }
         return out;
+    }
+
+    /**
+     * True if the entity has names or aliases and none is the mention's name ({@link Normalizers#key}); false for a mention without
+     * a name or an entity without names (nothing contradicts).
+     */
+    private boolean namedOtherwise(final Connection tx, final long ent, final Mention m) throws SQLException {
+        final String key = Normalizers.key(m.name);
+        if (key == null) {
+            return false;
+        }
+        boolean named = false;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred IN (?, ?) AND obj_val IS NOT NULL")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.predicate(Vocabulary.NAME));
+            ps.setInt(3, this.terms.predicate(Vocabulary.ALIAS));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    final String other = Normalizers.key(rs.getString(1));
+                    if (other == null) {
+                        continue;
+                    }
+                    if (key.equals(other)) {
+                        return false;
+                    }
+                    named = true;
+                }
+            }
+        }
+        return named;
+    }
+
+    /**
+     * True if the entity's domain-scoped keys ({@code site_operator}, {@code domain_operator}, {@code operator_name}, {@code ld_id})
+     * name domains and none of them is {@code domain} or a host of it (12.11); false for an entity without such keys.
+     */
+    private boolean ofAnotherDomain(final Connection tx, final long ent, final String domain) throws SQLException {
+        boolean scoped = false;
+        for (final String key : keysOf(tx, ent).keySet()) {
+            final int nul = key.indexOf('\u0000');
+            final String scheme = key.substring(0, nul);
+            if (!(Vocabulary.SITE_OPERATOR.equals(scheme) || Vocabulary.DOMAIN_OPERATOR.equals(scheme)
+                    || Vocabulary.OPERATOR_NAME.equals(scheme) || Vocabulary.LD_ID.equals(scheme))) {
+                continue;
+            }
+            final String scope = key.substring(nul + 1);
+            final int at = scope.indexOf('@');
+            if (at < 0) {
+                continue;
+            }
+            final String d = scope.substring(at + 1);
+            if (d.equals(domain) || d.endsWith("." + domain)) {
+                return false;
+            }
+            scoped = true;
+        }
+        return scoped;
+    }
+
+    /** Words of a name that tell nothing about the company: legal forms, connectors, generic words of the fields (12.11). */
+    private static final Set<String> NAME_NOISE = new TreeSet<>(java.util.Arrays.asList(
+            "gmbh", "ggmbh", "mbh", "ag", "gag", "kgaa", "kg", "ohg", "gbr", "ug", "se", "eg", "ev", "partg", "mbb", "ltd", "inc", "llc", "co",
+            "haftungsbeschrankt", "haftungsbeschränkt", "und", "der", "die", "das", "des", "von", "für", "fur", "am", "an", "im", "in", "zu", "zur", "zum",
+            "the", "of", "and", "mit", "bei", "haus", "pflege", "pflegedienst", "pflegeheim", "seniorenzentrum", "seniorenresidenz", "residenz",
+            "zentrum", "gruppe", "group", "holding", "verwaltung", "verwaltungs", "service", "services", "deutschland", "germany", "international",
+            "bau", "elektro", "technik", "systems", "system", "solutions", "consulting", "partner", "partners", "praxis", "stiftung", "verein",
+            "ambulante", "ambulanter", "dienst", "dienste", "team", "unternehmensgruppe"));
+
+    /** The words of a name that may identify the company (12.11): the comparison form's words of three letters and more, without noise. */
+    static Set<String> nameWords(final String name) {
+        final Set<String> out = new TreeSet<>();
+        final String key = Normalizers.key(name);
+        if (key != null) {
+            for (final String w : key.split(" ")) {
+                if (w.length() >= 3 && !NAME_NOISE.contains(w)) {
+                    out.add(w);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The values of the entity's statements of a predicate. */
+    private List<String> values(final Connection tx, final long ent, final String predicate) throws SQLException {
+        final List<String> out = new ArrayList<>();
+        try (PreparedStatement ps = tx.prepareStatement("SELECT obj_val FROM kg_statement WHERE subj = ? AND pred = ? AND obj_val IS NOT NULL")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.predicate(predicate));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getString(1));
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 12.11: why the identifier {@code k} does not join the mention to this organisation of another domain, or null where the two
+     * agree in a word of their names or in their place, or where one side states no name or no place (nothing contradicts). A
+     * contradiction needs both: different names (no word in common) and different places (no postal code and no town in common).
+     */
+    private String contradiction(final Connection tx, final long ent, final Mention m, final String domain, final Key k) throws SQLException {
+        final Set<String> mine = nameWords(m.name);
+        mine.addAll(nameWords(m.legalName));
+        final List<String> theirNames = values(tx, ent, Vocabulary.NAME);
+        final Set<String> theirs = new TreeSet<>();
+        for (final String n : theirNames) {
+            theirs.addAll(nameWords(n));
+        }
+        if (mine.isEmpty() || theirs.isEmpty()) {
+            return null;
+        }
+        for (final String w : mine) {
+            if (theirs.contains(w)) {
+                return null;
+            }
+        }
+        final String myTown = m.address == null ? null : Normalizers.key(m.address.locality);
+        final String myZip = m.address == null ? null : m.address.postalCode;
+        if (myTown == null && myZip == null) {
+            return null;
+        }
+        final List<String> towns = values(tx, ent, Vocabulary.LOCALITY);
+        final List<String> zips = values(tx, ent, Vocabulary.POSTAL_CODE);
+        if (towns.isEmpty() && zips.isEmpty()) {
+            return null;
+        }
+        for (final String t : towns) {
+            if (myTown != null && myTown.equals(Normalizers.key(t))) {
+                return null;
+            }
+        }
+        for (final String z : zips) {
+            if (myZip != null && myZip.equals(z.trim())) {
+                return null;
+            }
+        }
+        return "identifier of another domain's organisation (" + k.scheme + " " + k.value + "): " + domain + " '" + Normalizers.clip(m.name, 60)
+                + "' in " + (m.address.locality != null ? m.address.locality : m.address.postalCode) + " / '" + Normalizers.clip(theirNames.get(0), 60)
+                + "' in " + (towns.isEmpty() ? zips.get(0) : towns.get(0));
     }
 
     /** True if the entity has a name or alias of the mention's name ({@link Normalizers#key}); false without names. */
@@ -686,6 +870,8 @@ public final class IdentityResolver {
             }
         }
         if (existing == null) {
+            // M7: the statement keeps its ID and gets the survivor as subject or object; the feed carries its upsert
+            agg.movedStatement(tx, stmt);
             try (PreparedStatement ps = tx.prepareStatement(newObj != null
                     ? "UPDATE kg_statement SET obj_ent = ?, obj_key = ? WHERE stmt_rowid = ?"
                     : "UPDATE kg_statement SET subj = ? WHERE stmt_rowid = ?")) {
@@ -724,6 +910,12 @@ public final class IdentityResolver {
             ps.setLong(2, existing);
             ps.executeUpdate();
         }
+    }
+
+    /** 0.15.0: an identity a person should look at; nothing is merged or split by it (event {@code identity_review}). */
+    private void review(final Connection tx, final Aggregates agg, final long a, final Mention m, final String why) throws SQLException {
+        this.counters.reviews++;
+        KgStore.event(tx, 2, "identity_review", why + ": " + publicId(tx, a) + " (" + m.type + " " + Normalizers.clip(m.name, 80) + ")", agg.now());
     }
 
     private void conflict(final Connection tx, final Aggregates agg, final long a, final Long b, final Mention m, final String why)

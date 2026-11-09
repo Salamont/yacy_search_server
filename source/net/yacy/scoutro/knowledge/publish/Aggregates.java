@@ -80,6 +80,11 @@ public final class Aggregates {
     /** Objects that left through a redirect (merge); they get a redirect change, not a delete. */
     private final Set<Long> redirectedStatements = new HashSet<>();
     private final Set<Long> redirectedEntities = new HashSet<>();
+    /** The redirects of this transaction, in their order: rowid of the merged object, public ID of its target at the merge. */
+    private final Map<Long, String> statementRedirects = new LinkedHashMap<>();
+    private final Map<Long, String> entityRedirects = new LinkedHashMap<>();
+    /** Statements a merge moved to another subject or object: the same ID with new content, so always an upsert (M7). */
+    private final Set<Long> movedStatements = new HashSet<>();
 
     // counters for the status
     int statementsCreated;
@@ -147,26 +152,34 @@ public final class Aggregates {
         }
     }
 
-    /** A statement merged into {@code target}: one redirect change, no delete. */
+    /**
+     * A statement merged into {@code target}: one redirect change, no delete. It is written by {@link #finish}, with the scopes
+     * of the target then (M7): a viewer that sees the target gets the redirect, one that saw only the merged statement a delete.
+     */
     public void redirectedStatement(final Connection tx, final long stmt, final String targetPublicId) throws SQLException {
         touchStatement(tx, stmt);
-        final Before b = this.statements.get(stmt);
         this.redirectedStatements.add(stmt);
-        if (b.existed) {
-            KgChangeLog.record(tx, KgChangeLog.Kind.STATEMENT, b.publicId, KgChangeLog.Op.REDIRECT, targetPublicId, b.scopes,
-                    new TreeSet<>(), this.now);
-        }
+        this.statementRedirects.put(stmt, targetPublicId);
     }
 
-    /** An entity merged into {@code target}: one redirect change, no delete. */
+    /**
+     * An entity merged into {@code target}: one redirect change, no delete. It is written by {@link #finish}, with the scopes of
+     * the surviving entity then (M7, docs/SCOUTRO_KG_AGENT_SYNC_PROPOSAL.md): before, the redirect carried no scope, so a viewer
+     * limited to collections (an agent) got a delete instead and never learnt the survivor.
+     */
     public void redirectedEntity(final Connection tx, final long ent, final String targetPublicId) throws SQLException {
         touchEntity(tx, ent);
-        final Before b = this.entities.get(ent);
         this.redirectedEntities.add(ent);
-        if (b.existed) {
-            KgChangeLog.record(tx, KgChangeLog.Kind.ENTITY, b.publicId, KgChangeLog.Op.REDIRECT, targetPublicId, b.scopes,
-                    new TreeSet<>(), this.now);
-        }
+        this.entityRedirects.put(ent, targetPublicId);
+    }
+
+    /**
+     * A statement a merge moved to the surviving subject or object (M7): its ID stays and its content changes, so the feed carries
+     * its upsert even where its scopes and quality stay the same.
+     */
+    public void movedStatement(final Connection tx, final long stmt) throws SQLException {
+        touchStatement(tx, stmt);
+        this.movedStatements.add(stmt);
     }
 
     /** Touches every statement with evidence from {@code docRowid} (before the document changes). */
@@ -271,7 +284,19 @@ public final class Aggregates {
             }
             recomputeEntity(tx, ent);
         }
-        // 3. change feed
+        // 3. change feed: the redirects first (in the order of the merges), with the scopes of their final target
+        for (final Map.Entry<Long, String> r : this.entityRedirects.entrySet()) {
+            redirect(tx, KgChangeLog.Kind.ENTITY, this.entities.get(r.getKey()), r.getValue(),
+                    "SELECT e.public_id, e.ent_rowid FROM kg_entity_redirect r JOIN kg_entity e ON e.ent_rowid = r.target_rowid"
+                            + " WHERE r.public_id = ? AND e.status = 1",
+                    "SELECT coll_id FROM kg_entity_scope WHERE ent_rowid = ?");
+        }
+        for (final Map.Entry<Long, String> r : this.statementRedirects.entrySet()) {
+            redirect(tx, KgChangeLog.Kind.STATEMENT, this.statements.get(r.getKey()), r.getValue(),
+                    "SELECT s.public_id, s.stmt_rowid FROM kg_statement_redirect r JOIN kg_statement s ON s.stmt_rowid = r.target_rowid"
+                            + " WHERE r.public_id = ?",
+                    "SELECT coll_id FROM kg_statement_scope WHERE stmt_rowid = ?");
+        }
         for (final Map.Entry<Long, Before> e : this.statements.entrySet()) {
             if (this.redirectedStatements.contains(e.getKey())) {
                 continue;
@@ -310,9 +335,34 @@ public final class Aggregates {
             return;
         }
         final Set<Integer> after = scopes(tx, scopeSql, rowid);
-        if (!before.existed || !after.equals(before.scopes) || quality != before.quality) {
+        if (!before.existed || !after.equals(before.scopes) || quality != before.quality
+                || kind == KgChangeLog.Kind.STATEMENT && this.movedStatements.contains(rowid)) {
             KgChangeLog.record(tx, kind, publicId, KgChangeLog.Op.UPSERT, null, before.scopes, after, this.now);
         }
+    }
+
+    /**
+     * The redirect of a merged object (M7): to its final target (a target merged again later in the transaction is followed by the
+     * redirect table), visible where the target is visible now; a viewer that saw only the merged object gets a delete
+     * ({@link KgChangeLog#read}). A target gone in the meantime leaves the redirect without scopes, as before.
+     */
+    private void redirect(final Connection tx, final KgChangeLog.Kind kind, final Before before, final String targetAtMerge,
+            final String targetSql, final String scopeSql) throws SQLException {
+        if (before == null || !before.existed) {
+            return;
+        }
+        String target = targetAtMerge;
+        Set<Integer> after = new TreeSet<>();
+        try (PreparedStatement ps = tx.prepareStatement(targetSql)) {
+            ps.setString(1, before.publicId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    target = rs.getString(1);
+                    after = scopes(tx, scopeSql, rs.getLong(2));
+                }
+            }
+        }
+        KgChangeLog.record(tx, kind, before.publicId, KgChangeLog.Op.REDIRECT, target, before.scopes, after, this.now);
     }
 
     // ------------------------------------------------------------ statements

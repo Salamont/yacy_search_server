@@ -234,4 +234,99 @@ public class OperatorIdentityTest {
                 "https://www.muster-bau.de", "\"legalName\":\"Muster Bau AG\""), "Muster Bau. Home.");
         assertEquals("another legal name is another company", 2L, organisations("Muster Bau"));
     }
+
+    // ---------------------------------------------------------------- rule/12: a document's mention under another name (request 10)
+
+    /** The redirects of merged entities. */
+    private long redirects() throws Exception {
+        return this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_entity_redirect"));
+    }
+
+    /**
+     * rule/12 (docs/SCOUTRO_KG_FACILITIES.md section 12): a page read again names another operator than before (the old rules took
+     * a cookie provider for it): the document-local key of the earlier mention joins nothing of another name. The new name gets its
+     * own entity, the old one keeps none of the page's facts, nothing is merged.
+     */
+    @Test
+    public void aMentionReadAgainUnderAnotherNameIsNoMerge() throws Exception {
+        final String url = "https://www.beispiel-bau.de/impressum/";
+        publish("IMPRINThst21", url, null, "Impressum. Angaben gemäß § 5 TMG. Wolkenwerk Inc\nServerweg 1\n12345 Musterstadt");
+        assertEquals(1L, organisations("Wolkenwerk Inc"));
+        publish("IMPRINThst21", url, null, "Impressum. Angaben gemäß § 5 TMG. Beispiel Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        assertEquals("the page's new name has its own organisation", 1L, organisations("Beispiel Bau GmbH"));
+        assertEquals("the old name keeps none of the page's facts", 0L, organisations("Wolkenwerk Inc"));
+        assertEquals("nothing is merged", 0L, redirects());
+    }
+
+    /** The corrected mention joins the organisation of its own name, seen on another page of the domain, and not the old entity. */
+    @Test
+    public void aMentionReadAgainJoinsTheOrganisationOfItsOwnName() throws Exception {
+        publish("IMPRINThst22", "https://www.muster-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Wolkenwerk Inc\nServerweg 1\n12345 Musterstadt");
+        publish("KONTAKThst22", "https://www.muster-bau.de/kontakt/", null, "Kontakt. Angaben gemäß § 5 TMG. Muster Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        assertEquals(1L, organisations("Muster Bau GmbH"));
+        publish("IMPRINThst22", "https://www.muster-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Muster Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        assertEquals("one organisation of the name, with both pages", 1L, organisations("Muster Bau GmbH"));
+        assertEquals(0L, organisations("Wolkenwerk Inc"));
+        assertEquals("the old entity is not merged into the organisation", 0L, redirects());
+    }
+
+    /** The same name read again stays one entity (the document-local key keeps re-extraction stable). */
+    @Test
+    public void aMentionReadAgainUnderItsNameStaysOne() throws Exception {
+        publish("IMPRINThst23", "https://www.stabil-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Stabil Bau GmbH\nBauweg 1\n12345 Musterstadt");
+        publish("IMPRINThst23", "https://www.stabil-bau.de/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Stabil Bau GmbH\nBauweg 2\n12345 Musterstadt");
+        assertEquals(1L, organisations("Stabil Bau GmbH"));
+        assertEquals(0L, redirects());
+    }
+
+    // ---------------------------------------------------------------- 12.11 (request 11): an identifier shared across domains
+
+    /** The identity reviews whose reason begins with {@code prefix}. */
+    private long reviews(final String prefix) throws Exception {
+        return this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'identity_review' AND detail LIKE '" + prefix + "%'"));
+    }
+
+    /**
+     * 12.11: two companies of different names in different towns whose imprints publish the same VAT ID (one copied from the other,
+     * or a VAT group) stay two organisations; the shared identifier is marked for a person's review, nothing is merged.
+     */
+    @Test
+    public void anIdentifierOfAnotherDomainsCompanyOfAnotherNameInAnotherTownIsNoMerge() throws Exception {
+        publish("IMPRINThst31", "https://www.alpha-seniorendienst.de/impressum", null, "Impressum. Angaben gemäß § 5 TMG. Alpha Seniorendienst GmbH\n"
+                + "Am Heerbusch 10\n44894 Bochum\nRegistergericht: Amtsgericht Bochum, HRB 17170\n"
+                + "Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: DE114103514");
+        assertEquals(1L, organisations("Alpha Seniorendienst GmbH"));
+        publish("IMPRINThst32", "https://beta-holzwerkstatt.eu/impressum/", null, "Impressum. Angaben gemäß § 5 TMG. Beta Holzwerkstatt GmbH\n"
+                + "Wismarsche Str. 119\n19053 Schwerin\nUmsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: DE 114 103 514");
+        assertEquals("two companies, two organisations", 1L, organisations("Beta Holzwerkstatt GmbH"));
+        assertEquals(1L, organisations("Alpha Seniorendienst GmbH"));
+        assertEquals("nothing is merged", 0L, redirects());
+        assertEquals("the shared identifier is marked for review", 1L, reviews("identifier of another domain"));
+    }
+
+    /** The same company on two of its domains (a family of portals with one imprint) is one organisation: its name agrees. */
+    @Test
+    public void theSameCompanyOnTwoDomainsIsOneOrganisation() throws Exception {
+        final String imprint = "Impressum. Angaben gemäß § 5 TMG. Gamma Portale GmbH & Co. KG\nPretzfelder Str. 7\n90425 Nürnberg\nUSt-IdNr.: DE257013307";
+        publish("IMPRINThst33", "https://www.dachdecker-beispiel.org/impressum/", null, imprint);
+        publish("IMPRINThst34", "https://www.maler-beispiel.org/impressum/", null, imprint);
+        assertEquals("one organisation of both domains", 1L, organisations("Gamma Portale GmbH & Co. KG"));
+        assertEquals(0L, reviews("identifier of another domain"));
+    }
+
+    /** Another name on another domain at the same seat (a brand and its legal name, a group's companies): the identifier still joins them. */
+    @Test
+    public void anIdentifierOfAnotherDomainWithAnotherNameInTheSameTownStillJoins() throws Exception {
+        publish("IMPRINThst35", "https://www.delta-holding.de/impressum/", null,
+                "Impressum. Angaben gemäß § 5 TMG. Delta Holding GmbH\nMusterweg 1\n12345 Musterstadt\nUSt-IdNr.: DE999999999");
+        publish("IMPRINThst36", "https://www.epsilon-service.de/impressum/", null,
+                "Impressum. Angaben gemäß § 5 TMG. Epsilon Service GmbH\nMusterweg 1\n12345 Musterstadt\nUSt-IdNr.: DE999999999");
+        assertEquals(1L, organisations("Delta Holding GmbH"));
+        assertEquals(1L, organisations("Epsilon Service GmbH"));
+        final long holders = this.store.read(c -> KgStore.queryLong(c, "SELECT count(DISTINCT e.ent_rowid) FROM kg_entity e"
+                + " JOIN kg_statement s ON s.subj = e.ent_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE e.status = 1 AND v.name = 'name'"
+                + " AND s.obj_val IN ('Delta Holding GmbH', 'Epsilon Service GmbH')"));
+        assertEquals("one organisation holds both names", 1L, holders);
+        assertEquals(0L, reviews("identifier of another domain"));
+    }
 }

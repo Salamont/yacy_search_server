@@ -76,15 +76,18 @@ public final class LlmExtractor {
      * 5 (0.13.0): a facility or a site needs a place in its context ({@link PlaceEvidence}), a page label is no place; the
      * change is what is kept of an answer, not the question. 6 (0.14.0): a word of the vocabularies names no organisation, only
      * white space joins a place's words, a facility named by its kind is the provider's at its address; again what is kept of
-     * an answer, not the question.
+     * an answer, not the question. 7 (0.15.0): a named facility's full address, as the page writes it right after the name, and
+     * the address a site's name is, are its address statements and key it across pages, only of a place the page proves and never
+     * on an imprint page, inside the page's imprint, for the imprint operator's address, a firm's name or a town (K2, K6); a guess of
+     * a kind keys no place; again what is kept of an answer, not the question (docs/SCOUTRO_KG_FACILITIES.md).
      */
-    public static final String VERSION = "6";
+    public static final String VERSION = "8"; // 8 (rule/12, docs/SCOUTRO_KG_FACILITIES.md section 12): the town of a place's address as the rules read it
     /**
      * The versions whose stored answers this version reads again without a model request (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 40):
      * their change to this one is the validation only, so their tier-3 evidence is rebuilt into the answer, validated with the
      * page's text and published again ({@code LlmService}'s replay). A version outside it re-examines the documents.
      */
-    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4", "5");
+    public static final java.util.Set<String> REPLAYS = java.util.Set.of("4", "5", "6", "7");
     /**
      * The version of the question (prompt, schema and the requests' form): part of the prompt hash and of the cache key. A version
      * in {@link #REPLAYS} changes what is kept of an answer, not the question, so it keeps the question's version: a cached answer
@@ -1223,6 +1226,7 @@ public final class LlmExtractor {
                 continue; // 0.13.0: a section of the site is no service, also of an old accepted or cached answer
             }
             boolean unconfirmed = false;
+            boolean placed = false;
             Address kindPlace = null;
             if ((Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) && same == null) {
                 // 0.13.0: every accepted answer (fresh, cached or replayed) is checked again with the page's text: a place needs a
@@ -1234,6 +1238,7 @@ public final class LlmExtractor {
                     continue;
                 }
                 unconfirmed = place.verdict == PlaceEvidence.Verdict.UNCLEAR;
+                placed = place.verdict == PlaceEvidence.Verdict.PLACE;
                 // 0.14.0 (item C6, the owner's decision of 27 October 2026): a facility named only by its kind is the provider's
                 // facility of that kind at its place, shown as "kind (provider, place)" and one per provider, kind and address;
                 // without a place it is none (the kind stays an offer)
@@ -1243,6 +1248,23 @@ public final class LlmExtractor {
                         continue;
                     }
                     unconfirmed = false;
+                }
+            }
+            PlaceEvidence.Place full = null;
+            if ((Vocabulary.FACILITY.equals(type) || Vocabulary.SITE.equals(type)) && same == null && kindPlace == null && placed && ctx != null
+                    && ctx.serviceText != null && !RuleExtractor.imprintPage(ctx.pageUrl, titles(ctx))) {
+                // 0.15.0 (llm/7, docs/SCOUTRO_KG_FACILITIES.md): the full address the page writes right after a named facility (a site:
+                // its name is the address) is read from the page's text by Scoutro, never from the model; one address only, else none.
+                // It is the place's address and keys it across pages (the facility of the overview, the contact page and its own page).
+                // Only of a place the page proves (K6: an unclear name, a town or a firm the model took for a facility keeps its mark
+                // and gets no address), never on an imprint page and never the address of the page's imprint or of the operator its
+                // imprint rules name (K2: after a unit's name an imprint gives the operator's address)
+                full = Vocabulary.SITE.equals(type) ? PlaceEvidence.addressName(ctx.serviceText, name) : null;
+                if (full == null) {
+                    full = PlaceEvidence.fullPlace(ctx.serviceText, name);
+                }
+                if (full != null && !placeAddress(full, name, ctx, known)) {
+                    full = null;
                 }
             }
             if (Vocabulary.ORGANIZATION.equals(type) && same == null && KgVocabularies.get().vocabularyWord(name)) {
@@ -1267,6 +1289,8 @@ public final class LlmExtractor {
                 if (kindKey != null) {
                     m.kindKey = kindKey;
                     m.address = kindPlace.complete() ? kindPlace : null;
+                } else if (full != null) {
+                    m.address = full.address;
                 }
                 if (Vocabulary.ORGANIZATION.equals(type)) {
                     // a legal name joins the declared operator of the domain, as an organisation of the rules does
@@ -1280,6 +1304,9 @@ public final class LlmExtractor {
                     // the mark of the name takes none of the page's limit of statements: on a full page it displaces no item
                     // that a release before 0.13.0 published, and an item the limit cuts carries none (0.13.0)
                     out.mark(new Claim(mentionRef, Vocabulary.TYPE_UNCONFIRMED, null, type, TIER, Claim.KIND_LLM, true, location, quote, null));
+                }
+                if (added && full != null) {
+                    address(out, mentionRef, full, ctx.serviceText);
                 }
             }
         }
@@ -1518,6 +1545,56 @@ public final class LlmExtractor {
             return nl < 0 ? a : a.substring(nl + 1, a.length() - 3).trim();
         }
         return a;
+    }
+
+    /** The page's title for {@link RuleExtractor#imprintPage} (none without one). */
+    private static List<String> titles(final ExtractContext ctx) {
+        return ctx == null || ctx.serviceTitle == null ? List.of() : List.of(ctx.serviceTitle);
+    }
+
+    /**
+     * 0.15.0, K2 and K6 of the validation on the production graph (docs/SCOUTRO_KG_FACILITIES.md): the full address after a place's
+     * name is the place's, unless the name is a firm's (its legal form) or the address's town, which the model took for a facility;
+     * or the address stands in the page's imprint (after its marker with its data), or it is the address the imprint rules gave the
+     * page's operator ({@link RuleExtractor#OPERATOR_REF}: its imprint or its own contact block): the operator's. An organisation that
+     * got the page's only address by the fallback of the rules (a structured organisation on a page of one address) does not count:
+     * that address may be the place's.
+     */
+    static boolean placeAddress(final PlaceEvidence.Place p, final String name, final ExtractContext ctx, final List<Known> known) {
+        if (Normalizers.legalForm(name) != null) {
+            return false;
+        }
+        final String town = Normalizers.key(p.address.locality);
+        if (town != null && town.equals(Normalizers.key(name))) {
+            return false;
+        }
+        final int[] marker = RuleExtractor.imprintMarker(ctx.serviceText, ctx.pageUrl, titles(ctx));
+        if (marker != null && marker[1] == 1 && p.start >= marker[0]) {
+            return false;
+        }
+        final String key = p.address.key();
+        for (final Known k : known) {
+            if (RuleExtractor.OPERATOR_REF.equals(k.mention.ref) && k.mention.address != null && key.equals(k.mention.address.key())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 0.15.0 (llm/7): the address, postal code and town of a place the page gives right after its name ({@link PlaceEvidence#fullPlace}):
+     * values of the page's text, their evidence the passage from the name to the address, their locator its place in the text. The
+     * tier stays the LLM's (the model named the place), so the facts stay uncertain until a page's rules or structured data confirm them.
+     */
+    private static void address(final Extraction out, final String ref, final PlaceEvidence.Place p, final String text) {
+        final Address a = p.address;
+        final String excerpt = normal(text.substring(p.nameStart, p.end));
+        final String quote = excerpt.length() > MAX_QUOTE ? normal(text.substring(p.start, p.end)) : excerpt;
+        final String locator = "text:" + p.start + "+" + (p.end - p.start);
+        // as the mark of an unclear place: no part of the page's limit, so on a full page they displace no item published before
+        out.mark(new Claim(ref, Vocabulary.ADDRESS, null, a.display(), TIER, Claim.KIND_LLM, false, locator, quote, null));
+        out.mark(new Claim(ref, Vocabulary.POSTAL_CODE, null, a.postalCode, TIER, Claim.KIND_LLM, false, locator, quote, null));
+        out.mark(new Claim(ref, Vocabulary.LOCALITY, null, a.locality, TIER, Claim.KIND_LLM, false, locator, quote, null));
     }
 
     /** Whitespace-normalised text (NFC, control characters removed). */
