@@ -770,6 +770,12 @@
         cursor: help;
       }
 
+      a.chat-citation-unsupported {
+        color: #8a4b08;
+        text-decoration: underline dotted;
+        cursor: help;
+      }
+
       .chat-link-unverified {
         color: #8a4b08;
         text-decoration: underline dotted;
@@ -997,7 +1003,9 @@
         unknown: 'Not among the sources found for this answer:',
         invalidTitle: 'No source of this answer has this number',
         graph: 'Scoutro knowledge graph',
-        unverifiedTitle: 'Not among the sources of this answer: not linked'
+        unverifiedTitle: 'Not among the sources of this answer: not linked',
+        unsupported: 'The text of the cited source does not contain the statement in front of it:',
+        unsupportedTitle: 'The text of this source does not contain the statement in front of this number'
     };
     // Texts of the chat surface: who speaks, what the chat is doing, what went wrong.
     const CHAT_TEXT = {
@@ -1420,6 +1428,8 @@
         const textNodes = [];
         while (walker.nextNode()) textNodes.push(walker.currentNode);
         const pattern = /\[(\d{1,3}(?:\s*[,;]\s*\d{1,3})*)\](?!\()/g;
+        // sources whose text does not contain the statement in front of their number (checked by the server)
+        const unsupportedIds = new Set((citations?.unsupported || []).map(Number));
         for (const node of textNodes) {
             const value = node.nodeValue || '';
             pattern.lastIndex = 0;
@@ -1440,6 +1450,10 @@
                         link.rel = 'noopener noreferrer';
                         link.title = source.title || source.url;
                         link.textContent = `[${number}]`;
+                        if (unsupportedIds.has(Number(number))) {
+                            link.classList.add('chat-citation-unsupported');
+                            link.title = `${CHAT_SOURCE_TEXT.unsupportedTitle} (${source.title || source.url})`;
+                        }
                         fragment.appendChild(link);
                     } else {
                         const invalid = document.createElement('span');
@@ -1506,10 +1520,20 @@
         const unknown = [];
         for (const number of citations?.invalid || []) unknown.push(`[${number}]`);
         for (const url of citations?.unknownUrls || []) unknown.push(String(url));
-        if (unknown.length) {
+        // one warning below the answer: numbers and links that are no source, and sources that do not contain their statement
+        const notes = [];
+        if (unknown.length) notes.push(`${CHAT_SOURCE_TEXT.unknown} ${unknown.join(', ')}`);
+        const unsupported = Array.from(unsupportedIds).filter(id => byId.has(id));
+        if (unsupported.length) notes.push(`${CHAT_SOURCE_TEXT.unsupported} ${unsupported.map(id => `[${id}]`).join(', ')}`);
+        if (notes.length) {
             const warning = document.createElement('p');
             warning.className = 'chat-citation-warning';
-            warning.textContent = `${CHAT_SOURCE_TEXT.unknown} ${unknown.join(', ')}`;
+            notes.forEach((note, index) => {
+                if (index > 0) warning.appendChild(document.createElement('br'));
+                const line = document.createElement('span');
+                line.textContent = note;
+                warning.appendChild(line);
+            });
             target.appendChild(warning);
         }
     }

@@ -30,6 +30,22 @@ public interface ToolHandler {
     String execute(String arguments);
 
     int maxCallsPerTurn();
+
+    /**
+     * True for a tool that only exists within the server-side scope of a chat request
+     * ({@link net.yacy.ai.rag.ToolContext}): it is offered and run only with one.
+     */
+    default boolean scoped() {
+        return false;
+    }
+
+    /**
+     * Runs the tool within the scope of a chat request. The scope comes from the chat session, never from
+     * {@code arguments}. A tool that knows no scope runs as without one.
+     */
+    default String execute(final String arguments, final net.yacy.ai.rag.ToolContext context) {
+        return execute(arguments);
+    }
     
     public static String errorJson(String message) {
         try {

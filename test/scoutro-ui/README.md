@@ -286,6 +286,17 @@ call of the model (released as an administrator could do it), system
 questions and the administrator's model mirror. `SCOUTRO_RAG_DUMP=FILE`
 writes what the model received.
 
+`test/scoutro-access/chat-tools-live-smoke.py` checks the tools of the chat
+(`search`, `kg_search`, `kg_entity`, `kg_evidence`) through the normal chat
+endpoint of a disposable peer with a simulated model: a local stub that
+scripts the tool calls from the tool results it gets; no language model is
+called. Invented pages of two collections; a question about SAP/AI job
+postings (search again, the graph, its evidence, the cited sources and the
+support check of the scripted answer), the SAP use of a company, an account
+of one collection whose model asks for a page, an entity and the evidence of
+the other one, and the limits per answer. `SCOUTRO_TOOLS_DUMP=FILE` writes
+what the stub received (docs/SCOUTRO_RAG_QUALITY.md, section 11).
+
 `test/scoutro-access/signin-proxy-live-smoke.py` puts a local TLS edge in
 front of two disposable peers that behaves like the Olares entrance chain in
 its least favourable form (HTTPS outside, connection from loopback, the

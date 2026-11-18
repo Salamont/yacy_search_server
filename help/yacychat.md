@@ -99,6 +99,26 @@ administrator use, and never for a search across the YaCy network. If the
 graph is slow or off, the answer uses the search results alone. Settings:
 `scoutro.kg.chat.*`, see [Knowledge graph](ScoutroKnowledge_p.md).
 
+## Scoutro: tools of the chat
+
+When the administrator released them on the Tools page (`ai.tools.search`,
+`ai.tools.kg_search`, `ai.tools.kg_entity`, `ai.tools.kg_evidence`) and the
+chat model supports tool calls, the model can search the index again when the
+first results are weak and read the knowledge graph: entities by name, the
+facts and relations of one entity, the source pages of one fact. The chat
+shows each call under the answer. The tools read only what the chat itself may
+read: the chosen collection, an account's collection, or the whole local index
+for local and administrator use; never another collection and never the YaCy
+network. Pages from tool results appear in the source list with the next
+numbers. Limits per answer: 8 rounds, 3 searches, 4 calls of each graph tool,
+10 calls and 20 seconds in total.
+
+A cited number whose source text does not contain the statement in front of
+it is shown dotted, with the note "The text of the cited source does not
+contain the statement in front of it". This check compares words; it is a hint
+to read the source, not a proof in either direction. Details:
+`docs/SCOUTRO_RAG_QUALITY.md`, sections 6 and 11.
+
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.
@@ -117,8 +137,8 @@ collections" entry and a request without a collection uses its only
 collection or answers `400 collection_required`; a foreign collection
 answers `403 collection_not_allowed`. Accounts never use the peer-to-peer
 network search, and system questions answer `403 system_forbidden`. The
-model's `search` tool (released with `ai.tools.search.enabled`) searches the
-whole index and the network: it is neither offered to nor run for a chat
-without all collections (also an AI Shield guest); the other released tools
-stay available.
+model's tools (released on the Tools page) work only within that scope: see
+"Scoutro: tools of the chat" below. An AI Shield guest gets neither the
+`search` tool nor the knowledge graph tools; the other released tools stay
+available.
 See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

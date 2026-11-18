@@ -152,6 +152,12 @@ public class LLM {
          * false for a chat limited to some collections (a Scoutro account, an AI Shield guest), true otherwise.
          */
         public boolean indexTools = true;
+        /**
+         * The server-side scope of the tools of one chat request (its collection, budgets and sources), or null: with it
+         * the search tool searches the local index within that scope and the knowledge graph tools may run
+         * ({@link ToolProvider}); set by the RAG chat from the session, never from the request body.
+         */
+        public net.yacy.ai.rag.ToolContext toolContext = null;
         public LLMModel(LLM llm, String model, boolean tooling, boolean thinking) {
             this.llm = llm;
             this.model = model;

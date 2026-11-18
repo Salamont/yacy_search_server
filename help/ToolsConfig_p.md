@@ -86,6 +86,15 @@ DNS or redirects, are refused. Details: `docs/SCOUTRO_LLM_SECURITY.md`.
 | --- | --- | --- |
 | `ai.tools.<name>.enabled` | `true` releases the tool for the chat; absent or any other value withdraws it. | Release only tools the chat really needs. |
 
+Retrieval tools of the Scoutro chat: `search` searches the local index again,
+`kg_search`, `kg_entity` and `kg_evidence` read entities, their facts and
+relations and the source pages of a fact from the knowledge graph. In the chat
+they work only within the collections of the chat session (an account's
+collection, the chosen collection, or the whole local index for local and
+administrator access), never in the YaCy network, and their pages become
+numbered sources of the answer. They are not offered to an AI Shield guest.
+Details: `docs/SCOUTRO_RAG_QUALITY.md`, section 11.
+
 ## Related Pages
 
 - Related configuration work is usually reached from `ConfigBasic.html`, `Settings_p.html`, or the adjacent configuration page in the administration menu.

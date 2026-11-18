@@ -56,6 +56,8 @@ import net.yacy.ai.rag.RagConversation;
 import net.yacy.ai.rag.RagQuery;
 import net.yacy.ai.rag.RagRetriever;
 import net.yacy.ai.rag.RagSettings;
+import net.yacy.ai.rag.ToolContext;
+import net.yacy.ai.ToolProvider;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.cora.util.LogRedaction;
 import net.yacy.http.ClientAddress;
@@ -265,6 +267,17 @@ public class RAGProxyServlet extends HttpServlet {
             JSONArray messages = guard.withSystemPrompt(bodyObject.optJSONArray("messages"),
                     sb.getConfig("ai.system-prompt", LLM_SYSTEM_PROMPT_DEFAULT));
             bodyObject.put("messages", messages);
+            // tools of this request: their scope is the session's (the collection resolved above, or the whole local index
+            // for local and administrator access); nothing of the request body or of a tool call can widen it. Local,
+            // administrator and account access only, as for the graph facts; an AI Shield guest keeps the tools it had.
+            final ToolContext toolContext = shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT
+                    ? new ToolContext(collection, true,
+                            (concepts, q, c, n) -> RAGAugmentor.searchCandidates(concepts, q, c, n, false, runId), ToolContext.runtimeGraph(),
+                            toolResultChars(llm4Chat.llm.num_ctx), runId)
+                    : null;
+            llm4Chat.toolContext = toolContext;
+            final List<String> scopedTools = llm4Chat.tooling ? ToolProvider.scopedTools(llm4Chat.indexTools, toolContext) : new ArrayList<>();
+            if (!scopedTools.isEmpty()) guard.addServerRules(messages, PromptGuard.toolGuidance(scopedTools, toolContext.scopeLabel()));
             final String userPrefix = userPrefix(sb.getConfig("ai.llm-user-prefix", LLM_USER_PREFIX_DEFAULT));
             final RagSettings ragSettings = RagSettings.current();
 
@@ -375,6 +388,10 @@ public class RAGProxyServlet extends HttpServlet {
                         + " stage=" + result.stage + " candidates=" + result.candidates + " foreignDropped=" + result.foreignDropped
                         + " sources=" + built.sources.size() + " graphFacts=" + graph.meta.optInt("facts") + " graphReason=" + graph.meta.opt("reason")
                         + " contextChars=" + contextText.length() + " searchMs=" + (System.currentTimeMillis() - searchStart));
+                // weak automatic hits: the model is told, so it searches again with the tools instead of answering from them
+                if (!scopedTools.isEmpty() && ("any".equals(result.stage) || "none".equals(result.stage))) {
+                    guard.addServerRules(messages, PromptGuard.weakRetrievalNote(result.stage));
+                }
                 initialMetadata = new JSONObject(true);
                 initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
                 initialMetadata.put("scoutro-graph", graph.meta);
@@ -398,9 +415,20 @@ public class RAGProxyServlet extends HttpServlet {
                 initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
             }
             final List<RagContext.Source> answerSources = sources;
+            // pages of tool results are numbered after these sources and join them: one list for the reader and the check
+            if (toolContext != null) toolContext.attach(answerSources);
             final ToolCallProtocol.AnswerHook citations = new ToolCallProtocol.AnswerHook(answer -> {
                 try {
-                    return new JSONObject(true).put("scoutro-citations", RagCitations.check(answer, answerSources));
+                    final JSONObject meta = new JSONObject(true);
+                    final List<RagContext.Source> all = toolContext == null ? answerSources : toolContext.sources();
+                    if (toolContext != null && toolContext.calls() > 0) {
+                        // all sources once more, with the pages the tools added, before the check that refers to them
+                        meta.put("scoutro-sources", RagContext.sourcesJson(all));
+                        meta.put("scoutro-tools", toolContext.meta());
+                        ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-tools phase=end calls=" + toolContext.calls()
+                                + " toolSources=" + toolContext.added() + " toolMs=" + toolContext.spentMillis());
+                    }
+                    return meta.put("scoutro-citations", RagCitations.check(answer, all));
                 } catch (final JSONException e) {
                     return null;
                 }
@@ -451,6 +479,14 @@ public class RAGProxyServlet extends HttpServlet {
         String prefix = configured == null ? "" : configured.replace("\\n", "\n").trim();
         if (prefix.isEmpty() || prefix.equals(LLM_USER_PREFIX_LEGACY.trim())) prefix = LLM_USER_PREFIX_DEFAULT.trim();
         return "\n\n" + prefix + "\n\n";
+    }
+
+    /**
+     * Characters all tool results of one answer may have together: a third of the context window, so the results of
+     * several rounds stay beside the question, its sources and the answer.
+     */
+    static int toolResultChars(final int numCtx) {
+        return Math.max(1500, Math.min(16000, numCtx * RagContext.CHARS_PER_TOKEN / 3));
     }
 
     private static long elapsed(final long start) {

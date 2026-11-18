@@ -283,7 +283,8 @@ public final class GraphFacts {
                 text.append("\n\n");
             }
             text.append(header).append(body);
-            sources.add(new RagContext.Source(id, TITLE + name, e.url, host(e.url), e.collection, RagContext.Source.KIND_GRAPH));
+            sources.add(new RagContext.Source(id, TITLE + name, e.url, host(e.url), e.collection, RagContext.Source.KIND_GRAPH,
+                    name + ":" + body));
             facts += used;
             entities.add(e.entity);
         }
@@ -335,7 +336,7 @@ public final class GraphFacts {
             Map.entry("suggested_customer", "possible customer (a Scoutro suggestion, not a fact)"),
             Map.entry("suggested_partner", "possible partner (a Scoutro suggestion, not a fact)"));
 
-    static String label(final String predicate) {
+    public static String label(final String predicate) {
         final String l = LABELS.get(predicate);
         return l != null ? l : predicate.replace('_', ' ');
     }

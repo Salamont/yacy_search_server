@@ -637,6 +637,10 @@ Scoutro is packaged as `scoutro-olares`:
 - The chat accepts an optional `collection` (`[A-Za-z0-9_-]{1,64}`) that restricts
   RAG to that collection, and streams the sources and the citation check of each
   answer (`scoutro-sources`, `scoutro-citations`; see `docs/SCOUTRO_RAG_QUALITY.md`).
+  With released tools (`search`, `kg_search`, `kg_entity`, `kg_evidence`) the model searches the local index again
+  and reads the knowledge graph within that scope; the pages of tool results join the sources, `scoutro-tools`
+  summarizes the calls, and `scoutro-citations` reports cited sources whose text does not contain the statement
+  (`unsupported`). The scope is the session's; no request field or tool argument widens it (section 11 there).
   Local and administrator access may name every collection, an AI Shield guest
   only one released in `ai.shield.guest-collections` (none by default); any other
   name is `403 collection_not_allowed`, without echoing it (package 6.1).

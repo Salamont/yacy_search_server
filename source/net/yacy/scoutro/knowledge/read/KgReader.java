@@ -86,15 +86,19 @@ public final class KgReader {
     /** False on the agent routes: the extractor of a piece of evidence without the model name and prompt hash. */
     private final boolean modelDetail;
 
+    /** The read lease of this reader's own reads in milliseconds; 0: the configured one. */
+    private final long leaseMillis;
+
     public KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock) {
-        this(store, cfg, clock, true);
+        this(store, cfg, clock, true, 0L);
     }
 
-    private KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock, final boolean modelDetail) {
+    private KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock, final boolean modelDetail, final long leaseMillis) {
         this.store = store;
         this.cfg = cfg;
         this.clock = clock;
         this.modelDetail = modelDetail;
+        this.leaseMillis = leaseMillis;
     }
 
     /**
@@ -102,7 +106,20 @@ public final class KgReader {
      * extractor and its version ({@code llm/1}), not the configured model.
      */
     public KgReader forAgents() {
-        return new KgReader(this.store, this.cfg, this.clock, false);
+        return new KgReader(this.store, this.cfg, this.clock, false, this.leaseMillis);
+    }
+
+    /**
+     * The same projection for an interactive caller (the chat's tools): the model is not named, as for agents, and each
+     * read of this reader is interrupted after {@code millis} ({@link KgException#READ_TIMEOUT}), never later than the
+     * configured lease.
+     */
+    public KgReader within(final long millis) {
+        return new KgReader(this.store, this.cfg, this.clock, false, Math.max(1L, Math.min(millis, this.cfg.readMaxTransactionMillis)));
+    }
+
+    private <T> T read(final KgStore.SqlWork<T> work) throws KgException {
+        return this.leaseMillis > 0L ? this.store.read(work, this.leaseMillis) : this.store.read(work);
     }
 
     KgStore store() {
@@ -158,7 +175,7 @@ public final class KgReader {
         if (collections == null) {
             return Viewer.ALL;
         }
-        return this.store.read(c -> {
+        return read(c -> {
             final Set<Integer> ids = new TreeSet<>();
             try (PreparedStatement ps = c.prepareStatement("SELECT coll_id FROM kg_collection WHERE name = ?")) {
                 for (final String name : collections) {
@@ -459,7 +476,7 @@ public final class KgReader {
     /** One page of visible entities, newest first, with the summary of each. */
     public JSONObject entities(final EntityQuery q, final Viewer v) throws KgException {
         final long now = this.clock.getAsLong();
-        return this.store.read(c -> {
+        return read(c -> {
             final StringBuilder where = new StringBuilder(visibleEntity(v, "e"));
             final List<Object> args = new ArrayList<>();
             // a filter by quality "stale" asks for the others
@@ -619,7 +636,7 @@ public final class KgReader {
     /** The entity (or a redirect to the visible survivor of a merge). */
     public JSONObject entity(final String id, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final long[] ent = entityRow(c, id, v);
             if (ent == null) {
                 return null;
@@ -865,7 +882,7 @@ public final class KgReader {
     public JSONObject entityStatements(final String id, final String predicate, final boolean incoming, final boolean includeStale,
             final int offset, final int limit, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final long[] ent = entityRow(c, id, v);
             if (ent == null) {
                 return null;
@@ -925,7 +942,7 @@ public final class KgReader {
     /** One statement. */
     public JSONObject statement(final String id, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final Stat s = statementRow(c, id, v);
             if (s == null) {
                 return null;
@@ -1019,7 +1036,7 @@ public final class KgReader {
 
     /** The visible evidence of a statement, newest observation first. */
     public JSONObject evidence(final String id, final int offset, final int limit, final Viewer v) throws KgException, NotFound {
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final Stat s = statementRow(c, id, v);
             if (s == null) {
                 return null;
@@ -1054,6 +1071,40 @@ public final class KgReader {
             throw new NotFound("statement " + id);
         }
         return (JSONObject) r;
+    }
+
+    /**
+     * The newest visible evidence of several statements in one read (the chat's tools): statement ID to its evidence
+     * rows, at most {@code perStatement} each. A statement that is unknown or invisible to the viewer has no entry.
+     */
+    public Map<String, JSONArray> evidenceOf(final Collection<String> statementIds, final int perStatement, final Viewer v) throws KgException {
+        return read(c -> {
+            final Map<String, JSONArray> out = new LinkedHashMap<>();
+            for (final String id : statementIds) {
+                if (id == null || !STATEMENT_ID.matcher(id).matches() || out.containsKey(id)) {
+                    continue;
+                }
+                final Stat s = statementRow(c, id, v);
+                if (s == null) {
+                    continue;
+                }
+                final JSONArray items = new JSONArray();
+                try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.url, d.state, d.loaded_at, e.observed_at, e.kind,"
+                        + " e.tier, e.certainty, e.locator, e.excerpt, x.name, x.version, x.model, x.prompt_hash FROM kg_evidence e"
+                        + " JOIN kg_doc d ON d.doc_rowid = e.doc_rowid JOIN kg_extractor x ON x.ext_id = e.ext_id"
+                        + " WHERE e.stmt_rowid = ? AND " + visibleDoc(v, "d") + " ORDER BY e.observed_at DESC, d.doc_id LIMIT ?")) {
+                    ps.setLong(1, s.rowid);
+                    ps.setInt(2, perStatement);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            items.put(evidenceJson(c, rs, v));
+                        }
+                    }
+                }
+                out.put(id, items);
+            }
+            return out;
+        });
     }
 
     /** One evidence row: columns doc_rowid, doc_id, url, state, loaded_at, observed_at, kind, tier, certainty, locator, excerpt, extractor (4). */
@@ -1129,7 +1180,7 @@ public final class KgReader {
     /** What the graph holds from one source document: the document and its visible evidence. */
     public JSONObject source(final String docId, final int offset, final int limit, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final JSONObject doc;
             final long rowid;
             try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.url, d.state, d.loaded_at, d.processed_at, d.tiers,"

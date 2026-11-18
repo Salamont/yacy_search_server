@@ -136,7 +136,16 @@ Stream metadata (in addition to the model's chunks):
 | `scoutro-sources` | first data line | `[{id, title, url, host, collection}]`: exactly the context sources |
 | `scoutro-retrieval` | first data line, turns with search | `{query, stage, collection, global, candidates, contextChars, contextTokens, numCtx}` |
 | `search-filename`, `search-text-base64` | first data line, turns with sources | the context text, which the chat page keeps for follow-up questions |
-| `scoutro-citations` | before `[DONE]` | `{valid, invalid, unknownUrls, sources}` checked against the sources of this answer |
+| `scoutro-citations` | before `[DONE]` | `{valid, invalid, unknownUrls, sources, support, unsupported, weak}` checked against the sources of this answer |
+| `scoutro-sources`, `scoutro-tools` | before `[DONE]`, answers with tool calls | all sources including the pages of tool results; `{calls, millis, sources, collection, local}` (section 11) |
+
+Support (`RagCitations`): for every valid `[n]` the statement in front of it (the part of the sentence since the citation
+before, else the sentence or line) is compared with the text the model was given under that number: the excerpt of the
+page, the graph facts, the passages of tool results. `support` lists per cited source its worst verdict
+`{id, verdict, matched, terms, statement}`: `supported` (at least half of the statement's content words occur in that
+text, with the word stems of the retrieval), `weak` (fewer), `unsupported` (none: the source does not speak about the
+statement), `unchecked` (the text of the source is not known, or the statement has no content word). `unsupported` and
+`weak` repeat the numbers. The chat page shows an unsupported number dotted, with a note below the answer.
 
 The chat page links `[n]` to source n and lists the sources below the answer. A number
 without a source is shown as `[n?]` and never linked. A URL in the answer that is not
@@ -219,9 +228,63 @@ OpenAI-compatible endpoint (section 10).
   the Aachen home is covered by the excerpt of the directory, not as its own source).
 - Characters per token are an estimate; `num_ctx` in LLM Selection must match the
   window the backend really serves (Ollama `OLLAMA_CONTEXT_LENGTH`).
-- The citation check is lexical: it proves that `[n]` and URLs belong to the sources,
-  not that the statement is in source n.
+- The citation check is lexical: it proves that `[n]` and URLs belong to the sources and
+  that the words of a statement occur in the text given under its number. It finds a number
+  behind a statement its source does not make; it cannot tell a source that says the same
+  from one that uses the same words for something else (a negation, another company on the
+  same page), and a paraphrase or an answer in another language than the source reads as
+  `weak` or `unsupported` although it is right. It is a signal for the reader, not a proof.
+- The pages of tool results are not part of the search document the chat page keeps for
+  follow-up questions: a later turn can cite them only after calling the tools again.
 - Without `collection` the whole index is used, as before.
+
+## 11. Tools of the chat
+
+With a tool-capable chat model the model can search again and read the knowledge graph while it answers
+(`ToolCallProtocol`, at most 8 rounds; the last round asks for the answer itself). The tools are off until an
+administrator releases them (Tools page, `ai.tools.<name>.enabled=true`):
+
+| Tool | Reads | Returns |
+| --- | --- | --- |
+| `search(query)` | the local index, with the retrieval of section 1 (`RagQuery`, the stages of `RagRetriever`) | at most 6 pages with excerpt and stage; a weak or empty result says so |
+| `kg_search(query, type)` | entities of the graph by words of their name or title (`KgReader.entities`) | at most 8 entities with type, hosts and, for a job or service, its employer or provider |
+| `kg_entity(entity, predicate)` | the facts and the relations in both directions of one entity (`KgReader.entityStatements`) | at most 20 facts and 12 incoming relations, each with its newest visible source page |
+| `kg_evidence(statement)` | the evidence of one fact (`KgReader.evidence`) | at most 5 source pages with URL, collection, load time, how it was read and the passage |
+
+**Scope.** The servlet builds one `ToolContext` per request from the chat session, before the model is called: the
+collection the request resolved to (an account's collection, or the one an administrator chose), or the whole local
+index for local and administrator access without a collection. The tools take no collection argument; a
+`collection:` word in a query and any other argument are ignored. `search` asks the index for that collection and
+drops every hit of another one; the graph tools read with the viewer of that collection (`KgRuntime.chatViewer`), so
+an entity, relation or evidence row outside it answers `not_found`, exactly like an unknown ID. The search is always
+local, never the peer-to-peer network. The graph tools exist for local, administrator and account access only (as the
+graph facts of section 1); an AI Shield guest gets neither them nor `search`. Without a `ToolContext` (any other
+caller of `ToolProvider`) `search` is the index tool it was and the graph tools do not exist.
+
+**Sources.** Every page a tool result names gets the next number of the answer's sources (`"cite": "[n]"`), a page
+that is already a source keeps its number. A graph fact is given with the page it was read from, marked `"kind":
+"graph"` like a graph fact of the retrieval. The final metadata line sends the complete list again
+(`scoutro-sources`) before the citation check, which knows the text of each number (section 6). A fact without a
+visible source has no number and says `"source": "none visible"`; evidence read from structured data says that it has
+no passage. An empty result, `not_found`, `timeout`, `busy` and `unavailable` are worded for the model as "not found
+or not verified", and the system prompt tells it to say so instead of stating the fact.
+
+**Limits.** Per answer: 8 rounds; `ai.tools.<name>.maxCallsPerTurn` per tool (search 3, graph tools 4 each); 10 scoped
+calls over all tools, and no further call once the tool calls of the answer have taken 20 s; every graph read is a lease
+of at most 1.5 s (`KgReader.within`; waiting for one of the store's readers comes on top, see below); all results
+together at most a third of the context window (1 500 to 16 000 characters). A call beyond a limit is answered with
+`{"error":"tool_budget"}` without running, so the model writes its answer.
+
+**Weak hits.** When the automatic search of the question ends in stage `any` or `none` and a scoped tool is released,
+the system prompt tells the model to search again with the concrete words of the question.
+
+Tests: `ChatToolsTest` (in `ant scoutro-rag-test`: a real graph store filled through the extractors, two collections)
+and `test/scoutro-access/chat-tools-live-smoke.py` (a disposable peer, the normal chat endpoint, a simulated model
+that scripts the tool calls; no language model is called).
+
+Not part of this step: the ranking of the automatic search and its query generation for long questions, the speed of
+the automatic graph facts (their 300 ms budget, and the store's two readers a graph tool waits for up to 2 s before it
+answers `busy`), a filter of the graph by topic or system, and tools for an AI Shield guest.
 
 Real-model check against an OpenAI-compatible endpoint (read-only, disposable DATA):
 
