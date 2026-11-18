@@ -93,6 +93,12 @@ public class ChatToolsTest {
                 "KI-Entwickler (m/w/d) SAP Prozessautomatisierung. Sie entwickeln KI-Agenten für die Automatisierung von SAP-Prozessen. Stellenangebot.");
         page("ALPHADhost01", "https://www.tapir-consulting.example/leistungen", "alpha-web", "Leistungen der Tapir Consulting", TAPIR,
                 "Unsere Leistungen: Geschäftsfeldentwicklung, Prozessautomatisierung und Beratung für Beratungsunternehmen.");
+        // a posting of one subject only, with dates: its end date has passed
+        page("ALPHAEhost01", "https://www.tapir-consulting.example/karriere/werkstudent-automatisierungstechnik", "alpha-web",
+                "Werkstudent Automatisierungstechnik (m/w/d)",
+                "{\"@type\":\"JobPosting\",\"title\":\"Werkstudent Automatisierungstechnik (m/w/d)\",\"description\":\"Sie unterstützen "
+                        + "unsere Steuerungstechnik.\",\"datePosted\":\"2026-01-05\",\"validThrough\":\"2026-02-28\",\"hiringOrganization\":" + TAPIR + "}",
+                "Werkstudent Automatisierungstechnik (m/w/d). Sie unterstützen unsere Steuerungstechnik.");
         // beta-web: another company, never visible to a chat of alpha-web
         page("BETAAAhost02", "https://www.okapi-systems.example/", "beta-web", "Okapi Systems GmbH", OKAPI,
                 "Okapi Systems GmbH. Wir nutzen SAP S/4HANA intern. BETAGEHEIM Standort Freiburg.");
@@ -305,7 +311,7 @@ public class ChatToolsTest {
                 postings.add(incoming.getJSONObject(i).getJSONObject("subject").getString("name"));
             }
         }
-        assertEquals(postings.toString(), 2, postings.size());
+        assertEquals(postings.toString(), 3, postings.size());
 
         // the citation check: the cited page states the use of SAP, not a number of users
         final JSONObject check = RagCitations.check("Die Tapir Consulting AG nutzt SAP S/4HANA intern " + cite + ".", chat.sources());
@@ -413,5 +419,127 @@ public class ChatToolsTest {
         assertTrue(one.toString(), one.toString().length() <= room);
         assertTrue("fewer pages than matched, and the result says so: " + one, one.getJSONArray("sources").length() < 3 && one.has("not_shown"));
         assertEquals("tool_budget", call(small, "search", "{\"query\":\"SAP\"}").getString("error"));
+    }
+
+    // ------------------------------------------------------------------- job search (section 12)
+
+    static final String JOB_QUESTION = "Welche Stellenanzeigen gibt es zu SAP und künstlicher Intelligenz bei Beratungsunternehmen mit "
+            + "Prozessautomatisierung?";
+
+    @Test
+    public void aJobQuestionIsPlannedAsFewShortTitleSearchesPerSubject() {
+        assertTrue(JobSearch.intent(JOB_QUESTION));
+        assertTrue(JobSearch.intent("Gibt es offene Positionen als Werkstudent?"));
+        assertTrue(JobSearch.intent("Suche Jobs (m/w/d) in Köln"));
+        assertFalse(JobSearch.intent("Was bietet die Tapir Consulting AG an?"));
+        final JobSearch.Plan plan = JobSearch.plan(JOB_QUESTION);
+        assertEquals(List.of("SAP", "KI", "Automatisierung"), plan.criteria());
+        assertEquals(List.of("SAP KI Automatisierung", "SAP", "KI", "Automatisierung", "Prozessautomatisierung", "Intelligenz"), plan.variants());
+        // a compound of the question is searched as it is: the name search matches only the start of a word
+        assertEquals(List.of("Automatisierung", "Prozessautomatisierung", "Automation"),
+                JobSearch.plan("Gibt es Jobs in der Prozessautomatisierung bei Beratungsunternehmen?").variants());
+        assertTrue(plan.variants().size() <= JobSearch.MAX_VARIANTS);
+        // a role of the question is searched with the first subject
+        assertEquals(List.of("SAP berater", "SAP"), JobSearch.plan("Stellen als SAP Berater").variants());
+        // any other subject: its own words, no words about jobs or the answer
+        assertEquals(List.of("pflegefachkraft", "köln"), JobSearch.plan("Welche Stellenangebote als Pflegefachkraft gibt es in Köln? "
+                + "Nenne Arbeitgeber und Quelle.").variants());
+    }
+
+    @Test
+    public void aJobQuestionIsAnsweredWeaklyByPagesThatAreNoPostings() {
+        final RagQuery query = RagQuery.prepare("Stellenangebot Tapir Consulting SAP");
+        final RagCandidate home = new RagCandidate("https://www.tapir-consulting.example/", "Tapir Consulting AG", "", "Tapir Consulting AG. SAP.",
+                "www.tapir-consulting.example", List.of("alpha-web"), 0);
+        final RagCandidate posting = new RagCandidate("https://www.tapir-consulting.example/karriere/sap-senior-berater-finance",
+                "SAP Senior Berater (m/w/d) Finance", "", "Stellenangebot.", "www.tapir-consulting.example", List.of("alpha-web"), 1);
+        final RagRetriever.Result onlyHome = new RagRetriever((q, c, n, g) -> List.of(home)).retrieve(query, "alpha-web", false, 8);
+        assertEquals("majority", onlyHome.stage);
+        assertTrue("a company page matching the subjects is no posting", JobSearch.weak(onlyHome));
+        final RagRetriever.Result withPosting = new RagRetriever((q, c, n, g) -> List.of(posting, home)).retrieve(query, "alpha-web", false, 8);
+        assertFalse("a job page among the hits: the search answered", JobSearch.weak(withPosting));
+        assertTrue(JobSearch.weak(new RagRetriever((q, c, n, g) -> List.<RagCandidate>of()).retrieve(query, "alpha-web", false, 8)));
+    }
+
+    @Test
+    public void aCompoundOfTheQuestionFindsThePosting() throws Exception {
+        final JobSearch.Result result = JobSearch.run(chat("alpha-web"), JobSearch.plan("Gibt es Jobs in der Prozessautomatisierung bei Beratungsunternehmen?"));
+        final List<String> titles = new ArrayList<>();
+        for (final JobSearch.Job job : result.jobs) titles.add(job.title);
+        assertEquals(List.of("KI-Entwickler (m/w/d) SAP Prozessautomatisierung", "Werkstudent Automatisierungstechnik (m/w/d)"), titles);
+    }
+
+    @Test
+    public void theJobSearchFindsPostingsWithTheirOriginalPagesAndMarksPartialMatches() throws Exception {
+        final JobSearch.Result result = JobSearch.run(chat("alpha-web"), JobSearch.plan(JOB_QUESTION));
+        assertEquals(null, result.error);
+        final List<String> titles = new ArrayList<>();
+        for (final JobSearch.Job job : result.jobs) titles.add(job.title);
+        assertEquals(List.of("KI-Entwickler (m/w/d) SAP Prozessautomatisierung", "SAP Senior Berater (m/w/d) Finance",
+                "Werkstudent Automatisierungstechnik (m/w/d)"), titles);
+        assertFalse(result.jobs.get(0).partial());
+        assertTrue(result.jobs.get(1).partial() && result.jobs.get(2).partial());
+        assertEquals("https://www.tapir-consulting.example/karriere/ki-entwickler-sap", result.jobs.get(0).url());
+
+        final JobSearch.Built built = JobSearch.format(result, 1, 9000, "collection alpha-web", false);
+        assertEquals(3, built.sources.size());
+        final RagContext.Source first = built.sources.get(0);
+        assertEquals(1, first.id);
+        assertEquals(RagContext.Source.KIND_GRAPH, first.kind);
+        assertEquals("alpha-web", first.collection);
+        assertEquals("https://www.tapir-consulting.example/karriere/ki-entwickler-sap", first.url);
+        assertTrue(built.text, built.text.startsWith("[1] Scoutro knowledge graph: job posting KI-Entwickler (m/w/d) SAP Prozessautomatisierung\n"
+                + "URL: https://www.tapir-consulting.example/karriere/ki-entwickler-sap\nCollection: alpha-web\nText: "));
+        assertTrue(built.text, built.text.contains("Employer: Tapir Consulting AG."));
+        assertTrue(built.text, built.text.contains("Subjects of the question it shows: SAP, KI, Automatisierung."));
+        assertTrue(built.text, built.text.contains("[2] Scoutro knowledge graph: job posting SAP Senior Berater (m/w/d) Finance"));
+        assertTrue(built.text, built.text.contains("PARTIAL MATCH: not shown for KI, Automatisierung."));
+        assertTrue(built.text, built.text.contains("PARTIAL MATCH: not shown for SAP, KI."));
+        assertTrue(built.text, built.text.contains("Posted: 2026-01-05. Valid through: 2026-02-28."));
+        assertTrue(built.text, built.text.contains("the posting's recorded end date or status says it has ended"));
+        assertTrue(built.text, built.text.contains("Application status: not checked; whether the posting is still open is a separate question"));
+        assertEquals(1, built.meta.getInt("full"));
+        assertEquals(2, built.meta.getInt("partial"));
+        // the source parsed back from the kept search document of a follow-up is the same, with its text for the support check
+        final List<RagContext.Source> kept = RagContext.parse(built.text);
+        assertEquals(first.url, kept.get(0).url);
+        assertEquals(RagContext.Source.KIND_GRAPH, kept.get(0).kind);
+        final JSONObject check = RagCitations.check("Die Tapir Consulting AG sucht einen KI-Entwickler für SAP Prozessautomatisierung [1].",
+                built.sources);
+        assertEquals(RagCitations.SUPPORTED, verdicts(check).getString("[1]"));
+        // the room of the context: whole entries only
+        final JobSearch.Built small = JobSearch.format(result, 1, 700, "collection alpha-web", false);
+        assertEquals(1, small.sources.size());
+        assertEquals("found but without room is never 'none'", 2, small.meta.getInt("notShown"));
+    }
+
+    @Test
+    public void theJobSearchStaysInTheCollectionOfTheRequestAndSaysWhenThereIsNothing() throws Exception {
+        final String question = "Gibt es eine Stelle als SAP Basis Administrator?";
+        final JobSearch.Result admin = JobSearch.run(chat(null), JobSearch.plan(question));
+        assertTrue(admin.jobs.stream().anyMatch(j -> j.title.equals("SAP Basis Administrator (m/w/d)")));
+        final JobSearch.Result rita = JobSearch.run(chat("alpha-web"), JobSearch.plan(question));
+        for (final JobSearch.Job job : rita.jobs) {
+            assertFalse(job.title, job.title.contains("Basis Administrator"));
+            assertFalse(job.url(), job.url().contains("okapi"));
+        }
+        final JobSearch.Built built = JobSearch.format(rita, 1, 9000, "collection alpha-web", false);
+        assertFalse(built.text, built.text.contains("BETAGEHEIM") || built.text.contains("Okapi"));
+
+        // a real zero: no posting for these subjects anywhere
+        final JobSearch.Result none = JobSearch.run(chat(null), JobSearch.plan("Welche Stellenangebote gibt es für Tiefseetaucher mit Unterwasserschweißen?"));
+        assertEquals(0, none.jobs.size());
+        assertFalse(none.searched.isEmpty());
+        final JobSearch.Built empty = JobSearch.format(none, 1, 9000, "all collections of the local index", false);
+        assertEquals("", empty.text);
+        assertEquals(0, empty.meta.getInt("found"));
+        assertTrue(net.yacy.ai.PromptGuard.jobSearchNote(0, none.searched, none.plan.criteria(), "x").contains("found none"));
+
+        // only with the release of kg_search and a scope that admits the graph
+        assertTrue(JobSearch.released(false, chat("alpha-web")));
+        assertFalse(JobSearch.released(false, null));
+        assertFalse(JobSearch.released(false, new ToolContext("alpha-web", false, (a, b, c, d) -> new ArrayList<>(), null, 16000, "test")));
+        ToolTestSettings.use((key, dflt) -> key.equals("ai.tools.kg_search.enabled") ? "false" : key.endsWith(".enabled") ? "true" : dflt);
+        assertFalse(JobSearch.released(false, chat("alpha-web")));
     }
 }

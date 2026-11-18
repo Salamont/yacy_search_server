@@ -89,6 +89,34 @@ public final class PromptGuard {
         return text.toString();
     }
 
+    /**
+     * What the model is told after the server searched the job postings of the knowledge graph for this question
+     * ({@link net.yacy.ai.rag.JobSearch}): how to use the postings it found, or that there are none.
+     *
+     * @param found    postings given as sources
+     * @param searched the title words searched
+     * @param criteria the subjects of the question
+     * @param scope    words for the scope
+     */
+    public static String jobSearchNote(final int found, final java.util.List<String> searched, final java.util.List<String> criteria,
+            final String scope) {
+        final String words = neutralize(String.join(", ", searched));
+        if (found == 0) {
+            return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro also searched the job postings of "
+                    + "its knowledge graph in " + neutralize(scope) + " (title words: " + words + ") and found none. Say plainly that no "
+                    + "matching job posting was found; never present a company page, a service or a list of names as a job posting, "
+                    + "and never invent one.";
+        }
+        return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro searched the job postings of its "
+                + "knowledge graph in " + neutralize(scope) + " (title words: " + words + ") and found " + found + ". They are the first "
+                + "sources, titled \"job posting\". Name each relevant posting with its title, employer and its number [n] (the "
+                + "number links its original page)." + (criteria.isEmpty() ? "" : " The subjects of the question are "
+                + neutralize(String.join(", ", criteria)) + ": a posting marked PARTIAL MATCH shows only some of them; say which ones "
+                + "it does not show and never count it as a full match.") + " Whether a posting is still open or can be applied for "
+                + "now is a separate question: do not state it; if the user asks, answer only with the dates of its source and say "
+                + "that it was not checked live.";
+    }
+
     /** What the model is told when the automatic search of this question matched only weakly ({@code stage} any or none). */
     public static String weakRetrievalNote(final String stage) {
         return "\n\nNote on the search results of the current question: the automatic search "

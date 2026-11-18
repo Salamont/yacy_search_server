@@ -166,6 +166,8 @@ public final class KgReader {
         public String review;
         public int offset;
         public int limit = 25;
+        /** Every word of {@link #q} must be a whole word of the name; by default the last one may be the start of a word. */
+        public boolean wholeWords;
     }
 
     // --------------------------------------------------------------- viewer
@@ -504,7 +506,7 @@ public final class KgReader {
                 where.append(" AND NOT (").append(typeUnconfirmed(v, "e", now)).append(")");
             }
             if (q.q != null) {
-                final String match = ftsQuery(q.q);
+                final String match = ftsQuery(q.q, !q.wholeWords);
                 if (match == null) {
                     return page(q.offset, q.limit, 0L, new JSONArray(), c, v);
                 }
@@ -1293,6 +1295,11 @@ public final class KgReader {
 
     /** An FTS5 query from free text: every token quoted, the last one as a prefix; null without a token. */
     static String ftsQuery(final String text) {
+        return ftsQuery(text, true);
+    }
+
+    /** As {@link #ftsQuery(String)}; without {@code prefix} every token must be a whole word. */
+    static String ftsQuery(final String text, final boolean prefix) {
         final List<String> tokens = new ArrayList<>();
         final java.util.regex.Matcher m = TOKEN.matcher(text.toLowerCase(Locale.ROOT));
         while (m.find() && tokens.size() < 8) {
@@ -1304,7 +1311,7 @@ public final class KgReader {
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < tokens.size(); i++) {
             sb.append(i == 0 ? "" : " ").append('"').append(tokens.get(i)).append('"');
-            if (i == tokens.size() - 1) {
+            if (prefix && i == tokens.size() - 1) {
                 sb.append('*');
             }
         }

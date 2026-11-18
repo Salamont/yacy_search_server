@@ -176,6 +176,12 @@ public final class RagContext {
      */
     public static Built build(final List<RagRetriever.Scored> selected, final RagQuery query, final int budgetChars,
             final int perDocChars, final int maxSources, final String collection) {
+        return build(selected, query, budgetChars, perDocChars, maxSources, collection, 1);
+    }
+
+    /** As {@link #build(List, RagQuery, int, int, int, String)}, numbered from {@code firstId} (sources before them). */
+    public static Built build(final List<RagRetriever.Scored> selected, final RagQuery query, final int budgetChars,
+            final int perDocChars, final int maxSources, final String collection, final int firstId) {
         int count = Math.min(Math.max(0, maxSources), selected.size());
         while (count > 1 && budgetChars / count < MIN_ENTRY_CHARS) count--;
         final List<Source> sources = new ArrayList<>();
@@ -184,7 +190,7 @@ public final class RagContext {
         final int perEntry = Math.max(MIN_ENTRY_CHARS, Math.min(perDocChars, budgetChars / count));
         for (int i = 0; i < count; i++) {
             final RagCandidate candidate = selected.get(i).candidate;
-            final int id = sources.size() + 1;
+            final int id = firstId + sources.size();
             final String label = collection != null ? collection : candidate.collections.isEmpty() ? null : candidate.collections.get(0);
             final String header = header(id, candidate, label);
             final int separator = text.length() == 0 ? 0 : 2;

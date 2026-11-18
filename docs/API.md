@@ -641,6 +641,9 @@ Scoutro is packaged as `scoutro-olares`:
   and reads the knowledge graph within that scope; the pages of tool results join the sources, `scoutro-tools`
   summarizes the calls, and `scoutro-citations` reports cited sources whose text does not contain the statement
   (`unsupported`). The scope is the session's; no request field or tool argument widens it (section 11 there).
+  A question about jobs whose automatic search matches weakly gets the postings of the knowledge graph as its first
+  sources, searched by the server before the answer with the release of `kg_search` (`scoutro-jobsearch`); a follow-up
+  such as "Such noch mal" searches with the goal of the conversation (section 12 there).
   Local and administrator access may name every collection, an AI Shield guest
   only one released in `ai.shield.guest-collections` (none by default); any other
   name is `403 collection_not_allowed`, without echoing it (package 6.1).

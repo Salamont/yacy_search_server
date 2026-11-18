@@ -150,10 +150,10 @@ def push(digest, url, html, collection):
         return json.loads(response.read()).get("countsuccess") == 1
 
 
-def chat(client, question, script, collection=None, extra=None):
-    """POST /v1/chat/completions as the chat page does, with `script` as the simulated model of this question."""
+def chat(client, question, script, collection=None, extra=None, messages=None):
+    """POST /v1/chat/completions as the chat page does, with `script` as the simulated model of this question (after `messages`)."""
     PLAN["next"] = script
-    body = {"model": "chat", "stream": True, "messages": [{"role": "user", "content": question, "search": "local"}]}
+    body = {"model": "chat", "stream": True, "messages": (messages or []) + [{"role": "user", "content": question, "search": "local"}]}
     if collection is not None:
         body["collection"] = collection
     body.update(extra or {})

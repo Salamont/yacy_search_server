@@ -50,6 +50,8 @@ import net.yacy.ai.RAGAugmentor;
 import net.yacy.ai.ToolCallProtocol;
 import net.yacy.ai.rag.ChatCollections;
 import net.yacy.ai.rag.GraphFacts;
+import net.yacy.ai.rag.JobSearch;
+import net.yacy.ai.rag.RagFollowUp;
 import net.yacy.ai.rag.RagCitations;
 import net.yacy.ai.rag.RagContext;
 import net.yacy.ai.rag.RagConversation;
@@ -298,6 +300,8 @@ public class RAGProxyServlet extends HttpServlet {
                 ragMode = userObject.getSearchMode();
             }
             final boolean fresh = userObject != null && !"no".equals(ragMode);
+            // the search goal: a follow-up such as "Such noch mal" searches with the topic of the conversation (section 12)
+            final RagFollowUp.Goal goal = RagFollowUp.goal(messages, lastUserIndex, user);
 
             // answer parameters from the model configuration (LLM Selection) and the RAG settings
             int maxTokens = llm4Chat.llm.max_tokens;
@@ -351,7 +355,8 @@ public class RAGProxyServlet extends HttpServlet {
             JSONObject initialMetadata = null;
             if (fresh) {
                 final long searchStart = System.currentTimeMillis();
-                RagQuery query = RagQuery.prepare(question);
+                final String searchQuestion = goal.text;
+                RagQuery query = RagQuery.prepare(searchQuestion);
                 // a collection: modifier of the question counts only within the client's collections, else the whole index
                 final String scope = collection != null ? collection
                         : ChatCollections.permits(allCollections, query.questionCollection, releasedCollections) ? query.questionCollection : null;
@@ -359,9 +364,9 @@ public class RAGProxyServlet extends HttpServlet {
                 final boolean global = "global".equals(ragMode) && scope == null && member == null;
                 final RagRetriever retriever = new RagRetriever((concepts, q, c, n, g) -> RAGAugmentor.searchCandidates(concepts, q, c, n, g, runId));
                 RagRetriever.Result result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
-                if (result.selected.isEmpty() && countWords(question) > DIRECT_SEARCH_WORD_LIMIT && llm4tldr != null) {
+                if (result.selected.isEmpty() && countWords(searchQuestion) > DIRECT_SEARCH_WORD_LIMIT && llm4tldr != null) {
                     // long question without result: let the tldr model suggest search words once
-                    final String words = RAGAugmentor.searchWordsForPrompt(llm4tldr.llm, llm4tldr.model, question,
+                    final String words = RAGAugmentor.searchWordsForPrompt(llm4tldr.llm, llm4tldr.model, searchQuestion,
                             sb.getConfig("ai.llm-query-generator-prefix", LLM_QUERY_GENERATOR_PREFIX_DEFAULT), runId);
                     if (words != null && !words.isEmpty()) {
                         query = RagQuery.prepare(words);
@@ -371,16 +376,46 @@ public class RAGProxyServlet extends HttpServlet {
                 final int sourceChars = Math.max(0, budget.sourceChars(RagConversation.historyChars(messages)) - currentExtraChars);
                 // Scoutro knowledge graph: facts of the entities the question names or the found pages hold, as further
                 // numbered sources after the search results; local and administrator access only (guests by setting)
+                // job postings: a question about jobs whose automatic search matched weakly searches the knowledge graph's postings
+                // (type=job) before the answer, whatever the model does; release of kg_search and scope of the request (section 12)
+                JobSearch.Built jobs = null;
+                JobSearch.Result jobResult = null;
+                if (JobSearch.intent(searchQuestion) && JobSearch.weak(result) && JobSearch.released(llm4Chat.indexTools, toolContext)) {
+                    jobResult = JobSearch.run(toolContext, JobSearch.plan(searchQuestion));
+                    // a third of the source room, but room for at least one posting
+                    jobs = JobSearch.format(jobResult, 1, Math.min(sourceChars, Math.max(1200, sourceChars / 3)), toolContext.scopeLabel(),
+                            goal.followUp);
+                    // "none found" only when the search found none, never when only the room was missing
+                    if (!jobs.sources.isEmpty() || jobResult.jobs.isEmpty()) {
+                        guard.addServerRules(messages, PromptGuard.jobSearchNote(jobs.sources.size(), jobResult.searched,
+                                jobResult.plan.criteria(), toolContext.scopeLabel()));
+                    }
+                    ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-jobsearch phase=end stage=" + result.stage + " followUp=" + goal.followUp
+                            + " searched=" + jobResult.searched.size() + " found=" + jobs.sources.size() + " partial=" + jobs.meta.optInt("partial")
+                            + " timedOut=" + jobResult.timedOut + " error=" + jobResult.error + " ms=" + jobResult.millis);
+                }
+                final int jobCount = jobs == null ? 0 : jobs.sources.size();
+                final int jobChars = jobs == null || jobs.text.isEmpty() ? 0 : jobs.text.length() + 2;
                 final GraphFacts.Selected graphSelection = GraphFacts.collect(GraphFacts.runtime(),
                         shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT,
                         shield == LLMAccess.Shield.GUEST,
-                        scope, global, result.selected, query, sourceChars);
-                final RagContext.Built built = RagContext.build(result.selected, query, Math.max(0, sourceChars - graphSelection.reservedChars()),
-                        ragSettings.documentMaxLength, ragSettings.maxSources, scope);
-                final GraphFacts.Built graph = GraphFacts.format(graphSelection, built.sources.size() + 1);
-                sources = new ArrayList<>(built.sources);
+                        scope, global, result.selected, query, Math.max(0, sourceChars - jobChars));
+                final RagContext.Built built = RagContext.build(result.selected, query,
+                        Math.max(0, sourceChars - jobChars - graphSelection.reservedChars()), ragSettings.documentMaxLength, ragSettings.maxSources,
+                        scope, jobCount + 1);
+                final GraphFacts.Built graph = GraphFacts.format(graphSelection, jobCount + built.sources.size() + 1);
+                // the postings first: the search matched only weakly
+                sources = new ArrayList<>();
+                if (jobs != null) sources.addAll(jobs.sources);
+                sources.addAll(built.sources);
                 sources.addAll(graph.sources);
-                final String contextText = graph.text.isEmpty() ? built.text : built.text.isEmpty() ? graph.text : built.text + "\n\n" + graph.text;
+                final StringBuilder context = new StringBuilder();
+                for (final String part : new String[] {jobs == null ? "" : jobs.text, built.text, graph.text}) {
+                    if (part.isEmpty()) continue;
+                    if (context.length() > 0) context.append("\n\n");
+                    context.append(part);
+                }
+                final String contextText = context.toString();
                 user += userPrefix;
                 user += guard.data(contextText.isEmpty() ? "(no search results)" : contextText);
                 userObject.setContentText(user);
@@ -389,14 +424,16 @@ public class RAGProxyServlet extends HttpServlet {
                         + " sources=" + built.sources.size() + " graphFacts=" + graph.meta.optInt("facts") + " graphReason=" + graph.meta.opt("reason")
                         + " contextChars=" + contextText.length() + " searchMs=" + (System.currentTimeMillis() - searchStart));
                 // weak automatic hits: the model is told, so it searches again with the tools instead of answering from them
-                if (!scopedTools.isEmpty() && ("any".equals(result.stage) || "none".equals(result.stage))) {
+                if (!scopedTools.isEmpty() && ("any".equals(result.stage) || "none".equals(result.stage)) && jobCount == 0) {
                     guard.addServerRules(messages, PromptGuard.weakRetrievalNote(result.stage));
                 }
                 initialMetadata = new JSONObject(true);
                 initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
                 initialMetadata.put("scoutro-graph", graph.meta);
+                if (jobs != null) initialMetadata.put("scoutro-jobsearch", jobs.meta);
                 final JSONObject retrieval = new JSONObject(true);
                 retrieval.put("query", query.searchString(false));
+                retrieval.put("followUp", goal.followUp);
                 retrieval.put("stage", result.stage);
                 retrieval.put("collection", scope == null ? JSONObject.NULL : scope);
                 retrieval.put("global", result.global);

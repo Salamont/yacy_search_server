@@ -396,6 +396,7 @@
       <arg value="net.yacy.ai.rag.GraphFactsTest" />
       <arg value="net.yacy.ai.rag.ChatCollectionsTest" />
       <arg value="net.yacy.ai.rag.ChatToolsTest" />
+      <arg value="net.yacy.ai.rag.RagFollowUpTest" />
       <classpath>
         <pathelement location="build/scoutro-rag-tests" />
         <pathelement location="${build}" />

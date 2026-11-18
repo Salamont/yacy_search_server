@@ -2,6 +2,14 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased (on 0.14.3-rc.1) — job search before the answer
+
+A question about jobs whose automatic search matches weakly (or finds no job page) gets the job postings of the knowledge
+graph as its first sources, searched by the server before the model answers: the release of `kg_search` and the scope of
+the request, a few short title variants (SAP, KI and Automatisierung also separately), partial matches marked, the
+application status a separate question. A follow-up such as "Such noch mal" searches with the goal of the conversation.
+Details: docs/SCOUTRO_RAG_QUALITY.md, section 12.
+
 ## 0.14.3-rc.1 / 1.942-scoutro.52-rc.1 — test candidate: tools of the chat (not a release)
 
 On 0.14.2 (`71fb2b8`): with released tools the chat model searches the local index again and reads the knowledge graph

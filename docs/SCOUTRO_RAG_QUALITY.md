@@ -286,6 +286,40 @@ Not part of this step: the ranking of the automatic search and its query generat
 the automatic graph facts (their 300 ms budget, and the store's two readers a graph tool waits for up to 2 s before it
 answers `busy`), a filter of the graph by topic or system, and tools for an AI Shield guest.
 
+## 12. Job search before the answer
+
+A model may answer from weak sources without calling a tool, even when the tools are offered (seen in production: a
+question about jobs, `stage=any`, five tools offered, none called). For questions about job postings the server
+therefore searches the knowledge graph's postings itself, before the model is called (`JobSearch`):
+
+- **When:** the question (or its goal, below) asks for jobs (Stelle, Stellenanzeige, Job, Karriere, Ausschreibung,
+  "(m/w/d)", vacancy, career …) **and** the automatic search answers it weakly: stage `any`, `none` or `no-terms`, no hit,
+  or no hit is a job page by its title or address (a company's home page matching the subjects is no posting).
+- **Only with the existing release** of `kg_search` and within the scope of the request (`ToolContext`: the session's
+  collection, read with its viewer). An AI Shield guest gets none; without the release nothing runs.
+- **Few short title variants**, at most 6 name searches of `type=job`: the subjects SAP, KI and Automatisierung first
+  together, then each on its own, the question's own compounds ("Prozessautomatisierung": a name search matches only the
+  start of a word), then "Intelligenz", "AI", "Automation"; a role of the question ("SAP Berater") before the subject
+  alone. Short acronyms are whole words (`KgReader.EntityQuery.wholeWords`), and a hit must show its subject in the title.
+  Any other subject is searched by its own words. At most 12 candidates, 6 postings, 4 s.
+- **To the answer:** each posting is a numbered source before the search results (`[1] Scoutro knowledge graph: job
+  posting <title>`, `URL:` the page it was read from, its collection), with employer, employment type, place, dates, the
+  subjects of the question it shows and, as `PARTIAL MATCH`, those it does not. The full matches come first.
+- **Application status:** never checked. Each entry says that whether the posting is still open is a separate question,
+  with the date the page was last loaded and, if recorded, an end date that has passed; the server rules tell the model
+  not to state it and to answer it, if asked, only from these dates.
+- **Nothing found:** the server rules say that the postings were searched with these words in this scope and none was
+  found, and that no company page may be presented as a posting.
+- **Follow-up:** a message that asks to search again ("Such noch mal", "Such noch mal gezielt nach Stellenanzeigen und
+  prüfe die Originalquellen", "nochmal suchen", "Versuch es erneut", "search again") takes the goal of the conversation:
+  the latest earlier user message with a subject, joined with the follow-up (`RagFollowUp`); the automatic search and the
+  job search use it, the scope stays the request's. A message without the words of a retry is always its own goal.
+- **Metadata:** `scoutro-jobsearch: {triggered, followUp, scope, criteria, searched, found, notShown, full, partial, timedOut,
+  error, millis}` (`notShown`: postings found without room left in the context; the model is then not told "none") in the first data line; `scoutro-retrieval.followUp`. Log: `event=rag-jobsearch`.
+
+Tests: `ChatToolsTest` and `RagFollowUpTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-jobsearch-live-smoke.py`
+(a disposable peer, the normal endpoint, a simulated model that never calls a tool).
+
 Real-model check against an OpenAI-compatible endpoint (read-only, disposable DATA):
 
 ```
