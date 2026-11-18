@@ -2,7 +2,10 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.1) — job search before the answer
+## 0.14.3-rc.2 / 1.942-scoutro.52-rc.2 — test candidate: job and provider search of the chat (not a release)
+
+On 0.14.3-rc.1, application code `16f2c8ec`. Tool releases of rc.1 are kept; schemas, extractors and stored data
+unchanged: no re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.2.md.
 
 A question about jobs whose automatic search matches weakly (or finds no job page) gets the job postings of the knowledge
 graph as its first sources, searched by the server before the model answers: the release of `kg_search` and the scope of
