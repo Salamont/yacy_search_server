@@ -97,7 +97,7 @@ def run(base, digest):
     system = tools.content_text(requests[0]["body"]["messages"][0]) if requests else ""
     prompt = tools.content_text(requests[0]["body"]["messages"][-1]) if requests else ""
     check(status == 200 and len(requests) == 1, "jobs: one model call, no tool round", f"{status} {len(requests)}")
-    check(tools.offered(requests) == tools.TOOLS and not tools.tool_results(requests[-1]["body"]["messages"]),
+    check(tools.offered(requests) == tools.OFFERED and not tools.tool_results(requests[-1]["body"]["messages"]),
           "jobs: the tools were offered and the model called none", str(tools.offered(requests)))
     company = [s for s in answer["meta"].get("scoutro-sources", []) if s.get("url") == f"https://{tools.TAPIR}/" and "kind" not in s]
     check(retrieval.get("stage") == "any" and retrieval.get("followUp") is False and company,

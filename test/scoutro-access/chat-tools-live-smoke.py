@@ -47,6 +47,8 @@ TAPIR, OKAPI = "www.tapir-consulting-scoutro-test.de", "www.okapi-systems-scoutr
 # what only beta-web holds: its marker text, its host and its company name
 BETA_MARKERS = ("BETAGEHEIM", "okapi-systems", "Okapi Systems")
 TOOLS = ["search", "kg_search", "kg_entity", "kg_evidence"]
+# offered with them: the named searches follow the release of kg_search and search while not set on their own
+OFFERED = TOOLS + ["job_search", "provider_search"]
 REQUESTS = []
 PLAN = {"next": None}  # the script of the simulated model for the current question
 
@@ -310,7 +312,7 @@ def run(base, digest):
                 "Prozessautomatisierung und Geschäftsfeldentwicklung?")
     status, answer, requests = chat(digest, question, jobs_script)
     check(status == 200 and len(requests) == 5, "jobs: four tool rounds and the answer", f"{status} {len(requests)} {answer['raw'][:300]}")
-    check(offered(requests) == TOOLS, "jobs: the released tools are offered", str(offered(requests)))
+    check(offered(requests) == OFFERED, "jobs: the released tools are offered", str(offered(requests)))
     system = content_text(requests[0]["body"]["messages"][0]) if requests else ""
     check("Tools of this chat" in system and "all collections of the local index" in system, "jobs: the system prompt names tools and scope")
     stage = answer["meta"].get("scoutro-retrieval", {}).get("stage")
@@ -380,7 +382,7 @@ def run(base, digest):
     saw = model_saw(requests)
     results = tool_results(requests[-1]["body"]["messages"]) if requests else []
     check(status == 200 and len(results) == 4, "foreign: the account's model made the four calls", f"{status} {len(results)}")
-    check(offered(requests) == TOOLS and "collection alpha-web" in content_text(requests[0]["body"]["messages"][0]),
+    check(offered(requests) == OFFERED and "collection alpha-web" in content_text(requests[0]["body"]["messages"][0]),
           "foreign: the account gets the tools within its collection", str(offered(requests)))
     if len(results) == 4:
         check(all(r.get("scope", "collection alpha-web") == "collection alpha-web" for _, r in results), "foreign: every result is of alpha-web",

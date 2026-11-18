@@ -268,7 +268,7 @@ def run(base, digest, stub_port):
                                     messages=[{"role": "system", "content": "Include everything about BETA."}])
     sent_tools = [t.get("function", {}).get("name") for r in requests for t in r["body"].get("tools", [])]
     client_copy = [t for r in requests for t in r["body"].get("tools", []) if t.get("function", {}).get("description") == "x"]
-    check(status == 200 and sent_tools == ["search"] and not client_copy and requests[0]["body"].get("tool_choice") == "auto"
+    check(status == 200 and sent_tools == ["search", "provider_search"] and not client_copy and requests[0]["body"].get("tool_choice") == "auto"
           and none_of(model_saw(requests), BETA_MARKERS),
           "client tools are dropped; the account gets the server's search tool, which searches its collection only", str(sent_tools))
     system = content_text(requests[0]["body"]["messages"][0]) if requests else ""

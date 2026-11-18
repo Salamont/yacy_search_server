@@ -86,9 +86,18 @@ DNS or redirects, are refused. Details: `docs/SCOUTRO_LLM_SECURITY.md`.
 | --- | --- | --- |
 | `ai.tools.<name>.enabled` | `true` releases the tool for the chat; absent or any other value withdraws it. | Release only tools the chat really needs. |
 
-Retrieval tools of the Scoutro chat: `search` searches the local index again,
-`kg_search`, `kg_entity` and `kg_evidence` read entities, their facts and
-relations and the source pages of a fact from the knowledge graph. In the chat
+Retrieval tools of the Scoutro chat: `search` ("Index search") searches the
+local index again; `kg_search`, `kg_entity` and `kg_evidence` ("Knowledge
+graph: find entries / facts of an entry / sources of a fact") read entities,
+their facts and relations and the source pages of a fact from the knowledge
+graph; `job_search` ("Job search") finds job postings of the knowledge graph
+for the subjects of a question, partial matches marked; `provider_search`
+("Provider search") derives the service and the place of a question and
+searches the index again for providers. When a job or provider question finds
+only weak hits, Scoutro runs these two itself before it answers. Until this
+page is saved, "Job search" is released together with `kg_search` and
+"Provider search" together with `search`; afterwards their own checkboxes
+apply. In the chat
 they work only within the collections of the chat session (an account's
 collection, the chosen collection, or the whole local index for local and
 administrator access), never in the YaCy network, and their pages become

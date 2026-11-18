@@ -41,6 +41,7 @@ import net.yacy.ai.tools.HttpJsonTool;
 import net.yacy.ai.tools.Mermaid2ASCIITool;
 import net.yacy.ai.tools.NumberParserTool;
 import net.yacy.ai.tools.PromptToMermaidTool;
+import net.yacy.ai.tools.SearchAssistTools;
 import net.yacy.ai.tools.SearchTool;
 import net.yacy.ai.tools.SelfReflectTool;
 import net.yacy.ai.tools.TableOpsTool;
@@ -120,6 +121,8 @@ public final class ToolProvider {
             GraphTools.search(),
             GraphTools.entity(),
             GraphTools.evidence(),
+            SearchAssistTools.jobSearch(),
+            SearchAssistTools.providerSearch(),
             new WikipediaLinkCreatorTool(),
             new WebFetchTool()
     );
@@ -142,6 +145,13 @@ public final class ToolProvider {
 
     /** Names of the tools that read the whole index: SearchTool. */
     private static final Set<String> INDEX_TOOLS = Set.of("search");
+
+    /**
+     * Tools whose release follows another tool's while they are not set on their own: the server's job and provider
+     * searches use what kg_search and search may read (docs/SCOUTRO_RAG_QUALITY.md, sections 12 and 13).
+     */
+    private static final Map<String, String> RELEASE_FOLLOWS = Map.of(SearchAssistTools.JOB_SEARCH, "kg_search",
+            SearchAssistTools.PROVIDER_SEARCH, "search");
 
     public static final class ToolConfig {
         public final String name;
@@ -259,7 +269,7 @@ public final class ToolProvider {
     public static boolean offered(final String name, final boolean indexTools, final ToolContext context) {
         if (name == null) return false;
         final ToolHandler tool = TOOL_BY_NAME.get(name.trim());
-        if (tool != null && tool.scoped()) return context != null && context.graph;
+        if (tool != null && tool.scoped()) return context != null && (context.graph || !tool.requiresGraph());
         return !readsIndex(name) || indexTools || context != null;
     }
 
@@ -292,7 +302,9 @@ public final class ToolProvider {
     /** True when the operator released the tool (ai.tools.NAME.enabled=true). */
     public static boolean isReleased(final String name) {
         if (name == null || !TOOL_BY_NAME.containsKey(name)) return false;
-        return "true".equalsIgnoreCase(config(CONFIG_PREFIX + name + ENABLED_SUFFIX, "false").trim());
+        final String own = config(CONFIG_PREFIX + name + ENABLED_SUFFIX, "").trim();
+        if (own.isEmpty() && RELEASE_FOLLOWS.containsKey(name)) return isReleased(RELEASE_FOLLOWS.get(name));
+        return "true".equalsIgnoreCase(own);
     }
 
     /**

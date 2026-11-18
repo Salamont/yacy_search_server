@@ -643,7 +643,10 @@ Scoutro is packaged as `scoutro-olares`:
   (`unsupported`). The scope is the session's; no request field or tool argument widens it (section 11 there).
   A question about jobs whose automatic search matches weakly gets the postings of the knowledge graph as its first
   sources, searched by the server before the answer with the release of `kg_search` (`scoutro-jobsearch`); a follow-up
-  such as "Such noch mal" searches with the goal of the conversation (section 12 there).
+  such as "Such noch mal" searches with the goal of the conversation (section 12 there). A question for a provider of a
+  service ("Wer prüft in Hürth, ob eine Wand tragend ist?") gets the pages of a search for the derived service and place
+  ("Tragwerksplanung Hürth") as its first sources (`scoutro-servicesearch`, section 13 there). The tools `job_search` and
+  `provider_search` run the same searches for the model.
   Local and administrator access may name every collection, an AI Shield guest
   only one released in `ai.shield.guest-collections` (none by default); any other
   name is `403 collection_not_allowed`, without echoing it (package 6.1).

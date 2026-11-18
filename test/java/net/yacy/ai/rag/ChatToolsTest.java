@@ -383,20 +383,20 @@ public class ChatToolsTest {
     @Test
     public void toolsNeedTheScopeOfAChatAndStayWithinItsBudgets() throws Exception {
         // without the scope of a chat request the graph tools do not exist; search stays the index tool it was
-        for (final String tool : new String[] {"kg_search", "kg_entity", "kg_evidence"}) {
+        for (final String tool : new String[] {"kg_search", "kg_entity", "kg_evidence", "job_search", "provider_search"}) {
             assertFalse(tool, ToolProvider.offered(tool, true, null));
             assertTrue(tool, ToolProvider.executeTool(tool, "{\"query\":\"SAP\"}", true, null).contains("not released"));
             assertEquals(tool, 0, ToolProvider.allowedCallsPerTurn(tool, true, null));
         }
         assertFalse("a chat of some collections without a scope: no index search", ToolProvider.offered("search", false, null));
         final ToolContext chat = chat("alpha-web");
-        assertEquals(List.of("search", "kg_search", "kg_entity", "kg_evidence"), ToolProvider.scopedTools(false, chat));
+        assertEquals(List.of("search", "kg_search", "kg_entity", "kg_evidence", "job_search", "provider_search"), ToolProvider.scopedTools(false, chat));
         final JSONObject body = new JSONObject();
         ToolProvider.applyReleasedTools(body, true, false, chat);
         assertTrue(body.toString(), body.toString().contains("\"kg_evidence\""));
         // a scope without the graph (an access the graph is not open to): the search only
         final ToolContext noGraph = new ToolContext("alpha-web", false, (a, b, c, d) -> new ArrayList<>(), null, 16000, "test");
-        assertEquals(List.of("search"), ToolProvider.scopedTools(false, noGraph));
+        assertEquals(List.of("search", "provider_search"), ToolProvider.scopedTools(false, noGraph));
         assertTrue(ToolProvider.executeTool("kg_search", "{\"query\":\"SAP\"}", false, noGraph).contains("not released"));
 
         // invalid arguments are refused, not passed on
@@ -539,7 +539,28 @@ public class ChatToolsTest {
         assertTrue(JobSearch.released(false, chat("alpha-web")));
         assertFalse(JobSearch.released(false, null));
         assertFalse(JobSearch.released(false, new ToolContext("alpha-web", false, (a, b, c, d) -> new ArrayList<>(), null, 16000, "test")));
-        ToolTestSettings.use((key, dflt) -> key.equals("ai.tools.kg_search.enabled") ? "false" : key.endsWith(".enabled") ? "true" : dflt);
+        // job_search follows kg_search while not set on its own; its own setting wins
+        ToolTestSettings.use((key, dflt) -> key.equals("ai.tools.kg_search.enabled") ? "false" : key.equals("ai.tools.job_search.enabled") ? dflt
+                : key.endsWith(".enabled") ? "true" : dflt);
         assertFalse(JobSearch.released(false, chat("alpha-web")));
+        ToolTestSettings.use((key, dflt) -> key.equals("ai.tools.job_search.enabled") ? dflt : key.endsWith(".enabled") ? "true" : dflt);
+        assertTrue(JobSearch.released(false, chat("alpha-web")));
+        ToolTestSettings.use((key, dflt) -> key.equals("ai.tools.job_search.enabled") ? "false" : key.endsWith(".enabled") ? "true" : dflt);
+        assertFalse(JobSearch.released(false, chat("alpha-web")));
+    }
+
+    @Test
+    public void theNamedJobSearchToolGivesThePostingsAsNumberedSources() throws Exception {
+        final ToolContext chat = chat("alpha-web");
+        final JSONObject r = call(chat, "job_search", "{\"query\":\"SAP KI Automatisierung\",\"collection\":\"beta-web\"}");
+        assertEquals("collection alpha-web", r.getString("scope"));
+        assertEquals("[\"SAP\",\"KI\",\"Automatisierung\"]", r.getJSONArray("subjects").toString());
+        final JSONArray postings = r.getJSONArray("postings");
+        assertTrue(r.toString(), postings.length() >= 2);
+        assertEquals("https://www.tapir-consulting.example/karriere/ki-entwickler-sap", postings.getJSONObject(0).getString("url"));
+        assertTrue(postings.getJSONObject(1).getString("text").contains("PARTIAL MATCH"));
+        assertFalse(r.toString(), r.toString().contains("okapi") || r.toString().contains("BETAGEHEIM"));
+        assertEquals(RagContext.Source.KIND_GRAPH, source(chat, postings.getJSONObject(0).getString("cite")).kind);
+        assertEquals("invalid_arguments", call(chat, "job_search", "{}").getString("error"));
     }
 }

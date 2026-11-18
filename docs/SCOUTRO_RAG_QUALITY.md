@@ -295,8 +295,10 @@ therefore searches the knowledge graph's postings itself, before the model is ca
 - **When:** the question (or its goal, below) asks for jobs (Stelle, Stellenanzeige, Job, Karriere, Ausschreibung,
   "(m/w/d)", vacancy, career …) **and** the automatic search answers it weakly: stage `any`, `none` or `no-terms`, no hit,
   or no hit is a job page by its title or address (a company's home page matching the subjects is no posting).
-- **Only with the existing release** of `kg_search` and within the scope of the request (`ToolContext`: the session's
-  collection, read with its viewer). An AI Shield guest gets none; without the release nothing runs.
+- **Only with the release of the tool `job_search`** ("Job search" on the Tools page), which follows `kg_search` while it
+  is not set on its own (saving the Tools page gives it its own setting), and within the scope of the request
+  (`ToolContext`: the session's collection, read with its viewer). An AI Shield guest gets none; without the release
+  nothing runs. The model can also call `job_search(query)` itself (2 calls per answer).
 - **Few short title variants**, at most 6 name searches of `type=job`: the subjects SAP, KI and Automatisierung first
   together, then each on its own, the question's own compounds ("Prozessautomatisierung": a name search matches only the
   start of a word), then "Intelligenz", "AI", "Automation"; a role of the question ("SAP Berater") before the subject
@@ -319,6 +321,34 @@ therefore searches the knowledge graph's postings itself, before the model is ca
 
 Tests: `ChatToolsTest` and `RagFollowUpTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-jobsearch-live-smoke.py`
 (a disposable peer, the normal endpoint, a simulated model that never calls a tool).
+
+## 13. Provider search before the answer
+
+A question for the provider of a service names the problem, rarely the service ("Wer prüft in Hürth, ob eine Wand tragend
+ist?"); its automatic search may find a page that only shares words (a house gallery in Hürth). The server therefore
+searches again itself, before the model is called (`ServiceSearch`, tool `provider_search`, "Provider search"):
+
+- **When:** the question asks for a provider of a service: a problem word of a small table ("tragend", "Statik",
+  "Wanddurchbruch" → Tragwerksplanung, Statiker, Statik; mould, damp, energy certificate, asbestos, building surveyor),
+  or a provider question in words ("Wer baut …", "Anbieter", "Fachbetrieb", "Handwerker" …) with its own nouns as the
+  service; **and** the automatic search matched weakly or no hit names the service. A job question takes the job search
+  of section 12 (`type=job` stays the filter for postings) and never this one.
+- **The place:** the town after "in", "bei", "aus", "um", "nahe" (also "Bad …", "… am Main"), or a postal code.
+- **The search:** at most 4 local searches within the scope of the request ("Tragwerksplanung Hürth", "Statiker Hürth",
+  "Statik Hürth", then the service alone for a provider whose page does not name the town), with the release of
+  `provider_search` (it follows `search` while not set on its own); hits of other collections dropped, never the
+  network. Only pages that name a service are kept, at most 4, those naming the place first.
+- **To the answer:** the pages are the first numbered sources, as search results with their original pages; the graph
+  facts of the automatic step are collected for them too (a provider's recorded offers). The server rules name the
+  searches and which numbers name the place; with none found, that no provider was found.
+- **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
+- **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, placeNamedBy,
+  timedOut, millis}`. Log: `event=rag-servicesearch`. The model can call `provider_search(query)` itself (2 calls per
+  answer); it also takes the model's own words ("Tragwerksplanung Hürth").
+
+Tests: `ServiceSearchTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-servicesearch-live-smoke.py` (a house
+gallery, an office in Hürth, one in Köln, one of another collection; a model that never calls a tool).
+
 
 Real-model check against an OpenAI-compatible endpoint (read-only, disposable DATA):
 

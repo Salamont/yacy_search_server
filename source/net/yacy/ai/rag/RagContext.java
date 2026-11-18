@@ -221,7 +221,7 @@ public final class RagContext {
      * The most relevant text of a document within maxChars: the description, then the sentences with
      * the most question terms, in document order; gaps are marked with an ellipsis.
      */
-    static String excerpt(final RagCandidate candidate, final RagQuery query, final int maxChars) {
+    public static String excerpt(final RagCandidate candidate, final RagQuery query, final int maxChars) {
         final String body = candidate.text.replaceAll("\\s+", " ").trim();
         final String description = candidate.description.replaceAll("\\s+", " ").trim();
         final List<String> sentences = new ArrayList<>();

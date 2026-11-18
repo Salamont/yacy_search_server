@@ -266,6 +266,20 @@ public final class ToolContext {
     }
 
     /**
+     * The local search within the chat's scope as the retrieval of the answer does it, for a search of the server
+     * ({@link ServiceSearch}): pages of other collections dropped, never the network. Not counted as a tool call.
+     */
+    public RagRetriever.Result retrieve(final RagQuery query, final int max) {
+        final RagRetriever retriever = new RagRetriever((concepts, q, c, n, global) -> this.searcher == null ? new ArrayList<>()
+                : this.searcher.search(concepts, q, c, n));
+        final RagRetriever.Result result = retriever.retrieve(query, this.collection, false, max);
+        final List<RagRetriever.Scored> own = new ArrayList<>();
+        for (final RagRetriever.Scored s : result.selected) if (s.candidate.inCollection(this.collection)) own.add(s);
+        return own.size() == result.selected.size() ? result : new RagRetriever.Result(result.query, result.searchQuery, result.collection,
+                false, result.stage, result.candidates, result.foreignDropped, own);
+    }
+
+    /**
      * The local search within the chat's scope, as the retrieval of the answer does it: prepared terms, the stages of
      * {@link RagRetriever}, hits of other collections dropped. A {@code collection:} word of the query has no effect.
      */

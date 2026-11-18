@@ -278,7 +278,7 @@ public final class JobSearch {
         public final String error;
         public final long millis;
 
-        Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis) {
+        public Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis) {
             this.plan = plan;
             this.jobs = Collections.unmodifiableList(jobs);
             this.searched = Collections.unmodifiableList(searched);
@@ -288,9 +288,12 @@ public final class JobSearch {
         }
     }
 
-    /** Whether the search may run for this request: the release of kg_search within the request's scope. */
+    /**
+     * Whether the search may run for this request: the release of the tool {@code job_search} (which follows
+     * {@code kg_search} while not set on its own) within the request's scope.
+     */
     public static boolean released(final boolean indexTools, final ToolContext context) {
-        return context != null && context.graph && net.yacy.ai.ToolProvider.allowedCallsPerTurn("kg_search", indexTools, context) > 0;
+        return context != null && context.graph && net.yacy.ai.ToolProvider.allowedCallsPerTurn("job_search", indexTools, context) > 0;
     }
 
     public static Result run(final ToolContext context, final Plan plan) {

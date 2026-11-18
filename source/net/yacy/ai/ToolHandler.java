@@ -39,6 +39,11 @@ public interface ToolHandler {
         return false;
     }
 
+    /** For a scoped tool: whether it needs the knowledge graph (a scope that admits the graph). */
+    default boolean requiresGraph() {
+        return true;
+    }
+
     /**
      * Runs the tool within the scope of a chat request. The scope comes from the chat session, never from
      * {@code arguments}. A tool that knows no scope runs as without one.

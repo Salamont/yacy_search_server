@@ -121,6 +121,14 @@ posting that shows only some of your subjects is marked as a partial match.
 Whether a posting is still open is not checked. A follow-up such as "Such noch
 mal" searches again with the subject of your earlier question.
 
+Provider questions: when you ask who offers a service ("Wer prüft in Hürth,
+ob eine Wand tragend ist?") and the index search finds only pages that share
+some words, Scoutro derives the service and the place and searches again
+("Tragwerksplanung Hürth", "Statiker Hürth"), in the same collections. Pages
+that name the service come first as sources; the answer says which of them
+name your town. Both searches are tools of their own on the Tools page: "Job
+search" (`job_search`) and "Provider search" (`provider_search`).
+
 A cited number whose source text does not contain the statement in front of
 it is shown dotted, with the note "The text of the cited source does not
 contain the statement in front of it". This check compares words; it is a hint
