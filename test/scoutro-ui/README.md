@@ -290,9 +290,9 @@ writes what the model received.
 (`search`, `kg_search`, `kg_entity`, `kg_evidence`) through the normal chat
 endpoint of a disposable peer with a simulated model: a local stub that
 scripts the tool calls from the tool results it gets; no language model is
-called. Invented pages of two collections; a question about SAP/AI job
+called. Invented pages of two collections; a question about Java/ML job
 postings (search again, the graph, its evidence, the cited sources and the
-support check of the scripted answer), the SAP use of a company, an account
+support check of the scripted answer), the systems a company uses, an account
 of one collection whose model asks for a page, an entity and the evidence of
 the other one, and the limits per answer. `SCOUTRO_TOOLS_DUMP=FILE` writes
 what the stub received (docs/SCOUTRO_RAG_QUALITY.md, section 11).

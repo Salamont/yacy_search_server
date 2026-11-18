@@ -29,8 +29,8 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * <ul>
  * <li>Only with the existing release of {@code kg_search} and within the scope of the chat request ({@link ToolContext}:
  * the session's collection, read with its viewer). Nothing outside it is read.</li>
- * <li>A few short title variants: the subjects SAP, KI and Automatisierung each searched on its own (with "Künstliche
- * Intelligenz", "AI" and "Automation"), first together when the question names several; any other subject by its words.
+ * <li>A few short title variants: each subject of the question searched on its own (a configured subject group of
+ * {@link #SUBJECTS_KEY} also by its synonyms), first together when the question names several.
  * At most {@link #MAX_VARIANTS} name searches, {@link #MAX_JOBS} postings, {@link #MAX_MILLIS} ms.</li>
  * <li>Each posting goes to the answer as a numbered source with the page it was read from, its employer and dates, the
  * subjects of the question it shows and, as a PARTIAL MATCH, those it does not. Whether it is still open is not checked:
@@ -70,6 +70,10 @@ public final class JobSearch {
         final String label;
         final Predicate<String> shownBy;
         final List<Variant> variants;
+        /** where the question names it (folded question; for the order of the subjects) */
+        java.util.function.ToIntFunction<String> at = f -> Integer.MAX_VALUE;
+        /** a configured subject group: how a text names it */
+        Pattern pattern = null;
 
         Criterion(final String label, final Predicate<String> shownBy, final List<Variant> variants) {
             this.label = label;
@@ -102,34 +106,64 @@ public final class JobSearch {
         }
     }
 
-    private static Predicate<String> pattern(final String regex) {
-        final Pattern p = Pattern.compile(regex);
-        return folded -> p.matcher(folded).find();
-    }
-
     private static final String START = "(?<![\\p{L}\\p{N}])";
     private static final String END = "(?![\\p{L}\\p{N}])";
 
-    /** SAP, KI and Automatisierung: subjects of their own, searched separately; a question may name them in many ways. */
-    private static List<Criterion> concepts() {
+    /** Setting: subject groups searched each on its own, "Label: synonym, synonym; Label: synonym" (empty: none). */
+    public static final String SUBJECTS_KEY = "scoutro.chat.jobs.subjects";
+
+    /**
+     * A term as a pattern on folded text: a short term (up to three letters) only as a whole word, one of up to five at the
+     * start of a word, a longer one also within a compound ("Robotik" in "Prozessrobotik").
+     */
+    private static String termPattern(final String term) {
+        final String folded = RagQuery.fold(term).trim();
+        if (folded.isEmpty()) return null;
+        final String quoted = Pattern.quote(folded).replace(" ", "\\E\\s+\\Q");
+        return folded.length() <= 3 ? START + quoted + END : folded.length() <= 5 ? START + quoted : quoted;
+    }
+
+    /**
+     * The configured subject groups ({@link #SUBJECTS_KEY}): each a subject of its own with its synonyms, shown by any of
+     * them and searched by each; a short name (up to three letters) only as a whole word.
+     */
+    static List<Criterion> groups(final String setting) {
         final List<Criterion> out = new ArrayList<>();
-        final List<Variant> sap = new ArrayList<>();
-        final Criterion c1 = new Criterion("SAP", pattern(START + "sap" + END), sap);
-        sap.add(new Variant("SAP", true, c1));
-        out.add(c1);
-        final List<Variant> ki = new ArrayList<>();
-        final Criterion c2 = new Criterion("KI", pattern(START + "(?:ki|ai)" + END + "|kunstlich\\p{L}* intelligenz|artificial intelligence"
-                + "|machine learning|maschinell\\p{L}* lernen"), ki);
-        ki.add(new Variant("KI", true, c2));
-        ki.add(new Variant("Intelligenz", false, c2)); // "Künstliche Intelligenz", "Data Science & Künstliche Intelligenz"
-        ki.add(new Variant("AI", true, c2));
-        out.add(c2);
-        final List<Variant> auto = new ArrayList<>();
-        final Criterion c3 = new Criterion("Automatisierung", pattern("automatisier|automation|" + START + "rpa" + END), auto);
-        auto.add(new Variant("Automatisierung", false, c3));
-        auto.add(new Variant("Automation", false, c3));
-        out.add(c3);
+        if (setting == null) return out;
+        for (final String group : setting.split(";")) {
+            final int colon = group.indexOf(':');
+            final String label = (colon < 0 ? group : group.substring(0, colon)).trim();
+            if (label.isEmpty() || out.size() >= 12) continue;
+            final List<String> terms = new ArrayList<>();
+            terms.add(label);
+            if (colon >= 0) {
+                for (final String t : group.substring(colon + 1).split(",")) {
+                    final String term = t.trim();
+                    if (!term.isEmpty() && terms.size() < 6) terms.add(term);
+                }
+            }
+            final StringBuilder regex = new StringBuilder();
+            for (final String t : terms) {
+                final String one = termPattern(t);
+                if (one != null) regex.append(regex.length() == 0 ? "" : "|").append(one);
+            }
+            if (regex.length() == 0) continue;
+            final List<Variant> variants = new ArrayList<>();
+            final Pattern shown = Pattern.compile(regex.toString());
+            final Criterion c = new Criterion(label, f -> shown.matcher(f).find(), variants);
+            c.pattern = shown;
+            c.at = f -> {
+                final java.util.regex.Matcher m = shown.matcher(f);
+                return m.find() ? m.start() : Integer.MAX_VALUE;
+            };
+            for (final String t : terms) variants.add(new Variant(t, RagQuery.fold(t).trim().length() <= 3, c));
+            out.add(c);
+        }
         return out;
+    }
+
+    private static List<Criterion> groups() {
+        return groups(net.yacy.ai.ToolProvider.setting(SUBJECTS_KEY, ""));
     }
 
     /** Whether a question asks for job postings. */
@@ -188,7 +222,47 @@ public final class JobSearch {
     public static Plan plan(final String goal) {
         final String folded = RagQuery.fold(goal == null ? "" : goal);
         final List<Criterion> criteria = new ArrayList<>();
-        for (final Criterion c : concepts()) if (c.shownBy.test(folded)) criteria.add(c);
+        String rest = folded; // the question without the words of its subject groups
+        for (final Criterion c : groups()) {
+            if (!c.shownBy.test(folded)) continue;
+            criteria.add(c);
+            rest = c.pattern.matcher(rest).replaceAll(" ");
+        }
+        // any other subject: its strongest words (no words about jobs, sources or the search itself), at most 3
+        int topics = 0;
+        // without words about jobs or the answer first: a long question keeps only its strongest words (RagQuery.MAX_TERMS)
+        final StringBuilder own = new StringBuilder();
+        for (final String w : (goal == null ? "" : goal).split("\\s+")) {
+            final String f = RagQuery.fold(w.replaceAll("[^\\p{L}\\p{N}]+", ""));
+            if (f.isEmpty() || intentWord(f) || RagFollowUp.noTopic(f)) continue;
+            own.append(own.length() == 0 ? "" : " ").append(w);
+        }
+        for (final RagQuery.Term t : RagFollowUp.topics(own.toString())) {
+            if (topics >= 3) break;
+            if (t.phrase || t.weak) continue;
+            final String folded1 = RagQuery.fold(t.text);
+            if (intentWord(folded1) || ROLES.contains(folded1)) continue; // a word about jobs, or a role (searched with a subject)
+            if (!java.util.regex.Pattern.compile(START + Pattern.quote(folded1) + END).matcher(rest).find()) continue; // a word of a group
+            final RagQuery.Term term = t;
+            final List<Variant> mine = new ArrayList<>();
+            final String word = RagQuery.fold(t.text);
+            String label = t.text; // as the question writes it
+            for (final String w : (goal == null ? "" : goal).split("[^\\p{L}\\p{N}]+")) {
+                if (RagQuery.fold(w).equals(word)) {
+                    label = w;
+                    break;
+                }
+            }
+            final Criterion c = new Criterion(label, f -> RagCandidate.matches(term, f), mine);
+            c.at = f -> {
+                final int i = f.indexOf(word);
+                return i < 0 ? Integer.MAX_VALUE : i;
+            };
+            mine.add(new Variant(label, word.length() <= 3, c));
+            criteria.add(c);
+            topics++;
+        }
+        criteria.sort(java.util.Comparator.comparingInt(c -> c.at.applyAsInt(folded))); // in the order of the question
         String role = null;
         for (final String word : folded.split("[^\\p{L}]+")) {
             if (ROLES.contains(word)) {
@@ -197,39 +271,25 @@ public final class JobSearch {
             }
         }
         final Set<Variant> variants = new LinkedHashSet<>();
-        if (!criteria.isEmpty()) {
-            if (criteria.size() > 1) {
-                final StringBuilder all = new StringBuilder();
-                for (final Criterion c : criteria) all.append(all.length() == 0 ? "" : " ").append(c.variants.get(0).text);
-                variants.add(new Variant(all.toString(), true, null));
-            }
-            if (role != null) variants.add(new Variant(criteria.get(0).variants.get(0).text + " " + role, false, criteria.get(0)));
-            for (final Criterion c : criteria) variants.add(c.variants.get(0));
-            // the question's own compounds of a subject ("Prozessautomatisierung"): a name search matches only the start of a word
-            for (final String word : (goal == null ? "" : goal).split("[^\\p{L}\\p{N}]+")) {
-                if (word.length() < 6) continue;
-                for (final Criterion c : criteria) {
-                    if (c.shownBy.test(RagQuery.fold(word))) variants.add(new Variant(word, false, c));
-                }
-            }
-            for (final Criterion c : criteria) for (final Variant v : c.variants) variants.add(v);
-        } else {
-            // any other subject: its strongest words (no words about jobs, sources or the search itself)
-            for (final RagQuery.Term t : RagFollowUp.topics(goal)) {
-                if (criteria.size() >= 3) break;
-                if (t.phrase || t.weak) continue;
-                final RagQuery.Term term = t;
-                final List<Variant> own = new ArrayList<>();
-                final Criterion c = new Criterion(t.text, f -> RagCandidate.matches(term, f), own);
-                own.add(new Variant(t.text, false, null));
-                criteria.add(c);
-                variants.add(own.get(0));
-            }
-            final String ownRole = role;
-            if (ownRole != null && criteria.stream().noneMatch(c -> c.label.equals(ownRole))) {
-                variants.add(new Variant(ownRole, false, null));
+        if (criteria.size() > 1) {
+            final StringBuilder all = new StringBuilder();
+            for (final Criterion c : criteria) all.append(all.length() == 0 ? "" : " ").append(c.variants.get(0).text);
+            variants.add(new Variant(all.toString(), true, null));
+        }
+        final String ownRole = role;
+        if (ownRole != null && !criteria.isEmpty() && criteria.stream().noneMatch(c -> c.shownBy.test(ownRole))) {
+            variants.add(new Variant(criteria.get(0).variants.get(0).text + " " + ownRole, false, criteria.get(0)));
+        }
+        for (final Criterion c : criteria) variants.add(c.variants.get(0));
+        // the question's own compounds of a subject ("Prozessrobotik"): a name search matches only the start of a word
+        for (final String word : (goal == null ? "" : goal).split("[^\\p{L}\\p{N}]+")) {
+            if (word.length() < 6) continue;
+            for (final Criterion c : criteria) {
+                if (!c.label.equalsIgnoreCase(word) && c.shownBy.test(RagQuery.fold(word))) variants.add(new Variant(word, false, c));
             }
         }
+        for (final Criterion c : criteria) for (final Variant v : c.variants) variants.add(v);
+        if (ownRole != null && criteria.isEmpty()) variants.add(new Variant(ownRole, false, null));
         final List<Variant> list = new ArrayList<>(variants);
         return new Plan(criteria, list.subList(0, Math.min(MAX_VARIANTS, list.size())));
     }

@@ -35,7 +35,7 @@ try {
       }
     });
     check((await page.goto(base + '/yacychat.html', { waitUntil: 'networkidle' })).status() === 200, 'chat page' + where);
-    await page.locator('#userInput').fill('Welche Stellenanzeigen gibt es zu SAP und künstlicher Intelligenz bei Beratungsunternehmen mit Prozessautomatisierung?');
+    await page.locator('#userInput').fill('Welche Stellenanzeigen gibt es zu Java und Machine Learning bei Beratungsunternehmen mit Prozessrobotik?');
     const reply = page.waitForResponse(r => r.url() === base + '/v1/chat/completions' && r.status() === 200);
     await page.locator('#sendButton').click();
     await reply;

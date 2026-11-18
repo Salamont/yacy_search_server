@@ -3,17 +3,17 @@
 
 No language model is involved. The stub plays a model that never calls a tool, although the tools are offered: it names
 the first source whose text names the service and the town, or says that no provider was found. What is tested is the
-server (docs/SCOUTRO_RAG_QUALITY.md, section 13): for a question for a provider ("Wer prüft in Hürth, ob eine Wand
+server (docs/SCOUTRO_RAG_QUALITY.md, section 13): for a question for a provider ("Wer prüft in Musterstadt, ob eine Wand
 tragend ist?") whose automatic search finds only a house gallery, it derives the service and the place and searches the
-local index again ("Tragwerksplanung Hürth", "Statiker Hürth", ...) with the release of the search tool and the
+local index again ("Tragwerksplanung Musterstadt", "Statiker Musterstadt", ...) with the release of the search tool and the
 collection of the request, and gives the provider's page to the answer as the first numbered source.
 
 Invented pages (hosts that do not exist), pushed through YaCy's parser and index; the knowledge graph reads them:
-bauteamcheck-web: a house gallery with the words of the question, an engineering office in Hürth, one in Köln;
-other-web: an engineering office in Hürth that a chat of bauteamcheck-web must never see. Through /v1/chat/completions:
+bau-web: a house gallery with the words of the question, an engineering office in Musterstadt, one in Nebenstadt;
+other-web: an engineering office in Musterstadt that a chat of bau-web must never see. Through /v1/chat/completions:
 
-1. an account of bauteamcheck-web asks the question: the automatic search finds the gallery only; the service search
-   finds the office in Hürth first, the one in Köln after it (not naming Hürth); the model cites the office's page;
+1. an account of bau-web asks the question: the automatic search finds the gallery only; the service search
+   finds the office in Musterstadt first, the one in Nebenstadt after it (not naming Musterstadt); the model cites the office's page;
 2. the follow-up "Such noch mal" in the same chat searches with the goal of the conversation;
 3. a question for a service no page offers: the answer says that no provider was found;
 4. the collection boundary: nothing of other-web for the account, the administrator's whole index finds it (control);
@@ -42,8 +42,8 @@ smoke, check, Client = tools.smoke, tools.check, tools.Client
 
 GALLERY, OSTERMANN, RHEINBLICK, FOREIGN = ("www.hausgalerie-scoutro-test.de", "www.ostermann-statik-scoutro-test.de",
                                            "www.rheinblick-statik-scoutro-test.de", "www.fremd-statik-scoutro-test.de")
-BAU = "bauteamcheck-web"
-QUESTION = "Wer prüft in Hürth, ob eine Wand tragend ist?"
+BAU = "bau-web"
+QUESTION = "Wer prüft in Musterstadt, ob eine Wand tragend ist?"
 FOREIGN_MARKERS = ("FREMDMARKE", "fremd-statik")
 ENTRY = re.compile(r"^\[(\d+)\] (.+)\nURL: (\S+)(?:\nCollection: \S+)?\nText: (.*)$", re.M)
 
@@ -56,26 +56,26 @@ def page(title, organisation, host, text, town):
 
 
 PAGES = [
-    (f"https://{GALLERY}/galerie/huerth", BAU, page("Hausgalerie: Einfamilienhaus in Hürth", "Hausgalerie Rhein-Erft", GALLERY,
-     "Unsere Hausgalerie zeigt Einfamilienhäuser in Hürth. Jede Wand aus Ziegel, offene Grundrisse, große Fenster.", "Hürth")),
-    (f"https://{OSTERMANN}/", BAU, page("Ingenieurbüro Ostermann – Tragwerksplanung in Hürth", "Ingenieurbüro Ostermann", OSTERMANN,
-     "Ingenieurbüro Ostermann: Tragwerksplanung und Statik für Neubau, Umbau und Sanierung in Hürth. Als Statiker prüfen wir "
-     "die Standsicherheit von Bauteilen.", "Hürth")),
+    (f"https://{GALLERY}/galerie/musterstadt", BAU, page("Hausgalerie: Einfamilienhaus in Musterstadt", "Hausgalerie Rhein-Erft", GALLERY,
+     "Unsere Hausgalerie zeigt Einfamilienhäuser in Musterstadt. Jede Wand aus Ziegel, offene Grundrisse, große Fenster.", "Musterstadt")),
+    (f"https://{OSTERMANN}/", BAU, page("Ingenieurbüro Ostermann – Tragwerksplanung in Musterstadt", "Ingenieurbüro Ostermann", OSTERMANN,
+     "Ingenieurbüro Ostermann: Tragwerksplanung und Statik für Neubau, Umbau und Sanierung in Musterstadt. Als Statiker prüfen wir "
+     "die Standsicherheit von Bauteilen.", "Musterstadt")),
     (f"https://{RHEINBLICK}/", BAU, page("Statikbüro Rheinblick", "Statikbüro Rheinblick", RHEINBLICK,
-     "Statikbüro Rheinblick: Tragwerksplanung für Wohnhäuser in Köln.", "Köln")),
-    (f"https://{FOREIGN}/", "other-web", page("Statik Hürth GmbH", "Statik Hürth GmbH", FOREIGN,
-     "Tragwerksplanung und Statik in Hürth. FREMDMARKE", "Hürth")),
+     "Statikbüro Rheinblick: Tragwerksplanung für Wohnhäuser in Nebenstadt.", "Nebenstadt")),
+    (f"https://{FOREIGN}/", "other-web", page("Statik Musterstadt GmbH", "Statik Musterstadt GmbH", FOREIGN,
+     "Tragwerksplanung und Statik in Musterstadt. FREMDMARKE", "Musterstadt")),
 ]
 
 
 def no_tools_model(body):
-    """A model that never calls a tool: the first source naming the service and Hürth, or none."""
+    """A model that never calls a tool: the first source naming the service and Musterstadt, or none."""
     user = next((tools.content_text(m) for m in reversed(body["messages"]) if m.get("role") == "user"), "")
     if "found no page that names it" in tools.content_text(body["messages"][0]):  # the server's rule: no provider of this service
         return "answer", "In den Quellen ist kein passender Anbieter belegt."
     for number, title, url, text in ENTRY.findall(user):
-        if re.search(r"tragwerksplanung|statik", text, re.I) and "Hürth" in text:
-            return "answer", f"{title.split(' – ')[0]} bietet Tragwerksplanung und Statik in Hürth an [{number}]."
+        if re.search(r"tragwerksplanung|statik", text, re.I) and "Musterstadt" in text:
+            return "answer", f"{title.split(' – ')[0]} bietet Tragwerksplanung und Statik in Musterstadt an [{number}]."
     return "answer", "In den Quellen ist kein passender Anbieter belegt."
 
 
@@ -104,7 +104,7 @@ def run(base, digest):
     admin.login("admin", "yacy")
     status, body, _ = admin.call("POST", "/scoutro/api/v1/users", {"username": "bert", "role": "research", "collections": [BAU],
                                                                   "password": "bert-password-1", "mustChangePassword": False})
-    check(status == 201, "create the account of bauteamcheck-web", str(body)[:200])
+    check(status == 201, "create the account of bau-web", str(body)[:200])
     bert = Client(base)
     bert.login("bert", "bert-password-1")
     office = f"https://{OSTERMANN}/"
@@ -121,13 +121,13 @@ def run(base, digest):
     check(gallery and retrieval.get("collection") == BAU and retrieval.get("followUp") is False,
           "service: the automatic search found the house gallery", json.dumps(retrieval))
     check(sv.get("triggered") and sv.get("scope") == f"collection {BAU}" and sv.get("services") == ["Tragwerksplanung", "Statiker", "Statik"]
-          and sv.get("place") == "Hürth" and sv.get("searched", [None])[0] == "Tragwerksplanung Hürth" and len(sv.get("searched", [])) <= 4,
+          and sv.get("place") == "Musterstadt" and sv.get("searched", [None])[0] == "Tragwerksplanung Musterstadt" and len(sv.get("searched", [])) <= 4,
           "service: service and place derived, a few targeted searches", json.dumps(sv))
-    check(sv.get("found") == 2 and sv.get("placeNamedBy") == [1], "service: two offices found, only the first names Hürth", json.dumps(sv))
+    check(sv.get("found") == 2 and sv.get("placeNamedBy") == [1], "service: two offices found, only the first names Musterstadt", json.dumps(sv))
     check(listed.get(1, {}).get("url") == office and listed.get(2, {}).get("url") == f"https://{RHEINBLICK}/"
           and 0 <= prompt.find("[1] Ingenieurbüro Ostermann") < prompt.find("Hausgalerie: Einfamilienhaus"),
           "service: the office's page is source [1], before the gallery", json.dumps(listed.get(1)))
-    check("Providers: the automatic search of this question matched weakly" in system and "Only [1] name Hürth" in system,
+    check("Providers: the automatic search of this question matched weakly" in system and "Only [1] name Musterstadt" in system,
           "service: the server rules name the search and which page names the place")
     citations = answer["meta"].get("scoutro-citations", {})
     check("[1]" in answer["text"] and citations.get("invalid") == [] and next((s for s in citations.get("support", []) if s.get("id") == 1), {})
@@ -140,11 +140,11 @@ def run(base, digest):
     status, answer, requests = tools.chat(bert, "Such noch mal", no_tools_model, messages=history)
     sv = services(answer) or {}
     check(status == 200 and answer["meta"].get("scoutro-retrieval", {}).get("followUp") is True and sv.get("followUp") is True
-          and sv.get("place") == "Hürth" and sources(answer).get(1, {}).get("url") == office and "[1]" in answer["text"],
+          and sv.get("place") == "Musterstadt" and sources(answer).get(1, {}).get("url") == office and "[1]" in answer["text"],
           "follow-up: the same service, place and office", json.dumps(sv))
 
     # 3. a service no page offers
-    status, answer, requests = tools.chat(bert, "Wer prüft in Hürth den Schornstein?", no_tools_model)
+    status, answer, requests = tools.chat(bert, "Wer prüft in Musterstadt den Schornstein?", no_tools_model)
     sv = services(answer) or {}
     system = tools.content_text(requests[0]["body"]["messages"][0]) if requests else ""
     check(status == 200 and sv.get("triggered") and sv.get("found") == 0 and "found no page that names it" in system
@@ -163,7 +163,7 @@ def run(base, digest):
     # 5. no service search where none belongs
     status, answer, requests = tools.chat(bert, "Was kostet ein Fertighaus?", no_tools_model)
     check(status == 200 and services(answer) is None, "not a question for a provider: no service search")
-    status, answer, requests = tools.chat(bert, "Welche Stellenanzeigen für Statiker gibt es in Hürth?", no_tools_model)
+    status, answer, requests = tools.chat(bert, "Welche Stellenanzeigen für Statiker gibt es in Musterstadt?", no_tools_model)
     check(status == 200 and services(answer) is None and (answer["meta"].get("scoutro-jobsearch") or {}).get("triggered"),
           "a job question keeps the job search (type=job), no service search", json.dumps(answer["meta"].get("scoutro-jobsearch")))
 

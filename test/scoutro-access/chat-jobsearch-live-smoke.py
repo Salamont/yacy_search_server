@@ -41,10 +41,11 @@ tools = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(tools)
 smoke, check, Client = tools.smoke, tools.check, tools.Client
 
-QUESTION = "Welche Stellenanzeigen gibt es zu SAP und KI bei Beratungsunternehmen mit Prozessautomatisierung?"
+QUESTION = "Welche Stellenanzeigen gibt es zu Java und ML bei Beratungsunternehmen mit Prozessrobotik?"
 LONG = ("Ich suche für eine Marktanalyse Stellenanzeigen von Beratungsunternehmen, die sich mit Geschäftsfeldentwicklung und "
-        "Prozessautomatisierung beschäftigen und dabei SAP sowie künstliche Intelligenz einsetzen. Bitte nenne die "
+        "Prozessrobotik beschäftigen und dabei Java sowie maschinelles Lernen einsetzen. Bitte nenne die "
         "Stellenbezeichnungen, die Arbeitgeber und die Quelle mit Link.")
+SUBJECTS = "scoutro.chat.jobs.subjects=ML: Machine Learning, maschinelles Lernen; Robotik: Robotics"  # invented groups
 RETRY = "Such noch mal gezielt nach Stellenanzeigen und prüfe die Originalquellen"
 ENTRY = re.compile(r"^\[(\d+)\] Scoutro knowledge graph: job posting (.+)$", re.M)
 
@@ -88,8 +89,8 @@ def run(base, digest):
     check(status == 201, "create the account of alpha-web", str(body)[:200])
     rita = Client(base)
     rita.login("rita", "rita-password-1")
-    ki_url = f"https://{tools.TAPIR}/karriere/ki-entwickler-sap"
-    sap_url = f"https://{tools.TAPIR}/karriere/sap-senior-berater-finance"
+    ml_url = f"https://{tools.TAPIR}/karriere/ml-entwickler-java"
+    java_url = f"https://{tools.TAPIR}/karriere/java-senior-berater-finance"
 
     # 1. the job question: a weak company page, the job search, a model without tool calls
     status, answer, requests = tools.chat(rita, QUESTION, no_tools_model)
@@ -103,17 +104,17 @@ def run(base, digest):
     check(retrieval.get("stage") == "any" and retrieval.get("followUp") is False and company,
           "jobs: the automatic search found only the company page (weak)", json.dumps(retrieval))
     check(js.get("triggered") and js.get("scope") == "collection alpha-web" and js.get("found") == 2 and js.get("full") == 1
-          and js.get("partial") == 1 and js.get("criteria") == ["SAP", "KI", "Automatisierung"], "jobs: the server searched the postings", json.dumps(js))
-    check(js.get("searched", [None])[0] == "SAP KI Automatisierung" and "SAP" in js.get("searched", []) and "KI" in js.get("searched", [])
+          and js.get("partial") == 1 and js.get("criteria") == ["Java", "ML", "Robotik"], "jobs: the server searched the postings", json.dumps(js))
+    check(js.get("searched", [None])[0] == "Java ML Robotik" and "Java" in js.get("searched", []) and "ML" in js.get("searched", [])
           and len(js.get("searched", [])) <= 6, "jobs: a few short title variants, the subjects separately", str(js.get("searched")))
-    check(prompt.find("[1] Scoutro knowledge graph: job posting KI-Entwickler") >= 0 and f"URL: {ki_url}" in prompt
-          and 0 <= prompt.find("job posting KI-Entwickler") < prompt.find("[3] Tapir Consulting AG"),
+    check(prompt.find("[1] Scoutro knowledge graph: job posting ML-Entwickler") >= 0 and f"URL: {ml_url}" in prompt
+          and 0 <= prompt.find("job posting ML-Entwickler") < prompt.find("[3] Tapir Consulting AG"),
           "jobs: the postings are the first sources of the prompt, the company page after them")
-    check("PARTIAL MATCH: not shown for KI, Automatisierung" in prompt and "Application status: not checked" in prompt,
+    check("PARTIAL MATCH: not shown for ML, Robotik" in prompt and "Application status: not checked" in prompt,
           "jobs: the partial match is marked, the application status is a separate question")
     check("Job postings: the automatic search of this question matched weakly" in system and "separate question" in system,
           "jobs: the server rules tell the model how to use the postings")
-    check(listed.get(1, {}).get("url") == ki_url and listed.get(1, {}).get("kind") == "graph" and listed.get(2, {}).get("url") == sap_url,
+    check(listed.get(1, {}).get("url") == ml_url and listed.get(1, {}).get("kind") == "graph" and listed.get(2, {}).get("url") == java_url,
           "jobs: the client's sources [1] and [2] are the postings' original pages", json.dumps(listed.get(1)))
     citations = answer["meta"].get("scoutro-citations", {})
     check("[1]" in answer["text"] and citations.get("invalid") == [] and 1 in citations.get("valid", [])
@@ -124,7 +125,7 @@ def run(base, digest):
     status, answer, requests = tools.chat(rita, LONG, no_tools_model)
     js = jobsearch(answer) or {}
     check(status == 200 and answer["meta"].get("scoutro-retrieval", {}).get("stage") == "none" and js.get("found") == 2
-          and sources(answer).get(1, {}).get("url") == ki_url and "[1]" in answer["text"],
+          and sources(answer).get(1, {}).get("url") == ml_url and "[1]" in answer["text"],
           "jobs: the long question without any search hit gets the same postings", json.dumps(js))
 
     # 2. the follow-up in the same chat
@@ -133,9 +134,9 @@ def run(base, digest):
     js, retrieval = jobsearch(answer) or {}, answer["meta"].get("scoutro-retrieval", {})
     check(status == 200 and retrieval.get("followUp") is True and js.get("followUp") is True, "follow-up: the search takes the goal of the chat",
           json.dumps(retrieval) + json.dumps(js))
-    check(js.get("found") == 2 and js.get("criteria") == ["SAP", "KI", "Automatisierung"] and js.get("scope") == "collection alpha-web",
+    check(js.get("found") == 2 and js.get("criteria") == ["Java", "ML", "Robotik"] and js.get("scope") == "collection alpha-web",
           "follow-up: the same postings, the same scope", json.dumps(js))
-    check(sources(answer).get(1, {}).get("url") == ki_url and "[1]" in answer["text"], "follow-up: the answer cites the posting again", answer["text"])
+    check(sources(answer).get(1, {}).get("url") == ml_url and "[1]" in answer["text"], "follow-up: the answer cites the posting again", answer["text"])
 
     # 3. a real zero
     status, answer, requests = tools.chat(rita, "Gibt es Stellenanzeigen für Tiefseetaucher mit Unterwasserschweißen?", no_tools_model)
@@ -147,7 +148,7 @@ def run(base, digest):
           and "keine passende Stellenanzeige" in answer["text"], "zero: no posting in sources or answer", answer["text"])
 
     # 4. the collection boundary
-    question = "Gibt es eine Stelle als SAP Basis Administrator? Nenne Arbeitgeber und Quelle."
+    question = "Gibt es eine Stelle als Java Basis Administrator? Nenne Arbeitgeber und Quelle."
     status, answer, requests = tools.chat(rita, question, no_tools_model)
     js = jobsearch(answer) or {}
     sent = json.dumps([r["body"] for r in requests], ensure_ascii=False).replace(question, "")
@@ -156,7 +157,7 @@ def run(base, digest):
           and tools.none_of(answer["text"], tools.BETA_MARKERS), "boundary: nothing of beta-web reaches the model or the client")
     check(all(s.get("collection") in (None, "alpha-web") for s in answer["meta"].get("scoutro-sources", [])), "boundary: every source of alpha-web")
     status, answer, requests = tools.chat(digest, question, no_tools_model)
-    okapi = f"https://{tools.OKAPI}/jobs/sap-basis-administrator"
+    okapi = f"https://{tools.OKAPI}/jobs/java-basis-administrator"
     check(status == 200 and any(s.get("url") == okapi for s in answer["meta"].get("scoutro-sources", []))
           and (jobsearch(answer) or {}).get("scope") == "all collections of the local index", "boundary: the administrator's whole index finds it (control)",
           json.dumps(jobsearch(answer)))
@@ -164,13 +165,13 @@ def run(base, digest):
     check(status == 403 and not requests, "boundary: the other collection as request scope is refused before the model", str(status))
 
     # 5. no job search where none belongs
-    status, answer, requests = tools.chat(rita, "Wie ist das Wetter in Freiburg?", no_tools_model)
+    status, answer, requests = tools.chat(rita, "Wie ist das Wetter in Nordstadt?", no_tools_model)
     check(status == 200 and jobsearch(answer) is None, "not a job question: no job search", json.dumps(answer["meta"].get("scoutro-retrieval")))
-    status, answer, requests = tools.chat(rita, "Stellenangebot Tapir Consulting SAP", no_tools_model)
+    status, answer, requests = tools.chat(rita, "Stellenangebot Tapir Consulting Java", no_tools_model)
     stage = answer["meta"].get("scoutro-retrieval", {}).get("stage")
     js = jobsearch(answer) or {}
     check(status == 200 and stage == "majority" and js.get("found") == 2 and {sources(answer).get(1, {}).get("url"),
-          sources(answer).get(2, {}).get("url")} == {ki_url, sap_url}, "a majority match on a company page only: the job search runs",
+          sources(answer).get(2, {}).get("url")} == {ml_url, java_url}, "a majority match on a company page only: the job search runs",
           f"{stage} {json.dumps(js)}")
 
 
@@ -186,7 +187,7 @@ def main():
     process = None
     try:
         process, base = smoke.start_peer(root, port, extra=[
-            "scoutro.access.protected=true", "ai.production_models=" + json.dumps(models, separators=(",", ":")),
+            "scoutro.access.protected=true", SUBJECTS, "ai.production_models=" + json.dumps(models, separators=(",", ":")),
             *[f"ai.tools.{tool}.enabled=true" for tool in tools.TOOLS],
             "scoutro.kg.enabled=true", "scoutro.kg.collections=alpha-web,beta-web", "scoutro.kg.jsonld.enabled=true",
             "scoutro.kg.jobs.collections=alpha-web,beta-web", "scoutro.kg.jobs.display.collections=alpha-web,beta-web"])

@@ -89,6 +89,11 @@ public final class ToolProvider {
         settings = source;
     }
 
+    /** A setting of the chat tools (the Switchboard's configuration, or the test source). */
+    public static String setting(final String key, final String defaultValue) {
+        return config(key, defaultValue);
+    }
+
     private static String config(final String key, final String defaultValue) {
         final Settings source = settings;
         if (source != null) return source.get(key, defaultValue);

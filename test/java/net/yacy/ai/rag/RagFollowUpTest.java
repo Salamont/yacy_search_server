@@ -12,7 +12,7 @@ import org.junit.Test;
 /** The search goal of a follow-up message (docs/SCOUTRO_RAG_QUALITY.md, section 12). */
 public class RagFollowUpTest {
 
-    static final String FIRST = "Welche Stellenanzeigen gibt es zu SAP und KI?";
+    static final String FIRST = "Welche Stellenanzeigen gibt es zu Java und ML?";
 
     private static JSONArray chat(final Object... userAndAssistant) throws Exception {
         final JSONArray messages = new JSONArray().put(new JSONObject().put("role", "system").put("content", "rules"));
@@ -36,12 +36,12 @@ public class RagFollowUpTest {
             assertTrue(retry, goal.followUp);
             assertTrue(retry, goal.text.startsWith(FIRST));
             assertTrue(retry, JobSearch.intent(goal.text));
-            assertEquals(retry, java.util.List.of("SAP", "KI"), JobSearch.plan(goal.text).criteria());
+            assertEquals(retry, java.util.List.of("Java", "ML"), JobSearch.plan(goal.text).criteria());
         }
         // a retry that adds a subject keeps the goal and adds it
-        final RagFollowUp.Goal more = goal(chat(FIRST, "…", "Such noch mal nach Automatisierung"));
+        final RagFollowUp.Goal more = goal(chat(FIRST, "…", "Such noch mal nach Robotik"));
         assertTrue(more.followUp);
-        assertEquals(java.util.List.of("SAP", "KI", "Automatisierung"), JobSearch.plan(more.text).criteria());
+        assertEquals(java.util.List.of("Java", "ML", "Robotik"), JobSearch.plan(more.text).criteria());
         // two retries in a row still reach the goal; the page's content array is read as text
         final JSONArray twice = chat(FIRST, "…", new JSONArray().put(new JSONObject().put("type", "text").put("text", "Such noch mal")), "…",
                 "nochmal suchen bitte");
@@ -50,7 +50,7 @@ public class RagFollowUpTest {
 
     @Test
     public void aNewQuestionIsItsOwnGoal() throws Exception {
-        for (final String own : new String[] {"Welche Pflegeheime gibt es in Köln?", "Was macht die Tapir Consulting AG?",
+        for (final String own : new String[] {"Welche Pflegeheime gibt es in Nebenstadt?", "Was macht die Tapir Consulting AG?",
                 "Noch eine Frage: wer betreibt das Haus Lindenhof?"}) {
             final RagFollowUp.Goal goal = goal(chat(FIRST, "…", own));
             assertFalse(own, goal.followUp);

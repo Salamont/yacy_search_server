@@ -18,8 +18,8 @@ import net.yacy.ai.rag.ToolContext;
  * <ul>
  * <li>{@code job_search} – the job postings of the knowledge graph ({@code type=job}) by a few short title variants,
  * with employer, dates, the subjects shown and partial matches ({@link JobSearch}).</li>
- * <li>{@code provider_search} – the local index again for a service and a place derived from a request ("Wer prüft in
- * Hürth, ob eine Wand tragend ist?" searches "Tragwerksplanung Hürth", "Statiker Hürth" ...; {@link ServiceSearch}).</li>
+ * <li>{@code provider_search} – the local index again for a service and a place derived from a request ("Wer hilft in
+ * Musterstadt bei Schimmel im Keller?" searches "Schimmelsanierung Musterstadt" ...; {@link ServiceSearch}).</li>
  * </ul>
  * The server runs the same searches itself before the answer when the automatic search answered a job or provider
  * question weakly, whether or not the model calls a tool. Their release follows {@code kg_search} and {@code search}
@@ -36,7 +36,7 @@ public final class SearchAssistTools {
 
     public static ToolHandler jobSearch() {
         return new Tool(JOB_SEARCH, true, "Search the job postings (job advertisements) of the Scoutro knowledge graph within this chat's"
-                + " collections. Give the subjects and job titles of the request, e.g. \"SAP KI Automatisierung\" or \"SAP Berater\";"
+                + " collections. Give the subjects and job titles of the request, e.g. \"Java Cloud\" or \"Java Entwickler\";"
                 + " the server searches short title variants itself (each subject also on its own). Returns postings with employer,"
                 + " dates, their original page as [n], and which subjects each shows (partial matches marked). It does not check"
                 + " whether a posting is still open.") {
@@ -76,8 +76,8 @@ public final class SearchAssistTools {
 
     public static ToolHandler providerSearch() {
         return new Tool(PROVIDER_SEARCH, false, "Search this chat's collections again for providers of a service in a place. Give the"
-                + " request in its words, e.g. \"Wer prüft in Hürth, ob eine Wand tragend ist?\" or \"Tragwerksplanung Hürth\"; the"
-                + " server derives the service (here Tragwerksplanung, Statiker, Statik) and the place and runs a few targeted searches."
+                + " request in its words, e.g. \"Wer hilft in Musterstadt bei Schimmel im Keller?\" or \"Schimmelsanierung Musterstadt\";"
+                + " the server derives the service (here Schimmelsanierung) and the place and runs a few targeted searches."
                 + " Returns only pages that name the service, as [n], and which of them name the place.") {
             @Override
             JSONObject run(final JSONObject args, final ToolContext context) throws Exception {

@@ -22,21 +22,21 @@ import net.yacy.ai.ToolTestSettings;
  */
 public class ServiceSearchTest {
 
-    static final String QUESTION = "Wer prüft in Hürth, ob eine Wand tragend ist?";
-    static final String BAU = "bauteamcheck-web";
+    static final String QUESTION = "Wer prüft in Musterstadt, ob eine Wand tragend ist?";
+    static final String BAU = "bau-web";
     final List<RagCandidate> pages = new ArrayList<>();
     final List<String> searched = new ArrayList<>();
 
     @Before
     public void pages() {
         ToolTestSettings.use((key, dflt) -> key.endsWith(".enabled") ? "true" : dflt);
-        page("https://www.hausgalerie.example/galerie/huerth", BAU, "Hausgalerie: Einfamilienhaus in Hürth",
-                "Unsere Hausgalerie zeigt Einfamilienhäuser in Hürth. Jede Wand aus Ziegel, offene Grundrisse, große Fenster.");
-        page("https://www.ostermann-statik.example/", BAU, "Ingenieurbüro Ostermann – Tragwerksplanung in Hürth",
-                "Ingenieurbüro Ostermann: Tragwerksplanung und Statik für Neubau, Umbau und Sanierung in Hürth. Als Statiker prüfen wir "
+        page("https://www.hausgalerie.example/galerie/musterstadt", BAU, "Hausgalerie: Einfamilienhaus in Musterstadt",
+                "Unsere Hausgalerie zeigt Einfamilienhäuser in Musterstadt. Jede Wand aus Ziegel, offene Grundrisse, große Fenster.");
+        page("https://www.ostermann-statik.example/", BAU, "Ingenieurbüro Ostermann – Tragwerksplanung in Musterstadt",
+                "Ingenieurbüro Ostermann: Tragwerksplanung und Statik für Neubau, Umbau und Sanierung in Musterstadt. Als Statiker prüfen wir "
                         + "die Standsicherheit von Bauteilen.");
-        page("https://www.rheinblick-statik.example/", BAU, "Statikbüro Rheinblick", "Statikbüro Rheinblick: Tragwerksplanung in Köln.");
-        page("https://www.fremd-statik.example/", "other-web", "Statik Hürth GmbH", "Tragwerksplanung und Statik in Hürth. FREMDMARKE");
+        page("https://www.rheinblick-statik.example/", BAU, "Statikbüro Rheinblick", "Statikbüro Rheinblick: Tragwerksplanung in Nebenstadt.");
+        page("https://www.fremd-statik.example/", "other-web", "Statik Musterstadt GmbH", "Tragwerksplanung und Statik in Musterstadt. FREMDMARKE");
     }
 
     @After
@@ -62,10 +62,10 @@ public class ServiceSearchTest {
     public void theServiceAndThePlaceAreDerivedFromTheQuestion() {
         final ServiceSearch.Plan plan = ServiceSearch.plan(QUESTION);
         assertEquals(List.of("Tragwerksplanung", "Statiker", "Statik"), plan.services);
-        assertEquals("Hürth", plan.place);
+        assertEquals("Musterstadt", plan.place);
         assertTrue(plan.derived);
-        assertEquals(List.of("Tragwerksplanung Hürth", "Statiker Hürth", "Statik Hürth", "Tragwerksplanung"), plan.variants);
-        assertEquals("Bad Honnef", ServiceSearch.place("Wer macht in Bad Honnef einen Wanddurchbruch?"));
+        assertEquals(List.of("Tragwerksplanung Musterstadt", "Statiker Musterstadt", "Statik Musterstadt", "Tragwerksplanung"), plan.variants);
+        assertEquals("Bad Musterbach", ServiceSearch.place("Wer macht in Bad Musterbach einen Wanddurchbruch?"));
         assertEquals("50354", ServiceSearch.place("Statik für ein Haus in 50354"));
         // a question for a provider without a known problem word: its own nouns
         final ServiceSearch.Plan carports = ServiceSearch.plan("Wer baut Carports in Brühl?");
@@ -74,7 +74,7 @@ public class ServiceSearchTest {
         assertFalse(carports.derived);
         // no question for a provider
         assertNull(ServiceSearch.plan("Was kostet ein Fertighaus?"));
-        assertNull(ServiceSearch.plan("Welche Pflegeheime gibt es in Köln?"));
+        assertNull(ServiceSearch.plan("Welche Pflegeheime gibt es in Nebenstadt?"));
     }
 
     @Test
@@ -84,7 +84,7 @@ public class ServiceSearchTest {
         assertEquals("majority", first.stage);
         assertTrue("the gallery names no service", ServiceSearch.weak(first, plan));
         final RagRetriever.Result office = new RagRetriever((q, c, n, g) -> List.of(this.pages.get(1), this.pages.get(0)))
-                .retrieve(RagQuery.prepare("Tragwerksplanung Hürth"), BAU, false, 8);
+                .retrieve(RagQuery.prepare("Tragwerksplanung Musterstadt"), BAU, false, 8);
         assertFalse(ServiceSearch.weak(office, plan));
     }
 
@@ -100,12 +100,12 @@ public class ServiceSearchTest {
         assertTrue(r.searched.size() <= ServiceSearch.MAX_VARIANTS);
         for (final String q : this.searched) assertTrue(q, q.endsWith("@" + BAU));
         // the pages as the first numbered sources, their text for the support check
-        final RagContext.Built built = RagContext.build(r.pages, RagQuery.prepare("Tragwerksplanung Statiker Statik Hürth"), 4000, 1500, 4, BAU, 1);
+        final RagContext.Built built = RagContext.build(r.pages, RagQuery.prepare("Tragwerksplanung Statiker Statik Musterstadt"), 4000, 1500, 4, BAU, 1);
         assertEquals("https://www.ostermann-statik.example/", built.sources.get(0).url);
-        assertTrue(built.text, built.text.startsWith("[1] Ingenieurbüro Ostermann – Tragwerksplanung in Hürth\nURL: https://www.ostermann-statik.example/"));
+        assertTrue(built.text, built.text.startsWith("[1] Ingenieurbüro Ostermann – Tragwerksplanung in Musterstadt\nURL: https://www.ostermann-statik.example/"));
         final org.json.JSONObject check;
         try {
-            check = RagCitations.check("Das Ingenieurbüro Ostermann bietet Tragwerksplanung und Statik in Hürth an [1].", built.sources);
+            check = RagCitations.check("Das Ingenieurbüro Ostermann bietet Tragwerksplanung und Statik in Musterstadt an [1].", built.sources);
             assertEquals(RagCitations.SUPPORTED, check.getJSONArray("support").getJSONObject(0).getString("verdict"));
         } catch (final org.json.JSONException e) {
             throw new AssertionError(e);
@@ -114,7 +114,7 @@ public class ServiceSearchTest {
         final ServiceSearch.Result all = ServiceSearch.run(chat(null), plan, List.of());
         assertTrue(all.pages.stream().anyMatch(s -> s.candidate.url.contains("fremd-statik")));
         // nothing named: a question for a service no page offers
-        final ServiceSearch.Result none = ServiceSearch.run(chat(BAU), ServiceSearch.plan("Wer prüft in Hürth den Schornstein?"), List.of());
+        final ServiceSearch.Result none = ServiceSearch.run(chat(BAU), ServiceSearch.plan("Wer prüft in Musterstadt den Schornstein?"), List.of());
         assertEquals(0, none.pages.size());
         // only with the release of the search tool
         assertTrue(ServiceSearch.released(false, chat(BAU)));
@@ -131,9 +131,9 @@ public class ServiceSearchTest {
     public void theNamedProviderSearchToolDerivesServiceAndPlace() throws Exception {
         final ToolContext chat = chat(BAU);
         org.json.JSONObject r = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search",
-                "{\"query\":\"Wer prüft in Hürth, ob eine Wand tragend ist?\",\"collection\":\"other-web\"}", false, chat));
+                "{\"query\":\"Wer prüft in Musterstadt, ob eine Wand tragend ist?\",\"collection\":\"other-web\"}", false, chat));
         assertEquals("collection " + BAU, r.getString("scope"));
-        assertEquals("Hürth", r.getString("place"));
+        assertEquals("Musterstadt", r.getString("place"));
         final org.json.JSONArray pages = r.getJSONArray("sources");
         assertEquals("https://www.ostermann-statik.example/", pages.getJSONObject(0).getString("url"));
         assertTrue(pages.getJSONObject(0).getBoolean("names_place"));
@@ -141,7 +141,7 @@ public class ServiceSearchTest {
         assertFalse(r.toString(), r.toString().contains("FREMDMARKE"));
         assertEquals("[1]", pages.getJSONObject(0).getString("cite"));
         // the model's own words without a question for a provider
-        r = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search", "{\"query\":\"Tragwerksplanung Hürth\"}", false, chat));
+        r = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search", "{\"query\":\"Tragwerksplanung Musterstadt\"}", false, chat));
         assertEquals("https://www.ostermann-statik.example/", r.getJSONArray("sources").getJSONObject(0).getString("url"));
         // a scope without the graph is enough for it; without a scope the tool does not exist
         assertTrue(net.yacy.ai.ToolProvider.offered("provider_search", false, chat));

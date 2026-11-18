@@ -54,7 +54,7 @@ public final class GraphTools {
             @Override
             JSONObject parameters() throws JSONException {
                 final JSONObject props = new JSONObject(true);
-                props.put("query", param("string", "Words of the name or title, e.g. \"SAP Berater\"."));
+                props.put("query", param("string", "Words of the name or title, e.g. \"Java Entwickler\"."));
                 final JSONObject type = param("string", "Optional entity type.");
                 type.put("enum", new JSONArray(List.of("organization", "facility", "site", "place", "service", "job")));
                 props.put("type", type);

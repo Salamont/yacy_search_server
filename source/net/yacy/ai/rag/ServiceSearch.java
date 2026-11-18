@@ -19,7 +19,7 @@ import org.json.JSONObject;
 
 /**
  * The service search of the chat (docs/SCOUTRO_RAG_QUALITY.md, section 13). A question for a provider of a service ("Wer
- * prüft in Hürth, ob eine Wand tragend ist?") names the problem, rarely the service. When its automatic search matched
+ * hilft in Musterstadt bei Schimmel im Keller?") names the problem, rarely the service. When its automatic search matched
  * weakly or found no page that names the service, the server derives the service and the place from the question and
  * searches the local index again, before the model is called, whether or not the model would call a tool:
  * <ul>
@@ -28,7 +28,7 @@ import org.json.JSONObject;
  * the town after "in", "bei", "aus" or "um", or a postal code.</li>
  * <li>Only with the existing release of {@code search} and within the scope of the request ({@link ToolContext}): the
  * local index, the session's collection, hits of other collections dropped. At most {@link #MAX_VARIANTS} searches
- * ("Tragwerksplanung Hürth", "Statiker Hürth", ...; the service alone last), at most {@link #MAX_PAGES} pages, each of
+ * ("Schimmelsanierung Musterstadt", ...; the service alone last), at most {@link #MAX_PAGES} pages, each of
  * which must name a service; pages that name the place first.</li>
  * <li>The pages go to the answer as the first numbered sources, as search results of the index (their original pages).
  * Job postings are a separate search ({@link JobSearch}, {@code type=job}).</li>
@@ -147,7 +147,7 @@ public final class ServiceSearch {
 
     /**
      * The plan of a request the model gives the tool {@code provider_search}: as {@link #plan(String)}, or, when it asks for
-     * no provider in words ("Tragwerksplanung Hürth"), its own nouns as the service. Null without any.
+     * no provider in words ("Schimmelsanierung Musterstadt"), its own nouns as the service. Null without any.
      */
     public static Plan planAny(final String request) {
         final Plan plan = plan(request);

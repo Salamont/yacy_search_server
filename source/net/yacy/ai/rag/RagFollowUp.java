@@ -14,7 +14,7 @@ import org.json.JSONObject;
  * "Such noch mal gezielt nach Stellenanzeigen und prüfe die Originalquellen" names no topic of its own: its automatic
  * search would find nothing or anything. Such a turn searches with the goal of the conversation instead: the latest
  * earlier user message with a topic, joined with the follow-up (which may add a word, e.g. "Such noch mal nach
- * Automatisierung"). A message without the words of a retry is always its own goal. Only the user's own messages of
+ * Robotik"). A message without the words of a retry is always its own goal. Only the user's own messages of
  * this request are read; the scope of the search stays the request's.
  */
 public final class RagFollowUp {

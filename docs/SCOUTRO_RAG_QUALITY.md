@@ -299,11 +299,14 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   is not set on its own (saving the Tools page gives it its own setting), and within the scope of the request
   (`ToolContext`: the session's collection, read with its viewer). An AI Shield guest gets none; without the release
   nothing runs. The model can also call `job_search(query)` itself (2 calls per answer).
-- **Few short title variants**, at most 6 name searches of `type=job`: the subjects SAP, KI and Automatisierung first
-  together, then each on its own, the question's own compounds ("Prozessautomatisierung": a name search matches only the
-  start of a word), then "Intelligenz", "AI", "Automation"; a role of the question ("SAP Berater") before the subject
-  alone. Short acronyms are whole words (`KgReader.EntityQuery.wholeWords`), and a hit must show its subject in the title.
-  Any other subject is searched by its own words. At most 12 candidates, 6 postings, 4 s.
+- **Few short title variants**, at most 6 name searches of `type=job`: the subjects of the question (in its order:
+  its configured subject groups and up to 3 of its own words, not counting words about jobs or the answer) first together, then each on its own, the question's own compounds ("Prozessrobotik": a name search matches
+  only the start of a word), then the synonyms of a configured subject group; a role of the question ("Java Entwickler")
+  before the subject alone. Subjects are the question's own words; `scoutro.chat.jobs.subjects` may group synonyms
+  (`Label: synonym, synonym; Label: …`, empty by default; e.g. `ML: Machine Learning, maschinelles Lernen`), each group
+  one subject searched by each of its names. Short names (up to 3 letters) are whole words
+  (`KgReader.EntityQuery.wholeWords`), and a hit must show its subject in the title. At most 12 candidates, 6 postings,
+  4 s.
 - **To the answer:** each posting is a numbered source before the search results (`[1] Scoutro knowledge graph: job
   posting <title>`, `URL:` the page it was read from, its collection), with employer, employment type, place, dates, the
   subjects of the question it shows and, as `PARTIAL MATCH`, those it does not. The full matches come first.
@@ -324,8 +327,8 @@ Tests: `ChatToolsTest` and `RagFollowUpTest` (`ant scoutro-rag-test`), `test/sco
 
 ## 13. Provider search before the answer
 
-A question for the provider of a service names the problem, rarely the service ("Wer prüft in Hürth, ob eine Wand tragend
-ist?"); its automatic search may find a page that only shares words (a house gallery in Hürth). The server therefore
+A question for the provider of a service names the problem, rarely the service ("Wer hilft in Musterstadt bei Schimmel
+im Keller?"); its automatic search may find a page that only shares words (a house gallery in Musterstadt). The server therefore
 searches again itself, before the model is called (`ServiceSearch`, tool `provider_search`, "Provider search"):
 
 - **When:** the question asks for a provider of a service: a problem word of a small table ("tragend", "Statik",
@@ -334,8 +337,8 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   service; **and** the automatic search matched weakly or no hit names the service. A job question takes the job search
   of section 12 (`type=job` stays the filter for postings) and never this one.
 - **The place:** the town after "in", "bei", "aus", "um", "nahe" (also "Bad …", "… am Main"), or a postal code.
-- **The search:** at most 4 local searches within the scope of the request ("Tragwerksplanung Hürth", "Statiker Hürth",
-  "Statik Hürth", then the service alone for a provider whose page does not name the town), with the release of
+- **The search:** at most 4 local searches within the scope of the request ("Schimmelsanierung Musterstadt",
+  "Bausachverständiger Musterstadt", then the service alone for a provider whose page does not name the town), with the release of
   `provider_search` (it follows `search` while not set on its own); hits of other collections dropped, never the
   network. Only pages that name a service are kept, at most 4, those naming the place first.
 - **To the answer:** the pages are the first numbered sources, as search results with their original pages; the graph
@@ -344,10 +347,10 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
 - **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
 - **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, placeNamedBy,
   timedOut, millis}`. Log: `event=rag-servicesearch`. The model can call `provider_search(query)` itself (2 calls per
-  answer); it also takes the model's own words ("Tragwerksplanung Hürth").
+  answer); it also takes the model's own words ("Schimmelsanierung Musterstadt").
 
 Tests: `ServiceSearchTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-servicesearch-live-smoke.py` (a house
-gallery, an office in Hürth, one in Köln, one of another collection; a model that never calls a tool).
+gallery, an office in Musterstadt, one in Nebenstadt, one of another collection; a model that never calls a tool; all invented).
 
 
 Real-model check against an OpenAI-compatible endpoint (read-only, disposable DATA):

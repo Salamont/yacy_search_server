@@ -10,9 +10,9 @@ A NEW temporary offline peer in protected mode gets invented pages of two collec
 that do not exist, pushed through YaCy's parser and index; the knowledge graph reads them). Then, through
 POST /v1/chat/completions as the chat page sends it:
 
-1. a question about SAP/AI job postings: weak automatic hits, then search -> kg_search -> kg_entity -> kg_evidence
+1. a question about Java/ML job postings: weak automatic hits, then search -> kg_search -> kg_entity -> kg_evidence
    and an answer that cites the pages of the tool results;
-2. a question about the SAP use of a company, and about a company the graph does not hold;
+2. a question about the systems a company uses, and about a company the graph does not hold;
 3. an account limited to alpha-web whose (simulated) model asks for a page, an entity and the evidence of beta-web,
    also with collection arguments: nothing of beta-web reaches the model or the client;
 4. limits: calls per tool, the scripted model that never stops calling tools still gets an answer turn.
@@ -116,26 +116,26 @@ def page(title, organisation, host, text, posting=None):
 PAGES = [
     (f"https://{TAPIR}/", "alpha-web",
      page("Tapir Consulting AG", "Tapir Consulting AG", TAPIR,
-          "Tapir Consulting AG. Wir nutzen SAP S/4HANA intern. Wir beraten den Mittelstand zu Prozessen und Organisation.")),
+          "Tapir Consulting AG. Wir nutzen Odoo intern und entwickeln mit Java. Wir beraten den Mittelstand zu Prozessen und Organisation.")),
     (f"https://{TAPIR}/leistungen", "alpha-web",
      page("Leistungen der Tapir Consulting", "Tapir Consulting AG", TAPIR,
-          "Unsere Leistungen für Beratungsunternehmen und Industrieunternehmen: Geschäftsfeldentwicklung, Prozessautomatisierung "
+          "Unsere Leistungen für Beratungsunternehmen und Industrieunternehmen: Geschäftsfeldentwicklung, Prozessrobotik "
           "und Produktverantwortung auf Unternehmenswebseiten.")),
-    (f"https://{TAPIR}/karriere/sap-senior-berater-finance", "alpha-web",
-     page("SAP Senior Berater (m/w/d) Finance", "Tapir Consulting AG", TAPIR,
-          "Stellenangebot in Vollzeit. Sie führen SAP-Finance-Projekte bei unseren Kunden.",
-          ("SAP Senior Berater (m/w/d) Finance", "Sie führen SAP-Finance-Projekte bei unseren Kunden."))),
-    (f"https://{TAPIR}/karriere/ki-entwickler-sap", "alpha-web",
-     page("KI-Entwickler (m/w/d) SAP Prozessautomatisierung", "Tapir Consulting AG", TAPIR,
-          "Stellenangebot in Vollzeit. Sie entwickeln KI-Agenten für die Automatisierung von SAP-Prozessen.",
-          ("KI-Entwickler (m/w/d) SAP Prozessautomatisierung", "Sie entwickeln KI-Agenten für die Automatisierung von SAP-Prozessen."))),
+    (f"https://{TAPIR}/karriere/java-senior-berater-finance", "alpha-web",
+     page("Java Senior Berater (m/w/d) Finance", "Tapir Consulting AG", TAPIR,
+          "Stellenangebot in Vollzeit. Sie führen Java-Finance-Projekte bei unseren Kunden.",
+          ("Java Senior Berater (m/w/d) Finance", "Sie führen Java-Finance-Projekte bei unseren Kunden."))),
+    (f"https://{TAPIR}/karriere/ml-entwickler-java", "alpha-web",
+     page("ML-Entwickler (m/w/d) Java Prozessrobotik", "Tapir Consulting AG", TAPIR,
+          "Stellenangebot in Vollzeit. Sie entwickeln ML-Modelle für die Robotik von Java-Prozessen.",
+          ("ML-Entwickler (m/w/d) Java Prozessrobotik", "Sie entwickeln ML-Modelle für die Robotik von Java-Prozessen."))),
     (f"https://{OKAPI}/", "beta-web",
      page("Okapi Systems GmbH", "Okapi Systems GmbH", OKAPI,
-          "Okapi Systems GmbH. Wir nutzen SAP S/4HANA intern. BETAGEHEIM Standort Freiburg.")),
-    (f"https://{OKAPI}/jobs/sap-basis-administrator", "beta-web",
-     page("SAP Basis Administrator (m/w/d)", "Okapi Systems GmbH", OKAPI,
-          "Stellenangebot in Vollzeit. Sie betreiben unsere SAP-Systeme. BETAGEHEIM",
-          ("SAP Basis Administrator (m/w/d)", "Sie betreiben unsere SAP-Systeme. BETAGEHEIM"))),
+          "Okapi Systems GmbH. Wir nutzen Odoo intern. BETAGEHEIM Standort Nordstadt.")),
+    (f"https://{OKAPI}/jobs/java-basis-administrator", "beta-web",
+     page("Java Basis Administrator (m/w/d)", "Okapi Systems GmbH", OKAPI,
+          "Stellenangebot in Vollzeit. Sie betreiben unsere Java-Systeme. BETAGEHEIM",
+          ("Java Basis Administrator (m/w/d)", "Sie betreiben unsere Java-Systeme. BETAGEHEIM"))),
 ]
 
 
@@ -214,11 +214,11 @@ def jobs_script(body):
     """search again, then the graph: job postings, the chosen job's employer, the evidence of that relation."""
     results = tool_results(body["messages"])
     if len(results) == 0:
-        return "call", "search", {"query": "SAP KI Stellenangebot"}
+        return "call", "search", {"query": "Java ML Stellenangebot"}
     if len(results) == 1:
-        return "call", "kg_search", {"query": "SAP", "type": "job"}
+        return "call", "kg_search", {"query": "Java", "type": "job"}
     if len(results) == 2:
-        job = next((e for e in results[1][1].get("entities", []) if e.get("name", "").startswith("KI-Entwickler")), None)
+        job = next((e for e in results[1][1].get("entities", []) if e.get("name", "").startswith("ML-Entwickler")), None)
         return ("call", "kg_entity", {"entity": job["entity"]}) if job else ("answer", "SIMULATED: kein passender Job im Graphen.")
     if len(results) == 3:
         fact = next((f for f in results[2][1].get("facts", []) if f.get("predicate") == "hiring_organization"), None)
@@ -226,13 +226,13 @@ def jobs_script(body):
     page_cite = results[0][1]["sources"][0]["cite"]
     fact = next(f for f in results[2][1]["facts"] if f["predicate"] == "hiring_organization")
     evidence_cite = results[3][1]["evidence"][0]["cite"]
-    return "answer", (f"Die {fact['object']['name']} sucht einen KI-Entwickler (m/w/d) für SAP Prozessautomatisierung {evidence_cite}. "
-                      f"Die Stelle umfasst die Entwicklung von KI-Agenten für die Automatisierung von SAP-Prozessen {page_cite}. "
+    return "answer", (f"Die {fact['object']['name']} sucht einen ML-Entwickler (m/w/d) für Java Prozessrobotik {evidence_cite}. "
+                      f"Die Stelle umfasst die Entwicklung von ML-Modellen für die Robotik von Java-Prozessen {page_cite}. "
                       f"Das Jahresgehalt beträgt 95.000 Euro zuzüglich Dienstwagen {page_cite}. "
                       "Zu Arbeitsort und Bewerbungsfrist ist in den Quellen nichts belegt.")
 
 
-def sap_use_script(body):
+def system_use_script(body):
     """the company by name, its systems, and a company the graph does not hold."""
     results = tool_results(body["messages"])
     if len(results) == 0:
@@ -245,15 +245,15 @@ def sap_use_script(body):
         return "call", "kg_search", {"query": "Phantasia Holding", "type": "organization"}
     facts = results[1][1].get("facts", [])
     if not facts:
-        return "answer", "SIMULATED: Zur SAP-Nutzung der Tapir Consulting AG ist im Wissensgraphen nichts belegt."
-    missing = "Zur Phantasia Holding enthält der Wissensgraph keinen Eintrag; ihre SAP-Nutzung ist nicht belegt." \
+        return "answer", "SIMULATED: Zur Odoo-Nutzung der Tapir Consulting AG ist im Wissensgraphen nichts belegt."
+    missing = "Zur Phantasia Holding enthält der Wissensgraph keinen Eintrag; ihre Odoo-Nutzung ist nicht belegt." \
         if not results[2][1].get("entities") else "SIMULATED-UNEXPECTED: Phantasia gefunden."
-    return "answer", f"Die Tapir Consulting AG nutzt SAP S/4HANA intern {facts[0]['cite']}. {missing}"
+    return "answer", f"Die Tapir Consulting AG nutzt Odoo intern {facts[0]['cite']}. {missing}"
 
 
 def foreign_script(ids):
     """a model that asks for the other collection in every way a tool call allows."""
-    calls = [("search", {"query": "collection:beta-web SAP Basis Administrator Okapi BETAGEHEIM", "collection": "beta-web", "global": True}),
+    calls = [("search", {"query": "collection:beta-web Java Basis Administrator Okapi BETAGEHEIM", "collection": "beta-web", "global": True}),
              ("kg_search", {"query": "Okapi", "collection": "beta-web", "scope": "all"}),
              ("kg_entity", {"entity": ids["entity"], "collection": "beta-web"}),
              ("kg_evidence", {"statement": ids["statement"], "collections": ["beta-web"]})]
@@ -271,7 +271,7 @@ def foreign_script(ids):
 
 def greedy_script(body):
     """a model that never stops searching."""
-    return "call", "search", {"query": "SAP Berater " + str(len(tool_results(body["messages"])))}
+    return "call", "search", {"query": "Java Berater " + str(len(tool_results(body["messages"])))}
 
 
 # --------------------------------------------------------------------------------------------- run
@@ -307,35 +307,36 @@ def run(base, digest):
     rita = Client(base)
     rita.login("rita", "rita-password-1")
 
-    # 1. SAP/AI job postings (administrator, the whole local index)
-    question = ("Welche Stellenanzeigen gibt es zu SAP und künstlicher Intelligenz bei Beratungsunternehmen mit "
-                "Prozessautomatisierung und Geschäftsfeldentwicklung?")
+    # 1. Java/ML job postings (administrator, the whole local index)
+    question = ("Welche Stellenanzeigen gibt es zu Java und Machine Learning bei Beratungsunternehmen mit "
+                "Prozessrobotik und Geschäftsfeldentwicklung?")
     status, answer, requests = chat(digest, question, jobs_script)
     check(status == 200 and len(requests) == 5, "jobs: four tool rounds and the answer", f"{status} {len(requests)} {answer['raw'][:300]}")
     check(offered(requests) == OFFERED, "jobs: the released tools are offered", str(offered(requests)))
     system = content_text(requests[0]["body"]["messages"][0]) if requests else ""
     check("Tools of this chat" in system and "all collections of the local index" in system, "jobs: the system prompt names tools and scope")
     stage = answer["meta"].get("scoutro-retrieval", {}).get("stage")
-    check(("Note on the search results" in system) == (stage in ("any", "none")), "jobs: weak automatic hits are announced to the model",
-          f"stage={stage}")
+    # weak automatic hits: the server's job search names the postings it found (section 12), else the model is told to search again
+    weak_note = "Job postings: the automatic search of this question matched weakly" in system or "Note on the search results" in system
+    check(weak_note == (stage in ("any", "none")), "jobs: weak automatic hits are announced to the model", f"stage={stage}")
     results = tool_results(requests[-1]["body"]["messages"]) if requests else []
     check([name for name, _ in results] == TOOLS, "jobs: search, kg_search, kg_entity, kg_evidence ran in this order", str([n for n, _ in results]))
     if len(results) == 4:
         search, names, entity, evidence = (r for _, r in results)
         check(search.get("local") is True and search.get("scope") == "all collections of the local index", "jobs: the search is local", str(search)[:200])
-        check(any("ki-entwickler-sap" in s.get("url", "") for s in search.get("sources", [])), "jobs: the second search finds the job page",
+        check(any("ml-entwickler-java" in s.get("url", "") for s in search.get("sources", [])), "jobs: the second search finds the job page",
               str(search)[:400])
         check(names.get("total") == 3 and all(e.get("employer") for e in names.get("entities", [])), "jobs: the graph lists the postings with employer",
               str(names)[:400])
         fact = next((f for f in entity.get("facts", []) if f.get("predicate") == "hiring_organization"), {})
-        check(fact.get("object", {}).get("name") == "Tapir Consulting AG" and fact.get("url", "").endswith("/karriere/ki-entwickler-sap")
+        check(fact.get("object", {}).get("name") == "Tapir Consulting AG" and fact.get("url", "").endswith("/karriere/ml-entwickler-java")
               and fact.get("cite"), "jobs: the employer relation comes with its page as a numbered source", str(fact))
         row = (evidence.get("evidence") or [{}])[0]
-        check(row.get("url", "").endswith("/karriere/ki-entwickler-sap") and row.get("collections") == ["alpha-web"]
+        check(row.get("url", "").endswith("/karriere/ml-entwickler-java") and row.get("collections") == ["alpha-web"]
               and row.get("cite") == fact.get("cite") and row.get("loaded_at"), "jobs: the evidence names page, collection and load time", str(row))
         listed = sources(answer)
         check(fact.get("cite") in listed and listed[fact["cite"]].get("kind") == "graph"
-              and listed[fact["cite"]].get("url", "").endswith("/karriere/ki-entwickler-sap"),
+              and listed[fact["cite"]].get("url", "").endswith("/karriere/ml-entwickler-java"),
               "jobs: the client's source list holds the graph evidence under the cited number", str(listed.get(fact.get("cite"))))
         page_cite = search["sources"][0]["cite"]
         check(page_cite in listed and "kind" not in listed[page_cite], "jobs: and the page of the second search", str(listed.get(page_cite)))
@@ -354,20 +355,20 @@ def run(base, digest):
         check(row.get("passage", "").startswith("(no passage recorded") and "passage" not in fact,
               "jobs: evidence read from structured data says that it has no passage", str(row.get("passage")))
 
-    # 2. the SAP use of a company; a company the graph does not hold
-    status, answer, requests = chat(digest, "Nutzt die Tapir Consulting AG SAP, und die Phantasia Holding?", sap_use_script)
+    # 2. the systems a company uses; a company the graph does not hold
+    status, answer, requests = chat(digest, "Nutzt die Tapir Consulting AG Odoo, und die Phantasia Holding?", system_use_script)
     results = tool_results(requests[-1]["body"]["messages"]) if requests else []
-    check(status == 200 and [name for name, _ in results] == ["kg_search", "kg_entity", "kg_search"], "sap: entity, its systems, the unknown company",
+    check(status == 200 and [name for name, _ in results] == ["kg_search", "kg_entity", "kg_search"], "system: entity, its systems, the unknown company",
           str([n for n, _ in results]))
     if len(results) == 3:
         fact = (results[1][1].get("facts") or [{}])[0]
-        check(fact.get("predicate") == "system_signal" and "sap-s4hana" in str(fact.get("value")) and "SAP S/4HANA" in fact.get("passage", "")
-              and fact.get("url") == f"https://{TAPIR}/", "sap: the system fact with the passage of its page", str(fact))
-        check(results[2][1].get("total") == 0 and "no such entry" in results[2][1].get("note", ""), "sap: an unknown company is an explicit empty result",
+        check(fact.get("predicate") == "system_signal" and "odoo" in str(fact.get("value")) and "Odoo intern" in fact.get("passage", "")
+              and fact.get("url") == f"https://{TAPIR}/", "system: the system fact with the passage of its page", str(fact))
+        check(results[2][1].get("total") == 0 and "no such entry" in results[2][1].get("note", ""), "system: an unknown company is an explicit empty result",
               str(results[2][1]))
         check(verdicts(answer).get(fact.get("cite")) == "supported" and answer["meta"].get("scoutro-citations", {}).get("unsupported") == [],
-              "sap: the cited page supports the statement", str(answer["meta"].get("scoutro-citations")))
-        check("nicht belegt" in answer["text"] and "Phantasia" in answer["text"], "sap: the missing evidence is named in the answer", answer["text"])
+              "system: the cited page supports the statement", str(answer["meta"].get("scoutro-citations")))
+        check("nicht belegt" in answer["text"] and "Phantasia" in answer["text"], "system: the missing evidence is named in the answer", answer["text"])
 
     # 3. an account of alpha-web: evidence of beta-web
     entity = (kg_get(digest, "entities?q=Okapi&type=organization").get("items") or [{}])[0].get("id", "")
@@ -392,7 +393,7 @@ def run(base, digest):
               "foreign: entity and evidence of beta-web answer like unknown ones", str(results[2:]))
         check("cannot be verified" in results[3][1].get("note", ""), "foreign: the model is told there is nothing to cite", str(results[3][1]))
     for marker in BETA_MARKERS[:2]:
-        check(marker not in saw.replace("Okapi BETAGEHEIM", "").replace("collection:beta-web SAP Basis Administrator", ""),
+        check(marker not in saw.replace("Okapi BETAGEHEIM", "").replace("collection:beta-web Java Basis Administrator", ""),
               "foreign: nothing of beta-web reaches the model: " + marker)
     tool_text = json.dumps([r for _, r in results], ensure_ascii=False)
     check(none_of(tool_text.replace("Okapi", ""), BETA_MARKERS) and "beta-web" not in tool_text, "foreign: no tool result names beta-web", tool_text[:400])
@@ -402,20 +403,20 @@ def run(base, digest):
     check("SIMULATED-LEAK" not in answer["text"] and "nicht belegt" in answer["text"], "foreign: the answer says that it is not verified", answer["text"])
     status, answer, requests = chat(rita, "Welche Belege gibt es zu Okapi Systems?", foreign_script(ids), collection="beta-web")
     check(status == 403 and not requests, "foreign: the other collection as request scope is refused before the model", str(status))
-    status, answer, requests = chat(rita, "Welche Stellenanzeigen gibt es zu SAP?", lambda body: (
-        ("call", "kg_search", {"query": "SAP", "type": "job"}) if not tool_results(body["messages"]) else ("answer", "SIMULATED")))
+    status, answer, requests = chat(rita, "Welche Stellenanzeigen gibt es zu Java?", lambda body: (
+        ("call", "kg_search", {"query": "Java", "type": "job"}) if not tool_results(body["messages"]) else ("answer", "SIMULATED")))
     results = tool_results(requests[-1]["body"]["messages"]) if requests else []
     check(len(results) == 1 and results[0][1].get("total") == 2, "foreign: the account sees its two of the three postings", str(results)[:300])
 
     # 4. limits
-    status, answer, requests = chat(digest, "Welche SAP Berater gibt es?", greedy_script)
+    status, answer, requests = chat(digest, "Welche Java Berater gibt es?", greedy_script)
     results = tool_results(requests[-1]["body"]["messages"]) if requests else []
     ran = [r for _, r in results if r.get("error") != "tool_budget"]
     check(status == 200 and len(ran) == 3, "limits: the search runs three times per answer", f"{len(ran)} of {len(results)}")
     check(len(requests) <= 9 and requests[-1]["body"].get("tool_choice") == "none" and answer["text"].startswith("SIMULATED-ANSWER"),
           "limits: after the last tool round the model is asked for the answer itself", f"{len(requests)} {answer['text'][:80]}")
     check(answer["meta"].get("scoutro-tools", {}).get("calls") == 3, "limits: refused calls are not counted as run", str(answer["meta"].get("scoutro-tools")))
-    status, answer, requests = chat(Client(base), "Welche SAP Berater gibt es?", greedy_script)
+    status, answer, requests = chat(Client(base), "Welche Java Berater gibt es?", greedy_script)
     check(status == 401 and not requests, "anonymous chat refused in protected mode", str(status))
 
 
