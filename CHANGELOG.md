@@ -2,6 +2,15 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased (on 0.14.3-rc.2) — "Such noch mal" searches again
+
+A follow-up that asks to search again and names no search mode (the chat page's magnifier was on for the first question
+only) searches the local index with the goal of the chat (`ragMode=local`, `followUp=true`), in the collection and with
+the rights of the request. The magnifier switched off for a message sends `search: "no"`, which the server respects; a
+retry as the first message and an ordinary message without a search mode still run without a search. Before, such a
+follow-up ran with `ragMode=no` and skipped the search. Regression test: `test/scoutro-ui/chat-followup-ui-test.mjs`
+(`chat-jobsearch-live-smoke.py --ui`).
+
 ## 0.14.3-rc.2 / 1.942-scoutro.52-rc.2 — test candidate: job and provider search of the chat (not a release)
 
 On 0.14.3-rc.1, application code `16f2c8ec`. Tool releases of rc.1 are kept; schemas, extractors and stored data

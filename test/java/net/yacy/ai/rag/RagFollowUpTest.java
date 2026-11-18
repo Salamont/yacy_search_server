@@ -34,6 +34,7 @@ public class RagFollowUpTest {
             assertTrue(retry, RagFollowUp.retry(retry));
             final RagFollowUp.Goal goal = goal(chat(FIRST, "Keine Stellen gefunden [1].", retry));
             assertTrue(retry, goal.followUp);
+            assertTrue(retry, goal.topical);
             assertTrue(retry, goal.text.startsWith(FIRST));
             assertTrue(retry, JobSearch.intent(goal.text));
             assertEquals(retry, java.util.List.of("Java", "ML"), JobSearch.plan(goal.text).criteria());
@@ -46,6 +47,11 @@ public class RagFollowUpTest {
         final JSONArray twice = chat(FIRST, "…", new JSONArray().put(new JSONObject().put("type", "text").put("text", "Such noch mal")), "…",
                 "nochmal suchen bitte");
         assertTrue(goal(twice).text.startsWith(FIRST));
+        assertTrue(goal(twice).topical);
+        // retries only: an earlier message, but no topic to search again for
+        final RagFollowUp.Goal none = goal(chat("Such noch mal", "…", "Such noch mal"));
+        assertTrue(none.followUp);
+        assertFalse(none.topical);
     }
 
     @Test
@@ -59,6 +65,7 @@ public class RagFollowUpTest {
         // a retry as the first message has nothing to take
         final RagFollowUp.Goal first = goal(chat("Such noch mal"));
         assertFalse(first.followUp);
+        assertFalse(first.topical);
         assertEquals("Such noch mal", first.text);
     }
 }

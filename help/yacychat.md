@@ -119,7 +119,9 @@ graph itself (with `kg_search` released, in the same collections) and lists
 them first as sources "job posting …" with the page they were read from. A
 posting that shows only some of your subjects is marked as a partial match.
 Whether a posting is still open is not checked. A follow-up such as "Such noch
-mal" searches again with the subject of your earlier question.
+mal" searches again with the subject of your earlier question, also when the
+magnifier is not switched on; switch it off for that message to answer without
+a search.
 
 Provider questions: when you ask who offers a service ("Wer hilft in
 Musterstadt bei Schimmel im Keller?") and the index search finds only pages that

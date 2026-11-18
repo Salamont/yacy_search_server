@@ -46,10 +46,13 @@ public final class RagFollowUp {
         public final String text;
         /** true when it carries an earlier message's topic */
         public final boolean followUp;
+        /** true when that earlier message names a topic of its own (not only another retry) */
+        public final boolean topical;
 
-        Goal(final String text, final boolean followUp) {
+        Goal(final String text, final boolean followUp, final boolean topical) {
             this.text = text;
             this.followUp = followUp;
+            this.topical = topical;
         }
     }
 
@@ -80,21 +83,25 @@ public final class RagFollowUp {
      */
     public static Goal goal(final JSONArray messages, final int current, final String question) {
         final String own = question == null ? "" : question.trim();
-        if (!retry(own) || messages == null || current <= 0) return new Goal(own, false);
+        if (!retry(own) || messages == null || current <= 0) return new Goal(own, false, false);
         final List<String> parts = new ArrayList<>();
         parts.add(own);
+        boolean topical = false;
         for (int i = current - 1; i >= 0; i--) {
             final JSONObject message = messages.optJSONObject(i);
             if (message == null || !"user".equals(message.optString("role", ""))) continue;
             final String text = text(message);
             if (text.isEmpty()) continue;
             parts.add(0, text);
-            if (!topics(text).isEmpty() && !retry(text)) break;
+            if (!topics(text).isEmpty() && !retry(text)) {
+                topical = true;
+                break;
+            }
         }
-        if (parts.size() == 1) return new Goal(own, false);
+        if (parts.size() == 1) return new Goal(own, false, false);
         String goal = String.join(" ", parts);
         if (goal.length() > MAX_GOAL_CHARS) goal = goal.substring(goal.length() - MAX_GOAL_CHARS);
-        return new Goal(goal, true);
+        return new Goal(goal, true, topical);
     }
 
     /** The text part of a message (attached files are other parts). */

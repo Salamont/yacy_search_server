@@ -319,6 +319,11 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   prüfe die Originalquellen", "nochmal suchen", "Versuch es erneut", "search again") takes the goal of the conversation:
   the latest earlier user message with a subject, joined with the follow-up (`RagFollowUp`); the automatic search and the
   job search use it, the scope stays the request's. A message without the words of a retry is always its own goal.
+  Search mode: a retry that names no search mode (`search` absent, e.g. the lens off after the first question because the
+  default is "no search") searches the local index when its goal carries an earlier message with a subject; an explicit
+  `search: "no"` (the lens switched off for this message) is respected, and a retry as the first message has nothing to
+  search for. Log: `event=rag-request … ragMode=local searchMode=followUp` (else `sent` or `absent`) and
+  `event=rag-retrieval … followUp=true`.
 - **Metadata:** `scoutro-jobsearch: {triggered, followUp, scope, criteria, searched, found, notShown, full, partial, timedOut,
   error, millis}` (`notShown`: postings found without room left in the context; the model is then not told "none") in the first data line; `scoutro-retrieval.followUp`. Log: `event=rag-jobsearch`.
 

@@ -300,9 +300,12 @@ public class RAGProxyServlet extends HttpServlet {
                 user = userObject.getContentText(); // this is the latest user prompt
                 ragMode = userObject.getSearchMode();
             }
-            final boolean fresh = userObject != null && !"no".equals(ragMode);
-            // the search goal: a follow-up such as "Such noch mal" searches with the topic of the conversation (section 12)
+            // the search goal: a follow-up such as "Such noch mal" searches with the topic of the conversation (section 12);
+            // one that names no search mode searches the local index when it carries an earlier topic (an explicit "no" stays)
             final RagFollowUp.Goal goal = RagFollowUp.goal(messages, lastUserIndex, user);
+            final boolean searchAgain = userObject != null && !userObject.hasSearchMode() && goal.followUp && goal.topical;
+            if (searchAgain) ragMode = "local";
+            final boolean fresh = userObject != null && !"no".equals(ragMode);
 
             // answer parameters from the model configuration (LLM Selection) and the RAG settings
             int maxTokens = llm4Chat.llm.max_tokens;
@@ -349,6 +352,7 @@ public class RAGProxyServlet extends HttpServlet {
                 }
             }
             ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=messages messages=" + messages.length() + " ragMode=" + ragMode
+                    + " searchMode=" + (userObject == null ? "none" : userObject.hasSearchMode() ? "sent" : searchAgain ? "followUp" : "absent")
                     + " userChars=" + (user == null ? 0 : user.length()) + " collection=" + (collection != null) + " numCtx=" + llm4Chat.llm.num_ctx
                     + " maxTokens=" + maxTokens + " freeChars=" + budget.freeChars + " prunedSearchDocs=" + pruned.removed + " staleAnswers=" + pruned.staleAnswers + " trimmedMessages=" + trimmed);
 
@@ -457,7 +461,7 @@ public class RAGProxyServlet extends HttpServlet {
                 user += userPrefix;
                 user += guard.data(contextText.isEmpty() ? "(no search results)" : contextText);
                 userObject.setContentText(user);
-                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-retrieval phase=end ragMode=" + ragMode + " terms=" + query.terms.size()
+                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-retrieval phase=end ragMode=" + ragMode + " followUp=" + goal.followUp + " terms=" + query.terms.size()
                         + " stage=" + result.stage + " candidates=" + result.candidates + " foreignDropped=" + result.foreignDropped
                         + " sources=" + built.sources.size() + " graphFacts=" + graph.meta.optInt("facts") + " graphReason=" + graph.meta.opt("reason")
                         + " contextChars=" + contextText.length() + " searchMs=" + (System.currentTimeMillis() - searchStart));
@@ -634,6 +638,11 @@ public class RAGProxyServlet extends HttpServlet {
             this.normalize();
         }
         
+        /** Whether the message names its search mode (also "no"); without one a follow-up may search again. */
+        public boolean hasSearchMode() {
+            return this.userObject.has("search") && !this.userObject.isNull("search");
+        }
+
         public String getSearchMode() {
             Object raw = this.userObject.opt("search");
             if (raw instanceof Boolean) {

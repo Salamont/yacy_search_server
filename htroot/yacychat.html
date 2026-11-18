@@ -1048,6 +1048,7 @@
         busy: false,
         attachment: null,
         searchMode: SEARCH_DEFAULTS.none,
+        searchOff: false, // the lens was switched off for this message: it is sent as search "no"
         searchDefault: P2P_MODE ? SEARCH_DEFAULTS.local : SEARCH_DEFAULTS.local,
         assistantSeen: false,
         showSystem: false
@@ -1790,6 +1791,7 @@
         const { applyDefault = true } = options;
         state.attachment = null;
         state.searchMode = SEARCH_DEFAULTS.none;
+        state.searchOff = false;
         dom.fileInput.value = '';
         dom.attachmentFilename.textContent = 'Attach PNG/JPG or text (.txt/.md/.tex)';
         dom.attachmentRow.classList.remove('has-attachment');
@@ -1845,6 +1847,7 @@
             nextMode = SEARCH_DEFAULTS.local;
         }
         state.searchMode = nextMode;
+        state.searchOff = false;
         state.attachment = null;
         dom.fileInput.value = '';
         dom.attachmentRow.classList.remove('has-attachment');
@@ -2432,16 +2435,12 @@
     }
 
     function buildUserMessage(promptText) {
-        if (state.attachment) {
-            const message = { role: 'user', content: buildContentWithAttachment(promptText, state.attachment) };
-            if (state.searchMode !== SEARCH_DEFAULTS.none) {
-                message.search = state.searchMode;
-            }
-            return message;
-        }
-        const message = { role: 'user', content: promptText };
+        const content = state.attachment ? buildContentWithAttachment(promptText, state.attachment) : promptText;
+        const message = { role: 'user', content };
         if (state.searchMode !== SEARCH_DEFAULTS.none) {
             message.search = state.searchMode;
+        } else if (state.searchOff) {
+            message.search = SEARCH_DEFAULTS.none; // switched off: also a follow-up such as "search again" does not search
         }
         return message;
     }
@@ -2475,7 +2474,7 @@
         }
         if (message.search === true) {
             sanitized.search = SEARCH_DEFAULTS.local;
-        } else if (message.search === SEARCH_DEFAULTS.local || message.search === SEARCH_DEFAULTS.global) {
+        } else if (message.search === SEARCH_DEFAULTS.local || message.search === SEARCH_DEFAULTS.global || message.search === SEARCH_DEFAULTS.none) {
             sanitized.search = message.search;
         }
         return sanitized;
@@ -3244,6 +3243,7 @@
     dom.searchButton?.addEventListener('click', () => {
         if (state.searchMode !== SEARCH_DEFAULTS.none) {
             clearAttachment({ applyDefault: false });
+            state.searchOff = true;
             return;
         }
         const mode = state.searchDefault === SEARCH_DEFAULTS.none ? SEARCH_DEFAULTS.local : state.searchDefault;

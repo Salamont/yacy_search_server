@@ -14,14 +14,16 @@ original failure, two job postings; beta-web: another company with one posting).
    search finds both postings, the full match first, the partial one marked; the model cites the posting's page. The long
    question of the original failure, whose automatic search finds nothing at all, gets the same postings;
 2. the follow-up "Such noch mal gezielt nach Stellenanzeigen und prüfe die Originalquellen" in the same chat: the search
-   takes the goal of the conversation and finds the postings again;
+   takes the goal of the conversation and finds the postings again, also when the follow-up names no search mode; with
+   search "no" it does not search, nor does a retry as the first message or an ordinary message without a search mode;
 3. a real zero (no posting for the subject anywhere): the answer says so, no posting is invented;
 4. the collection boundary: the account asks for the posting of beta-web and gets nothing of it; the administrator's
    chat of the whole index finds it (control);
 5. a job question whose automatic search matched a majority of its words, but only on a company page: the job search runs;
    a question that is not about jobs: no job search.
 
-Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_JOBS_DUMP=<file> writes what the stub received.
+Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_JOBS_DUMP=<file> writes what the stub received;
+--ui also opens the chat page in Chromium (test/scoutro-ui/chat-followup-ui-test.mjs: the search mode of a follow-up).
 """
 import importlib.util
 import json
@@ -29,6 +31,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -137,6 +140,24 @@ def run(base, digest):
     check(js.get("found") == 2 and js.get("criteria") == ["Java", "ML", "Robotik"] and js.get("scope") == "collection alpha-web",
           "follow-up: the same postings, the same scope", json.dumps(js))
     check(sources(answer).get(1, {}).get("url") == ml_url and "[1]" in answer["text"], "follow-up: the answer cites the posting again", answer["text"])
+    # the follow-up without a search mode (the lens of the chat page off after the first question): it searches all the same
+    status, answer, requests = tools.chat(rita, RETRY, no_tools_model, messages=history, search=None)
+    js, retrieval = jobsearch(answer) or {}, answer["meta"].get("scoutro-retrieval", {})
+    check(status == 200 and retrieval.get("followUp") is True and js.get("followUp") is True and js.get("found") == 2
+          and js.get("scope") == "collection alpha-web" and sources(answer).get(1, {}).get("url") == ml_url,
+          "follow-up without a search mode: searches locally with the goal of the chat", json.dumps(retrieval) + json.dumps(js))
+    # switched off for this message: no search, also for a follow-up
+    status, answer, requests = tools.chat(rita, RETRY, no_tools_model, messages=history, search="no")
+    check(status == 200 and "scoutro-retrieval" not in answer["meta"] and jobsearch(answer) is None,
+          "follow-up with search no: no search", json.dumps(answer["meta"].get("scoutro-retrieval")))
+    # a retry as the first message has no earlier goal: no search without a search mode
+    status, answer, requests = tools.chat(rita, RETRY, no_tools_model, search=None)
+    check(status == 200 and "scoutro-retrieval" not in answer["meta"] and jobsearch(answer) is None,
+          "a retry as the first message, no search mode: no search", json.dumps(answer["meta"].get("scoutro-retrieval")))
+    # an ordinary message without a search mode after a search: no search ("no search" as the default of the chat page)
+    status, answer, requests = tools.chat(rita, "Danke. Fasse das bitte kurz zusammen.", no_tools_model, messages=history, search=None)
+    check(status == 200 and "scoutro-retrieval" not in answer["meta"], "an ordinary message without a search mode: no search",
+          json.dumps(answer["meta"].get("scoutro-retrieval")))
 
     # 3. a real zero
     status, answer, requests = tools.chat(rita, "Gibt es Stellenanzeigen für Tiefseetaucher mit Unterwasserschweißen?", no_tools_model)
@@ -192,6 +213,21 @@ def main():
             "scoutro.kg.enabled=true", "scoutro.kg.collections=alpha-web,beta-web", "scoutro.kg.jsonld.enabled=true",
             "scoutro.kg.jobs.collections=alpha-web,beta-web", "scoutro.kg.jobs.display.collections=alpha-web,beta-web"])
         run(base, Client(base, digest=("admin", "yacy")))
+        if "--ui" in sys.argv[1:]:
+            # the chat page: the search mode it sends for a follow-up (test/scoutro-ui/chat-followup-ui-test.mjs)
+            tools.PLAN["next"] = no_tools_model
+            ui = subprocess.run(["node", str(HERE.parent / "scoutro-ui/chat-followup-ui-test.mjs")], cwd=HERE.parents[1],
+                                env=dict(os.environ, SCOUTRO_URL=base), timeout=600, capture_output=True, text=True)
+            tools.PLAN["next"] = None
+            print((ui.stdout + ui.stderr).strip()[-4000:], flush=True)
+            check(ui.returncode == 0, "chat page (Chromium): the search mode of a follow-up")
+        # the server log of the follow-ups: the search mode as sent and as used, and the goal of the chat
+        log = (root / "peer.log").read_text(errors="replace")
+        check(re.search(r"event=rag-request phase=messages .*ragMode=local searchMode=followUp", log)
+              and re.search(r"event=rag-retrieval phase=end ragMode=local followUp=true", log),
+              "log: a follow-up without a search mode searches locally with followUp=true")
+        check(re.search(r"event=rag-request phase=messages .*ragMode=no searchMode=sent", log), "log: search no as sent is respected")
+        check(re.search(r"event=rag-request phase=messages .*ragMode=no searchMode=absent", log), "log: no search mode and no earlier goal: no search")
     finally:
         if process is not None and process.poll() is None:
             process.terminate()
