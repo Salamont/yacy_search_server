@@ -36,9 +36,9 @@ missing response times, restart and schema persistence failures. See
 | What | Value | Where |
 |---|---|---|
 | YaCy version | `1.942` | `build.properties` → `releaseVersion` (unchanged from upstream) |
-| Scoutro release | `51` | `scoutro.properties` → `scoutro.release` |
-| Full Scoutro version | `1.942-scoutro.51` | git tag `v1.942-scoutro.51`, image tag `1.942-scoutro.51` |
-| Image alias | `0.14.2` | image tag `0.14.2` (same immutable digest as the full version) |
+| Scoutro release | `52-rc.1` (test candidate; the last release is `51`) | `scoutro.properties` → `scoutro.release` |
+| Full Scoutro version | `1.942-scoutro.52-rc.1` | image tag `1.942-scoutro.52-rc.1` (a candidate gets no git tag) |
+| Image alias | `0.14.3-rc.1` | image tag `0.14.3-rc.1` (same immutable digest as the full version) |
 
 Why not change `releaseVersion`: YaCy parses its version as a number
 (`yacyVersion`, `Seed.getVersion()` use `Double.parseDouble`, and

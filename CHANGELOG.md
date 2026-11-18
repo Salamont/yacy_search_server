@@ -2,6 +2,13 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.14.3-rc.1 / 1.942-scoutro.52-rc.1 — test candidate: tools of the chat (not a release)
+
+On 0.14.2 (`71fb2b8`): with released tools the chat model searches the local index again and reads the knowledge graph
+(`search`, `kg_search`, `kg_entity`, `kg_evidence`) within the scope of the chat session; pages of tool results become
+numbered sources, and the citation check reports per cited source whether its text contains the statement. Tools stay off
+until released. Schemas, extractors and settings unchanged: no re-extraction. Details: docs/SCOUTRO_CANDIDATE_0.14.3-rc.1.md.
+
 ## 0.14.2 / 1.942-scoutro.51 — facilities, stage 1: addresses, facility pages and identities
 
 On 0.14.1: knowledge graph schema 9 unchanged, no new table, predicate or API route; one re-extraction of tiers 1 and 2 of every
