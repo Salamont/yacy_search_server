@@ -2,7 +2,12 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.5): the provider search keeps an open relation to the place apart
+## 0.14.3-rc.6 / 1.942-scoutro.52-rc.6 — test candidate: the job and provider search by the indexes first, the server's count answer, the open relation to the place (not a release)
+
+On 0.14.3-rc.5, application code `82997f8`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.6.md.
+
+### The provider search keeps an open relation to the place apart
 
 - When more providers name the place than the search reads (120 providers, 3 pages each) or its time budget runs out in
   the place step, a provider whose pages naming the place were not all read is now **open** (`undecided`) instead of
@@ -11,7 +16,7 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   bounds. The server's count answer, `provider_search` (`place_complete`, `place_gaps`) and the model's note say this
   apart. Providers of the graph and those with the most pages naming the service are read first.
 
-## Unreleased (on 0.14.3-rc.5): the job and provider search find the matching entries by the indexes first
+### The job and provider search find the matching entries by the indexes first
 
 Found on a production-size stock with rc.5 (6,844 postings, 275,134 pages): every search ended at its 6 s budget. The job
 search had read 1,250 postings with all their facts and evidence excerpts and no longer loaded the name hits it had
