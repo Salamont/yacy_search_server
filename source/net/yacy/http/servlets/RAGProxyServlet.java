@@ -392,11 +392,12 @@ public class RAGProxyServlet extends HttpServlet {
                             goal.followUp);
                     // "none found" only when the search found none, never when only the room was missing
                     if (!jobs.sources.isEmpty() || jobResult.jobs.isEmpty()) {
-                        guard.addServerRules(messages, PromptGuard.jobSearchNote(jobs.sources.size(), jobResult.searched,
-                                jobResult.plan.criteria(), toolContext.scopeLabel()));
+                        guard.addServerRules(messages, PromptGuard.jobSearchNote(jobResult.found, jobs.sources.size(), jobResult.lowerBound(),
+                                jobResult.searched, jobResult.plan.criteria(), toolContext.scopeLabel()));
                     }
                     ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-jobsearch phase=end stage=" + result.stage + " followUp=" + goal.followUp
-                            + " searched=" + jobResult.searched.size() + " found=" + jobs.sources.size() + " partial=" + jobs.meta.optInt("partial")
+                            + " searched=" + jobResult.searched.size() + " found=" + jobResult.found + " lowerBound=" + jobResult.lowerBound() + " scanned="
+                            + jobResult.scanned + " shown=" + jobs.sources.size() + " partial=" + jobs.meta.optInt("partial")
                             + " timedOut=" + jobResult.timedOut + " error=" + jobResult.error + " ms=" + jobResult.millis);
                 }
                 final int jobCount = jobs == null ? 0 : jobs.sources.size();

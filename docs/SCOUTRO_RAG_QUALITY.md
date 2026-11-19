@@ -299,26 +299,45 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   is not set on its own (saving the Tools page gives it its own setting), and within the scope of the request
   (`ToolContext`: the session's collection, read with its viewer). An AI Shield guest gets none; without the release
   nothing runs. The model can also call `job_search(query)` itself (2 calls per answer).
-- **Few short title variants**, at most 6 name searches of `type=job`: the subjects of the question (in its order:
-  its configured subject groups and up to 3 of its own words, not counting words about jobs or the answer) first together, then each on its own, the question's own compounds ("Prozessrobotik": a name search matches
+- **Subjects and title variants:** the subjects of the question (in its order: its configured subject groups and up to
+  3 of its own words, not counting words about jobs or the answer); at most 6 title variants for the name index: the
+  subjects first together, then each on its own, the question's own compounds ("Prozessrobotik": a name search matches
   only the start of a word), then the synonyms of a configured subject group; a role of the question ("Java Entwickler")
-  before the subject alone. Subjects are the question's own words; `scoutro.chat.jobs.subjects` may group synonyms
-  (`Label: synonym, synonym; Label: …`, empty by default; e.g. `ML: Machine Learning, maschinelles Lernen`), each group
-  one subject searched by each of its names. Short names (up to 3 letters) are whole words
-  (`KgReader.EntityQuery.wholeWords`), and a hit must show its subject in the title. At most 12 candidates, 6 postings,
-  4 s.
-- **Selection:** the 12 candidate places are shared by the subjects: the searches of each subject (and the joint ones)
-  fill their own share, so many hits of the first subject do not keep a later one from being searched; the candidates
-  are taken from the shares in turn, each hit once. Sorted by relevance (subjects shown, not ended, newest, search
-  order); of the 6 postings shown, the most relevant one of every subject that has a hit comes first.
-- **To the answer:** each posting is a numbered source before the search results (`[1] Scoutro knowledge graph: job
-  posting <title>`, `URL:` the page it was read from, its collection), with employer, employment type, place, dates, the
-  subjects of the question it shows and, as `PARTIAL MATCH`, those it does not. The full matches come first.
-- **Application status:** never checked. Each entry says that whether the posting is still open is a separate question,
-  with the date the page was last loaded and, if recorded, an end date that has passed; the server rules tell the model
-  not to state it and to answer it, if asked, only from these dates.
+  before the subject alone. `scoutro.chat.jobs.subjects` may group synonyms (`Label: synonym, synonym; Label: …`, empty
+  by default; e.g. `ML: Machine Learning, maschinelles Lernen`). Short names (up to 3 letters) are whole words.
+- **The whole released stock, then the limit** (`JobSearch.run`, the same for the automatic search and `job_search`):
+  1. the name index (`type=job`), every page of hits of each title variant (at most 500 per variant);
+  2. every posting of the request's scope with its facts (employer, place, field, signals of the advertisement …) and
+     the excerpts of their evidence (`KgReader.jobDigests`: one read of 250 postings, the viewer's scope tables, no
+     schema change), at most 5,000 postings;
+  3. the indexed text: one local search per subject (50 pages, the request's collection); a page counts only when it is
+     the page of a posting of the scope (matched by its address), never a company page on its own. The index gives one
+     page per host, so a host with several postings is searched again with `site:` (at most 4 such searches).
+
+  A posting matches a subject by its title, a fact or excerpt, or only the text of its page (in this order of
+  strength). Duplicates count once: one entity, one page, or one title of one employer at one place. All of this within
+  6 s; the matching postings are counted (`found`, per subject) before the answer's limit of 6 shown postings.
+- **Lower bound:** when the time ran out, 5,000 postings were read, a variant had more than 500 names, a text search
+  returned its full 50 pages or more hosts than 4 needed a `site:` search, the count is a lower bound (`lowerBound`):
+  the model is told "at least" and, with nothing found, not to say that the index holds none.
+- **Selection:** sorted by the subjects a posting shows and how; of the 6 shown, the subjects in turn take their most
+  relevant posting (an or-question keeps every subject that has postings), then the most relevant rest. Dates neither
+  exclude nor rank.
+- **To the answer:** each posting shown is a numbered source before the search results (`[1] Scoutro knowledge graph: job
+  posting <title>`, `URL:` the page it was read from, its collection), with employer, employment type, place, the dates
+  it states, the subjects of the question it shows (those shown only in its page's text named) and, as `PARTIAL MATCH`,
+  those it does not. The server rules give the number found and shown.
+- **Currency:** the stock of the knowledge graph counts as current: a missing posting or end date excludes, ranks and
+  remarks nothing, and no page is checked live.
 - **Nothing found:** the server rules say that the postings were searched with these words in this scope and none was
-  found, and that no company page may be presented as a posting.
+  found (or none within the budget), and that no company page may be presented as a posting.
+- **Limits of the available queries** (where a complete set is not guaranteed): the graph's name index holds names and
+  aliases only, so facts and excerpts are matched in memory over the postings read (cost grows with the stock: about
+  0.3 s for 20 postings in the live smoke, untested at production size); the description of a posting is not a fact of
+  its own, it counts through the excerpts of its facts or the indexed text of its page; the text path depends on the
+  index's ranking (50 pages per search, one per host, `site:` for at most 4 hosts) and on the address of a posting's
+  page matching the page in the index; a search of the job search also warms the index's search event of its words, so a
+  later chat search of the same words may return more pages of one host.
 - **Follow-up:** a message that asks to search again ("Such noch mal", "Such noch mal gezielt nach Stellenanzeigen und
   prüfe die Originalquellen", "nochmal suchen", "Versuch es erneut", "search again") takes the goal of the conversation:
   the latest earlier user message with a subject, joined with the follow-up (`RagFollowUp`); the automatic search and the
@@ -328,8 +347,10 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   `search: "no"` (the lens switched off for this message) is respected, and a retry as the first message has nothing to
   search for. Log: `event=rag-request … ragMode=local searchMode=followUp` (else `sent` or `absent`) and
   `event=rag-retrieval … followUp=true`.
-- **Metadata:** `scoutro-jobsearch: {triggered, followUp, scope, criteria, searched, found, notShown, full, partial, timedOut,
-  error, millis}` (`notShown`: postings found without room left in the context; the model is then not told "none") in the first data line; `scoutro-retrieval.followUp`. Log: `event=rag-jobsearch`.
+- **Metadata:** `scoutro-jobsearch: {triggered, followUp, scope, criteria, searched, found, lowerBound, shown, notShown,
+  perSubject, scanned, full, partial, timedOut, error, millis}` (`found`: matching postings determined in the scope;
+  `shown`: given as sources; `notShown`: selected without room left in the context; `scanned`: postings read) in the first
+  data line; `scoutro-retrieval.followUp`. Log: `event=rag-jobsearch … found= lowerBound= scanned= shown=`.
 
 Tests: `ChatToolsTest` and `RagFollowUpTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-jobsearch-live-smoke.py`
 (a disposable peer, the normal endpoint, a simulated model that never calls a tool).

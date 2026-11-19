@@ -19,31 +19,43 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.read.KgReader;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
 
 /**
  * The job search of the chat (docs/SCOUTRO_RAG_QUALITY.md, section 12). For a question about job postings whose automatic
  * search matched only weakly or not at all, the server searches the job postings of the knowledge graph ({@code type=job})
- * before the model answers, whether or not the model would call a tool:
+ * before the model answers, whether or not the model would call a tool; the tool {@code job_search} runs the same search.
  * <ul>
  * <li>Only with the existing release of {@code kg_search} and within the scope of the chat request ({@link ToolContext}:
  * the session's collection, read with its viewer). Nothing outside it is read.</li>
- * <li>A few short title variants: each subject of the question searched on its own (a configured subject group of
- * {@link #SUBJECTS_KEY} also by its synonyms), first together when the question names several.
- * At most {@link #MAX_VARIANTS} name searches, {@link #MAX_JOBS} postings, {@link #MAX_MILLIS} ms.</li>
- * <li>Each posting goes to the answer as a numbered source with the page it was read from, its employer and dates, the
- * subjects of the question it shows and, as a PARTIAL MATCH, those it does not. Whether it is still open is not checked:
- * a separate question, answered only from the dates of the source.</li>
+ * <li>The whole released stock: the name index for a few title variants, every posting of the scope with its facts and
+ * excerpts ({@link KgReader#jobDigests}), and the indexed text of the postings' pages. A posting counts by its title, a
+ * fact or the text of its own page; a company page is no posting. The matching postings are determined and deduplicated
+ * before the answer's limit of {@link #MAX_JOBS}; the result says how many were found and shown, and whether the count
+ * is only a lower bound (time {@link #MAX_MILLIS} ms, {@link #MAX_SCAN} postings read, a text search full).</li>
+ * <li>Each posting shown goes to the answer as a numbered source with the page it was read from, its employer, the
+ * dates it states, the subjects of the question it shows and, as a PARTIAL MATCH, those it does not. The stock of the
+ * graph counts as current: a missing date neither excludes nor ranks a posting.</li>
  * </ul>
  */
 public final class JobSearch {
 
     public static final int MAX_VARIANTS = 6;
+    /** postings shown in an answer; the ones found are determined before this limit */
     public static final int MAX_JOBS = 6;
-    public static final long MAX_MILLIS = 4000L;
-    static final int PER_VARIANT = 12;
-    static final int MAX_CANDIDATES = 12;
+    /** time of one search (name index, all postings of the scope, text) */
+    public static final long MAX_MILLIS = 6000L;
+    /** postings of the scope read at most; more make the count a lower bound */
+    public static final int MAX_SCAN = 5000;
+    static final int SCAN_PAGE = 250;
+    /** hits of the name index read per variant, in pages */
+    static final int NAME_HITS = 500;
+    static final int NAME_PAGE = 100;
+    /** pages of one text search; a host with several postings is searched again by site:, at most this often */
+    static final int TEXT_HITS = 50;
+    static final int MAX_HOST_SEARCHES = 4;
     static final int MAX_CHARS = 2600;
     static final int MAX_VALUE = 120;
 
@@ -297,6 +309,11 @@ public final class JobSearch {
     // ------------------------------------------------------------------------------------------ the search
 
     /** One posting found. */
+    /** How a posting shows a subject: in its title, in its other facts or excerpts, or only in its page's indexed text. */
+    static final int BY_TITLE = 3;
+    static final int BY_FACT = 2;
+    static final int BY_TEXT = 1;
+
     public static final class Job {
         public final String id;
         public final String title;
@@ -308,11 +325,10 @@ public final class JobSearch {
         String place;
         String datePosted;
         String validThrough;
-        String status;
-        boolean ended;
         final List<String> met = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
-        final StringBuilder haystack = new StringBuilder();
+        /** the strongest way it shows each subject it shows ({@link #BY_TITLE}, {@link #BY_FACT}, {@link #BY_TEXT}) */
+        final Map<String, Integer> how = new LinkedHashMap<>();
         int order;
 
         Job(final String id, final String title) {
@@ -327,32 +343,55 @@ public final class JobSearch {
         public String url() {
             return this.url;
         }
+
+        int strength() {
+            int sum = 0;
+            for (final int v : this.how.values()) sum += v;
+            return sum;
+        }
     }
 
-    /** What the search found. */
     public static final class Result {
         public final Plan plan;
+        /** the postings shown (at most {@link #MAX_JOBS}) */
         public final List<Job> jobs;
         public final List<String> searched;
         public final boolean timedOut;
         public final String error;
         public final long millis;
-        /** the postings considered (at most {@link #MAX_CANDIDATES}) */
-        public final int candidates;
+        /** the matching postings determined in the scope, without duplicates (before the limit of {@link #jobs}) */
+        public final int found;
+        /** per subject of the question: how many of {@link #found} show it */
+        public final Map<String, Integer> perSubject;
+        /** the postings of the scope read (all of them unless {@link #complete} is false) */
+        public final int scanned;
+        /**
+         * whether the whole released stock was searched: false when the time, the number of postings read or of pages of
+         * the text search ran out; {@link #found} is then a lower bound
+         */
+        public final boolean complete;
 
         public Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis) {
-            this(plan, jobs, searched, timedOut, error, millis, jobs.size());
+            this(plan, jobs, searched, timedOut, error, millis, jobs.size(), new LinkedHashMap<>(), jobs.size(), !timedOut && error == null);
         }
 
         Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis,
-                final int candidates) {
-            this.candidates = candidates;
+                final int found, final Map<String, Integer> perSubject, final int scanned, final boolean complete) {
             this.plan = plan;
             this.jobs = Collections.unmodifiableList(jobs);
             this.searched = Collections.unmodifiableList(searched);
             this.timedOut = timedOut;
             this.error = error;
             this.millis = millis;
+            this.found = found;
+            this.perSubject = Collections.unmodifiableMap(perSubject);
+            this.scanned = scanned;
+            this.complete = complete;
+        }
+
+        /** whether {@link #found} is only a lower bound */
+        public boolean lowerBound() {
+            return !this.complete;
         }
     }
 
@@ -368,150 +407,235 @@ public final class JobSearch {
         return run(context, plan, System::currentTimeMillis);
     }
 
+    /**
+     * The postings of the request's scope that match the plan, determined before the output is limited (the automatic job
+     * search and the tool {@code job_search} both run this):
+     * <ol>
+     * <li>the name index ({@code type=job}, every page of hits of each title variant);</li>
+     * <li>every posting of the scope with its facts and excerpts ({@link KgReader#jobDigests}): titles, job facts
+     * (employer, field, signals of the advertisement) and the advertisement's text around them;</li>
+     * <li>the indexed text of the pages (the local index within the scope): a page counts only when it is the page of a
+     * posting of the scope, never a company page on its own; a host that has postings is searched once more by
+     * {@code site:}, as the index gives one page per host.</li>
+     * </ol>
+     * Duplicates (one entity, one page, or one title of one employer at one place) count once. The postings found are
+     * ranked by the subjects they show and how, the shown ones keep one of every subject that has one. Dates neither
+     * exclude nor rank: the stock of the graph counts as current.
+     */
     static Result run(final ToolContext context, final Plan plan, final LongSupplier clock) {
         final long start = clock.getAsLong();
-        final Map<String, Job> found = new LinkedHashMap<>();
         final List<String> searched = new ArrayList<>();
+        final Map<String, KgReader.JobDigest> digests = new LinkedHashMap<>(); // id -> posting
+        final Map<String, Map<String, Integer>> hits = new LinkedHashMap<>(); // id -> subject -> how
         boolean timedOut = false;
+        boolean complete = true;
         String error = null;
         try {
             final KgReader reader = context.reader();
             if (reader == null) return new Result(plan, new ArrayList<>(), searched, false, "unavailable", 0L);
             final Viewer viewer = context.viewer(reader);
-            // the candidate places are shared by the subjects: each subject's searches (Variant.filter; null: the joint ones)
-            // fill their own share first, so that one subject cannot use up the places before the others were searched
-            final Map<Criterion, List<Job>> shares = new LinkedHashMap<>();
-            for (final Variant v : plan.variants) shares.putIfAbsent(v.filter, new ArrayList<>());
-            final int share = Math.max(1, (MAX_CANDIDATES + shares.size() - 1) / shares.size());
-            final Map<String, Job> hits = new LinkedHashMap<>(); // every hit once, the first search that found it decides its share
+            // 1. the name index: every page of hits of each title variant (a subject's variants, the joint ones)
             for (final Variant v : plan.variants) {
-                final List<Job> own = shares.get(v.filter);
-                if (hits.size() >= MAX_CANDIDATES && own.size() >= share) continue; // nothing this search could still add
                 if (clock.getAsLong() - start > MAX_MILLIS) {
                     timedOut = true;
                     break;
                 }
-                final KgReader.EntityQuery q = new KgReader.EntityQuery();
-                q.q = v.text;
-                q.type = "job";
-                q.wholeWords = v.wholeWords;
-                q.limit = PER_VARIANT;
                 searched.add(v.text);
-                final JSONArray items = reader.entities(q, viewer).optJSONArray("items");
-                for (int i = 0; items != null && i < items.length(); i++) {
-                    final JSONObject item = items.getJSONObject(i);
-                    final String id = text(item, "id");
-                    final String title = firstNonEmpty(text(item, "name"), text(item, "display_name"));
-                    if (id.isEmpty() || title.isEmpty() || hits.containsKey(id)) continue;
-                    if (v.filter != null && !v.filter.shownBy.test(RagQuery.fold(title))) continue; // a word that only starts a title word
-                    final Job job = new Job(id, title);
-                    final JSONObject ctx = item.optJSONObject("context");
-                    final JSONArray providers = ctx == null ? null : ctx.optJSONArray("providers");
-                    if (providers != null && providers.length() > 0) job.employer = text(providers.getJSONObject(0), "name");
-                    hits.put(id, job);
-                    own.add(job);
-                }
-            }
-            // the candidates: the shares in turn, each in the order its searches ranked them, at most MAX_CANDIDATES
-            for (int round = 0; found.size() < MAX_CANDIDATES; round++) {
-                boolean more = false;
-                for (final List<Job> own : shares.values()) {
-                    if (round >= own.size()) continue;
-                    more = true;
-                    final Job job = own.get(round);
-                    if (found.size() < MAX_CANDIDATES && !found.containsKey(job.id)) {
-                        job.order = found.size();
-                        found.put(job.id, job);
+                for (int offset = 0; offset < NAME_HITS; offset += NAME_PAGE) {
+                    final KgReader.EntityQuery q = new KgReader.EntityQuery();
+                    q.q = v.text;
+                    q.type = "job";
+                    q.wholeWords = v.wholeWords;
+                    q.offset = offset;
+                    q.limit = NAME_PAGE;
+                    final JSONObject page = reader.entities(q, viewer);
+                    final JSONArray items = page.optJSONArray("items");
+                    for (int i = 0; items != null && i < items.length(); i++) {
+                        final JSONObject item = items.getJSONObject(i);
+                        final String id = text(item, "id");
+                        final String title = firstNonEmpty(text(item, "name"), text(item, "display_name"));
+                        if (id.isEmpty() || title.isEmpty()) continue;
+                        if (v.filter != null && !v.filter.shownBy.test(RagQuery.fold(title))) continue; // a word that only starts a title word
+                        hits.computeIfAbsent(id, k -> new LinkedHashMap<>());
+                    }
+                    final long total = page.optLong("total", 0L);
+                    if (items == null || items.length() < NAME_PAGE || offset + NAME_PAGE >= total) break;
+                    if (offset + NAME_PAGE >= NAME_HITS) complete = false; // more names than this pass reads
+                    if (clock.getAsLong() - start > MAX_MILLIS) {
+                        timedOut = true;
+                        break;
                     }
                 }
-                if (!more) break;
             }
-            details(reader, viewer, found, clock, start);
+            // 2. every posting of the scope, with its facts and excerpts
+            long after = 0L;
+            boolean more = true;
+            while (more && !timedOut) {
+                if (digests.size() >= MAX_SCAN) {
+                    complete = false;
+                    break;
+                }
+                if (clock.getAsLong() - start > MAX_MILLIS) {
+                    timedOut = true;
+                    break;
+                }
+                final KgReader.JobPage page = reader.jobDigests(viewer, null, after, Math.min(SCAN_PAGE, MAX_SCAN - digests.size()));
+                for (final KgReader.JobDigest d : page.items) digests.putIfAbsent(d.id, d);
+                after = page.last;
+                more = page.more;
+            }
+            if (more) complete = false;
+            // the name hits the scan did not reach
+            final List<String> unread = new ArrayList<>();
+            for (final String id : hits.keySet()) if (!digests.containsKey(id)) unread.add(id);
+            if (!unread.isEmpty() && clock.getAsLong() - start <= MAX_MILLIS) {
+                for (final KgReader.JobDigest d : reader.jobDigests(viewer, unread, 0L, unread.size()).items) digests.putIfAbsent(d.id, d);
+            }
+            // 3. the indexed text of the postings' pages
+            final Map<String, String> byUrl = new LinkedHashMap<>();
+            final Map<String, Integer> perHost = new LinkedHashMap<>();
+            for (final KgReader.JobDigest d : digests.values()) {
+                if (d.url == null) continue;
+                byUrl.putIfAbsent(pageKey(d.url), d.id);
+                perHost.merge(host(d.url), 1, Integer::sum);
+            }
+            final Set<String> hostsSearched = new LinkedHashSet<>();
+            for (final Criterion c : plan.criteria) {
+                if (timedOut || clock.getAsLong() - start > MAX_MILLIS) {
+                    timedOut = true;
+                    break;
+                }
+                final String words = c.variants.get(0).text;
+                searched.add("text: " + words);
+                final List<RagCandidate> pages = context.pages(words, TEXT_HITS);
+                if (pages.size() >= TEXT_HITS) complete = false; // the index may hold more pages than one search gives
+                final Set<String> hostsHit = new LinkedHashSet<>();
+                textHits(pages, c, byUrl, hits, hostsHit);
+                // the index gives one page per host: a host with several postings is searched once more by site:
+                for (final String h : hostsHit) {
+                    if (perHost.getOrDefault(h, 0) < 2 || hostsSearched.size() >= MAX_HOST_SEARCHES || !hostsSearched.add(h + "|" + words)) continue;
+                    if (clock.getAsLong() - start > MAX_MILLIS) {
+                        timedOut = true;
+                        break;
+                    }
+                    searched.add("text: site:" + h + " " + words);
+                    final List<RagCandidate> more2 = context.pages("site:" + h + " " + words, TEXT_HITS);
+                    if (more2.size() >= TEXT_HITS) complete = false;
+                    textHits(more2, c, byUrl, hits, new LinkedHashSet<>());
+                }
+                if (hostsSearched.size() >= MAX_HOST_SEARCHES) {
+                    for (final String h : hostsHit) if (perHost.getOrDefault(h, 0) > 1 && !hostsSearched.contains(h + "|" + words)) complete = false;
+                }
+            }
         } catch (final Exception e) {
             error = e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed";
         }
-        final String today = Instant.ofEpochMilli(clock.getAsLong()).atZone(ZoneOffset.UTC).toLocalDate().toString();
-        final List<Job> jobs = new ArrayList<>();
-        for (final Job job : found.values()) {
-            if (job.url == null) continue; // no page of this scope behind it: nothing to cite
-            final String folded = RagQuery.fold(job.title + " " + (job.employer == null ? "" : job.employer) + " " + job.haystack);
-            for (final Criterion c : plan.criteria) (c.shownBy.test(folded) ? job.met : job.missing).add(c.label);
-            if (job.validThrough != null && job.validThrough.length() >= 10 && job.validThrough.substring(0, 10).compareTo(today) < 0) job.ended = true;
-            if (job.status != null && job.status.toLowerCase(Locale.ROOT).matches(".*(ended|closed|expired|filled|besetzt|beendet).*")) job.ended = true;
-            jobs.add(job);
+        if (timedOut || error != null) complete = false;
+        // every posting read: which subjects it shows, and how
+        final List<Job> matching = new ArrayList<>();
+        final Set<String> seen = new LinkedHashSet<>();
+        int order = 0;
+        for (final KgReader.JobDigest d : digests.values()) {
+            if (d.url == null || d.name == null) continue; // no page of this scope behind it: nothing to cite
+            final Job job = job(d);
+            job.order = order++;
+            final String title = RagQuery.fold(d.name);
+            final StringBuilder facts = new StringBuilder();
+            for (final String[] f : d.facts) if (!Vocabulary.NAME.equals(f[0])) facts.append(' ').append(f[1]);
+            for (final String x : d.excerpts) facts.append(' ').append(x);
+            final String folded = RagQuery.fold(facts.toString());
+            final Map<String, Integer> text = hits.getOrDefault(d.id, Collections.emptyMap());
+            for (final Criterion c : plan.criteria) {
+                final int how = c.shownBy.test(title) ? BY_TITLE : c.shownBy.test(folded) ? BY_FACT : text.getOrDefault(c.label, 0);
+                if (how > 0) {
+                    job.met.add(c.label);
+                    job.how.put(c.label, how);
+                } else {
+                    job.missing.add(c.label);
+                }
+            }
+            if (!plan.criteria.isEmpty() && job.met.isEmpty()) continue;
+            // duplicates: one page, or one title of one employer at one place
+            final String key = RagQuery.fold(job.title) + "|" + RagQuery.fold(value(job.employer, "")) + "|" + RagQuery.fold(value(job.place, ""));
+            if (!seen.add("u|" + pageKey(job.url)) | !seen.add("k|" + key)) continue;
+            matching.add(job);
         }
         final java.util.Comparator<Job> relevance = (a, b) -> a.met.size() != b.met.size() ? b.met.size() - a.met.size()
-                : a.ended != b.ended ? (a.ended ? 1 : -1)
-                : !String.valueOf(b.datePosted).equals(String.valueOf(a.datePosted)) ? String.valueOf(b.datePosted).compareTo(String.valueOf(a.datePosted))
-                : a.order - b.order;
-        jobs.sort(relevance);
-        // the postings shown: the most relevant one of every subject that has one first (a question for several subjects
-        // also gets postings of the later ones), then the most relevant of the rest; shown by relevance
+                : a.strength() != b.strength() ? b.strength() - a.strength() : a.order - b.order;
+        matching.sort(relevance);
+        final Map<String, Integer> perSubject = new LinkedHashMap<>();
+        for (final Criterion c : plan.criteria) perSubject.put(c.label, 0);
+        for (final Job job : matching) for (final String s : job.met) perSubject.merge(s, 1, Integer::sum);
+        // the postings shown: the subjects in turn, each with its most relevant posting not shown yet (an or-question keeps
+        // every subject that has postings), then the most relevant rest
         final List<Job> shown = new ArrayList<>();
-        for (final Criterion c : plan.criteria) {
-            if (shown.size() >= MAX_JOBS || shown.stream().anyMatch(j -> j.met.contains(c.label))) continue;
-            jobs.stream().filter(j -> j.met.contains(c.label) && !shown.contains(j)).findFirst().ifPresent(shown::add);
-        }
-        for (final Job job : jobs) if (shown.size() < MAX_JOBS && !shown.contains(job)) shown.add(job);
-        shown.sort(relevance);
-        return new Result(plan, shown, searched, timedOut, error, clock.getAsLong() - start, found.size());
-    }
-
-    /** The facts of each posting and the newest page of its title (or of another of its facts) in this scope. */
-    private static void details(final KgReader reader, final Viewer viewer, final Map<String, Job> found, final LongSupplier clock,
-            final long start) throws Exception {
-        final Map<String, String> statementOf = new LinkedHashMap<>(); // statement -> job
-        final Map<String, String> nameStatement = new LinkedHashMap<>(); // job -> its name statement
-        for (final Job job : found.values()) {
-            if (clock.getAsLong() - start > MAX_MILLIS) break;
-            final JSONArray items = reader.entityStatements(job.id, null, false, false, 0, 30, viewer).optJSONArray("items");
-            for (int i = 0; items != null && i < items.length(); i++) {
-                final JSONObject s = items.getJSONObject(i);
-                final String predicate = text(s, "predicate");
-                final JSONObject object = s.optJSONObject("object");
-                final String value = object == null ? "" : firstNonEmpty(text(object, "name"), text(object, "display_name"), text(object, "value"));
-                statementOf.put(text(s, "id"), job.id);
-                if ("name".equals(predicate)) nameStatement.putIfAbsent(job.id, text(s, "id"));
-                job.haystack.append(' ').append(value);
-                switch (predicate) {
-                    case "hiring_organization":
-                        if (job.employer == null || job.employer.isEmpty()) job.employer = value;
-                        break;
-                    case "employment_type":
-                        job.employmentType = value;
-                        break;
-                    case "job_location":
-                        job.place = value;
-                        break;
-                    case "date_posted":
-                        job.datePosted = value;
-                        break;
-                    case "valid_through":
-                        job.validThrough = value;
-                        break;
-                    case "job_status":
-                        job.status = value;
-                        break;
-                    default:
-                        break;
+        for (boolean added = true; added && shown.size() < MAX_JOBS;) {
+            added = false;
+            for (final Criterion c : plan.criteria) {
+                if (shown.size() >= MAX_JOBS) break;
+                final Job next = matching.stream().filter(j -> j.met.contains(c.label) && !shown.contains(j)).findFirst().orElse(null);
+                if (next != null) {
+                    shown.add(next);
+                    added = true;
                 }
             }
         }
-        if (statementOf.isEmpty()) return;
-        final Map<String, JSONArray> evidence = reader.evidenceOf(statementOf.keySet(), 1, viewer);
-        for (final Map.Entry<String, JSONArray> e : evidence.entrySet()) {
-            final Job job = found.get(statementOf.get(e.getKey()));
-            final JSONObject row = e.getValue().optJSONObject(0);
-            if (job == null || row == null || text(row, "url").isEmpty()) continue;
-            job.haystack.append(' ').append(text(row, "excerpt"));
-            final boolean ofName = e.getKey().equals(nameStatement.get(job.id));
-            if (job.url == null || ofName) {
-                job.url = text(row, "url");
-                final JSONArray collections = row.optJSONArray("collections");
-                job.collection = collections == null || collections.length() == 0 ? null : collections.optString(0, null);
-                job.loadedAt = text(row, "loaded_at");
+        for (final Job job : matching) if (shown.size() < MAX_JOBS && !shown.contains(job)) shown.add(job);
+        // by the number of subjects shown; within it the subjects stay in turn, so that a short answer room keeps them all
+        shown.sort(java.util.Comparator.comparingInt((Job j) -> -j.met.size()));
+        return new Result(plan, shown, searched, timedOut, error, clock.getAsLong() - start, matching.size(), perSubject, digests.size(), complete);
+    }
+
+    /** The pages of a text search that are pages of postings: their subject {@code c}, by text. */
+    private static void textHits(final List<RagCandidate> pages, final Criterion c, final Map<String, String> byUrl,
+            final Map<String, Map<String, Integer>> hits, final Set<String> hostsHit) {
+        for (final RagCandidate page : pages) {
+            final String id = byUrl.get(pageKey(page.url));
+            if (id == null) continue; // not the page of a posting of this scope (a company page names no posting)
+            hostsHit.add(host(page.url));
+            if (!c.shownBy.test(RagQuery.fold(page.title + " " + page.description + " " + page.text))) continue; // other words of it matched
+            hits.computeIfAbsent(id, k -> new LinkedHashMap<>()).merge(c.label, BY_TEXT, Math::max);
+        }
+    }
+
+    /** A posting from its digest: employer, type, place and dates of its facts. */
+    private static Job job(final KgReader.JobDigest d) {
+        final Job job = new Job(d.id, d.name);
+        job.url = d.url;
+        job.collection = d.collection;
+        job.loadedAt = d.loadedAt;
+        for (final String[] f : d.facts) {
+            switch (f[0]) {
+                case Vocabulary.HIRING_ORGANIZATION:
+                    if (job.employer == null) job.employer = f[1];
+                    break;
+                case Vocabulary.EMPLOYMENT_TYPE:
+                    job.employmentType = job.employmentType == null ? f[1] : job.employmentType + ", " + f[1];
+                    break;
+                case Vocabulary.JOB_LOCATION:
+                    if (job.place == null) job.place = f[1];
+                    break;
+                case Vocabulary.DATE_POSTED:
+                    job.datePosted = f[1];
+                    break;
+                case Vocabulary.VALID_THROUGH:
+                    job.validThrough = f[1];
+                    break;
+                default:
+                    break;
             }
         }
+        return job;
+    }
+
+    /** A page's address without scheme, "www." and trailing slash, for matching a search hit to a posting's page. */
+    static String pageKey(final String url) {
+        if (url == null) return "";
+        String u = url.trim().toLowerCase(Locale.ROOT).replaceFirst("^https?://", "").replaceFirst("^www\\.", "");
+        final int hash = u.indexOf('#');
+        if (hash >= 0) u = u.substring(0, hash);
+        while (u.endsWith("/")) u = u.substring(0, u.length() - 1);
+        return u;
     }
 
     // ------------------------------------------------------------------------------------------ the answer
@@ -547,17 +671,17 @@ public final class JobSearch {
             body.append("Title: ").append(title).append(". Employer: ").append(value(job.employer, "not recorded")).append('.');
             if (job.employmentType != null) body.append(" Employment type: ").append(value(job.employmentType, "")).append('.');
             if (job.place != null) body.append(" Place: ").append(value(job.place, "")).append('.');
-            body.append(" Posted: ").append(value(job.datePosted, "not stated")).append('.');
+            // the dates it states, if any: the stock of the graph counts as current, a missing date is no remark
+            if (job.datePosted != null) body.append(" Posted: ").append(value(job.datePosted, "")).append('.');
             if (job.validThrough != null) body.append(" Valid through: ").append(value(job.validThrough, "")).append('.');
             if (!result.plan.criteria.isEmpty()) {
                 body.append(job.met.isEmpty() ? " Shows none of the question's subjects in its recorded data."
                         : " Subjects of the question it shows: " + String.join(", ", job.met) + ".");
+                final List<String> byText = new ArrayList<>();
+                for (final String m : job.met) if (job.how.getOrDefault(m, 0) == BY_TEXT) byText.add(m);
+                if (!byText.isEmpty()) body.append(" Shown in the text of its page: ").append(String.join(", ", byText)).append('.');
                 if (job.partial()) body.append(" PARTIAL MATCH: not shown for ").append(String.join(", ", job.missing)).append('.');
             }
-            body.append(" Application status: not checked; whether the posting is still open is a separate question");
-            if (job.loadedAt != null && !job.loadedAt.isEmpty()) body.append("; the page was last loaded on ").append(job.loadedAt, 0, Math.min(10, job.loadedAt.length()));
-            if (job.ended) body.append("; the posting's recorded end date or status says it has ended");
-            body.append('.');
             final int separator = text.length() == 0 ? 0 : 2;
             if (text.length() + separator + entry.length() + "Text: ".length() + body.length() > room) break;
             if (separator > 0) text.append("\n\n");
@@ -573,8 +697,12 @@ public final class JobSearch {
             meta.put("scope", scope);
             meta.put("criteria", new JSONArray(result.plan.criteria()));
             meta.put("searched", new JSONArray(result.searched));
-            meta.put("found", sources.size());
-            meta.put("notShown", result.jobs.size() - sources.size()); // found, but no room left in the context
+            meta.put("found", result.found); // the matching postings determined in the scope
+            meta.put("lowerBound", result.lowerBound()); // the search ran out of time or reading budget: at least this many
+            meta.put("shown", sources.size());
+            meta.put("notShown", result.jobs.size() - sources.size()); // selected, but no room left in the context
+            meta.put("perSubject", new JSONObject(result.perSubject));
+            meta.put("scanned", result.scanned);
             meta.put("full", full);
             meta.put("partial", partial);
             meta.put("timedOut", result.timedOut);

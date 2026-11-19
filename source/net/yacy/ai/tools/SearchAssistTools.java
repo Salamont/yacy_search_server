@@ -16,8 +16,9 @@ import net.yacy.ai.rag.ToolContext;
 /**
  * Two named search tools of the chat (docs/SCOUTRO_RAG_QUALITY.md, sections 12 and 13):
  * <ul>
- * <li>{@code job_search} – the job postings of the knowledge graph ({@code type=job}) by a few short title variants,
- * with employer, dates, the subjects shown and partial matches ({@link JobSearch}).</li>
+ * <li>{@code job_search} – the job postings of the knowledge graph ({@code type=job}) of the chat's scope, by their titles,
+ * facts and the text of their pages, counted before the answer's limit, with employer, dates, the subjects shown and partial
+ * matches ({@link JobSearch}; the same search as the automatic one).</li>
  * <li>{@code provider_search} – the local index again for a service and a place derived from a request ("Wer hilft in
  * Musterstadt bei Schimmel im Keller?" searches "Schimmelsanierung Musterstadt" ...; {@link ServiceSearch}).</li>
  * </ul>
@@ -37,9 +38,9 @@ public final class SearchAssistTools {
     public static ToolHandler jobSearch() {
         return new Tool(JOB_SEARCH, true, "Search the job postings (job advertisements) of the Scoutro knowledge graph within this chat's"
                 + " collections. Give the subjects and job titles of the request, e.g. \"Java Cloud\" or \"Java Entwickler\";"
-                + " the server searches short title variants itself (each subject also on its own). Returns postings with employer,"
-                + " dates, their original page as [n], and which subjects each shows (partial matches marked). It does not check"
-                + " whether a posting is still open.") {
+                + " the server searches all postings of the collections by their titles, their facts and the text of their pages"
+                + " (each subject also on its own). Returns how many postings were found, the most relevant ones with employer,"
+                + " the dates they state and their original page as [n], and which subjects each shows (partial matches marked).") {
             @Override
             JSONObject run(final JSONObject args, final ToolContext context) throws Exception {
                 final String query = query(args);
@@ -48,6 +49,7 @@ public final class SearchAssistTools {
                 final JobSearch.Result result = JobSearch.run(context, plan);
                 final JSONObject out = new JSONObject(true).put("tool", JOB_SEARCH).put("scope", context.scopeLabel());
                 out.put("subjects", new JSONArray(plan.criteria())).put("searched", new JSONArray(result.searched));
+                out.put("found", result.found).put("lower_bound", result.lowerBound()).put("per_subject", new JSONObject(result.perSubject));
                 final JSONArray postings = new JSONArray();
                 for (final JobSearch.Job job : result.jobs) {
                     final JobSearch.Built one = JobSearch.format(new JobSearch.Result(result.plan, java.util.List.of(job), result.searched,
@@ -62,13 +64,16 @@ public final class SearchAssistTools {
                     p.put("text", entry.text());
                     postings.put(p);
                 }
-                out.put("postings", postings);
+                out.put("postings", postings).put("shown", postings.length());
                 if (result.error != null) out.put("error", result.error);
+                final String found = (result.lowerBound() ? "at least " : "") + result.found;
                 out.put("note", postings.length() == 0
-                        ? "No job posting with these title words in " + context.scopeLabel() + ". Say that none was found; never present a"
-                                + " company page as a posting."
-                        : "Cite each posting as [n]; a PARTIAL MATCH shows only some subjects: say which it does not show. Whether a posting"
-                                + " is still open is a separate question, not checked.");
+                        ? (result.lowerBound() ? "No matching job posting found within the search budget in " + context.scopeLabel() + "; do not"
+                                + " say that the index holds none." : "No matching job posting in " + context.scopeLabel() + ". Say that none was found.")
+                                + " Never present a company page as a posting."
+                        : "Found " + found + " matching postings, shown " + postings.length() + ": say both numbers. Cite each posting as [n];"
+                                + " a PARTIAL MATCH shows only some subjects: say which it does not show. The postings count as current; give the"
+                                + " dates they state and no remark about missing dates.");
                 return out;
             }
         };

@@ -2,6 +2,18 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased (on 0.14.3-rc.3) — the job search reads the whole released stock
+
+The job search (automatic and `job_search`, one search) determines the matching postings of the request's scope before
+the answer's limit: the name index for the title variants, every posting of the scope with its facts and the excerpts of
+their evidence (a new read-only query of the graph's reader, `KgReader.jobDigests`; no schema change), and the indexed
+text of the postings' own pages (a company page alone is no posting; a host with several postings is searched again by
+`site:`). Duplicates count once. The answer and the tool report how many postings were found (per subject) and how many
+are shown; when the time (6 s) or a reading limit ran out the count is a lower bound and nothing is said about the whole
+index. An or-question shows the subjects in turn. The stock of the graph counts as current: missing dates neither
+exclude nor rank a posting, and no remark about the state of a posting is made. Details and the limits of the available
+queries: docs/SCOUTRO_RAG_QUALITY.md, section 12.
+
 ## 0.14.3-rc.3 / 1.942-scoutro.52-rc.3 — test candidate: follow-up search and job selection (not a release)
 
 On 0.14.3-rc.2, application code `e43e0ba`. Tool releases are kept; schemas, extractors and stored data unchanged: no

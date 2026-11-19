@@ -83,8 +83,9 @@ public final class PromptGuard {
             text.append("- kg_evidence(statement): the source pages and passages behind one fact.\n");
         }
         if (tools.contains("job_search")) {
-            text.append("- job_search(query): the job postings of the knowledge graph for the subjects and titles of a request, with"
-                    + " their original pages; partial matches are marked.\n");
+            text.append("- job_search(query): all job postings of the chat's collections for the subjects and titles of a request (by"
+                    + " title, facts and page text), with how many were found and the most relevant ones with their original pages;"
+                    + " partial matches are marked.\n");
         }
         if (tools.contains("provider_search")) {
             text.append("- provider_search(query): providers of a service in a place: give the request in its words; the server"
@@ -108,21 +109,36 @@ public final class PromptGuard {
      */
     public static String jobSearchNote(final int found, final java.util.List<String> searched, final java.util.List<String> criteria,
             final String scope) {
+        return jobSearchNote(found, found, false, searched, criteria, scope);
+    }
+
+    /**
+     * What the model is told after the server searched the job postings ({@link net.yacy.ai.rag.JobSearch}).
+     *
+     * @param found      matching postings determined in the scope (before the limit of the answer)
+     * @param shown      postings given as the first sources
+     * @param lowerBound the search ran out of its budget: at least {@code found}, and no statement about the whole index
+     */
+    public static String jobSearchNote(final int found, final int shown, final boolean lowerBound, final java.util.List<String> searched,
+            final java.util.List<String> criteria, final String scope) {
         final String words = neutralize(String.join(", ", searched));
+        final String where = "the job postings of its knowledge graph in " + neutralize(scope) + " (searched: " + words + ")";
         if (found == 0) {
-            return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro also searched the job postings of "
-                    + "its knowledge graph in " + neutralize(scope) + " (title words: " + words + ") and found none. Say plainly that no "
-                    + "matching job posting was found; never present a company page, a service or a list of names as a job posting, "
-                    + "and never invent one.";
+            return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro also searched " + where
+                    + (lowerBound ? " within its time and size budget and found none there. Say that the search found no matching "
+                            + "posting within its budget; do not say that the index holds none."
+                            : " and found none. Say plainly that no matching job posting was found.")
+                    + " Never present a company page, a service or a list of names as a job posting, and never invent one.";
         }
-        return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro searched the job postings of its "
-                + "knowledge graph in " + neutralize(scope) + " (title words: " + words + ") and found " + found + ". They are the first "
-                + "sources, titled \"job posting\". Name each relevant posting with its title, employer and its number [n] (the "
-                + "number links its original page)." + (criteria.isEmpty() ? "" : " The subjects of the question are "
-                + neutralize(String.join(", ", criteria)) + ": a posting marked PARTIAL MATCH shows only some of them; say which ones "
-                + "it does not show and never count it as a full match.") + " Whether a posting is still open or can be applied for "
-                + "now is a separate question: do not state it; if the user asks, answer only with the dates of its source and say "
-                + "that it was not checked live.";
+        final String count = (lowerBound ? "at least " + found : String.valueOf(found)) + " matching posting" + (found == 1 ? "" : "s");
+        return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro searched " + where + " and found "
+                + count + (lowerBound ? " (the search ran out of its budget, so there may be more)" : "") + "; " + shown
+                + (shown == 1 ? " is" : " are") + " given as the first sources, titled \"job posting\". Name each relevant posting with its "
+                + "title, employer and its number [n] (the number links its original page), and say how many were found and how many "
+                + "are shown." + (criteria.isEmpty() ? "" : " The subjects of the question are " + neutralize(String.join(", ", criteria))
+                + ": a posting marked PARTIAL MATCH shows only some of them; say which ones it does not show and never count it as a "
+                + "full match.") + " The postings of the knowledge graph count as current: give the dates a posting states, and add no "
+                + "remark about dates it does not state.";
     }
 
     /**

@@ -115,10 +115,12 @@ numbers. Limits per answer: 8 rounds, 3 searches, 4 calls of each graph tool,
 
 Job questions: when you ask for job postings and the index search finds only
 company pages or nothing, Scoutro searches the job postings of its knowledge
-graph itself (with `kg_search` released, in the same collections) and lists
-them first as sources "job posting …" with the page they were read from. A
-posting that shows only some of your subjects is marked as a partial match.
-Whether a posting is still open is not checked. A follow-up such as "Such noch
+graph itself (with `kg_search` released, in the same collections): all postings
+there, by their titles, their facts and the text of their pages. The answer
+says how many were found and lists the most relevant ones first as sources
+"job posting …" with the page they were read from, with the dates they state.
+A posting that shows only some of your subjects is marked as a partial match.
+A follow-up such as "Such noch
 mal" searches again with the subject of your earlier question, also when the
 magnifier is not switched on; switch it off for that message to answer without
 a search.

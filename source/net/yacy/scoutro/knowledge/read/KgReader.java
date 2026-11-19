@@ -1145,6 +1145,134 @@ public final class KgReader {
         return out;
     }
 
+    // ---------------------------------------------------------------- job digests (the chat's job search)
+
+    /** One job posting as the chat's job search reads it: its visible current facts, their excerpts and its page. */
+    public static final class JobDigest {
+        public final String id;
+        public final long rowid;
+        public String name;
+        /** predicate and value (a related entity by its visible name) of every visible current statement */
+        public final List<String[]> facts = new ArrayList<>();
+        /** the excerpts of their visible current evidence (the advertisement's text around a fact) */
+        public final List<String> excerpts = new ArrayList<>();
+        /** the page the posting was read from (the evidence of its name first), its collection and load date */
+        public String url;
+        public String collection;
+        public String loadedAt;
+
+        JobDigest(final String id, final long rowid) {
+            this.id = id;
+            this.rowid = rowid;
+        }
+    }
+
+    /** A page of job digests in row order; {@code last} continues it, {@code more} says whether there are more. */
+    public static final class JobPage {
+        public final List<JobDigest> items;
+        public final long last;
+        public final boolean more;
+
+        JobPage(final List<JobDigest> items, final long last, final boolean more) {
+            this.items = items;
+            this.last = last;
+            this.more = more;
+        }
+    }
+
+    static final int JOB_EXCERPTS = 24;
+
+    /**
+     * The visible current job postings of the viewer after row {@code after} (or those of {@code ids}), at most
+     * {@code limit}, with their facts and excerpts: one read, three queries, for the chat's job search, which must see
+     * the whole released stock and not only the names the name index finds. Read only; the viewer's scope as everywhere.
+     */
+    public JobPage jobDigests(final Viewer v, final Collection<String> ids, final long after, final int limit) throws KgException {
+        final long now = this.clock.getAsLong();
+        return read(c -> {
+            final List<Object> args = new ArrayList<>();
+            final StringBuilder where = new StringBuilder(visibleEntity(v, "e"));
+            where.append(" AND e.type = (SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = ?)");
+            args.add(Vocabulary.JOB);
+            where.append(" AND EXISTS (SELECT 1 FROM kg_statement cs WHERE cs.subj = e.ent_rowid AND ").append(currentStatement(v, "cs", now))
+                    .append(")");
+            if (ids != null) {
+                final List<String> wanted = new ArrayList<>();
+                for (final String id : ids) if (id != null && !id.isEmpty() && wanted.size() < 1000) wanted.add(id);
+                if (wanted.isEmpty()) return new JobPage(new ArrayList<>(), after, false);
+                where.append(" AND e.public_id IN (").append(placeholders(wanted.size())).append(")");
+                args.addAll(wanted);
+            }
+            where.append(" AND e.ent_rowid > ?");
+            args.add(after);
+            final Map<Long, JobDigest> jobs = new LinkedHashMap<>();
+            boolean more = false;
+            try (PreparedStatement ps = c.prepareStatement("SELECT e.ent_rowid, e.public_id FROM kg_entity e WHERE " + where
+                    + " ORDER BY e.ent_rowid LIMIT ?")) {
+                final List<Object> a = new ArrayList<>(args);
+                a.add(limit + 1);
+                bind(ps, a);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        if (jobs.size() >= limit) {
+                            more = true;
+                            break;
+                        }
+                        jobs.put(rs.getLong(1), new JobDigest(rs.getString(2), rs.getLong(1)));
+                    }
+                }
+            }
+            if (jobs.isEmpty()) return new JobPage(new ArrayList<>(), after, false);
+            final String in = placeholders(jobs.size());
+            final List<Object> rows = new ArrayList<>(jobs.keySet());
+            // the facts: literal values, or the visible name of the related entity (employer, place)
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, s.obj_val, (SELECT n.obj_val FROM kg_statement n JOIN kg_vocab nv"
+                    + " ON nv.term_id = n.pred WHERE n.subj = s.obj_ent AND nv.kind = 2 AND nv.name = '" + Vocabulary.NAME + "' AND "
+                    + visibleStatement(v, "n") + " ORDER BY n.stmt_rowid LIMIT 1) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                    + " WHERE s.subj IN (" + in + ") AND " + visibleStatement(v, "s") + " AND " + currentStatement(v, "s", now)
+                    + " ORDER BY s.subj, s.stmt_rowid")) {
+                bind(ps, rows);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        final JobDigest job = jobs.get(rs.getLong(1));
+                        final String predicate = rs.getString(2);
+                        final String value = rs.getString(3) != null ? rs.getString(3) : rs.getString(4);
+                        if (job == null || value == null || value.isEmpty()) continue;
+                        if (Vocabulary.NAME.equals(predicate) && job.name == null) job.name = value;
+                        job.facts.add(new String[] {predicate, value});
+                    }
+                }
+            }
+            // the evidence: its page (that of the name first) and the excerpts
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, d.url, d.doc_rowid, d.loaded_at, ev.excerpt FROM kg_statement s"
+                    + " JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_evidence ev ON ev.stmt_rowid = s.stmt_rowid JOIN kg_doc d"
+                    + " ON d.doc_rowid = ev.doc_rowid WHERE s.subj IN (" + in + ") AND " + visibleStatement(v, "s") + " AND " + visibleDoc(v, "d")
+                    + " AND " + currentDoc("d", now) + " ORDER BY s.subj, CASE WHEN v.name = '" + Vocabulary.NAME + "' THEN 0 ELSE 1 END,"
+                    + " ev.observed_at DESC, d.doc_id")) {
+                bind(ps, rows);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        final JobDigest job = jobs.get(rs.getLong(1));
+                        if (job == null) continue;
+                        if (job.url == null && rs.getString(3) != null) {
+                            job.url = rs.getString(3);
+                            final JSONArray collections = docCollections(c, rs.getLong(4), v);
+                            job.collection = collections.length() == 0 ? null : collections.optString(0, null);
+                            job.loadedAt = iso(rs.getObject(5) == null ? null : rs.getLong(5));
+                        }
+                        final String excerpt = rs.getString(6);
+                        if (excerpt != null && !excerpt.isEmpty() && job.excerpts.size() < JOB_EXCERPTS && !job.excerpts.contains(excerpt)) {
+                            job.excerpts.add(excerpt);
+                        }
+                    }
+                }
+            }
+            long last = after;
+            for (final Long r : jobs.keySet()) last = Math.max(last, r);
+            return new JobPage(new ArrayList<>(jobs.values()), last, more);
+        });
+    }
+
     // ---------------------------------------------------------------- hosts
 
     /** Entities with visible evidence from documents of a host (http and https). */

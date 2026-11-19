@@ -488,8 +488,9 @@ public class ChatToolsTest {
         assertEquals(null, result.error);
         final List<String> titles = new ArrayList<>();
         for (final JobSearch.Job job : result.jobs) titles.add(job.title);
-        assertEquals(List.of("ML-Entwickler (m/w/d) Java Prozessrobotik", "Java Senior Berater (m/w/d) Finance",
-                "Werkstudent Robotiktechnik (m/w/d)"), titles);
+        // the full match first; then the subjects in turn (Robotik's working student before the second Java posting)
+        assertEquals(List.of("ML-Entwickler (m/w/d) Java Prozessrobotik", "Werkstudent Robotiktechnik (m/w/d)",
+                "Java Senior Berater (m/w/d) Finance"), titles);
         assertFalse(result.jobs.get(0).partial());
         assertTrue(result.jobs.get(1).partial() && result.jobs.get(2).partial());
         assertEquals("https://www.tapir-consulting.example/karriere/ml-entwickler-java", result.jobs.get(0).url());
@@ -505,12 +506,12 @@ public class ChatToolsTest {
                 + "URL: https://www.tapir-consulting.example/karriere/ml-entwickler-java\nCollection: alpha-web\nText: "));
         assertTrue(built.text, built.text.contains("Employer: Tapir Consulting AG."));
         assertTrue(built.text, built.text.contains("Subjects of the question it shows: Java, ML, Robotik."));
-        assertTrue(built.text, built.text.contains("[2] Scoutro knowledge graph: job posting Java Senior Berater (m/w/d) Finance"));
+        assertTrue(built.text, built.text.contains("[3] Scoutro knowledge graph: job posting Java Senior Berater (m/w/d) Finance"));
         assertTrue(built.text, built.text.contains("PARTIAL MATCH: not shown for ML, Robotik."));
         assertTrue(built.text, built.text.contains("PARTIAL MATCH: not shown for Java, ML."));
         assertTrue(built.text, built.text.contains("Posted: 2026-01-05. Valid through: 2026-02-28."));
-        assertTrue(built.text, built.text.contains("the posting's recorded end date or status says it has ended"));
-        assertTrue(built.text, built.text.contains("Application status: not checked; whether the posting is still open is a separate question"));
+        // the stock of the graph counts as current: dates are shown, never turned into a remark about the posting's state
+        assertFalse(built.text, built.text.contains("ended") || built.text.contains("Application status") || built.text.contains("not stated"));
         assertEquals(1, built.meta.getInt("full"));
         assertEquals(2, built.meta.getInt("partial"));
         // the source parsed back from the kept search document of a follow-up is the same, with its text for the support check
@@ -562,63 +563,134 @@ public class ChatToolsTest {
         assertFalse(JobSearch.released(false, chat("alpha-web")));
     }
 
-    /** Many postings of the first subject, one of a later one (all invented): alpha-web gets 14 Java postings and a robotics one. */
+    /**
+     * A larger stock of invented postings in alpha-web (Tapir): 14 Java postings, a robotics posting by its title, one by its
+     * field only (a graph fact), one by the text of its page only, and the robotics posting a second time on another page.
+     * None of them states a date.
+     */
     private void manyPostingsOfOneSubject() throws Exception {
         for (int i = 1; i <= 14; i++) {
             final String n = String.format("%02d", i);
             final String title = "Java Entwickler (m/w/d) Team " + n;
             page("ALPJ" + n + "host01", "https://www.tapir-consulting.example/karriere/java-entwickler-team-" + n, "alpha-web", title,
-                    posting(title, "Sie entwickeln Java-Anwendungen im Team " + n + ".", TAPIR), title + ". Stellenangebot in Vollzeit.");
+                    posting(title, "Sie entwickeln Anwendungen im Team " + n + ".", TAPIR), title + ". Stellenangebot in Vollzeit.");
         }
         page("ALPHRBhost01", "https://www.tapir-consulting.example/karriere/robotik-ingenieur", "alpha-web", "Robotik Ingenieur (m/w/d)",
                 posting("Robotik Ingenieur (m/w/d)", "Sie programmieren unsere Montageroboter.", TAPIR),
                 "Robotik Ingenieur (m/w/d). Sie programmieren unsere Montageroboter. Stellenangebot.");
+        // the same posting on a second page: counted once
+        page("ALPHRChost01", "https://www.tapir-consulting.example/jobs/robotik-ingenieur", "alpha-web", "Robotik Ingenieur (m/w/d)",
+                posting("Robotik Ingenieur (m/w/d)", "Sie programmieren unsere Montageroboter.", TAPIR),
+                "Robotik Ingenieur (m/w/d). Sie programmieren unsere Montageroboter. Stellenangebot.");
+        // the subject only in a fact of the posting (its field), not in the title
+        page("ALPHFAhost01", "https://www.tapir-consulting.example/karriere/ingenieur-montage", "alpha-web", "Ingenieur (m/w/d) Montage",
+                "{\"@type\":\"JobPosting\",\"title\":\"Ingenieur (m/w/d) Montage\",\"description\":\"Sie planen Montagelinien.\","
+                        + "\"occupationalCategory\":\"Robotik\",\"hiringOrganization\":" + TAPIR + "}",
+                "Ingenieur (m/w/d) Montage. Sie planen Montagelinien. Stellenangebot.");
+        // the subject only in the indexed text of the posting's page
+        page("ALPHTXhost01", "https://www.tapir-consulting.example/karriere/fachkraft-fertigung", "alpha-web", "Fachkraft (m/w/d) Fertigung",
+                posting("Fachkraft (m/w/d) Fertigung", "Sie betreuen unsere Fertigung.", TAPIR),
+                "Fachkraft (m/w/d) Fertigung. Sie betreuen unsere Fertigung. Ihr Team arbeitet an Zellen der Robotik. Stellenangebot.");
     }
 
     @Test
-    public void manyPostingsOfTheFirstSubjectDoNotCrowdOutALaterOne() throws Exception {
+    public void theJobSearchDeterminesAllMatchingPostingsBeforeItLimitsTheAnswer() throws Exception {
         manyPostingsOfOneSubject();
         final JobSearch.Plan plan = JobSearch.plan("Welche Stellenanzeigen gibt es zu Java oder Robotik?");
         assertEquals(List.of("Java", "Robotik"), plan.criteria());
         final JobSearch.Result result = JobSearch.run(chat("alpha-web"), plan);
         assertEquals(null, result.error);
+        assertTrue(result.searched.toString(), result.complete && !result.lowerBound() && !result.timedOut);
+        // every posting of alpha-web was read, those of beta-web never
+        assertEquals(21, result.scanned);
+        // found before the limit: 16 Java (14 teams, the senior consultant, the ML developer), Robotik by title (the
+        // engineer, once although on two pages; the ML developer; the working student), by a fact (assembly) and by the
+        // page's text (production): 20 postings, more than the 12 candidates of before
+        assertEquals(20, result.found);
+        assertEquals(Integer.valueOf(16), result.perSubject.get("Java"));
+        assertEquals(Integer.valueOf(5), result.perSubject.get("Robotik"));
+        // shown: at most MAX_JOBS, every subject, the posting of both subjects first, no duplicate
+        assertEquals(JobSearch.MAX_JOBS, result.jobs.size());
         final List<String> titles = new ArrayList<>();
         for (final JobSearch.Job job : result.jobs) titles.add(job.title);
-        // every subject is searched, although the first one alone fills the candidates
-        assertTrue(result.searched.toString(), result.searched.contains("Java") && result.searched.contains("Robotik"));
-        // the later subject's posting is shown, next to the best ones of the first subject; no posting twice
-        assertTrue(titles.toString(), titles.contains("Robotik Ingenieur (m/w/d)"));
+        assertEquals(titles.toString(), "ML-Entwickler (m/w/d) Java Prozessrobotik", titles.get(0));
         assertTrue(titles.toString(), titles.stream().anyMatch(t -> t.startsWith("Java Entwickler")));
+        assertTrue(titles.toString(), titles.contains("Robotik Ingenieur (m/w/d)"));
         assertEquals(titles.toString(), titles.size(), new java.util.HashSet<>(titles).size());
-        // sorted by relevance: no posting shows more subjects than the one before it
-        for (int i = 1; i < result.jobs.size(); i++) {
-            assertTrue(titles.toString(), result.jobs.get(i - 1).met.size() >= result.jobs.get(i).met.size());
-        }
-        // a posting of both subjects, once the searches reach it, comes first
-        final JobSearch.Result both = JobSearch.run(chat("alpha-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zu Prozessrobotik oder Java?"));
-        assertEquals(both.jobs.toString(), "ML-Entwickler (m/w/d) Java Prozessrobotik", both.jobs.get(0).title);
-        assertTrue(both.jobs.stream().anyMatch(j -> j.title.startsWith("Java Entwickler")));
-        // the limits stay: name searches, candidates, shown postings; nothing outside alpha-web
-        assertTrue(result.searched.toString(), result.searched.size() <= JobSearch.MAX_VARIANTS);
-        assertTrue(String.valueOf(result.candidates), result.candidates <= JobSearch.MAX_CANDIDATES);
-        assertTrue(titles.toString(), result.jobs.size() <= JobSearch.MAX_JOBS);
+        for (int i = 1; i < result.jobs.size(); i++) assertTrue(titles.toString(), result.jobs.get(i - 1).met.size() >= result.jobs.get(i).met.size());
         for (final JobSearch.Job job : result.jobs) assertTrue(job.url(), job.url().startsWith("https://www.tapir-consulting.example/"));
+        // the fact-only and the text-only posting are found and counted, each by its own path
+        final JobSearch.Result robotics = JobSearch.run(chat("alpha-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zu Robotik?"));
+        final java.util.Map<String, JobSearch.Job> byTitle = new java.util.LinkedHashMap<>();
+        for (final JobSearch.Job job : robotics.jobs) byTitle.put(job.title, job);
+        assertEquals(5, robotics.found);
+        assertEquals(Integer.valueOf(JobSearch.BY_FACT), byTitle.get("Ingenieur (m/w/d) Montage").how.get("Robotik"));
+        assertEquals(Integer.valueOf(JobSearch.BY_TEXT), byTitle.get("Fachkraft (m/w/d) Fertigung").how.get("Robotik"));
+        assertEquals(Integer.valueOf(JobSearch.BY_TITLE), byTitle.get("Robotik Ingenieur (m/w/d)").how.get("Robotik"));
+        // dates neither exclude nor rank: the working student's posting states an end date in the past and is found,
+        // the postings without any date are found and no remark about a missing date is made
+        assertTrue(byTitle.toString(), byTitle.containsKey("Werkstudent Robotiktechnik (m/w/d)"));
+        final JobSearch.Built built = JobSearch.format(robotics, 1, 9000, "collection alpha-web", false);
+        assertTrue(built.text, built.text.contains("Valid through: 2026-02-28."));
+        assertFalse(built.text, built.text.contains("not stated") || built.text.contains("ended") || built.text.contains("Application status"));
+        assertTrue(built.text, built.text.contains("Shown in the text of its page: Robotik."));
+        assertEquals(5, built.meta.getInt("found"));
+        assertEquals(5, built.meta.getInt("shown"));
+        assertFalse(built.meta.getBoolean("lowerBound"));
+        assertTrue(net.yacy.ai.PromptGuard.jobSearchNote(20, 6, false, result.searched, result.plan.criteria(), "x").contains("found 20 matching postings; 6 are given"));
     }
 
     @Test
-    public void theJobSearchKeepsItsTimeLimit() throws Exception {
+    public void aCompanyPageIsNoPostingAndTheScopeHolds() throws Exception {
+        manyPostingsOfOneSubject();
+        // the company's services page names Prozessrobotik, but it is no posting: only postings count
+        final JobSearch.Result result = JobSearch.run(chat("alpha-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zu Prozessrobotik?"));
+        for (final JobSearch.Job job : result.jobs) assertFalse(job.url(), job.url().endsWith("/leistungen"));
+        // beta-web: its own posting only; alpha-web's never
+        final JobSearch.Result beta = JobSearch.run(chat("beta-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zu Java?"));
+        assertEquals(1, beta.found);
+        assertEquals(1, beta.scanned);
+        assertEquals("Java Basis Administrator (m/w/d)", beta.jobs.get(0).title);
+        // the whole local index (administrator): both collections
+        assertEquals(17, JobSearch.run(chat(null), JobSearch.plan("Welche Stellenanzeigen gibt es zu Java?")).found);
+    }
+
+    @Test
+    public void theJobSearchKeepsItsTimeLimitAndThenCountsALowerBound() throws Exception {
         manyPostingsOfOneSubject();
         final JobSearch.Plan plan = JobSearch.plan("Welche Stellenanzeigen gibt es zu Java oder Robotik?");
-        // a clock that is past the limit after the first name search: no further search, the result says so
+        // a clock that is past the limit after a few reads: the search stops, what it found is a lower bound
         final long[] now = {0L};
         final JobSearch.Result result = JobSearch.run(chat("alpha-web"), plan, () -> {
             final long t = now[0];
-            now[0] += JobSearch.MAX_MILLIS / 2 + 1;
+            now[0] += JobSearch.MAX_MILLIS / 3 + 1;
             return t;
         });
         assertTrue(result.timedOut);
-        assertTrue(result.searched.toString(), result.searched.size() < plan.variants().size());
+        assertTrue(result.lowerBound());
+        assertTrue(result.searched.toString(), result.searched.size() < plan.variants().size() + plan.criteria().size());
         assertTrue(result.jobs.size() <= JobSearch.MAX_JOBS);
+        final JobSearch.Built built = JobSearch.format(result, 1, 9000, "collection alpha-web", false);
+        assertTrue(built.meta.getBoolean("lowerBound"));
+        // with nothing found within the budget, the model is told not to claim that the index holds none
+        final String none = net.yacy.ai.PromptGuard.jobSearchNote(0, 0, true, result.searched, plan.criteria(), "collection alpha-web");
+        assertTrue(none, none.contains("within its time and size budget") && none.contains("do not say that the index holds none"));
+        assertTrue(net.yacy.ai.PromptGuard.jobSearchNote(3, 3, true, result.searched, plan.criteria(), "x").contains("at least 3 matching postings"));
+    }
+
+    @Test
+    public void theNamedJobSearchToolUsesTheSameSearch() throws Exception {
+        manyPostingsOfOneSubject();
+        final ToolContext chat = chat("alpha-web");
+        final JSONObject r = call(chat, "job_search", "{\"query\":\"Java oder Robotik\",\"collection\":\"beta-web\"}");
+        assertEquals("collection alpha-web", r.getString("scope"));
+        assertEquals(20, r.getInt("found"));
+        assertFalse(r.getBoolean("lower_bound"));
+        assertEquals(JobSearch.MAX_JOBS, r.getInt("shown"));
+        assertEquals(16, r.getJSONObject("per_subject").getInt("Java"));
+        assertEquals(5, r.getJSONObject("per_subject").getInt("Robotik"));
+        assertTrue(r.getString("note"), r.getString("note").contains("Found 20 matching postings, shown 6"));
+        assertFalse(r.toString(), r.toString().contains("okapi") || r.toString().contains("BETAGEHEIM"));
     }
 
     @Test

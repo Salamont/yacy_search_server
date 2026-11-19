@@ -269,6 +269,19 @@ public final class ToolContext {
      * The local search within the chat's scope as the retrieval of the answer does it, for a search of the server
      * ({@link ServiceSearch}): pages of other collections dropped, never the network. Not counted as a tool call.
      */
+    /**
+     * The local index's pages for {@code query} within this chat's scope, at most {@code count}, in the index's order; pages
+     * of another collection dropped (the job search maps them to the postings of the graph).
+     */
+    public List<RagCandidate> pages(final String query, final int count) {
+        final List<RagCandidate> out = new ArrayList<>();
+        if (this.searcher == null || query == null || query.trim().isEmpty() || count <= 0) return out;
+        for (final RagCandidate page : this.searcher.search(RagQuery.prepare(query), query, this.collection, count)) {
+            if (page != null && page.inCollection(this.collection) && out.size() < count) out.add(page);
+        }
+        return out;
+    }
+
     public RagRetriever.Result retrieve(final RagQuery query, final int max) {
         final RagRetriever retriever = new RagRetriever((concepts, q, c, n, global) -> this.searcher == null ? new ArrayList<>()
                 : this.searcher.search(concepts, q, c, n));
