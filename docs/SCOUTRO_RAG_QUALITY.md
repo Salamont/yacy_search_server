@@ -293,9 +293,10 @@ question about jobs, `stage=any`, five tools offered, none called). For question
 therefore searches the knowledge graph's postings itself, before the model is called (`JobSearch`):
 
 - **When:** the question (or its goal, below) asks for jobs (Stelle, Stellenanzeige, Job, Karriere, Ausschreibung,
-  "(m/w/d)", vacancy, career …) **and** the automatic search answers it weakly: stage `any`, `none` or `no-terms`, no hit,
-  or no hit is a job page by its title or address (a company's home page matching the subjects is no posting); or the
-  question asks for all postings or their number (below).
+  "(m/w/d)", vacancy, career …) **and** it asks for a number or a list of them ("Wie viele …", "Zeige alle …", "Welche
+  Stellenanzeigen gibt es zu …"; `QuestionKind`), or the automatic search answers it weakly: stage `any`, `none` or
+  `no-terms`, no hit, or no hit is a job page by its title or address (a company's home page matching the subjects is no
+  posting).
 - **Only with the release of the tool `job_search`** ("Job search" on the Tools page), which follows `kg_search` while it
   is not set on its own (saving the Tools page gives it its own setting), and within the scope of the request
   (`ToolContext`: the session's collection, read with its viewer). An AI Shield guest gets none; without the release
@@ -311,43 +312,69 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   The words of such a question are never a subject (`JobSearch.countWord`): "Wie viele Stellenanzeigen zu X gibt es?" and
   "Zeige alle Stellenanzeigen zu X" have the subject X only and count the same unique postings (before 0.14.3-rc.5 "viele"
   was a subject of its own, and postings with "vielen" or "vielseitige" in their text were counted).
-- **The whole released stock, then the limit** (`JobSearch.run`, the same for the automatic search and `job_search`):
-  1. the name index (`type=job`), every page of hits of each title variant (at most 500 per variant; the scan below
-     reads every posting anyway);
-  2. every posting of the request's scope with its facts (employer, place, field, signals of the advertisement …) and
-     the excerpts of their evidence (`KgReader.jobDigests`: pages of 250 postings, the viewer's scope tables, no schema
-     change), **to the end of the stock** or of the time;
-  3. the indexed text of every posting's own page: the direct index (`ToolContext.Index`, Solr read directly, no search
-     event) asked by the known addresses of the postings that do not show the subject by title or fact, 200 addresses
-     per query, the collection of the request as a filter. A page counts only as the page of a posting of the scope; the
-     ranked search, which gives one page per host, is not used, so a posting's text is found whichever page of its host
-     ranks first. Without a direct index the ranked search is the fallback, reported as a lower bound.
+- **The matching postings first, by the indexes; the evidence only for those shown** (`JobSearch.run`, the same for the
+  automatic search and `job_search`). Which postings match and why is determined for the whole released stock before
+  anything is selected:
+  1. **scan**: every posting of the request's scope that the viewer sees with a current page, in chunks of 2,000
+     (`KgReader.entityScan`): its title and its statements (employer, place, field, signals …), a related entity by its
+     name (`entityNames`). Three queries per chunk that follow the indexes of the entity type, of the statements by
+     subject and of the evidence, in a fixed join order; no evidence text is read and no statement is checked one by one.
+     A posting shows a subject by its title or by a fact;
+  2. **facts**: only the statements that alone show a subject are checked for the viewer (`currentStatements`: visible,
+     with a current source);
+  3. **text**: per subject, the pages of the postings that do not show it yet are asked in the direct index
+     (`SolrIndex.matching`): a filter on up to 1,000 addresses per query and the collection, answered with addresses
+     only; no page is loaded. A page counts only as the page of a posting of the scope; the ranked search, which gives
+     one page per host, is not used. Without a direct index the ranked search is the fallback, reported as a lower bound;
+  4. **selection**: duplicates count once (one page, or one title of one employer at one place): `found` is the number
+     of postings, `records` the matching records before that (seven records of one employer of which two are one posting
+     on two pages: `found` 6, `records` 7);
+  5. **evidence**: only the postings shown are read in full (`KgReader.jobDigests` for at most 6), and the page of a
+     posting that shows a subject by its text only gives an excerpt of 200 characters.
 
-  A posting matches a subject by its title, a fact or excerpt, or only the text of its page (in this order of
-  strength). Duplicates count once: one entity, one page, or one title of one employer at one place. All of this within
-  6 s; the matching postings are counted (`found`, per subject) before the answer's limit of 6 shown postings.
-- **Lower bound:** when the time ran out (the stock or the posting pages not all read) or there is no direct index, the
-  count is a lower bound (`lowerBound`) and `gaps` says why; the model is told "at least" with the reason and, with
-  nothing found, not to say that the index holds none.
+  A posting matches a subject by its title, a fact, or only the text of its page (in this order of strength). All of
+  this within 6 s; every step checks the time. The metadata and the log give the milliseconds of each step (`phases`).
+- **Lower bound:** when the time ran out in a step (the stock, the check of the facts or the posting pages not all read),
+  a read of the graph failed, or there is no direct index, the count is a lower bound (`lowerBound`) and `gaps` says
+  why; the model is told "at least" with the reason and, with nothing found, not to say that the index holds none. A
+  chunk of the scan that does not fit one read of the graph (1.5 s) is read again in smaller chunks.
+- **One stock, one answer:** a search over all collections reads the same postings as the searches of the single
+  collections together, so it holds every posting any of them finds (`ChatToolsTest`, `SearchScaleBench check`). The
+  order of the scan is the order of the graph's rows; the selection breaks ties by it, so the same question gives the
+  same postings.
 - **Selection:** sorted by the subjects a posting shows and how; of the 6 shown, the subjects in turn take their most
   relevant posting (an or-question keeps every subject that has postings), then the most relevant rest. Dates neither
   exclude nor rank.
-- **To the answer:** each posting shown is a numbered source before the search results (`[1] Scoutro knowledge graph: job
-  posting <title>`, `URL:` the page it was read from, its collection), with employer, employment type, place, the dates
-  it states, the subjects of the question it shows (those shown only in its page's text named) and, as `PARTIAL MATCH`,
-  those it does not. The server rules give the number found and shown.
+- **To the answer, by the kind of the question** (`QuestionKind`):
+  - a **plain count** ("Wie viele Stellenanzeigen zu X gibt es?": one short question for the number and nothing else) is
+    answered by the server itself, without a model request: the number found (or "at least" with the reason), the
+    records when a posting stands on two pages, per subject when there are several, and the postings shown with their
+    numbers. `scoutro-answer: {by: "server", modelCalls: 0}`; `scoutro.chat.count.direct=false` sends it to the model;
+  - a **count that asks for more**, a **list** or a **recommendation** goes to the model with the postings shown as its
+    only sources: the pages of the automatic search and their graph facts stay out of the context
+    (`scoutro-retrieval.focused`), and the server rules name the kind (the number is the search's, a list is the entries
+    given, a recommendation weighs their evidence);
+  - any other job question (something of one posting) keeps the automatic search's pages; the postings come first.
+
+  Each posting shown is a numbered source (`[1] Scoutro knowledge graph: job posting <title>`, `URL:` the page it was
+  read from, its collection), with employer, employment type, place, the dates it states, the subjects of the question
+  it shows (those shown only in its page's text named, with the excerpt) and, as `PARTIAL MATCH`, those it does not. The
+  server rules give the number found and shown.
+- **One search per request:** the result is kept for the request (`ToolContext.remember`). A call of `job_search` for
+  the same subjects in the same scope returns it (`reused: true`, its entries shortened: they are sources of the answer
+  already) instead of searching again; another subject or another request searches.
 - **Currency:** the stock of the knowledge graph counts as current: a missing posting or end date excludes, ranks and
   remarks nothing, and no page is checked live.
 - **Nothing found:** the server rules say that the postings were searched with these words in this scope and none was
   found (or none within the budget), and that no company page may be presented as a posting.
-- **Limits of the available queries** (where a complete set is not guaranteed): the graph's name index holds names and
-  aliases only, so facts and excerpts are matched in memory over all postings read (7,003 postings read and matched in
-  about 1.2 to 1.6 s in `ChatToolsTest`; the time grows with the stock, and beyond the 6 s the count is a lower bound); the
-  description of a posting is not a fact of its own, it counts through the excerpts of its facts or the indexed text of
-  its page; the direct index matches every word as a word or the start of one (Solr's tokens: "Robotik" finds
-  "Robotiktechnik", not "Prozessrobotik", which only the graph's own matching finds) and needs the posting's page under
-  the same address in the graph and the index; a posting whose page is not in the index counts by its title and facts
-  only.
+- **Limits of the available queries** (where a complete set is not guaranteed): there is no index on the values of
+  facts, so the facts of every posting of the scope are read and matched in memory; the time grows with the number of
+  postings (JOB_SCALE), and beyond the 6 s the count is a lower bound. The description of a posting is not a fact of its
+  own, it counts through the indexed text of its page. The direct index matches every word as a word or the start of one
+  and a word of up to three letters as a whole word (Solr's tokens: "Robotik" finds "Robotiktechnik", not
+  "Prozessrobotik", which only the graph's own matching of titles and facts finds); several words of one synonym must
+  stand side by side. It needs the posting's page under the same address in the graph and the index; a posting whose
+  page is not in the index counts by its title and facts only.
 - **Follow-up:** a message that asks to search again ("Such noch mal", "Such noch mal gezielt nach Stellenanzeigen und
   prüfe die Originalquellen", "nochmal suchen", "Versuch es erneut", "search again") takes the goal of the conversation:
   the latest earlier user message with a subject, joined with the follow-up (`RagFollowUp`); the automatic search and the
@@ -358,12 +385,23 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   search for. Log: `event=rag-request … ragMode=local searchMode=followUp` (else `sent` or `absent`) and
   `event=rag-retrieval … followUp=true`.
 - **Metadata:** `scoutro-jobsearch: {triggered, followUp, scope, criteria, searched, found, lowerBound, shown, notShown,
-  perSubject, scanned, gaps, full, partial, timedOut, error, millis}` (`found`: matching postings determined in the scope;
-  `shown`: given as sources; `notShown`: selected without room left in the context; `scanned`: postings read) in the first
-  data line; `scoutro-retrieval.followUp`. Log: `event=rag-jobsearch … found= lowerBound= scanned= shown= all= gaps=`.
+  perSubject, records, scanned, gaps, full, partial, timedOut, error, millis, phases}` (`found`: matching postings
+  determined in the scope, each once; `records`: matching records; `shown`: given as sources; `notShown`: selected without
+  room left in the context; `scanned`: postings read; `phases`: milliseconds of scan, names, facts, text, selection,
+  evidence) in the first data line; `scoutro-retrieval.{followUp, kind, focused}`. Log: `event=rag-jobsearch … found=
+  lowerBound= scanned= records= shown= all= kind= gaps= ms= phases=scan:…,names:…,facts:…,text:…,selection:…,evidence:…`.
+- **Model requests and tokens:** the last data line carries `scoutro-usage: {modelCalls, requestChars, answerChars,
+  tokens, inputTokens, outputTokens}`; `tokens` is `reported` when the endpoint sent the usage of every request,
+  `estimated` (characters / 3) when it did not, `none` for the server's own answer. The log line of the model lifecycle
+  carries the same. `ai.stream.usage=true` asks an OpenAI-compatible endpoint to report the usage of a streamed answer
+  (`stream_options.include_usage`; off by default, as not every endpoint accepts the field).
 
-Tests: `ChatToolsTest` and `RagFollowUpTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-jobsearch-live-smoke.py`
-(a disposable peer, the normal endpoint, a simulated model that never calls a tool).
+Tests: `ChatToolsTest`, `SolrIndexTest` (the direct index on an embedded Solr with the shipped schema) and
+`RagFollowUpTest` (`ant scoutro-rag-test`), `test/scoutro-access/chat-jobsearch-live-smoke.py` (a disposable peer, the
+normal endpoint, a simulated model that never calls a tool). Measurement, not part of the suites:
+`SearchScaleFixture` builds an invented stock of the size of a production peer, `SearchScaleBench` measures the steps on
+it and checks the counts; `test/scoutro-access/chat-search-measure.py` records the model requests and their sizes at the
+chat endpoint (section 14).
 
 ## 13. Provider search before the answer
 
@@ -374,41 +412,59 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
 - **When:** the question asks for a provider of a service: a problem word of a small table ("tragend", "Statik",
   "Wanddurchbruch" → Tragwerksplanung, Statiker, Statik; mould, damp, energy certificate, asbestos, building surveyor),
   or a provider question in words ("Wer baut …", "Anbieter", "Fachbetrieb", "Handwerker" …) with its own nouns as the
-  service; **and** the automatic search matched weakly or no hit names the service, or the question asks for all
-  providers or their number (as in section 12). A job question takes the job search of section 12 (`type=job` stays the
-  filter for postings) and never this one.
+  service; **and** it asks for a number, a list or a recommendation of providers ("Wie viele Anbieter …", "Welche
+  Statiker gibt es …", "Wer prüft …"; `QuestionKind`), or the automatic search matched weakly or no hit names the
+  service. A job question takes the job search of section 12 (`type=job` stays the filter for postings) and never this
+  one.
 - **The place:** the town after "in", "bei", "aus", "um", "nahe" (also "Bad …", "… am Main", "Neustadt bei Nebenstadt";
   a problem word after "bei" is no part of it: "in Musterstadt bei Schimmel"), or a postal code. The tool also takes the place
   without a preposition at the end of its request, after the service: "Tragwerksplanung Musterstadt" and "Tragwerksplanung
   in Musterstadt" are one search, as are "Statik Neustadt an der Musterau" and "Statik Bad Musterbrunn"; a part of a
   building or a kind of work there is no place ("Schimmelsanierung Keller"). The optional argument `place` names it when
   the words leave it unclear; it takes precedence.
-- **The providers of the whole released stock** (`ServiceSearch.run`, the same for the automatic search and
-  `provider_search`), within the request's scope and 6 s:
-  1. the graph: services named like each service of the plan (`type=service`, every page of hits) and the providers that
-     offer them (`offers`, every page), and organisations and facilities whose own name names it; their addresses,
-     service areas and pages (`KgReader.entityDigests`);
-  2. the direct index: every page of the scope that names a service of the plan, page after page to the end of the hits
-     (100 per page; no stop after the first pages found), by every service of the plan, so a provider of a later service
-     counts too;
-  3. a provider of pages only: its organisation in the graph by its host (`hostEntities`, at most 50 hosts), for its
-     address and service area.
+- **The providers first, by the indexes; texts only for those shown** (`ServiceSearch.run`, the same for the automatic
+  search and `provider_search`), within the request's scope and 6 s:
+  1. **graph**: the rows of the services, organisations and facilities named like a service of the plan (the name index,
+     `KgReader.namedEntities`), the providers that offer those services (`subjectsOf` over `offers`), and of all of them
+     the name and a current page (`entityRefs`);
+  2. **index**: the hosts of the scope with pages that name a service of the plan, counted by host in one query (a facet
+     on the host, `SolrIndex.hosts`); no page is loaded. A host of a provider of the graph counts for that provider, any
+     other host is a provider of its own;
+  3. **place** (with a place in the question): the addresses and service areas of the graph that name the place
+     (`factsNaming`), for a provider of step 1 or for the organisation whose own page is on a host of step 2; and the
+     hosts of the scope with a page naming the place (one more count by host): of those that are providers, the pages
+     naming the place are read (at most 3 per host, 120 providers) and tell an address, a service area or a mere
+     mention. A provider beyond that is counted as mentioning, with the reason in `gaps`;
+  4. **selection** and **evidence**: of the at most 6 providers shown one page naming the service is read for the
+     excerpt (240 characters), and the organisation of a host without one in step 1 for its name.
 
   A provider counts once: an entity of the graph over all its pages, any other provider once per host; separate
-  entities and hosts stay separate. Without a direct index the ranked search (8 pages per search, one per host) is the
+  entities and hosts stay separate. The count does not depend on how far a paging came: it is the same for the same
+  stock, whatever was asked before. Without a direct index the ranked search (8 pages per search, one per host) is the
   fallback, reported as a lower bound.
+- **Service and place of the same provider:** the service is the provider's (its offer or name in the graph, or a page
+  of its host), and so is the place: its own address or service area in the graph, or a page of its own host, which
+  need not be the page that names the service (an imprint with the address). A page of another host never gives a
+  provider its place.
 - **Its relation to the place** (with a place in the question): **located** there by an address (the graph's address,
-  locality or postal code, or a postal code and the place on its page), **serves** it by a service area (the graph's
-  service area, an area phrase on its page such as "Einsatzgebiet: Musterstadt und Umgebung", or the service stated for
-  the place: "Tragwerksplanung in Musterstadt"), or only **mentions** it ("eine Messe, die in Musterstadt stattfand"),
-  which evidences neither; else none. Located before serving before the rest.
+  locality or postal code, or a postal code and the place on a page of its host), **serves** it by a service area (the
+  graph's service area, an area phrase on its page such as "Einsatzgebiet: Musterstadt und Umgebung", or the service
+  stated for the place: "Tragwerksplanung in Musterstadt"), or only **mentions** it ("eine Messe, die in Musterstadt
+  stattfand"), which evidences neither; else none. Located before serving before mentioning before the rest, then the
+  providers of graph and page, then by the pages naming the service, then by name.
 - **To the answer:** the providers found are counted (`found`, per relation to the place) before the answer's limit of 6;
-  each shown provider is a numbered source ("Provider …") with its first page, its evidence (graph, page or both), its
-  relation to the place with the evidence, and an excerpt of its page. The server rules give found and shown, "at least"
-  with the reason when the count is a lower bound, and which numbers are located in or serve the place.
+  each shown provider is a numbered source ("Provider …") with a page naming the service, its evidence (graph, page or
+  both), its relation to the place with the evidence, and an excerpt of its page. As in section 12 the kind of the
+  question decides: a plain count ("Wie viele Anbieter für X gibt es in Y?") is answered by the server itself (found,
+  and located / serving / mentioning / unrelated apart), a list or a recommendation goes to the model with the providers
+  shown as its only sources; a recommendation is told to prefer an evidenced location or service area and to say so
+  when none has one. A call of `provider_search` for the same services and place in the same request returns the result
+  already computed (`reused: true`).
 - **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
 - **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, lowerBound, gaps,
-  shown, perPlace, placeNamedBy, timedOut, millis}`. Log: `event=rag-servicesearch … found= lowerBound= shown= all= gaps=`.
+  shown, perPlace, placeNamedBy, timedOut, millis, servicePages, phases}` (`servicePages`: pages of the scope naming a
+  service; `phases`: milliseconds of graph, index, place, selection, evidence). Log: `event=rag-servicesearch … found=
+  lowerBound= shown= all= kind= servicePages= gaps= ms= phases=graph:…,index:…,place:…,selection:…,evidence:…`.
   The model can call `provider_search(query, place?)` itself (2 calls per answer); it also takes the model's own words.
 - **The tool room:** all tool results of an answer share a third of the model's context in characters (at most 16,000;
   4,096 for a context of 4,096 tokens). `provider_search` and `job_search` fit their result into what is left: first the
@@ -417,8 +473,11 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   was cut, and only the entries given become numbered sources. When nothing but the totals fits, the list of searches
   becomes its number. Before 0.14.3-rc.5 a result with a place did not fit a 4,096-token context (`too_large`).
 - **Limits of the available queries:** a provider of the graph without a page in the scope, or without a name, is not
-  counted; two providers on one host without entities of their own count as one; the host lookup reads at most 50 hosts
-  (more is a lower bound); the direct index matches the start of words, not a service within a compound.
+  counted; two providers on one host without entities of their own count as one; an organisation of the graph gives a
+  host of the index its place only when the page of its name is on that host; the name index and the addresses naming a
+  place are read up to 5,000 rows each (more is a lower bound); the pages naming the place are read for 120 providers
+  (more are counted as mentioning, a lower bound of located and serving); the direct index matches the start of words,
+  not a service within a compound.
 
 Tests: `ServiceSearchTest` and `ChatToolsTest` (`ant scoutro-rag-test`: 11 providers in the graph and the index, one over
 three pages, one by the graph only, one by its page only, one only of the second service, each relation to the place,

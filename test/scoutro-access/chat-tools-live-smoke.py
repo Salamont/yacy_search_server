@@ -321,8 +321,10 @@ def run(base, digest):
     check("Tools of this chat" in system and "all collections of the local index" in system, "jobs: the system prompt names tools and scope")
     stage = answer["meta"].get("scoutro-retrieval", {}).get("stage")
     # weak automatic hits: the server's job search names the postings it found (section 12), else the model is told to search again
-    weak_note = "Job postings: the automatic search of this question matched weakly" in system or "Note on the search results" in system
-    check(weak_note == (stage in ("any", "none")), "jobs: weak automatic hits are announced to the model", f"stage={stage}")
+    # the server's job search names the postings it found (section 12; it runs for every list question), else weak automatic
+    # hits are announced so that the model searches again
+    weak_note = "Job postings: Scoutro searched the job postings" in system or "Note on the search results" in system
+    check(weak_note, "jobs: the server's job search or the weak automatic hits are announced to the model", f"stage={stage}")
     results = tool_results(requests[-1]["body"]["messages"]) if requests else []
     check([name for name, _ in results] == TOOLS, "jobs: search, kg_search, kg_entity, kg_evidence ran in this order", str([n for n, _ in results]))
     if len(results) == 4:

@@ -2,6 +2,34 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased (on 0.14.3-rc.5): the job and provider search find the matching entries by the indexes first
+
+Found on a production-size stock with rc.5 (6,844 postings, 275,134 pages): every search ended at its 6 s budget. The job
+search had read 1,250 postings with all their facts and evidence excerpts and no longer loaded the name hits it had
+found; the provider search loaded the full text of every page naming the service, 100 a page.
+
+- Job search: every posting of the scope is read in chunks by the graph's indexes (title, a current page, the
+  statements; no evidence text, no check per statement), only the facts that alone show a subject are checked, and the
+  direct index answers which of the posting pages match a subject with addresses only. Found (each posting once) and the
+  matching records are counted before the selection; only the postings shown are read in full.
+- Provider search: the providers of the graph by rows (name index, offers), the hosts with pages naming the service
+  counted by a facet in one query, the place by the same provider's address or service area in the graph or a page of
+  its own host; located, serving, mentioning and unrelated counted apart. The count no longer depends on how far a
+  paging came.
+- The direct index (`SolrIndex`): a filter on the pages' addresses, a facet on their hosts, texts only for the entries
+  shown. The join order of the new graph reads is fixed.
+- Kinds of questions: a plain count question ("Wie viele Stellenanzeigen zu X gibt es?") is answered by the server itself,
+  without a model request (`scoutro.chat.count.direct`, default on); a count, list or recommendation the search answered
+  gets only the entries shown as its sources.
+- One search per request: a tool call for the same subjects or the same services and place returns the result already
+  computed (`reused`).
+- The milliseconds of each step are in the metadata and the log (`phases`); the model requests of an answer and their
+  tokens (reported by the endpoint, else an estimate marked as one) in `scoutro-usage` (`ai.stream.usage` asks an
+  endpoint for them, default off).
+- No schema, graph or index change; the budget of 6 s and the lower bound with its reason stay.
+
+Details and the measurement: docs/SCOUTRO_RAG_QUALITY.md, sections 12 to 14.
+
 ## 0.14.3-rc.5 / 1.942-scoutro.52-rc.5 — test candidate: three corrections of the job and provider search found in 0.14.3-rc.4 (not a release)
 
 On 0.14.3-rc.4, application code `5f438c9`. Tool releases are kept; schemas, extractors and stored data unchanged: no

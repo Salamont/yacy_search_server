@@ -154,7 +154,7 @@ public final class SearchAssistTools {
     /** the lengths a result entry's text is shortened to, in this order, before entries are left out */
     static final int[] TEXT_LEVELS = {2000, 900, 500, 260, 140};
     /** the level a result starts at that repeats a search of this request: its entries are sources of the answer already */
-    static final int REUSED_LEVEL = 3;
+    static final int REUSED_LEVEL = 4;
     /** room kept free for the longer citation numbers and the escaping of the result */
     static final int FIT_MARGIN = 80;
 
