@@ -2,7 +2,10 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.2) — "Such noch mal" searches again
+## 0.14.3-rc.3 / 1.942-scoutro.52-rc.3 — test candidate: follow-up search and job selection (not a release)
+
+On 0.14.3-rc.2, application code `e43e0ba`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.3.md.
 
 A follow-up that asks to search again and names no search mode (the chat page's magnifier was on for the first question
 only) searches the local index with the goal of the chat (`ragMode=local`, `followUp=true`), in the collection and with
