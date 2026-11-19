@@ -2,6 +2,146 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased (on 0.14.3-rc.5): the job and provider search find the matching entries by the indexes first
+
+Found on a production-size stock with rc.5 (6,844 postings, 275,134 pages): every search ended at its 6 s budget. The job
+search had read 1,250 postings with all their facts and evidence excerpts and no longer loaded the name hits it had
+found; the provider search loaded the full text of every page naming the service, 100 a page.
+
+- Job search: every posting of the scope is read in chunks by the graph's indexes (title, a current page, the
+  statements; no evidence text, no check per statement), only the facts that alone show a subject are checked, and the
+  direct index answers which of the posting pages match a subject with addresses only. Found (each posting once) and the
+  matching records are counted before the selection; only the postings shown are read in full.
+- Provider search: the providers of the graph by rows (name index, offers), the hosts with pages naming the service
+  counted by a facet in one query, the place by the same provider's address or service area in the graph or a page of
+  its own host; located, serving, mentioning and unrelated counted apart. The count no longer depends on how far a
+  paging came.
+- The direct index (`SolrIndex`): a filter on the pages' addresses, a facet on their hosts, texts only for the entries
+  shown. The join order of the new graph reads is fixed.
+- Kinds of questions: a plain count question ("Wie viele Stellenanzeigen zu X gibt es?") is answered by the server itself,
+  without a model request (`scoutro.chat.count.direct`, default on); a count, list or recommendation the search answered
+  gets only the entries shown as its sources.
+- One search per request: a tool call for the same subjects or the same services and place returns the result already
+  computed (`reused`).
+- The milliseconds of each step are in the metadata and the log (`phases`); the model requests of an answer and their
+  tokens (reported by the endpoint, else an estimate marked as one) in `scoutro-usage` (`ai.stream.usage` asks an
+  endpoint for them, default off).
+- No schema, graph or index change; the budget of 6 s and the lower bound with its reason stay.
+
+Details and the measurement: docs/SCOUTRO_RAG_QUALITY.md, sections 12 to 14.
+
+## 0.14.3-rc.5 / 1.942-scoutro.52-rc.5 — test candidate: three corrections of the job and provider search found in 0.14.3-rc.4 (not a release)
+
+On 0.14.3-rc.4, application code `5f438c9`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.5.md.
+
+- A count question has no subject of its own: "Wie viele Stellenanzeigen zu X gibt es?" and "Zeige alle Stellenanzeigen
+  zu X" search X only and count the same unique postings; words of a question for all results or their number
+  ("wie viele", "alle", "Anzahl", "insgesamt" …) are never a subject (before, "viele" was one, and postings with "vielen"
+  or "vielseitige" in their text were counted). The full search still runs for such questions. Also for the services of
+  a provider question.
+- `provider_search` and `job_search` fit their result into the tool room of the answer (a third of the model's context,
+  at most 16,000 characters): texts shortened first, then entries left out; found, lower bound, the place categories and
+  shown kept, `shortened`/`not_shown` added, only the entries given become numbered sources. Before, a result with a place
+  was refused as `too_large` with a 4,096-token context.
+- `provider_search` takes the place without "in" at the end of its request ("Tragwerksplanung Musterstadt" is the same
+  search as "Tragwerksplanung in Musterstadt"; also places of several words), and an optional argument `place`; existing
+  calls with `query` alone work as before.
+
+## 0.14.3-rc.4 / 1.942-scoutro.52-rc.4 — test candidate: the job and provider search read the whole released stock (not a release)
+
+On 0.14.3-rc.3, application code `3ffcfce`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.4.md.
+
+
+Second step: the job search reads every posting of the scope to the end of the stock (no stop after 5,000) and asks the
+text of every posting's own page through the direct index (Solr read directly, by the postings' known addresses, the
+request's collection as a filter), so a posting's text counts whichever page of its host ranks first; the provider search
+determines its providers in the graph (offered services, provider names, the organisation of a page's host) and in every
+page of the index that names the service (no stop after eight pages), counts each provider once over its pages, and tells
+apart a location in the place, a service area and a mere mention. A question for all results or their number runs the
+full search also after strong first hits. Both report found and shown, and a lower bound with its reason; the automatic
+paths and the tools `job_search` and `provider_search` share their search.
+
+First step:
+
+The job search (automatic and `job_search`, one search) determines the matching postings of the request's scope before
+the answer's limit: the name index for the title variants, every posting of the scope with its facts and the excerpts of
+their evidence (a new read-only query of the graph's reader, `KgReader.jobDigests`; no schema change), and the indexed
+text of the postings' own pages (a company page alone is no posting; a host with several postings is searched again by
+`site:`). Duplicates count once. The answer and the tool report how many postings were found (per subject) and how many
+are shown; when the time (6 s) or a reading limit ran out the count is a lower bound and nothing is said about the whole
+index. An or-question shows the subjects in turn. The stock of the graph counts as current: missing dates neither
+exclude nor rank a posting, and no remark about the state of a posting is made. Details and the limits of the available
+queries: docs/SCOUTRO_RAG_QUALITY.md, section 12.
+
+## 0.14.3-rc.3 / 1.942-scoutro.52-rc.3 — test candidate: follow-up search and job selection (not a release)
+
+On 0.14.3-rc.2, application code `e43e0ba`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.3.md.
+
+A follow-up that asks to search again and names no search mode (the chat page's magnifier was on for the first question
+only) searches the local index with the goal of the chat (`ragMode=local`, `followUp=true`), in the collection and with
+the rights of the request. The magnifier switched off for a message sends `search: "no"`, which the server respects; a
+retry as the first message and an ordinary message without a search mode still run without a search. Before, such a
+follow-up ran with `ragMode=no` and skipped the search. Regression test: `test/scoutro-ui/chat-followup-ui-test.mjs`
+(`chat-jobsearch-live-smoke.py --ui`).
+
+Job search: with several subjects in the question, the candidate places are shared by the subjects, so many postings of
+the first subject no longer keep a later subject from being searched; hits are merged without duplicates and sorted by
+relevance, and the postings shown include the most relevant one of every subject that has a hit. Limits unchanged (6
+name searches, 12 candidates, 6 postings, 4 s).
+
+## 0.14.3-rc.2 / 1.942-scoutro.52-rc.2 — test candidate: job and provider search of the chat (not a release)
+
+On 0.14.3-rc.1, application code `16f2c8ec`. Tool releases of rc.1 are kept; schemas, extractors and stored data
+unchanged: no re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.2.md.
+
+A question about jobs whose automatic search matches weakly (or finds no job page) gets the job postings of the knowledge
+graph as its first sources, searched by the server before the model answers: the release of `kg_search` and the scope of
+the request, a few short title variants (each subject also separately; synonym groups configurable with
+`scoutro.chat.jobs.subjects`, empty by default), partial matches marked, the application status a separate question. A
+question for a provider of a service ("Wer hilft in Musterstadt bei Schimmel im Keller?") whose automatic search finds no
+page naming the service is searched again for the derived service and place ("Schimmelsanierung Musterstadt"). Both searches are named tools with descriptions on the Tools page: `job_search` ("Job search",
+follows `kg_search`) and `provider_search` ("Provider search", follows `search`); the Tools page also names and describes
+the knowledge graph tools. A follow-up such as "Such noch mal" searches with the goal of the conversation. Details:
+docs/SCOUTRO_RAG_QUALITY.md, sections 12 and 13.
+
+## 0.14.3-rc.1 / 1.942-scoutro.52-rc.1 — test candidate: tools of the chat (not a release)
+
+On 0.14.2 (`71fb2b8`): with released tools the chat model searches the local index again and reads the knowledge graph
+(`search`, `kg_search`, `kg_entity`, `kg_evidence`) within the scope of the chat session; pages of tool results become
+numbered sources, and the citation check reports per cited source whether its text contains the statement. Tools stay off
+until released. Schemas, extractors and settings unchanged: no re-extraction. Details: docs/SCOUTRO_CANDIDATE_0.14.3-rc.1.md.
+
+## 0.14.2 / 1.942-scoutro.51 — facilities, stage 1: addresses, facility pages and identities
+
+On 0.14.1: knowledge graph schema 9 unchanged, no new table, predicate or API route; one re-extraction of tiers 1 and 2 of every
+tracked page (`rule/12`, was 10; `jsonld/8`, `metadata/1` and the vocabularies unchanged) and one replay of the LLM tier's stored
+answers **without a model request** (`llm/8`, was 6; `REPLAYS` = {4, 5, 6, 7}). The update merges entities (facilities of one
+address, organisations of one name or identifier), so **a backup before the update is mandatory**; it is the only way back.
+Application code exactly that of pull request #102 at `ecdf0ff32e14` (validated with five full before/after runs on archived
+production data); this release adds only the version metadata, the release notes and the publication workflow's tags.
+[Release, upgrade and rollback](docs/SCOUTRO_RELEASE_0.14.2.md); details: docs/SCOUTRO_KG_FACILITIES.md.
+
+- **Addresses:** a dot or a footer's `·`, `•`, `|` between house number and postal code; streets named by a preposition and
+  their square ("Am Markt 5"); towns of two words ("Bad Rappenau", "Frankfurt am Main"); the sentence after a town is none of it.
+- **Facility pages (`FacilityPage`):** a page of one of a site's places (a care home, a branch, an office named by its town)
+  gives the facility its own address, postal code, town, phone and role mailbox; never a service, project, article, team or
+  directions page.
+- **The imprint and the operator:** a menu or footer link "Impressum" no longer makes a page an imprint; the operator after such
+  a link is named only with evidence (the site's own name, title or copyright, its own contact block) and gets that block, never
+  on a facility's page. Providers of hosting, newsletters, cookies, payment, data protection officers, dispute resolution bodies
+  and image credits are another party's section. Privacy notices name their controller, never a processor.
+- **LLM tier (`llm/8`):** a named facility's full address written right after its name becomes its address, read from the
+  page's text, never from the model; only for a proven place, never on imprint pages or at the operator's address.
+- **Identities:** a guessed facility kind keys nothing and blocks no merge (a difference is the event `identity_review`);
+  nothing is merged by name alone; a document-local key of another name is a conflict, not a merge; a VAT id, register entry or
+  IK of another domain's organisation joins only where a word of the names or the place agrees, else `identity_review`.
+- **Change feed (M7):** a merged entity's `redirect` carries the survivor's collections; moved statements stay `upsert`s, so a
+  consumer limited to collections (an agent) gets the redirect instead of a `delete`. After the update agents run a full sync.
+- **Opening hours:** "Öffnungszeiten:" is read again (no `\b` before an umlaut in `BusinessRules.HOURS`).
+
 ## 0.14.1 / 1.942-scoutro.50 — the matching of website technology, offers to the reader and competitors
 
 On 0.14.0: no schema change, no extractor version, no re-extraction, no model request; three rules of the matching at reading
@@ -20,6 +160,7 @@ On 0.14.0: no schema change, no extractor version, no re-extraction, no model re
   candidate's offers without the memo the matching and the read share (an offer memoized from that reading, without
   collections, made the candidate's own offers inaccessible).
 - The notes of 0.14.0 give its merge and image digest.
+- Merge `c6794d24fc9f`; image `ghcr.io/salamont/scoutro:1.942-scoutro.50@sha256:76075e6386c0e19ba43774bee133d570b9689d8f5d70d104bacfc38697463e32` (alias `0.14.1`).
 
 ## 0.14.0 / 1.942-scoutro.49 — names, clients, facilities by their kind, the matching's follow-ups and the clean-up
 

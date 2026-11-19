@@ -50,12 +50,17 @@ import net.yacy.ai.RAGAugmentor;
 import net.yacy.ai.ToolCallProtocol;
 import net.yacy.ai.rag.ChatCollections;
 import net.yacy.ai.rag.GraphFacts;
+import net.yacy.ai.rag.JobSearch;
+import net.yacy.ai.rag.RagFollowUp;
+import net.yacy.ai.rag.ServiceSearch;
 import net.yacy.ai.rag.RagCitations;
 import net.yacy.ai.rag.RagContext;
 import net.yacy.ai.rag.RagConversation;
 import net.yacy.ai.rag.RagQuery;
 import net.yacy.ai.rag.RagRetriever;
 import net.yacy.ai.rag.RagSettings;
+import net.yacy.ai.rag.ToolContext;
+import net.yacy.ai.ToolProvider;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.cora.util.LogRedaction;
 import net.yacy.http.ClientAddress;
@@ -265,6 +270,18 @@ public class RAGProxyServlet extends HttpServlet {
             JSONArray messages = guard.withSystemPrompt(bodyObject.optJSONArray("messages"),
                     sb.getConfig("ai.system-prompt", LLM_SYSTEM_PROMPT_DEFAULT));
             bodyObject.put("messages", messages);
+            // tools of this request: their scope is the session's (the collection resolved above, or the whole local index
+            // for local and administrator access); nothing of the request body or of a tool call can widen it. Local,
+            // administrator and account access only, as for the graph facts; an AI Shield guest keeps the tools it had.
+            final ToolContext toolContext = shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT
+                    ? new ToolContext(collection, true,
+                            (concepts, q, c, n) -> RAGAugmentor.searchCandidates(concepts, q, c, n, false, runId), ToolContext.runtimeGraph(),
+                            toolResultChars(llm4Chat.llm.num_ctx), runId)
+                            .withIndex(new net.yacy.ai.rag.SolrIndex(() -> sb.index.fulltext().getDefaultConnector()))
+                    : null;
+            llm4Chat.toolContext = toolContext;
+            final List<String> scopedTools = llm4Chat.tooling ? ToolProvider.scopedTools(llm4Chat.indexTools, toolContext) : new ArrayList<>();
+            if (!scopedTools.isEmpty()) guard.addServerRules(messages, PromptGuard.toolGuidance(scopedTools, toolContext.scopeLabel()));
             final String userPrefix = userPrefix(sb.getConfig("ai.llm-user-prefix", LLM_USER_PREFIX_DEFAULT));
             final RagSettings ragSettings = RagSettings.current();
 
@@ -284,6 +301,11 @@ public class RAGProxyServlet extends HttpServlet {
                 user = userObject.getContentText(); // this is the latest user prompt
                 ragMode = userObject.getSearchMode();
             }
+            // the search goal: a follow-up such as "Such noch mal" searches with the topic of the conversation (section 12);
+            // one that names no search mode searches the local index when it carries an earlier topic (an explicit "no" stays)
+            final RagFollowUp.Goal goal = RagFollowUp.goal(messages, lastUserIndex, user);
+            final boolean searchAgain = userObject != null && !userObject.hasSearchMode() && goal.followUp && goal.topical;
+            if (searchAgain) ragMode = "local";
             final boolean fresh = userObject != null && !"no".equals(ragMode);
 
             // answer parameters from the model configuration (LLM Selection) and the RAG settings
@@ -331,14 +353,17 @@ public class RAGProxyServlet extends HttpServlet {
                 }
             }
             ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=messages messages=" + messages.length() + " ragMode=" + ragMode
+                    + " searchMode=" + (userObject == null ? "none" : userObject.hasSearchMode() ? "sent" : searchAgain ? "followUp" : "absent")
                     + " userChars=" + (user == null ? 0 : user.length()) + " collection=" + (collection != null) + " numCtx=" + llm4Chat.llm.num_ctx
                     + " maxTokens=" + maxTokens + " freeChars=" + budget.freeChars + " prunedSearchDocs=" + pruned.removed + " staleAnswers=" + pruned.staleAnswers + " trimmedMessages=" + trimmed);
 
             // RAG: one retrieval for the LLM context and for the sources shown to the user
             JSONObject initialMetadata = null;
+            String directAnswer = null;
             if (fresh) {
                 final long searchStart = System.currentTimeMillis();
-                RagQuery query = RagQuery.prepare(question);
+                final String searchQuestion = goal.text;
+                RagQuery query = RagQuery.prepare(searchQuestion);
                 // a collection: modifier of the question counts only within the client's collections, else the whole index
                 final String scope = collection != null ? collection
                         : ChatCollections.permits(allCollections, query.questionCollection, releasedCollections) ? query.questionCollection : null;
@@ -346,9 +371,9 @@ public class RAGProxyServlet extends HttpServlet {
                 final boolean global = "global".equals(ragMode) && scope == null && member == null;
                 final RagRetriever retriever = new RagRetriever((concepts, q, c, n, g) -> RAGAugmentor.searchCandidates(concepts, q, c, n, g, runId));
                 RagRetriever.Result result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
-                if (result.selected.isEmpty() && countWords(question) > DIRECT_SEARCH_WORD_LIMIT && llm4tldr != null) {
+                if (result.selected.isEmpty() && countWords(searchQuestion) > DIRECT_SEARCH_WORD_LIMIT && llm4tldr != null) {
                     // long question without result: let the tldr model suggest search words once
-                    final String words = RAGAugmentor.searchWordsForPrompt(llm4tldr.llm, llm4tldr.model, question,
+                    final String words = RAGAugmentor.searchWordsForPrompt(llm4tldr.llm, llm4tldr.model, searchQuestion,
                             sb.getConfig("ai.llm-query-generator-prefix", LLM_QUERY_GENERATOR_PREFIX_DEFAULT), runId);
                     if (words != null && !words.isEmpty()) {
                         query = RagQuery.prepare(words);
@@ -358,28 +383,119 @@ public class RAGProxyServlet extends HttpServlet {
                 final int sourceChars = Math.max(0, budget.sourceChars(RagConversation.historyChars(messages)) - currentExtraChars);
                 // Scoutro knowledge graph: facts of the entities the question names or the found pages hold, as further
                 // numbered sources after the search results; local and administrator access only (guests by setting)
-                final GraphFacts.Selected graphSelection = GraphFacts.collect(GraphFacts.runtime(),
+                // job postings: a question about jobs whose automatic search matched weakly searches the knowledge graph's postings
+                // (type=job) before the answer, whatever the model does; release of kg_search and scope of the request (section 12)
+                JobSearch.Built jobs = null;
+                JobSearch.Result jobResult = null;
+                // what the question asks for: a number, a list, a recommendation (or something of one posting or provider)
+                final net.yacy.ai.rag.QuestionKind kind = net.yacy.ai.rag.QuestionKind.of(searchQuestion);
+                // a plain count question is answered by the server itself: the number is the search's, no model writes it,
+                // and the entries shown need no room in a model's context
+                final boolean plainCount = kind == net.yacy.ai.rag.QuestionKind.COUNT && !goal.followUp && currentExtraChars == 0
+                        && net.yacy.ai.rag.QuestionKind.plainCount(question) && sb.getConfigBool(COUNT_DIRECT_SETTING, true);
+                // a question for the postings, all of them or their number searches the whole stock, also after strong first hits
+                final boolean allJobs = JobSearch.intent(searchQuestion) && (JobSearch.wantsAll(searchQuestion)
+                        || kind == net.yacy.ai.rag.QuestionKind.COUNT || kind == net.yacy.ai.rag.QuestionKind.LIST);
+                if (JobSearch.intent(searchQuestion) && (allJobs || JobSearch.weak(result)) && JobSearch.released(llm4Chat.indexTools, toolContext)) {
+                    jobResult = JobSearch.run(toolContext, JobSearch.plan(searchQuestion));
+                    // a third of the source room, but room for at least one posting
+                    jobs = JobSearch.format(jobResult, 1, plainCount ? JobSearch.ALL_SHOWN : Math.min(sourceChars, Math.max(1200, sourceChars / 3)),
+                            toolContext.scopeLabel(), goal.followUp);
+                    // "none found" only when the search found none, never when only the room was missing
+                    if (!jobs.sources.isEmpty() || jobResult.jobs.isEmpty()) {
+                        guard.addServerRules(messages, PromptGuard.jobSearchNote(jobResult.found, jobs.sources.size(), jobResult.gaps,
+                                jobResult.searched, jobResult.plan.criteria(), toolContext.scopeLabel()));
+                    }
+                    ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-jobsearch phase=end stage=" + result.stage + " followUp=" + goal.followUp
+                            + " searched=" + jobResult.searched.size() + " found=" + jobResult.found + " lowerBound=" + jobResult.lowerBound() + " scanned="
+                            + jobResult.scanned + " records=" + jobResult.records + " shown=" + jobs.sources.size() + " partial="
+                            + jobs.meta.optInt("partial") + " all=" + allJobs + " kind=" + kind + " gaps=" + jobResult.gaps.size()
+                            + " timedOut=" + jobResult.timedOut + " error=" + jobResult.error + " ms=" + jobResult.millis
+                            + " phases=" + phases(jobResult.phases));
+                }
+                final int jobCount = jobs == null ? 0 : jobs.sources.size();
+                final int jobChars = jobs == null || jobs.text.isEmpty() ? 0 : jobs.text.length() + 2;
+                // providers of a service: a question for one whose automatic search matched weakly or found no page naming the
+                // service searches the local index again for the service and the place it asks for (section 13); jobs stay type=job
+                ServiceSearch.Result services = null;
+                ServiceSearch.Built serviceBuilt = null;
+                List<RagRetriever.Scored> selected = result.selected;
+                final ServiceSearch.Plan servicePlan = jobs == null && !JobSearch.intent(searchQuestion) ? ServiceSearch.plan(searchQuestion) : null;
+                // a question for the providers, all of them, their number or a recommendation searches them all, also after strong first hits
+                final boolean allProviders = servicePlan != null && (JobSearch.wantsAll(searchQuestion) || kind != net.yacy.ai.rag.QuestionKind.OTHER);
+                if (servicePlan != null && (allProviders || ServiceSearch.weak(result, servicePlan)) && ServiceSearch.released(llm4Chat.indexTools, toolContext)) {
+                    services = ServiceSearch.run(toolContext, servicePlan, result.selected);
+                    serviceBuilt = ServiceSearch.format(services, jobCount + 1, plainCount ? DIRECT_CHARS : Math.max(1200, (sourceChars - jobChars) / 2),
+                            toolContext.scopeLabel(), goal.followUp);
+                    final java.util.Set<String> found = new java.util.HashSet<>();
+                    for (final RagContext.Source s : serviceBuilt.sources) found.add(s.url);
+                    // the providers' pages first; the automatic hits after them, without the same page twice
+                    selected = new ArrayList<>();
+                    for (final RagRetriever.Scored s : result.selected) if (!found.contains(s.candidate.url)) selected.add(s);
+                    final List<Integer> named = new ArrayList<>();
+                    final JSONArray namedJson = serviceBuilt.meta.optJSONArray("placeNamedBy");
+                    for (int i = 0; namedJson != null && i < namedJson.length(); i++) named.add(namedJson.optInt(i));
+                    guard.addServerRules(messages, PromptGuard.serviceSearchNote(services.found, serviceBuilt.sources.size(), services.gaps,
+                            services.searched, servicePlan.place, named, toolContext.scopeLabel()));
+                    ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-servicesearch phase=end stage=" + result.stage + " followUp="
+                            + goal.followUp + " all=" + allProviders + " searched=" + services.searched.size() + " found=" + services.found
+                            + " lowerBound=" + services.lowerBound() + " shown=" + serviceBuilt.sources.size() + " placeNamed=" + named.size()
+                            + " kind=" + kind + " servicePages=" + services.servicePages + " gaps=" + services.gaps.size() + " timedOut="
+                            + services.timedOut + " ms=" + services.millis + " phases=" + phases(services.phases));
+                }
+                final int serviceCount = serviceBuilt == null ? 0 : serviceBuilt.sources.size();
+                final int serviceChars = serviceBuilt == null || serviceBuilt.text.isEmpty() ? 0 : serviceBuilt.text.length() + 2;
+                final boolean directCount = plainCount
+                        && ((jobResult != null && jobResult.error == null && jobs != null) || (services != null && serviceBuilt != null));
+                // a count, a list or a recommendation the search answered: the hits shown with their short entries are the
+                // context, the pages of the automatic search and their graph facts stay out of it
+                final boolean focused = directCount || (kind != net.yacy.ai.rag.QuestionKind.OTHER && jobCount + serviceCount > 0);
+                if (focused) selected = new ArrayList<>();
+                if (focused && !directCount) guard.addServerRules(messages, PromptGuard.kindNote(kind, serviceCount > 0));
+                // graph facts of the pages found again too (the provider's offers), then of the automatic hits
+                final List<RagRetriever.Scored> graphPages = new ArrayList<>();
+                graphPages.addAll(selected);
+                final GraphFacts.Selected graphSelection = focused ? GraphFacts.skipped("focused", scope) : GraphFacts.collect(GraphFacts.runtime(),
                         shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT,
                         shield == LLMAccess.Shield.GUEST,
-                        scope, global, result.selected, query, sourceChars);
-                final RagContext.Built built = RagContext.build(result.selected, query, Math.max(0, sourceChars - graphSelection.reservedChars()),
-                        ragSettings.documentMaxLength, ragSettings.maxSources, scope);
-                final GraphFacts.Built graph = GraphFacts.format(graphSelection, built.sources.size() + 1);
-                sources = new ArrayList<>(built.sources);
+                        scope, global, graphPages, query, Math.max(0, sourceChars - jobChars - serviceChars));
+                final RagContext.Built built = RagContext.build(selected, query,
+                        Math.max(0, sourceChars - jobChars - serviceChars - graphSelection.reservedChars()), ragSettings.documentMaxLength,
+                        ragSettings.maxSources, scope, jobCount + serviceCount + 1);
+                final GraphFacts.Built graph = GraphFacts.format(graphSelection, jobCount + serviceCount + built.sources.size() + 1);
+                // the postings or the pages found again first: the automatic search matched only weakly
+                sources = new ArrayList<>();
+                if (jobs != null) sources.addAll(jobs.sources);
+                if (serviceBuilt != null) sources.addAll(serviceBuilt.sources);
+                sources.addAll(built.sources);
                 sources.addAll(graph.sources);
-                final String contextText = graph.text.isEmpty() ? built.text : built.text.isEmpty() ? graph.text : built.text + "\n\n" + graph.text;
+                final StringBuilder context = new StringBuilder();
+                for (final String part : new String[] {jobs == null ? "" : jobs.text, serviceBuilt == null ? "" : serviceBuilt.text, built.text,
+                        graph.text}) {
+                    if (part.isEmpty()) continue;
+                    if (context.length() > 0) context.append("\n\n");
+                    context.append(part);
+                }
+                final String contextText = context.toString();
                 user += userPrefix;
                 user += guard.data(contextText.isEmpty() ? "(no search results)" : contextText);
                 userObject.setContentText(user);
-                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-retrieval phase=end ragMode=" + ragMode + " terms=" + query.terms.size()
+                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-retrieval phase=end ragMode=" + ragMode + " followUp=" + goal.followUp + " terms=" + query.terms.size()
                         + " stage=" + result.stage + " candidates=" + result.candidates + " foreignDropped=" + result.foreignDropped
                         + " sources=" + built.sources.size() + " graphFacts=" + graph.meta.optInt("facts") + " graphReason=" + graph.meta.opt("reason")
                         + " contextChars=" + contextText.length() + " searchMs=" + (System.currentTimeMillis() - searchStart));
+                // weak automatic hits: the model is told, so it searches again with the tools instead of answering from them
+                if (!scopedTools.isEmpty() && ("any".equals(result.stage) || "none".equals(result.stage)) && jobCount == 0 && serviceCount == 0) {
+                    guard.addServerRules(messages, PromptGuard.weakRetrievalNote(result.stage));
+                }
                 initialMetadata = new JSONObject(true);
                 initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
                 initialMetadata.put("scoutro-graph", graph.meta);
+                if (jobs != null) initialMetadata.put("scoutro-jobsearch", jobs.meta);
+                if (serviceBuilt != null) initialMetadata.put("scoutro-servicesearch", serviceBuilt.meta);
                 final JSONObject retrieval = new JSONObject(true);
                 retrieval.put("query", query.searchString(false));
+                retrieval.put("followUp", goal.followUp);
                 retrieval.put("stage", result.stage);
                 retrieval.put("collection", scope == null ? JSONObject.NULL : scope);
                 retrieval.put("global", result.global);
@@ -387,7 +503,13 @@ public class RAGProxyServlet extends HttpServlet {
                 retrieval.put("contextChars", contextText.length());
                 retrieval.put("contextTokens", RagContext.tokens(contextText.length()));
                 retrieval.put("numCtx", llm4Chat.llm.num_ctx);
+                retrieval.put("kind", kind.name().toLowerCase(java.util.Locale.ROOT));
+                retrieval.put("focused", focused);
                 initialMetadata.put("scoutro-retrieval", retrieval);
+                if (directCount) {
+                    directAnswer = jobResult != null ? net.yacy.ai.rag.QuestionKind.countOfJobs(question, jobResult, jobs.sources, toolContext)
+                            : net.yacy.ai.rag.QuestionKind.countOfProviders(question, services, serviceBuilt.sources, toolContext);
+                }
                 if (!contextText.isEmpty()) {
                     // the attachment the chat page keeps for follow-up questions: exactly what the model saw
                     initialMetadata.put("search-filename", "scoutro-sources-" + (scope == null ? "index" : scope) + ".md");
@@ -398,14 +520,34 @@ public class RAGProxyServlet extends HttpServlet {
                 initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
             }
             final List<RagContext.Source> answerSources = sources;
+            // pages of tool results are numbered after these sources and join them: one list for the reader and the check
+            if (toolContext != null) toolContext.attach(answerSources);
             final ToolCallProtocol.AnswerHook citations = new ToolCallProtocol.AnswerHook(answer -> {
                 try {
-                    return new JSONObject(true).put("scoutro-citations", RagCitations.check(answer, answerSources));
+                    final JSONObject meta = new JSONObject(true);
+                    final List<RagContext.Source> all = toolContext == null ? answerSources : toolContext.sources();
+                    if (toolContext != null && toolContext.calls() > 0) {
+                        // all sources once more, with the pages the tools added, before the check that refers to them
+                        meta.put("scoutro-sources", RagContext.sourcesJson(all));
+                        meta.put("scoutro-tools", toolContext.meta());
+                        ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-tools phase=end calls=" + toolContext.calls()
+                                + " toolSources=" + toolContext.added() + " toolMs=" + toolContext.spentMillis());
+                    }
+                    return meta.put("scoutro-citations", RagCitations.check(answer, all));
                 } catch (final JSONException e) {
                     return null;
                 }
             });
 
+            if (directAnswer != null) {
+                // the server's own answer to a plain count question: the stream a model would have sent, without a model request
+                ToolCallProtocol.answerDirectly(out, llm4Chat.model, directAnswer, initialMetadata, runId, citations);
+                hresponse.setStatus(HttpServletResponse.SC_OK);
+                out.close();
+                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=end result=success status=200 answeredBy=server modelCalls=0"
+                        + " answerChars=" + directAnswer.length() + " durationMs=" + elapsed(requestStart));
+                return;
+            }
             // ToolCallProtocol owns request preparation, initial stream handling and follow-up tool rounds.
             final int status;
             try {
@@ -451,6 +593,27 @@ public class RAGProxyServlet extends HttpServlet {
         String prefix = configured == null ? "" : configured.replace("\\n", "\n").trim();
         if (prefix.isEmpty() || prefix.equals(LLM_USER_PREFIX_LEGACY.trim())) prefix = LLM_USER_PREFIX_DEFAULT.trim();
         return "\n\n" + prefix + "\n\n";
+    }
+
+    /**
+     * Characters all tool results of one answer may have together: a third of the context window, so the results of
+     * several rounds stay beside the question, its sources and the answer.
+     */
+    static int toolResultChars(final int numCtx) {
+        return Math.max(1500, Math.min(16000, numCtx * RagContext.CHARS_PER_TOKEN / 3));
+    }
+
+    /** room for the entries shown with the server's own answer: all of them, no model context limits it */
+    static final int DIRECT_CHARS = 12000;
+
+    /** Setting: the server answers a plain count question for postings or providers itself (default on). */
+    public static final String COUNT_DIRECT_SETTING = "scoutro.chat.count.direct";
+
+    /** The steps of a search and their milliseconds, for the log: scan:12,names:3,... */
+    private static String phases(final java.util.Map<String, Long> phases) {
+        final StringBuilder sb = new StringBuilder();
+        for (final java.util.Map.Entry<String, Long> e : phases.entrySet()) sb.append(sb.length() == 0 ? "" : ",").append(e.getKey()).append(':').append(e.getValue());
+        return sb.length() == 0 ? "-" : sb.toString();
     }
 
     private static long elapsed(final long start) {
@@ -518,6 +681,11 @@ public class RAGProxyServlet extends HttpServlet {
             this.normalize();
         }
         
+        /** Whether the message names its search mode (also "no"); without one a follow-up may search again. */
+        public boolean hasSearchMode() {
+            return this.userObject.has("search") && !this.userObject.isNull("search");
+        }
+
         public String getSearchMode() {
             Object raw = this.userObject.opt("search");
             if (raw instanceof Boolean) {

@@ -1356,10 +1356,17 @@ public final class KgRuntime {
             final java.util.List<String> docIds, final java.util.List<String> terms, final int maxFacts, final long deadlineMillis)
             throws KgException {
         final KgReader reader = reader();
+        return new net.yacy.scoutro.knowledge.read.ChatFacts(reader).select(docIds, terms, chatViewer(reader, collection), maxFacts, deadlineMillis);
+    }
+
+    /**
+     * The viewer of a chat (its graph facts and its tools): the evidence of {@code collection}, or of every followed
+     * collection when it is null. A collection the graph does not follow sees nothing.
+     */
+    public net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer chatViewer(final KgReader reader, final String collection) throws KgException {
         final KgConfig cfg = this.config;
-        final net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer viewer = collection != null ? reader.viewer(java.util.List.of(collection))
+        return collection != null ? reader.viewer(java.util.List.of(collection))
                 : cfg.allCollections ? net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer.ALL : reader.viewer(cfg.collections);
-        return new net.yacy.scoutro.knowledge.read.ChatFacts(reader).select(docIds, terms, viewer, maxFacts, deadlineMillis);
     }
 
     /** How far the graph lags behind Solr ({@code sync.lag}), or null without the sync. */

@@ -91,7 +91,11 @@ public final class PlaceEvidence {
             "presse", "impressum", "datenschutz", "datenschutzerklarung", "home", "startseite", "leistungen", "unsere leistungen",
             "service", "services", "downloads", "download", "anfahrt", "galerie", "unternehmen", "philosophie", "geschichte", "historie",
             "partner", "faq", "sitemap", "login", "suche", "agb", "contact", "contact us", "about", "about us", "career", "careers",
-            "references", "projects", "imprint", "legal notice", "privacy", "privacy policy", "company", "history", "gallery", "search");
+            "references", "projects", "imprint", "legal notice", "privacy", "privacy policy", "company", "history", "gallery", "search",
+            // rule/12 (F3 of docs/SCOUTRO_KG_FACILITIES.md section 12): headings of a site's sections that stood as facilities; not the
+            // headings of a list of places ("Unsere Standorte", "Unsere Angebote"), which make no list a menu
+            "so finden sie uns", "so erreichen sie uns", "mitarbeiter", "mitarbeiterinnen", "ansprechpartner", "kontaktdaten",
+            "offnungszeiten", "oeffnungszeiten", "unser team", "das team", "uber mich", "ueber mich", "mein angebot", "handel und ausstellung");
     /**
      * The names of a website's sections that never name an offer either ("Kontakt", "Über uns", "Referenzen", "Jobs"), folded: a
      * service of such a name is a page label too. Labels that may name an offer ("News", "Downloads", "Service", "Partner") are
@@ -172,6 +176,36 @@ public final class PlaceEvidence {
     public static boolean pageLabel(final String name) {
         return name != null && PAGE_LABELS.contains(fold(name));
     }
+
+    /**
+     * rule/12: true if the name reads as a sentence or a headline of an article, not as a place's name: five words or more, two of
+     * them lower-case words of four letters or more ("Ausstellungsraum seit April wieder geöffnet", "Handwerk trifft Künstliche
+     * Intelligenz – ein Blick zurück"), or a colon inside it ("Händelhaus Halle: Barrierefreiheit im Dachgeschoss").
+     */
+    static boolean sentenceLike(final String name) {
+        if (name == null) {
+            return false;
+        }
+        return name.indexOf(':') >= 0 || words(name) >= 5 && lowerWords(name) >= 2;
+    }
+
+    /**
+     * rule/12: true if the name is the heading of a category of a site, no place: its last word is a generic noun or a plural of
+     * offers ("Soziotherapeutische Einrichtungen", "Unsere Angebote", "Ambulante Dienste"), and no number makes it one place.
+     */
+    static boolean categoryHeading(final String name) {
+        if (name == null || NUMBER.matcher(name).find()) {
+            return false;
+        }
+        final String[] words = fold(name).split(" ");
+        final String last = words[words.length - 1];
+        return words.length <= 3 && (GENERIC.contains(last) || CATEGORY_WORDS.contains(last));
+    }
+
+    /** The last words of a category's heading ({@link #categoryHeading}), folded. */
+    private static final Set<String> CATEGORY_WORDS = folded("einrichtungen", "angebote", "leistungen", "dienste", "hilfen", "bereiche", "services",
+            "wohnformen", "wohnangebote", "betreuungsangebote", "pflegeangebote", "beratungsangebote", "hauser", "haeuser", "standorte", "filialen",
+            "niederlassungen", "praxen", "kitas", "schulen", "projekte", "referenzen", "produkte", "losungen", "loesungen");
 
     /** True if the name is the name of a website's section that never names an offer ({@link #SECTION_LABELS}): no service. */
     public static boolean sectionLabel(final String name) {
@@ -408,11 +442,20 @@ public final class PlaceEvidence {
      * 17", "Am Musterbach 1. 12345 Musterstadt", "im Musterweg 3"; or a postal code with its town alone ("12345 Musterstadt"). A word
      * after a dot is no part of the street ("Muster e.K. Musterstraße 9" is "Musterstraße 9").
      */
-    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}.])((?:\\p{Lu}[\\p{L}.'-]*\\s+)?\\p{Lu}[\\p{L}'-]*"
-            + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:\\p{Lu}[\\p{L}.'-]*\\s+)?(?:Straße|Strasse|Weg|Gasse"
+    /**
+     * A word before a street's own word ("Bad Homburger Weg", "St. Anna-Straße"): a word without a dot, or a short abbreviation with
+     * one ("St.", "Dr.", "Prof."). 0.15.0: never the last word of a sentence before it ("Wohnen im Alter. Sonnenweg 3" is "Sonnenweg").
+     */
+    private static final String STREET_WORD = "(?:(?!GmbH|AG|KG|UG|OHG|GbR|SE)\\p{Lu}[\\p{L}'-]*|\\p{Lu}\\p{L}{0,3}\\.)";
+    /**
+     * The town after the postal code: {@link Address#TOWN}, shared with the rules (rule/12, llm/8): "Bad Rappenau", "St. Ingbert",
+     * "Frankfurt am Main", "Halle (Saale)"; never the sentence after it.
+     */
+    private static final Pattern KIND_ADDRESS = Pattern.compile("(?u)(?:(?<![\\p{L}\\p{N}.])((?:" + STREET_WORD + "\\s+)?\\p{Lu}[\\p{L}'-]*"
+            + "(?i:stra(?:ß|ss)e|str\\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee|markt)|(?:" + STREET_WORD + "\\s+)?(?:Straße|Strasse|Weg|Gasse"
             + "|Platz|Allee|Ring|Damm|Ufer|Chaussee|Markt)|(?i:am|an\\s+der|an\\s+den|im|in\\s+der|auf\\s+dem|auf\\s+der|zum|zur)\\s+\\p{Lu}"
-            + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+(?:\\s+(?:am|an\\s+der|im|ob\\s+der)"
-            + "\\s+\\p{Lu}[\\p{L}-]+)?))?|(?<!\\d)(\\d{5})\\s+(\\p{Lu}[\\p{L}-]+))");
+            + "[\\p{L}'-]+)\\s*(\\d{1,3}\\s?[a-zA-Z]?)(?![\\p{L}\\p{N}])(?:[\\s.,;]+(\\d{5})\\s+" + Address.NOT_A_TOWN + "(" + Address.TOWN + "))?"
+            + "|(?<!\\d)(\\d{5})\\s+" + Address.NOT_A_TOWN + "(" + Address.TOWN + "))");
     /**
      * A town after the kind in its clause: "… an unserem Standort Musterstadt", "… an unserem Hauptstandort in Musterstadt", "… in
      * Musterstadt", "… im Musterdorf".
@@ -465,32 +508,176 @@ public final class PlaceEvidence {
 
     private static Address placeAfter(final String text, final List<int[]> occurrences) {
         for (final int[] at : occurrences) {
-            if (navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1])) {
+            final Place p = placeAt(text, at, true);
+            if (p != null) {
+                return p.address;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The place after one occurrence of a name ({@link #placeOf}): an address from {@link #KIND_ADDRESS} in the name's block, or,
+     * with {@code town}, a town after it in its clause; null outside such a block (a menu, the provider describing itself).
+     */
+    private static Place placeAt(final String text, final int[] at, final boolean town) {
+        // rule/12, llm/8: a heading ("# Praxis Hamburg-Altona") is content, whatever menu stands before it; a name in a run of short
+        // segments is a menu's only where a section's label stands right beside it (a heading followed by the address block is none)
+        if (!heading(text, at[0]) && navigation(text, at[0], at[1]) && labelNear(text, at[0], at[1], 1)) {
+            return null;
+        }
+        final int[] seg = segment(text, at[0], at[1]);
+        if (SELF.matcher(text.substring(seg[0], at[0])).find()) {
+            return null;
+        }
+        // the window: the rest of the name's segment and the next two segments
+        int end = seg[1];
+        for (int k = 0; k < 2 && end < text.length(); k++) {
+            final int n = nextContent(text, end);
+            if (n >= text.length() || n - end - marks(text, end, n) > 4) {
+                break; // a blank line or more ends the name's block; the marks of markdown ("**Tagespflege. ** Muster…") do not
+            }
+            end = segment(text, n, n + 1)[1];
+        }
+        final Matcher a = KIND_ADDRESS.matcher(text).region(at[1], Math.min(end, at[1] + 200));
+        if (a.find() && words(text.substring(at[1], a.start())) <= 3) {
+            if (a.group(5) != null) {
+                return new Place(new Address(null, null, a.group(5), a.group(6), null), at[0], at[1], a.start(), a.end());
+            }
+            return new Place(Address.of(a.group(1).replaceFirst("^(?:im|in\\s+der)\\s+", "").trim() + " " + a.group(2), a.group(3), a.group(4), null),
+                    at[0], at[1], a.start(), a.end());
+        }
+        if (town) {
+            final Matcher t = KIND_TOWN.matcher(text).region(at[1], seg[1]);
+            if (t.lookingAt() && !NOT_TOWN.matcher(t.group(1)).find() && !KgVocabularies.get().vocabularyWord(t.group(1))) {
+                return new Place(new Address(null, null, null, t.group(1), null), at[0], at[1], t.start(1), t.end(1));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A place a page gives for a name: its address and where the page writes the name and the address (offsets into the page's
+     * text as given, also where it holds characters of format).
+     */
+    public static final class Place {
+        public final Address address;
+        public final int nameStart;
+        public final int nameEnd;
+        public final int start;
+        public final int end;
+
+        public Place(final Address address, final int nameStart, final int nameEnd, final int start, final int end) {
+            this.address = address;
+            this.nameStart = nameStart;
+            this.nameEnd = nameEnd;
+            this.start = start;
+            this.end = end;
+        }
+
+        /** The same place with the offsets of the text before its characters of format were removed. */
+        Place in(final int[] raw) {
+            return raw == null ? this : new Place(this.address, raw[this.nameStart], raw[this.nameEnd], raw[this.start], raw[this.end]);
+        }
+    }
+
+    /** For a text without its characters of format: the offset in {@code raw} of each offset of the stripped text; null if none was removed. */
+    private static int[] rawOffsets(final String raw) {
+        if (!FORMAT.matcher(raw).find()) {
+            return null;
+        }
+        final int[] out = new int[raw.length() + 1];
+        int k = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            if (!FORMAT.matcher(raw.substring(i, i + 1)).matches()) {
+                out[k++] = i;
+            }
+        }
+        out[k] = raw.length();
+        return java.util.Arrays.copyOf(out, k + 1);
+    }
+
+    /**
+     * 0.15.0 (docs/SCOUTRO_KG_FACILITIES.md): the full address of a named facility or site, as the page states it right after the
+     * name: a street with its number, the postal code and the town in the name's block ({@link #placeOf}), outside a menu. Null if no
+     * occurrence of the name has one, or two occurrences have two different ones (the page does not say which is the place's: a
+     * list of a provider's houses gives each house its own). Nothing is read from a model: the address is the page's text.
+     */
+    public static Place fullPlace(final String raw, final String name) {
+        if (raw == null || name == null || name.isBlank() || kindOnly(name)) {
+            return null;
+        }
+        final String text = FORMAT.matcher(raw).replaceAll("");
+        Place found = null;
+        for (final int[] at : occurrences(text, name)) {
+            final Place p = placeAt(text, at, false);
+            if (p == null || !p.address.complete()) {
                 continue;
             }
-            final int[] seg = segment(text, at[0], at[1]);
-            if (SELF.matcher(text.substring(seg[0], at[0])).find()) {
+            if (found == null) {
+                found = p;
+            } else if (!found.address.key().equals(p.address.key())) {
+                return null;
+            }
+        }
+        return found == null ? null : found.in(rawOffsets(raw));
+    }
+
+    /**
+     * 0.15.0 (docs/SCOUTRO_KG_FACILITIES.md): the one full address of {@code [from, to)} of the page, the part of a facility's own
+     * page between its heading and the operator's footer; null if that part gives none or two different ones. Positions are those
+     * of {@code raw}; the place's name positions are the address's.
+     */
+    public static Place onlyAddress(final String raw, final int from, final int to) {
+        if (raw == null || from < 0 || to > raw.length() || from >= to) {
+            return null;
+        }
+        Place found = null;
+        final Matcher a = KIND_ADDRESS.matcher(raw).region(from, to);
+        while (a.find()) {
+            if (a.group(1) == null || a.group(3) == null) {
                 continue;
             }
-            // the window: the rest of the name's segment and the next two segments
-            int end = seg[1];
-            for (int k = 0; k < 2 && end < text.length(); k++) {
-                final int n = nextContent(text, end);
-                if (n >= text.length() || n - end - marks(text, end, n) > 4) {
-                    break; // a blank line or more ends the name's block; the marks of markdown ("**Tagespflege. ** Muster…") do not
-                }
-                end = segment(text, n, n + 1)[1];
+            final Address address = Address.of(a.group(1).replaceFirst("^(?:im|in\\s+der)\\s+", "").trim() + " " + a.group(2), a.group(3),
+                    a.group(4), null);
+            if (!address.complete()) {
+                continue;
             }
-            final Matcher a = KIND_ADDRESS.matcher(text).region(at[1], Math.min(end, at[1] + 200));
-            if (a.find() && words(text.substring(at[1], a.start())) <= 3) {
-                if (a.group(5) != null) {
-                    return new Address(null, null, a.group(5), a.group(6), null);
-                }
-                return Address.of(a.group(1).replaceFirst("^(?:im|in\\s+der)\\s+", "").trim() + " " + a.group(2), a.group(3), a.group(4), null);
+            if (found == null) {
+                found = new Place(address, a.start(), a.end(), a.start(), a.end());
+            } else if (!found.address.key().equals(address.key())) {
+                return null;
             }
-            final Matcher town = KIND_TOWN.matcher(text).region(at[1], seg[1]);
-            if (town.lookingAt() && !NOT_TOWN.matcher(town.group(1)).find() && !KgVocabularies.get().vocabularyWord(town.group(1))) {
-                return new Address(null, null, null, town.group(1), null);
+        }
+        return found;
+    }
+
+    /**
+     * 0.15.0: a site whose name is its full address ("Musterweg 5, 12345 Musterstadt"): the address its name gives, where the page
+     * writes that address (the same street, number, postal code and town, whatever the separators). Null if the name is no full
+     * address or the page does not write it.
+     */
+    public static Place addressName(final String raw, final String name) {
+        if (raw == null || name == null) {
+            return null;
+        }
+        final Matcher a = KIND_ADDRESS.matcher(name);
+        if (!a.find() || a.group(1) == null || a.group(3) == null || words(name.substring(0, a.start())) > 0
+                || words(name.substring(a.end())) > 0) {
+            return null;
+        }
+        final Address address = Address.of(a.group(1).trim() + " " + a.group(2), a.group(3), a.group(4), null);
+        if (!address.complete()) {
+            return null;
+        }
+        // where the page writes this address, whatever its separators ("Musterweg 5. 12345 Musterstadt" for the model's
+        // "Musterweg 5, 12345 Musterstadt"): the same street, number, postal code and town
+        final String text = FORMAT.matcher(raw).replaceAll("");
+        final Matcher t = KIND_ADDRESS.matcher(text);
+        while (t.find()) {
+            if (t.group(1) != null && t.group(3) != null && address.key().equals(Address.of(t.group(1).replaceFirst("^(?:im|in\\s+der)\\s+", "")
+                    .trim() + " " + t.group(2), t.group(3), t.group(4), null).key())) {
+                return new Place(address, t.start(), t.end(), t.start(), t.end()).in(rawOffsets(raw));
             }
         }
         return null;
@@ -643,9 +830,26 @@ public final class PlaceEvidence {
 
     /** True if one of the two segments before or after the occurrence is the label of a site's section: a menu. */
     static boolean labelNear(final String text, final int start, final int end) {
+        return labelNear(text, start, end, 2);
+    }
+
+    /** True if the occurrence's line is a heading of the page text as YaCy writes it ("# Haus Lindenhof", "## Kontakt"). */
+    static boolean heading(final String text, final int at) {
+        int line = at;
+        while (line > 0 && text.charAt(line - 1) != '\n') {
+            line--;
+        }
+        while (line < at && text.charAt(line) == ' ') {
+            line++;
+        }
+        return line < text.length() && text.charAt(line) == '#';
+    }
+
+    /** {@link #labelNear(String, int, int)} within {@code reach} segments before and after the occurrence. */
+    static boolean labelNear(final String text, final int start, final int end, final int reach) {
         final int[] seg = segment(text, start, end);
         int at = seg[0];
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < reach; i++) {
             final int p = previousContent(text, at);
             if (p < 0) {
                 break;
@@ -657,7 +861,7 @@ public final class PlaceEvidence {
             at = prev[0];
         }
         at = seg[1];
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < reach; i++) {
             final int n = nextContent(text, at);
             if (n >= text.length()) {
                 break;

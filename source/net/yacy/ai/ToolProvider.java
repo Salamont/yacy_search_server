@@ -36,10 +36,12 @@ import net.yacy.ai.tools.CalculatorTool;
 import net.yacy.ai.tools.ChitChatTool;
 import net.yacy.ai.tools.DateMathTool;
 import net.yacy.ai.tools.DateTimeTool;
+import net.yacy.ai.tools.GraphTools;
 import net.yacy.ai.tools.HttpJsonTool;
 import net.yacy.ai.tools.Mermaid2ASCIITool;
 import net.yacy.ai.tools.NumberParserTool;
 import net.yacy.ai.tools.PromptToMermaidTool;
+import net.yacy.ai.tools.SearchAssistTools;
 import net.yacy.ai.tools.SearchTool;
 import net.yacy.ai.tools.SelfReflectTool;
 import net.yacy.ai.tools.TableOpsTool;
@@ -47,6 +49,7 @@ import net.yacy.ai.tools.UnitConverterTool;
 import net.yacy.ai.tools.UpdatePlanTool;
 import net.yacy.ai.tools.WebFetchTool;
 import net.yacy.ai.tools.WikipediaLinkCreatorTool;
+import net.yacy.ai.rag.ToolContext;
 import net.yacy.search.Switchboard;
 
 /**
@@ -63,6 +66,10 @@ import net.yacy.search.Switchboard;
  * {@code ai.tools.<name>.enabled=true} and {@code ai.tools.<name>.maxCallsPerTurn > 0}.
  * Model capability {@code tooling=supported} alone releases nothing; it only allows the
  * released tools to be sent to that model. Client-supplied tool definitions are removed.
+ * <p>
+ * Tools of a chat request ({@link ToolContext}): with the scope the chat session resolved, {@code search} searches the
+ * local index within that scope and the knowledge graph tools ({@link GraphTools}) may run. Without one, {@code search}
+ * reads the whole index and is left to chats with all collections, and the graph tools do not exist.
  */
 public final class ToolProvider {
     private static final String CONFIG_PREFIX = "ai.tools.";
@@ -80,6 +87,11 @@ public final class ToolProvider {
     /** Tests only: read the tool configuration from the given source (null: Switchboard). */
     static void useSettings(final Settings source) {
         settings = source;
+    }
+
+    /** A setting of the chat tools (the Switchboard's configuration, or the test source). */
+    public static String setting(final String key, final String defaultValue) {
+        return config(key, defaultValue);
     }
 
     private static String config(final String key, final String defaultValue) {
@@ -111,6 +123,11 @@ public final class ToolProvider {
     );
     private static final List<ToolHandler> TOOLS_RETRIEVAL = Arrays.asList(
             new SearchTool(),
+            GraphTools.search(),
+            GraphTools.entity(),
+            GraphTools.evidence(),
+            SearchAssistTools.jobSearch(),
+            SearchAssistTools.providerSearch(),
             new WikipediaLinkCreatorTool(),
             new WebFetchTool()
     );
@@ -133,6 +150,13 @@ public final class ToolProvider {
 
     /** Names of the tools that read the whole index: SearchTool. */
     private static final Set<String> INDEX_TOOLS = Set.of("search");
+
+    /**
+     * Tools whose release follows another tool's while they are not set on their own: the server's job and provider
+     * searches use what kg_search and search may read (docs/SCOUTRO_RAG_QUALITY.md, sections 12 and 13).
+     */
+    private static final Map<String, String> RELEASE_FOLLOWS = Map.of(SearchAssistTools.JOB_SEARCH, "kg_search",
+            SearchAssistTools.PROVIDER_SEARCH, "search");
 
     public static final class ToolConfig {
         public final String name;
@@ -180,6 +204,14 @@ public final class ToolProvider {
      * the whole index are left out (a chat limited to some collections).
      */
     public static void applyReleasedTools(final JSONObject body, final boolean toolingEnabled, final boolean indexTools) {
+        applyReleasedTools(body, toolingEnabled, indexTools, null);
+    }
+
+    /**
+     * As {@link #applyReleasedTools(JSONObject, boolean, boolean)} for a chat request with the scope {@code context}
+     * (null: none): see {@link #offered(String, boolean, ToolContext)}.
+     */
+    public static void applyReleasedTools(final JSONObject body, final boolean toolingEnabled, final boolean indexTools, final ToolContext context) {
         if (body == null) return;
         body.remove("tools");
         body.remove("tool_choice");
@@ -192,7 +224,7 @@ public final class ToolProvider {
                 JSONObject definition = configuredDefinition(tool);
                 if (definition == null) continue;
                 final JSONObject function = definition.optJSONObject("function");
-                if (!indexTools && readsIndex(function == null ? null : function.optString("name", null))) continue;
+                if (!offered(function == null ? null : function.optString("name", null), indexTools, context)) continue;
                 addToolDefinitionIfMissing(tools, definition);
             }
             if (tools.length() == 0) return;
@@ -217,13 +249,44 @@ public final class ToolProvider {
 
     /** As {@link #executeTool(String, String)}; without {@code indexTools} a tool that reads the whole index does not run. */
     public static String executeTool(String name, String arguments, final boolean indexTools) {
+        return executeTool(name, arguments, indexTools, null);
+    }
+
+    /**
+     * As {@link #executeTool(String, String, boolean)} within the scope of a chat request (null: none). The scope is
+     * handed to the tool; nothing in {@code arguments} can replace it.
+     */
+    public static String executeTool(String name, String arguments, final boolean indexTools, final ToolContext context) {
         if (name == null) return errorJson("Invalid tool call");
-        if (!indexTools && readsIndex(name)) return errorJson("Tool not released: " + name);
+        if (!offered(name, indexTools, context)) return errorJson("Tool not released: " + name);
         ToolHandler tool = TOOL_BY_NAME.get(name);
         if (tool == null) return errorJson("Unknown tool: " + name);
         if (allowedCallsPerTurn(name) <= 0) return errorJson("Tool not released: " + name);
         // Tool implementations are responsible for argument parsing/validation.
-        return tool.execute(arguments);
+        return context == null ? tool.execute(arguments) : tool.execute(arguments, context);
+    }
+
+    /**
+     * Whether a tool exists for a request: a tool that reads the index ({@code search}) with all collections or within
+     * the scope of a chat request; a scoped tool (the knowledge graph tools) only with a scope that admits the graph;
+     * every other tool always. Its release ({@link #isReleased(String)}) is a separate condition.
+     */
+    public static boolean offered(final String name, final boolean indexTools, final ToolContext context) {
+        if (name == null) return false;
+        final ToolHandler tool = TOOL_BY_NAME.get(name.trim());
+        if (tool != null && tool.scoped()) return context != null && (context.graph || !tool.requiresGraph());
+        return !readsIndex(name) || indexTools || context != null;
+    }
+
+    /** The released tools that work within the scope of this chat request (search, the knowledge graph tools), in their order. */
+    public static List<String> scopedTools(final boolean indexTools, final ToolContext context) {
+        final List<String> names = new ArrayList<>();
+        if (context == null) return names;
+        for (final Map.Entry<String, ToolHandler> tool : TOOL_BY_NAME.entrySet()) {
+            final String name = tool.getKey();
+            if ((tool.getValue().scoped() || readsIndex(name)) && offered(name, indexTools, context) && allowedCallsPerTurn(name) > 0) names.add(name);
+        }
+        return names;
     }
 
     /**
@@ -244,7 +307,9 @@ public final class ToolProvider {
     /** True when the operator released the tool (ai.tools.NAME.enabled=true). */
     public static boolean isReleased(final String name) {
         if (name == null || !TOOL_BY_NAME.containsKey(name)) return false;
-        return "true".equalsIgnoreCase(config(CONFIG_PREFIX + name + ENABLED_SUFFIX, "false").trim());
+        final String own = config(CONFIG_PREFIX + name + ENABLED_SUFFIX, "").trim();
+        if (own.isEmpty() && RELEASE_FOLLOWS.containsKey(name)) return isReleased(RELEASE_FOLLOWS.get(name));
+        return "true".equalsIgnoreCase(own);
     }
 
     /**
@@ -258,7 +323,12 @@ public final class ToolProvider {
 
     /** As {@link #allowedCallsPerTurn(String)}; 0 for a tool that reads the whole index without {@code indexTools}. */
     public static int allowedCallsPerTurn(final String name, final boolean indexTools) {
-        return !indexTools && readsIndex(name) ? 0 : allowedCallsPerTurn(name);
+        return allowedCallsPerTurn(name, indexTools, null);
+    }
+
+    /** As {@link #allowedCallsPerTurn(String, boolean)} within the scope of a chat request (null: none). */
+    public static int allowedCallsPerTurn(final String name, final boolean indexTools, final ToolContext context) {
+        return offered(name, indexTools, context) ? allowedCallsPerTurn(name) : 0;
     }
 
     /**

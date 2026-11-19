@@ -29,7 +29,8 @@ public class SearchTool implements ToolHandler {
         tool.put("type", "function");
         final JSONObject fn = new JSONObject(true);
         fn.put("name", NAME);
-        fn.put("description", "Search for documents in the YaCy index. This is like web search.");
+        fn.put("description", "Search for documents in the YaCy index. This is like web search. In the chat it searches the local index"
+                + " within the chat's collections again: use the concrete words of the question (names, products, job titles, places).");
 
         final JSONObject params = new JSONObject(true);
         params.put("type", "object");
@@ -50,6 +51,27 @@ public class SearchTool implements ToolHandler {
     @Override
     public int maxCallsPerTurn() {
         return 3;
+    }
+
+    /**
+     * Within a chat request: the local search of the RAG retrieval, limited to the chat's collection. The scope is the
+     * context's; a {@code collection:} word of the query or any other argument cannot change it, and the peer-to-peer
+     * network is never asked. Each page is a numbered source of the answer.
+     */
+    @Override
+    public String execute(final String arguments, final net.yacy.ai.rag.ToolContext context) {
+        if (context == null) return execute(arguments);
+        return context.run(NAME, () -> {
+            final JSONObject args;
+            try {
+                args = (arguments == null || arguments.isEmpty()) ? new JSONObject(true) : new JSONObject(arguments);
+            } catch (final JSONException e) {
+                throw new IllegalArgumentException("Invalid arguments JSON");
+            }
+            final String query = args.optString("query", "").trim();
+            if (query.isEmpty()) throw new IllegalArgumentException("Missing query");
+            return context.search(NAME, query.length() > 400 ? query.substring(0, 400) : query);
+        });
     }
 
     @Override

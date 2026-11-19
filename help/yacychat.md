@@ -99,6 +99,51 @@ administrator use, and never for a search across the YaCy network. If the
 graph is slow or off, the answer uses the search results alone. Settings:
 `scoutro.kg.chat.*`, see [Knowledge graph](ScoutroKnowledge_p.md).
 
+## Scoutro: tools of the chat
+
+When the administrator released them on the Tools page (`ai.tools.search`,
+`ai.tools.kg_search`, `ai.tools.kg_entity`, `ai.tools.kg_evidence`) and the
+chat model supports tool calls, the model can search the index again when the
+first results are weak and read the knowledge graph: entities by name, the
+facts and relations of one entity, the source pages of one fact. The chat
+shows each call under the answer. The tools read only what the chat itself may
+read: the chosen collection, an account's collection, or the whole local index
+for local and administrator use; never another collection and never the YaCy
+network. Pages from tool results appear in the source list with the next
+numbers. Limits per answer: 8 rounds, 3 searches, 4 calls of each graph tool,
+10 calls and 20 seconds in total.
+
+Job questions: when you ask for job postings and the index search finds only
+company pages or nothing, Scoutro searches the job postings of its knowledge
+graph itself (with `kg_search` released, in the same collections): all postings
+there, by their titles, their facts and the text of their pages. The answer
+says how many were found and lists the most relevant ones first as sources
+"job posting …" with the page they were read from, with the dates they state.
+A posting that shows only some of your subjects is marked as a partial match.
+A follow-up such as "Such noch
+mal" searches again with the subject of your earlier question, also when the
+magnifier is not switched on; switch it off for that message to answer without
+a search.
+
+Provider questions: when you ask who offers a service ("Wer hilft in
+Musterstadt bei Schimmel im Keller?") and the index search finds only pages that
+share some words, Scoutro derives the service and the place and searches all
+providers of it in the same collections: those the knowledge graph records and
+every page that names the service. The answer says how many providers were
+found (each once, over all its pages) and lists the most relevant ones first as
+sources, saying for each whether it is located in your town, serves it, or only
+mentions it. Asking for all of them or for their number ("Wie viele …") always
+runs this complete search, and counts the same as "Zeige alle …"; the same holds for job postings. A question
+that asks only for the number is answered by Scoutro itself from the search, without the language model: it gives the
+number found, how many are shown, and for providers how many are located in the place, serve it or only mention it. Both searches are tools of their own on the Tools page: "Job
+search" (`job_search`) and "Provider search" (`provider_search`).
+
+A cited number whose source text does not contain the statement in front of
+it is shown dotted, with the note "The text of the cited source does not
+contain the statement in front of it". This check compares words; it is a hint
+to read the source, not a proof in either direction. Details:
+`docs/SCOUTRO_RAG_QUALITY.md`, sections 6 and 11.
+
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.
@@ -117,8 +162,8 @@ collections" entry and a request without a collection uses its only
 collection or answers `400 collection_required`; a foreign collection
 answers `403 collection_not_allowed`. Accounts never use the peer-to-peer
 network search, and system questions answer `403 system_forbidden`. The
-model's `search` tool (released with `ai.tools.search.enabled`) searches the
-whole index and the network: it is neither offered to nor run for a chat
-without all collections (also an AI Shield guest); the other released tools
-stay available.
+model's tools (released on the Tools page) work only within that scope: see
+"Scoutro: tools of the chat" below. An AI Shield guest gets neither the
+`search` tool nor the knowledge graph tools; the other released tools stay
+available.
 See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

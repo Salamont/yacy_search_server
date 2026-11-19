@@ -4125,8 +4125,6 @@ These tools work on the Scoutro server with the data the AI already has; most of
 These tools bring further information into the answer: from your index or, for “Fetch web page”, live from the internet.==Diese Werkzeuge holen weitere Informationen in die Antwort: aus Ihrem Index oder, bei „Webseite abrufen“, live aus dem Internet.
 Only GET requests to public http(s) addresses; private and internal addresses are blocked, responses are limited to 2 MB. The AI chooses the address itself: release this tool only if the chat may reach the internet.==Nur GET-Anfragen an öffentliche http(s)-Adressen; private und interne Adressen werden blockiert, Antworten sind auf 2 MB begrenzt. Die KI wählt die Adresse selbst: Geben Sie dieses Werkzeug nur frei, wenn der Chat ins Internet darf.
 Only public http(s) addresses; private and internal addresses are blocked. The page is loaded from the internet, not from the index: release this tool only if the chat may reach the internet.==Nur öffentliche http(s)-Adressen; private und interne Adressen werden blockiert. Die Seite wird aus dem Internet geladen, nicht aus dem Index: Geben Sie dieses Werkzeug nur frei, wenn der Chat ins Internet darf.
-Reads search results from your index, or from the YaCy network when global search is switched on; it starts no crawl. It does not use the collection chosen in the chat.==Liest Suchergebnisse aus Ihrem Index oder, wenn die globale Suche eingeschaltet ist, aus dem YaCy-Netzwerk; es startet keinen Crawl. Die im Chat gewählte Collection berücksichtigt es nicht.
-Lets the AI run additional searches of its own while answering, besides the automatic search for the question.==Lässt die KI beim Antworten zusätzlich eigene Suchen ausführen, neben der automatischen Suche zur Frage.
 Builds the address of a Wikipedia article from a topic. Together with “Fetch web page” the AI can then read the article.==Bildet aus einem Thema die Adresse eines Wikipedia-Artikels. Zusammen mit „Webseite abrufen“ kann die KI den Artikel dann lesen.
 Loads a public web page live from the internet and gives the AI its text (up to about 12,000 characters).==Lädt eine öffentliche Webseite live aus dem Internet und gibt der KI ihren Text (bis etwa 12.000 Zeichen).
 Calculates with dates: adds or subtracts days, weeks or months, measures the time between two dates, finds the start or end of a period.==Rechnet mit Datumsangaben: addiert oder subtrahiert Tage, Wochen oder Monate, misst die Zeit zwischen zwei Daten, findet Anfang oder Ende eines Zeitraums.
@@ -4199,6 +4197,26 @@ Example:==Beispiel:
 Security:==Sicherheit:
 Chat tools==Chat-Werkzeuge
 #-----------------------------
+Lets the AI search your index again while answering, besides the automatic search for the question.==Lässt das Sprachmodell beim Antworten erneut in Ihrem Index suchen, zusätzlich zur automatischen Suche zur Frage.
+Reads only your local index, within the collection of the chat (for an account: its collections); never the YaCy network. Starts no crawl.==Liest nur Ihren lokalen Index, innerhalb der Collection des Chats (bei einem Konto: seine Collections); nie das YaCy-Netzwerk. Startet keinen Crawl.
+>Knowledge graph: find entries<==>Wissensgraph: Einträge finden<
+Finds organisations, facilities, services, places and job postings of the Scoutro knowledge graph by words of their name or title.==Findet Organisationen, Einrichtungen, Leistungen, Orte und Stellenanzeigen im Scoutro-Wissensgraphen über Wörter ihres Namens oder Titels.
+Which job postings have Java in their title?==Welche Stellenanzeigen haben Java im Titel?
+Reads only the knowledge graph of the chat’s collections; writes nothing, no network access.==Liest nur den Wissensgraphen der Collections des Chats; schreibt nichts, kein Netzwerkzugriff.
+>Knowledge graph: facts of an entry<==>Wissensgraph: Fakten eines Eintrags<
+Reads the facts and relations of one entry, for example its systems, offers, employer or job postings, each with the page it was read from.==Liest die Fakten und Beziehungen eines Eintrags, etwa seine Systeme, Angebote, Arbeitgeber oder Stellenanzeigen, jeweils mit der Seite, aus der sie stammen.
+Which systems does this company use?==Welche Systeme nutzt dieses Unternehmen?
+>Knowledge graph: sources of a fact<==>Wissensgraph: Quellen eines Fakts<
+Shows the pages a fact was read from, with the passage and the date the page was loaded.==Zeigt die Seiten, aus denen ein Fakt stammt, mit der Textstelle und dem Datum, an dem die Seite geladen wurde.
+Where does the knowledge graph have this from?==Woher hat der Wissensgraph das?
+>Job search<==>Stellensuche<
+Searches the job postings of the knowledge graph for the subjects of a question, each subject also on its own, and gives them with employer, dates and original page; partial matches are marked. When a job question finds only weak hits, Scoutro runs this search itself before it answers.==Durchsucht die Stellenanzeigen im Wissensgraphen nach den Themen einer Frage, jedes Thema auch einzeln, und liefert sie mit Arbeitgeber, Daten und Originalseite; Teiltreffer werden gekennzeichnet. Findet eine Stellenfrage nur schwache Treffer, führt Scoutro diese Suche vor der Antwort selbst aus.
+Which job postings are there for Java and cloud?==Welche Stellenanzeigen gibt es zu Java und Cloud?
+Reads only the knowledge graph of the chat’s collections; does not check whether a posting is still open. Released together with “Knowledge graph: find entries” until this page is saved; then its own checkbox applies.==Liest nur den Wissensgraphen der Collections des Chats; prüft nicht, ob eine Stelle noch offen ist. Freigegeben zusammen mit „Wissensgraph: Einträge finden“, bis diese Seite gespeichert wird; danach gilt das eigene Kästchen.
+>Provider search<==>Anbietersuche<
+Derives the service and the place from a question and searches the index again for providers, for example “Schimmelsanierung Musterstadt” for “Who helps in Musterstadt with mould in the cellar?”. When such a question finds only weak hits, Scoutro runs this search itself before it answers.==Leitet aus einer Frage die Leistung und den Ort ab und sucht im Index erneut nach Anbietern, etwa „Schimmelsanierung Musterstadt“ zu „Wer hilft in Musterstadt bei Schimmel im Keller?“. Findet eine solche Frage nur schwache Treffer, führt Scoutro diese Suche vor der Antwort selbst aus.
+Who helps in Musterstadt with mould in the cellar?==Wer hilft in Musterstadt bei Schimmel im Keller?
+Reads only your local index within the chat’s collections; never the YaCy network. Released together with “Index search” until this page is saved; then its own checkbox applies.==Liest nur Ihren lokalen Index innerhalb der Collections des Chats; nie das YaCy-Netzwerk. Freigegeben zusammen mit „Indexsuche“, bis diese Seite gespeichert wird; danach gilt das eigene Kästchen.
 
 #File: RAGConfig_p.html
 #---------------------------
@@ -4866,6 +4884,8 @@ Please drop a PNG/JPG image or a text file (.txt, .md, .tex, or other plain text
 Not among the sources of this answer: not linked==Nicht unter den Quellen dieser Antwort: nicht verlinkt
 Not among the sources found for this answer:==Nicht unter den für diese Antwort gefundenen Quellen:
 No source of this answer has this number==Keine Quelle dieser Antwort hat diese Nummer
+The text of the cited source does not contain the statement in front of it:==Der Text der zitierten Quelle enthält die davorstehende Aussage nicht:
+The text of this source does not contain the statement in front of this number==Der Text dieser Quelle enthält die Aussage vor dieser Nummer nicht
 Scoutro knowledge graph==Scoutro-Wissensgraph
 Sources of this answer==Quellen dieser Antwort
 Searching the index and writing the answer …==Index wird durchsucht, Antwort wird geschrieben …

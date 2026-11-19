@@ -57,7 +57,7 @@ public final class RagQuery {
             "denn", "mal", "etwa", "ungefähr", "irgendwelche", "irgendein", "irgendeine", "jemand", "etwas", "dabei", "dazu",
             "davon", "deshalb", "achten", "sollten", "sollte", "nähe", "bzw", "usw", "jahre", "jahren", "beim", "gibt's",
             "arbeitet", "arbeiten", "steht", "stehen", "liegt", "liegen", "bietet", "bieten", "anbietet", "macht", "machen",
-            "geht", "gehen", "kommt", "kommen", "gemacht", "genau",
+            "geht", "gehen", "kommt", "kommen", "gemacht", "genau", "sowie",
             "please", "find", "show", "list", "tell", "give", "recommend", "search", "looking", "need", "want", "which",
             "what", "where", "who", "whom", "whose", "how", "when", "why", "any", "there", "near");
 

@@ -637,6 +637,16 @@ Scoutro is packaged as `scoutro-olares`:
 - The chat accepts an optional `collection` (`[A-Za-z0-9_-]{1,64}`) that restricts
   RAG to that collection, and streams the sources and the citation check of each
   answer (`scoutro-sources`, `scoutro-citations`; see `docs/SCOUTRO_RAG_QUALITY.md`).
+  With released tools (`search`, `kg_search`, `kg_entity`, `kg_evidence`) the model searches the local index again
+  and reads the knowledge graph within that scope; the pages of tool results join the sources, `scoutro-tools`
+  summarizes the calls, and `scoutro-citations` reports cited sources whose text does not contain the statement
+  (`unsupported`). The scope is the session's; no request field or tool argument widens it (section 11 there).
+  A question about jobs whose automatic search matches weakly gets the postings of the knowledge graph as its first
+  sources, searched by the server before the answer with the release of `kg_search` (`scoutro-jobsearch`); a follow-up
+  such as "Such noch mal" searches with the goal of the conversation (section 12 there). A question for a provider of a
+  service ("Wer hilft in Musterstadt bei Schimmel im Keller?") gets the pages of a search for the derived service and
+  place ("Schimmelsanierung Musterstadt") as its first sources (`scoutro-servicesearch`, section 13 there). The tools `job_search` and
+  `provider_search` run the same searches for the model.
   Local and administrator access may name every collection, an AI Shield guest
   only one released in `ai.shield.guest-collections` (none by default); any other
   name is `403 collection_not_allowed`, without echoing it (package 6.1).
@@ -1123,7 +1133,12 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
   - Changes: `{"schema","items":[{"seq","kind","id","op","redirect_to","at","record"}],"next","has_more","as_of"}`.
     `op` is `upsert`, `redirect` (merged into `redirect_to`) or `delete`,
     also when the object left the viewer's collections (A → B → C still
-    reaches a consumer of A). With `expand=true` each upsert carries its
+    reaches a consumer of A). A merged entity's `redirect` reaches every
+    viewer that can see the surviving entity (0.15.0), also one limited to
+    the merged entity's collection; the statements the merge moved to the
+    survivor keep their IDs and come as `upsert`s, those that joined a
+    statement of the survivor as `redirect`s. A viewer that cannot see the
+    survivor gets a `delete`. With `expand=true` each upsert carries its
     current record for the viewer. The cursor advances over changes the
     viewer cannot see.
   - Cursor errors: 400 `invalid_cursor` (malformed or ahead of the feed),

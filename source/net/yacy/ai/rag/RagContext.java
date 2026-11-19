@@ -98,18 +98,40 @@ public final class RagContext {
         public final String collection;
         /** null for a search result, {@link #KIND_GRAPH} for knowledge graph facts */
         public final String kind;
+        /**
+         * What the model was given under this number (excerpt, graph facts, tool results), for the support check of
+         * {@link RagCitations}; never sent to the client. Null when it is not known.
+         */
+        private String text;
 
         Source(final int id, final String title, final String url, final String host, final String collection) {
             this(id, title, url, host, collection, null);
         }
 
         Source(final int id, final String title, final String url, final String host, final String collection, final String kind) {
+            this(id, title, url, host, collection, kind, null);
+        }
+
+        Source(final int id, final String title, final String url, final String host, final String collection, final String kind,
+                final String text) {
             this.id = id;
             this.title = title;
             this.url = url;
             this.host = host;
             this.collection = collection;
             this.kind = kind;
+            this.text = text;
+        }
+
+        /** The text the model was given under this number; null when it is not known. */
+        public synchronized String text() {
+            return this.text;
+        }
+
+        /** A further passage the model was given under this number (a tool result naming the same page). */
+        synchronized void addText(final String more) {
+            if (more == null || more.isEmpty() || (this.text != null && this.text.contains(more))) return;
+            this.text = this.text == null || this.text.isEmpty() ? more : this.text + "\n" + more;
         }
 
         JSONObject toJson() throws JSONException {
@@ -154,6 +176,12 @@ public final class RagContext {
      */
     public static Built build(final List<RagRetriever.Scored> selected, final RagQuery query, final int budgetChars,
             final int perDocChars, final int maxSources, final String collection) {
+        return build(selected, query, budgetChars, perDocChars, maxSources, collection, 1);
+    }
+
+    /** As {@link #build(List, RagQuery, int, int, int, String)}, numbered from {@code firstId} (sources before them). */
+    public static Built build(final List<RagRetriever.Scored> selected, final RagQuery query, final int budgetChars,
+            final int perDocChars, final int maxSources, final String collection, final int firstId) {
         int count = Math.min(Math.max(0, maxSources), selected.size());
         while (count > 1 && budgetChars / count < MIN_ENTRY_CHARS) count--;
         final List<Source> sources = new ArrayList<>();
@@ -162,7 +190,7 @@ public final class RagContext {
         final int perEntry = Math.max(MIN_ENTRY_CHARS, Math.min(perDocChars, budgetChars / count));
         for (int i = 0; i < count; i++) {
             final RagCandidate candidate = selected.get(i).candidate;
-            final int id = sources.size() + 1;
+            final int id = firstId + sources.size();
             final String label = collection != null ? collection : candidate.collections.isEmpty() ? null : candidate.collections.get(0);
             final String header = header(id, candidate, label);
             final int separator = text.length() == 0 ? 0 : 2;
@@ -171,7 +199,7 @@ public final class RagContext {
             final String excerpt = excerpt(candidate, query, room);
             if (separator > 0) text.append("\n\n");
             text.append(header).append("Text: ").append(excerpt);
-            sources.add(new Source(id, clean(candidate.title, MAX_TITLE_CHARS), candidate.url, candidate.host, label));
+            sources.add(new Source(id, clean(candidate.title, MAX_TITLE_CHARS), candidate.url, candidate.host, label, null, excerpt));
         }
         return new Built(sources, text.toString());
     }
@@ -184,7 +212,7 @@ public final class RagContext {
         return header.toString();
     }
 
-    static String clean(final String text, final int max) {
+    public static String clean(final String text, final int max) {
         final String single = text == null ? "" : text.replaceAll("\\s+", " ").trim();
         return single.length() <= max ? single : cut(single, max);
     }
@@ -193,7 +221,7 @@ public final class RagContext {
      * The most relevant text of a document within maxChars: the description, then the sentences with
      * the most question terms, in document order; gaps are marked with an ellipsis.
      */
-    static String excerpt(final RagCandidate candidate, final RagQuery query, final int maxChars) {
+    public static String excerpt(final RagCandidate candidate, final RagQuery query, final int maxChars) {
         final String body = candidate.text.replaceAll("\\s+", " ").trim();
         final String description = candidate.description.replaceAll("\\s+", " ").trim();
         final List<String> sentences = new ArrayList<>();
@@ -254,6 +282,7 @@ public final class RagContext {
         final List<Source> sources = new ArrayList<>();
         if (attachment == null) return sources;
         final Matcher entry = ENTRY.matcher(attachment);
+        final List<int[]> spans = new ArrayList<>(); // header end and entry start of each entry
         while (entry.find()) {
             final String url = entry.group(3);
             String host = "";
@@ -265,6 +294,14 @@ public final class RagContext {
             final String title = entry.group(2).trim();
             sources.add(new Source(Integer.parseInt(entry.group(1)), title, url, host == null ? "" : host, entry.group(4),
                     title.startsWith(GraphFacts.TITLE) ? Source.KIND_GRAPH : null));
+            spans.add(new int[] {entry.end(), entry.start()});
+        }
+        // the text of each entry (up to the next one): what the model saw, for the support check of a later answer
+        for (int i = 0; i < sources.size(); i++) {
+            final int end = i + 1 < spans.size() ? spans.get(i + 1)[1] : attachment.length();
+            String body = attachment.substring(Math.min(spans.get(i)[0], end), end).trim();
+            if (body.startsWith("Text:")) body = body.substring("Text:".length()).trim();
+            sources.get(i).addText(body);
         }
         return sources;
     }

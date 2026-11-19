@@ -86,15 +86,19 @@ public final class KgReader {
     /** False on the agent routes: the extractor of a piece of evidence without the model name and prompt hash. */
     private final boolean modelDetail;
 
+    /** The read lease of this reader's own reads in milliseconds; 0: the configured one. */
+    private final long leaseMillis;
+
     public KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock) {
-        this(store, cfg, clock, true);
+        this(store, cfg, clock, true, 0L);
     }
 
-    private KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock, final boolean modelDetail) {
+    private KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock, final boolean modelDetail, final long leaseMillis) {
         this.store = store;
         this.cfg = cfg;
         this.clock = clock;
         this.modelDetail = modelDetail;
+        this.leaseMillis = leaseMillis;
     }
 
     /**
@@ -102,7 +106,20 @@ public final class KgReader {
      * extractor and its version ({@code llm/1}), not the configured model.
      */
     public KgReader forAgents() {
-        return new KgReader(this.store, this.cfg, this.clock, false);
+        return new KgReader(this.store, this.cfg, this.clock, false, this.leaseMillis);
+    }
+
+    /**
+     * The same projection for an interactive caller (the chat's tools): the model is not named, as for agents, and each
+     * read of this reader is interrupted after {@code millis} ({@link KgException#READ_TIMEOUT}), never later than the
+     * configured lease.
+     */
+    public KgReader within(final long millis) {
+        return new KgReader(this.store, this.cfg, this.clock, false, Math.max(1L, Math.min(millis, this.cfg.readMaxTransactionMillis)));
+    }
+
+    private <T> T read(final KgStore.SqlWork<T> work) throws KgException {
+        return this.leaseMillis > 0L ? this.store.read(work, this.leaseMillis) : this.store.read(work);
     }
 
     KgStore store() {
@@ -149,6 +166,8 @@ public final class KgReader {
         public String review;
         public int offset;
         public int limit = 25;
+        /** Every word of {@link #q} must be a whole word of the name; by default the last one may be the start of a word. */
+        public boolean wholeWords;
     }
 
     // --------------------------------------------------------------- viewer
@@ -158,7 +177,7 @@ public final class KgReader {
         if (collections == null) {
             return Viewer.ALL;
         }
-        return this.store.read(c -> {
+        return read(c -> {
             final Set<Integer> ids = new TreeSet<>();
             try (PreparedStatement ps = c.prepareStatement("SELECT coll_id FROM kg_collection WHERE name = ?")) {
                 for (final String name : collections) {
@@ -459,7 +478,7 @@ public final class KgReader {
     /** One page of visible entities, newest first, with the summary of each. */
     public JSONObject entities(final EntityQuery q, final Viewer v) throws KgException {
         final long now = this.clock.getAsLong();
-        return this.store.read(c -> {
+        return read(c -> {
             final StringBuilder where = new StringBuilder(visibleEntity(v, "e"));
             final List<Object> args = new ArrayList<>();
             // a filter by quality "stale" asks for the others
@@ -487,7 +506,7 @@ public final class KgReader {
                 where.append(" AND NOT (").append(typeUnconfirmed(v, "e", now)).append(")");
             }
             if (q.q != null) {
-                final String match = ftsQuery(q.q);
+                final String match = ftsQuery(q.q, !q.wholeWords);
                 if (match == null) {
                     return page(q.offset, q.limit, 0L, new JSONArray(), c, v);
                 }
@@ -619,7 +638,7 @@ public final class KgReader {
     /** The entity (or a redirect to the visible survivor of a merge). */
     public JSONObject entity(final String id, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final long[] ent = entityRow(c, id, v);
             if (ent == null) {
                 return null;
@@ -865,7 +884,7 @@ public final class KgReader {
     public JSONObject entityStatements(final String id, final String predicate, final boolean incoming, final boolean includeStale,
             final int offset, final int limit, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final long[] ent = entityRow(c, id, v);
             if (ent == null) {
                 return null;
@@ -925,7 +944,7 @@ public final class KgReader {
     /** One statement. */
     public JSONObject statement(final String id, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final Stat s = statementRow(c, id, v);
             if (s == null) {
                 return null;
@@ -1019,7 +1038,7 @@ public final class KgReader {
 
     /** The visible evidence of a statement, newest observation first. */
     public JSONObject evidence(final String id, final int offset, final int limit, final Viewer v) throws KgException, NotFound {
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final Stat s = statementRow(c, id, v);
             if (s == null) {
                 return null;
@@ -1056,6 +1075,40 @@ public final class KgReader {
         return (JSONObject) r;
     }
 
+    /**
+     * The newest visible evidence of several statements in one read (the chat's tools): statement ID to its evidence
+     * rows, at most {@code perStatement} each. A statement that is unknown or invisible to the viewer has no entry.
+     */
+    public Map<String, JSONArray> evidenceOf(final Collection<String> statementIds, final int perStatement, final Viewer v) throws KgException {
+        return read(c -> {
+            final Map<String, JSONArray> out = new LinkedHashMap<>();
+            for (final String id : statementIds) {
+                if (id == null || !STATEMENT_ID.matcher(id).matches() || out.containsKey(id)) {
+                    continue;
+                }
+                final Stat s = statementRow(c, id, v);
+                if (s == null) {
+                    continue;
+                }
+                final JSONArray items = new JSONArray();
+                try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.url, d.state, d.loaded_at, e.observed_at, e.kind,"
+                        + " e.tier, e.certainty, e.locator, e.excerpt, x.name, x.version, x.model, x.prompt_hash FROM kg_evidence e"
+                        + " JOIN kg_doc d ON d.doc_rowid = e.doc_rowid JOIN kg_extractor x ON x.ext_id = e.ext_id"
+                        + " WHERE e.stmt_rowid = ? AND " + visibleDoc(v, "d") + " ORDER BY e.observed_at DESC, d.doc_id LIMIT ?")) {
+                    ps.setLong(1, s.rowid);
+                    ps.setInt(2, perStatement);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            items.put(evidenceJson(c, rs, v));
+                        }
+                    }
+                }
+                out.put(id, items);
+            }
+            return out;
+        });
+    }
+
     /** One evidence row: columns doc_rowid, doc_id, url, state, loaded_at, observed_at, kind, tier, certainty, locator, excerpt, extractor (4). */
     JSONObject evidenceJson(final Connection c, final ResultSet rs, final Viewer v) throws SQLException {
         final int state = rs.getInt(4);
@@ -1090,6 +1143,495 @@ public final class KgReader {
             }
         }
         return out;
+    }
+
+    // ---------------------------------------------------------------- job digests (the chat's job search)
+
+    /** One job posting as the chat's job search reads it: its visible current facts, their excerpts and its page. */
+    public static final class JobDigest {
+        public final String id;
+        public final long rowid;
+        public String name;
+        /** predicate and value (a related entity by its visible name) of every visible current statement */
+        public final List<String[]> facts = new ArrayList<>();
+        /** the excerpts of their visible current evidence (the advertisement's text around a fact) */
+        public final List<String> excerpts = new ArrayList<>();
+        /** the page the posting was read from (the evidence of its name first), its collection and load date */
+        public String url;
+        public String collection;
+        public String loadedAt;
+
+        JobDigest(final String id, final long rowid) {
+            this.id = id;
+            this.rowid = rowid;
+        }
+    }
+
+    /** A page of job digests in row order; {@code last} continues it, {@code more} says whether there are more. */
+    public static final class JobPage {
+        public final List<JobDigest> items;
+        public final long last;
+        public final boolean more;
+
+        JobPage(final List<JobDigest> items, final long last, final boolean more) {
+            this.items = items;
+            this.last = last;
+            this.more = more;
+        }
+    }
+
+    static final int JOB_EXCERPTS = 24;
+
+    /**
+     * The visible current job postings of the viewer after row {@code after} (or those of {@code ids}), at most
+     * {@code limit}, with their facts and excerpts: one read, three queries, for the chat's job search, which must see
+     * the whole released stock and not only the names the name index finds. Read only; the viewer's scope as everywhere.
+     */
+    public JobPage jobDigests(final Viewer v, final Collection<String> ids, final long after, final int limit) throws KgException {
+        return entityDigests(v, Vocabulary.JOB, ids, after, limit);
+    }
+
+    /**
+     * As {@link #jobDigests}, for entities of {@code type} (null: any type, then only of {@code ids}): the providers of the chat's
+     * provider search with their addresses, service areas and pages.
+     */
+    public JobPage entityDigests(final Viewer v, final String type, final Collection<String> ids, final long after, final int limit)
+            throws KgException {
+        final long now = this.clock.getAsLong();
+        if (type == null && ids == null) throw new IllegalArgumentException("a type or the IDs");
+        return read(c -> {
+            final List<Object> args = new ArrayList<>();
+            final StringBuilder where = new StringBuilder(visibleEntity(v, "e"));
+            if (type != null) {
+                where.append(" AND e.type = (SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = ?)");
+                args.add(type);
+            }
+            where.append(" AND EXISTS (SELECT 1 FROM kg_statement cs WHERE cs.subj = e.ent_rowid AND ").append(currentStatement(v, "cs", now))
+                    .append(")");
+            if (ids != null) {
+                final List<String> wanted = new ArrayList<>();
+                for (final String id : ids) if (id != null && !id.isEmpty() && wanted.size() < 1000) wanted.add(id);
+                if (wanted.isEmpty()) return new JobPage(new ArrayList<>(), after, false);
+                where.append(" AND e.public_id IN (").append(placeholders(wanted.size())).append(")");
+                args.addAll(wanted);
+            }
+            where.append(" AND e.ent_rowid > ?");
+            args.add(after);
+            final Map<Long, JobDigest> jobs = new LinkedHashMap<>();
+            boolean more = false;
+            try (PreparedStatement ps = c.prepareStatement("SELECT e.ent_rowid, e.public_id FROM kg_entity e WHERE " + where
+                    + " ORDER BY e.ent_rowid LIMIT ?")) {
+                final List<Object> a = new ArrayList<>(args);
+                a.add(limit + 1);
+                bind(ps, a);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        if (jobs.size() >= limit) {
+                            more = true;
+                            break;
+                        }
+                        jobs.put(rs.getLong(1), new JobDigest(rs.getString(2), rs.getLong(1)));
+                    }
+                }
+            }
+            if (jobs.isEmpty()) return new JobPage(new ArrayList<>(), after, false);
+            final String in = placeholders(jobs.size());
+            final List<Object> rows = new ArrayList<>(jobs.keySet());
+            // the facts: literal values, or the visible name of the related entity (employer, place)
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, s.obj_val, (SELECT n.obj_val FROM kg_statement n JOIN kg_vocab nv"
+                    + " ON nv.term_id = n.pred WHERE n.subj = s.obj_ent AND nv.kind = 2 AND nv.name = '" + Vocabulary.NAME + "' AND "
+                    + visibleStatement(v, "n") + " ORDER BY n.stmt_rowid LIMIT 1) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                    + " WHERE s.subj IN (" + in + ") AND " + visibleStatement(v, "s") + " AND " + currentStatement(v, "s", now)
+                    + " ORDER BY s.subj, s.stmt_rowid")) {
+                bind(ps, rows);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        final JobDigest job = jobs.get(rs.getLong(1));
+                        final String predicate = rs.getString(2);
+                        final String value = rs.getString(3) != null ? rs.getString(3) : rs.getString(4);
+                        if (job == null || value == null || value.isEmpty()) continue;
+                        if (Vocabulary.NAME.equals(predicate) && job.name == null) job.name = value;
+                        job.facts.add(new String[] {predicate, value});
+                    }
+                }
+            }
+            // the evidence: its page (that of the name first) and the excerpts
+            // CROSS JOIN fixes the order (the statements of these entities, their evidence, its page): left to the planner, the
+            // conditions on the page's state made it start from every current page of the graph and all their evidence
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, d.url, d.doc_rowid, d.loaded_at, ev.excerpt FROM kg_statement s"
+                    + " CROSS JOIN kg_vocab v ON v.term_id = s.pred CROSS JOIN kg_evidence ev ON ev.stmt_rowid = s.stmt_rowid CROSS JOIN kg_doc d"
+                    + " ON d.doc_rowid = ev.doc_rowid WHERE s.subj IN (" + in + ") AND " + visibleStatement(v, "s") + " AND " + visibleDoc(v, "d")
+                    + " AND " + currentDoc("d", now) + " ORDER BY s.subj, CASE WHEN v.name = '" + Vocabulary.NAME + "' THEN 0 ELSE 1 END,"
+                    + " ev.observed_at DESC, d.doc_id")) {
+                bind(ps, rows);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        final JobDigest job = jobs.get(rs.getLong(1));
+                        if (job == null) continue;
+                        if (job.url == null && rs.getString(3) != null) {
+                            job.url = rs.getString(3);
+                            final JSONArray collections = docCollections(c, rs.getLong(4), v);
+                            job.collection = collections.length() == 0 ? null : collections.optString(0, null);
+                            job.loadedAt = iso(rs.getObject(5) == null ? null : rs.getLong(5));
+                        }
+                        final String excerpt = rs.getString(6);
+                        if (excerpt != null && !excerpt.isEmpty() && job.excerpts.size() < JOB_EXCERPTS && !job.excerpts.contains(excerpt)) {
+                            job.excerpts.add(excerpt);
+                        }
+                    }
+                }
+            }
+            long last = after;
+            for (final Long r : jobs.keySet()) last = Math.max(last, r);
+            return new JobPage(new ArrayList<>(jobs.values()), last, more);
+        });
+    }
+
+    // ---------------------------------------------------------------- targeted reads (the chat's job and provider search)
+
+    /** An entity of a scan: its ids, its name and the page its name was read from. No evidence text. */
+    public static final class EntityRef {
+        public final long rowid;
+        public final String id;
+        public String type;
+        public String name;
+        public String url;
+        long nameStatement = Long.MAX_VALUE;
+        long observed = Long.MIN_VALUE;
+
+        EntityRef(final long rowid, final String id) {
+            this.rowid = rowid;
+            this.id = id;
+        }
+    }
+
+    /** A statement of a scanned entity: a literal value, or a related entity by its row ({@code object} > 0). */
+    public static final class FactRow {
+        public final long subject;
+        public final long statement;
+        public final String predicate;
+        public final String value;
+        public final long object;
+
+        FactRow(final long subject, final long statement, final String predicate, final String value, final long object) {
+            this.subject = subject;
+            this.statement = statement;
+            this.predicate = predicate;
+            this.value = value;
+            this.object = object;
+        }
+    }
+
+    /** A chunk of the entities of a type in row order with their statements; {@code last} continues it. */
+    public static final class Scan {
+        /** the entities of the chunk the viewer sees with a current page of their name */
+        public final List<EntityRef> entities;
+        /** the statements of the chunk's entities, not yet checked for the viewer (see {@link KgReader#currentStatements}) */
+        public final List<FactRow> facts;
+        /** entities of the type in the chunk, seen or not */
+        public final int rows;
+        public final long last;
+        public final boolean more;
+
+        Scan(final List<EntityRef> entities, final List<FactRow> facts, final int rows, final long last, final boolean more) {
+            this.entities = entities;
+            this.facts = facts;
+            this.rows = rows;
+            this.last = last;
+            this.more = more;
+        }
+    }
+
+    private static final String NAME_PRED = "(SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = '" + Vocabulary.NAME + "')";
+
+    /** The join that gives an entity its name and the visible current page of it; {@code e} is the entity. */
+    private String refJoin(final Viewer v, final long now) {
+        // CROSS JOIN fixes the order of the joins (entity, its name, the name's evidence, the page): each step is a lookup
+        // by an index; left to the planner, the conditions on the page's state can make it start from all pages
+        return " CROSS JOIN kg_statement s ON s.subj = e.ent_rowid AND s.pred = " + NAME_PRED + " CROSS JOIN kg_evidence ev ON ev.stmt_rowid ="
+                + " s.stmt_rowid CROSS JOIN kg_doc d ON d.doc_rowid = ev.doc_rowid WHERE e.status = 1 AND " + visibleDoc(v, "d") + " AND "
+                + currentDoc("d", now);
+    }
+
+    /** Reads the rows of {@link #refJoin}: e.ent_rowid, e.public_id, type name, s.stmt_rowid, s.obj_val, ev.observed_at, d.url. */
+    private static void refs(final ResultSet rs, final Map<Long, EntityRef> out) throws SQLException {
+        while (rs.next()) {
+            final long row = rs.getLong(1);
+            EntityRef ref = out.get(row);
+            if (ref == null) {
+                ref = new EntityRef(row, rs.getString(2));
+                ref.type = rs.getString(3);
+                out.put(row, ref);
+            }
+            // the first name statement; of its pages the one observed last (then the lower address, for a stable choice)
+            final long statement = rs.getLong(4);
+            final long observed = rs.getLong(6);
+            final String url = rs.getString(7);
+            if (url == null || rs.getString(5) == null) continue;
+            if (statement < ref.nameStatement) {
+                ref.nameStatement = statement;
+                ref.name = rs.getString(5);
+                ref.observed = observed;
+                ref.url = url;
+            } else if (statement == ref.nameStatement && (observed > ref.observed || (observed == ref.observed && url.compareTo(ref.url) < 0))) {
+                ref.observed = observed;
+                ref.url = url;
+            }
+        }
+    }
+
+    private static final String REF_COLUMNS = "SELECT e.ent_rowid, e.public_id, (SELECT tv.name FROM kg_vocab tv WHERE tv.term_id = e.type),"
+            + " s.stmt_rowid, s.obj_val, ev.observed_at, d.url FROM kg_entity e";
+
+    /**
+     * The next {@code limit} entities of {@code type} after row {@code after}: those the viewer sees with a current page of
+     * their name, and all statements of the chunk (subject, predicate, literal or related row). One read of three queries
+     * that follow the indexes of the type, of the statements by subject and of the evidence; no evidence text, no check per
+     * statement. For a search that must see every entity of a type (the postings of the chat's job search) and decides
+     * itself what matches.
+     */
+    public Scan entityScan(final Viewer v, final String type, final long after, final int limit) throws KgException {
+        final long now = this.clock.getAsLong();
+        return read(c -> {
+            final String typeId = "(SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = ?)";
+            long last = after;
+            int rows = 0;
+            boolean more = false;
+            try (PreparedStatement ps = c.prepareStatement("SELECT e.ent_rowid FROM kg_entity e WHERE e.type = " + typeId
+                    + " AND e.ent_rowid > ? ORDER BY e.ent_rowid LIMIT ?")) {
+                ps.setString(1, type);
+                ps.setLong(2, after);
+                ps.setInt(3, limit + 1);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        if (rows >= limit) {
+                            more = true;
+                            break;
+                        }
+                        rows++;
+                        last = rs.getLong(1);
+                    }
+                }
+            }
+            final Map<Long, EntityRef> refs = new LinkedHashMap<>();
+            final List<FactRow> facts = new ArrayList<>();
+            if (rows == 0) return new Scan(new ArrayList<>(), facts, 0, after, false);
+            try (PreparedStatement ps = c.prepareStatement(REF_COLUMNS + refJoin(v, now) + " AND e.type = " + typeId
+                    + " AND e.ent_rowid > ? AND e.ent_rowid <= ? ORDER BY e.ent_rowid")) {
+                ps.setString(1, type);
+                ps.setLong(2, after);
+                ps.setLong(3, last);
+                try (ResultSet rs = ps.executeQuery()) {
+                    refs(rs, refs);
+                }
+            }
+            refs.values().removeIf(r -> r.name == null || r.url == null);
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, s.stmt_rowid, pv.name, s.obj_val, s.obj_ent FROM kg_entity e"
+                    + " CROSS JOIN kg_statement s ON s.subj = e.ent_rowid CROSS JOIN kg_vocab pv ON pv.term_id = s.pred WHERE e.type = " + typeId
+                    + " AND e.status = 1 AND e.ent_rowid > ? AND e.ent_rowid <= ?")) {
+                ps.setString(1, type);
+                ps.setLong(2, after);
+                ps.setLong(3, last);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        final long subject = rs.getLong(1);
+                        if (!refs.containsKey(subject)) continue;
+                        facts.add(new FactRow(subject, rs.getLong(2), rs.getString(3), rs.getString(4), rs.getLong(5)));
+                    }
+                }
+            }
+            return new Scan(new ArrayList<>(refs.values()), facts, rows, last, more);
+        });
+    }
+
+    /** The entities of these rows that the viewer sees with a current page of their name (see {@link EntityRef}). */
+    public List<EntityRef> entityRefs(final Viewer v, final Collection<Long> rowids) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(rowids));
+        final Map<Long, EntityRef> refs = new LinkedHashMap<>();
+        for (int i = 0; i < wanted.size(); i += 500) {
+            final List<Object> batch = new ArrayList<>(wanted.subList(i, Math.min(wanted.size(), i + 500)));
+            read(c -> {
+                try (PreparedStatement ps = c.prepareStatement(REF_COLUMNS + refJoin(v, now) + " AND e.ent_rowid IN (" + placeholders(batch.size())
+                        + ") ORDER BY e.ent_rowid")) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        refs(rs, refs);
+                    }
+                }
+                return null;
+            });
+        }
+        refs.values().removeIf(r -> r.name == null || r.url == null);
+        return new ArrayList<>(refs.values());
+    }
+
+    /** The first visible name of each of these entities, by row. */
+    public Map<Long, String> entityNames(final Viewer v, final Collection<Long> rowids) throws KgException {
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(rowids));
+        final Map<Long, String> names = new HashMap<>();
+        for (int i = 0; i < wanted.size(); i += 500) {
+            final List<Object> batch = new ArrayList<>(wanted.subList(i, Math.min(wanted.size(), i + 500)));
+            read(c -> {
+                try (PreparedStatement ps = c.prepareStatement("SELECT n.subj, n.obj_val FROM kg_statement n WHERE n.pred = " + NAME_PRED
+                        + " AND n.subj IN (" + placeholders(batch.size()) + ") AND " + visibleStatement(v, "n") + " ORDER BY n.subj, n.stmt_rowid")) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) if (rs.getString(2) != null) names.putIfAbsent(rs.getLong(1), rs.getString(2));
+                    }
+                }
+                return null;
+            });
+        }
+        return names;
+    }
+
+    /** Which of these statements the viewer sees with a current source: the check a scan leaves to its caller. */
+    public Set<Long> currentStatements(final Viewer v, final Collection<Long> statements) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(statements));
+        final Set<Long> out = new HashSet<>();
+        for (int i = 0; i < wanted.size(); i += 500) {
+            final List<Object> batch = new ArrayList<>(wanted.subList(i, Math.min(wanted.size(), i + 500)));
+            read(c -> {
+                try (PreparedStatement ps = c.prepareStatement("SELECT s.stmt_rowid FROM kg_statement s WHERE s.stmt_rowid IN ("
+                        + placeholders(batch.size()) + ") AND " + visibleStatement(v, "s") + " AND " + currentStatement(v, "s", now))) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) out.add(rs.getLong(1));
+                    }
+                }
+                return null;
+            });
+        }
+        return out;
+    }
+
+    /**
+     * The rows of the entities of these types whose name or alias matches the words (the name index; the last word as the
+     * start of a word unless {@code wholeWords}), at most {@code max}: row and type, nothing else. The caller reads what it
+     * needs of them ({@link #entityRefs}).
+     */
+    public Map<Long, String> namedEntities(final Viewer v, final String words, final boolean wholeWords, final Collection<String> types,
+            final int max) throws KgException {
+        final String match = ftsQuery(words, !wholeWords);
+        final Map<Long, String> out = new LinkedHashMap<>();
+        if (match == null || types.isEmpty()) return out;
+        return read(c -> {
+            final List<Object> args = new ArrayList<>();
+            args.add(match);
+            args.addAll(types);
+            args.add(max);
+            try (PreparedStatement ps = c.prepareStatement("SELECT DISTINCT e.ent_rowid, tv.name FROM kg_name_fts f CROSS JOIN kg_statement s"
+                    + " ON s.stmt_rowid = f.rowid CROSS JOIN kg_entity e ON e.ent_rowid = s.subj CROSS JOIN kg_vocab tv ON tv.term_id = e.type"
+                    + " WHERE kg_name_fts MATCH ? AND e.status = 1 AND tv.kind = 1 AND tv.name IN (" + placeholders(types.size()) + ") AND "
+                    + visibleStatement(v, "s") + " ORDER BY e.ent_rowid LIMIT ?")) {
+                bind(ps, args);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) out.put(rs.getLong(1), rs.getString(2));
+                }
+            }
+            return out;
+        });
+    }
+
+    /** The rows of the subjects of the viewer's current statements of {@code predicate} into these entities (who offers a service). */
+    public Set<Long> subjectsOf(final Viewer v, final String predicate, final Collection<Long> objects) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(objects));
+        final Set<Long> out = new LinkedHashSet<>();
+        for (int i = 0; i < wanted.size(); i += 500) {
+            final List<Object> batch = new ArrayList<>();
+            batch.add(predicate);
+            batch.addAll(wanted.subList(i, Math.min(wanted.size(), i + 500)));
+            read(c -> {
+                try (PreparedStatement ps = c.prepareStatement("SELECT DISTINCT s.subj FROM kg_statement s WHERE +s.pred = (SELECT term_id FROM"
+                        + " kg_vocab WHERE kind = 2 AND name = ?) AND s.obj_ent IS NOT NULL AND s.obj_ent IN (" + placeholders(batch.size() - 1) + ") AND "
+                        + visibleStatement(v, "s") + " AND " + currentStatement(v, "s", now) + " ORDER BY s.subj")) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) out.add(rs.getLong(1));
+                    }
+                }
+                return null;
+            });
+        }
+        return out;
+    }
+
+    /** The viewer's current statements of these predicates of these entities (an address, a service area). */
+    public List<FactRow> factsOf(final Viewer v, final Collection<Long> subjects, final Collection<String> predicates) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(subjects));
+        final List<FactRow> out = new ArrayList<>();
+        if (predicates.isEmpty()) return out;
+        for (int i = 0; i < wanted.size(); i += 400) {
+            final List<Object> batch = new ArrayList<>(predicates);
+            batch.addAll(wanted.subList(i, Math.min(wanted.size(), i + 400)));
+            read(c -> {
+                try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, s.stmt_rowid, pv.name, s.obj_val, s.obj_ent FROM kg_statement s"
+                        + " CROSS JOIN kg_vocab pv ON pv.term_id = s.pred WHERE pv.kind = 2 AND pv.name IN (" + placeholders(predicates.size())
+                        + ") AND s.subj IN (" + placeholders(batch.size() - predicates.size()) + ") AND " + visibleStatement(v, "s") + " AND "
+                        + currentStatement(v, "s", now) + " ORDER BY s.subj, s.stmt_rowid")) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) out.add(new FactRow(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getString(4), rs.getLong(5)));
+                    }
+                }
+                return null;
+            });
+        }
+        return out;
+    }
+
+    /**
+     * The viewer's current statements of these predicates whose literal value contains {@code text} (an address, a locality,
+     * a service area that names a town), at most {@code max}: by the index of the predicates, the value compared in the
+     * statement's row. The caller decides what the value says.
+     */
+    public List<FactRow> factsNaming(final Viewer v, final Collection<String> predicates, final String text, final int max) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<FactRow> out = new ArrayList<>();
+        if (predicates.isEmpty() || text == null || text.trim().isEmpty()) return out;
+        return read(c -> {
+            final List<Object> args = new ArrayList<>(predicates);
+            args.add("%" + text.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
+            args.add(max);
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, s.stmt_rowid, pv.name, s.obj_val, 0 FROM kg_vocab pv CROSS JOIN kg_statement s"
+                    + " ON s.pred = pv.term_id WHERE pv.kind = 2 AND pv.name IN (" + placeholders(predicates.size()) + ") AND s.obj_val LIKE ?"
+                    + " ESCAPE '\\' AND " + visibleStatement(v, "s") + " AND " + currentStatement(v, "s", now) + " ORDER BY s.subj, s.stmt_rowid"
+                    + " LIMIT ?")) {
+                bind(ps, args);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) out.add(new FactRow(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getString(4), 0L));
+                }
+            }
+            return out;
+        });
+    }
+
+    /** The rows of the organisations and facilities the viewer sees on current pages of a host (its provider in the graph). */
+    public List<Long> hostEntityRows(final Viewer v, final String host, final Collection<String> types, final int max) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<String> hostIds = hostIds(host);
+        final List<Long> out = new ArrayList<>();
+        if (hostIds.isEmpty() || types.isEmpty()) return out;
+        return read(c -> {
+            final List<Object> args = new ArrayList<>(hostIds);
+            args.addAll(types);
+            args.add(max);
+            try (PreparedStatement ps = c.prepareStatement("SELECT DISTINCT e.ent_rowid FROM kg_doc d CROSS JOIN kg_evidence ev ON ev.doc_rowid ="
+                    + " d.doc_rowid CROSS JOIN kg_statement s ON s.stmt_rowid = ev.stmt_rowid CROSS JOIN kg_entity e ON e.ent_rowid = s.subj"
+                    + " CROSS JOIN kg_vocab tv ON tv.term_id = e.type WHERE d.host_id IN (" + placeholders(hostIds.size()) + ") AND tv.kind = 1 AND tv.name IN ("
+                    + placeholders(types.size()) + ") AND e.status = 1 AND " + visibleDoc(v, "d") + " AND " + currentDoc("d", now)
+                    + " ORDER BY e.ent_rowid LIMIT ?")) {
+                bind(ps, args);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) out.add(rs.getLong(1));
+                }
+            }
+            return out;
+        });
     }
 
     // ---------------------------------------------------------------- hosts
@@ -1129,7 +1671,7 @@ public final class KgReader {
     /** What the graph holds from one source document: the document and its visible evidence. */
     public JSONObject source(final String docId, final int offset, final int limit, final Viewer v) throws KgException, NotFound {
         final long now = this.clock.getAsLong();
-        final Object r = this.store.read(c -> {
+        final Object r = read(c -> {
             final JSONObject doc;
             final long rowid;
             try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.url, d.state, d.loaded_at, d.processed_at, d.tiers,"
@@ -1242,6 +1784,11 @@ public final class KgReader {
 
     /** An FTS5 query from free text: every token quoted, the last one as a prefix; null without a token. */
     static String ftsQuery(final String text) {
+        return ftsQuery(text, true);
+    }
+
+    /** As {@link #ftsQuery(String)}; without {@code prefix} every token must be a whole word. */
+    static String ftsQuery(final String text, final boolean prefix) {
         final List<String> tokens = new ArrayList<>();
         final java.util.regex.Matcher m = TOKEN.matcher(text.toLowerCase(Locale.ROOT));
         while (m.find() && tokens.size() < 8) {
@@ -1253,7 +1800,7 @@ public final class KgReader {
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < tokens.size(); i++) {
             sb.append(i == 0 ? "" : " ").append('"').append(tokens.get(i)).append('"');
-            if (i == tokens.size() - 1) {
+            if (prefix && i == tokens.size() - 1) {
                 sb.append('*');
             }
         }
