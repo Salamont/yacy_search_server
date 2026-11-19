@@ -34,7 +34,7 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * excerpts ({@link KgReader#jobDigests}), and the indexed text of the postings' pages. A posting counts by its title, a
  * fact or the text of its own page; a company page is no posting. The matching postings are determined and deduplicated
  * before the answer's limit of {@link #MAX_JOBS}; the result says how many were found and shown, and whether the count
- * is only a lower bound (time {@link #MAX_MILLIS} ms, {@link #MAX_SCAN} postings read, a text search full).</li>
+ * is only a lower bound, and why ({@link Result#gaps}: the time of {@link #MAX_MILLIS} ms, or no direct index).</li>
  * <li>Each posting shown goes to the answer as a numbered source with the page it was read from, its employer, the
  * dates it states, the subjects of the question it shows and, as a PARTIAL MATCH, those it does not. The stock of the
  * graph counts as current: a missing date neither excludes nor ranks a posting.</li>
@@ -47,15 +47,15 @@ public final class JobSearch {
     public static final int MAX_JOBS = 6;
     /** time of one search (name index, all postings of the scope, text) */
     public static final long MAX_MILLIS = 6000L;
-    /** postings of the scope read at most; more make the count a lower bound */
-    public static final int MAX_SCAN = 5000;
+    /** postings read per page of the scan of the scope (it reads to the end of the stock or of the time) */
     static final int SCAN_PAGE = 250;
+    /** posting pages asked per query of the direct index */
+    static final int URL_BATCH = 200;
     /** hits of the name index read per variant, in pages */
     static final int NAME_HITS = 500;
     static final int NAME_PAGE = 100;
-    /** pages of one text search; a host with several postings is searched again by site:, at most this often */
+    /** pages of one ranked text search (only without a direct index) */
     static final int TEXT_HITS = 50;
-    static final int MAX_HOST_SEARCHES = 4;
     static final int MAX_CHARS = 2600;
     static final int MAX_VALUE = 120;
 
@@ -176,6 +176,15 @@ public final class JobSearch {
 
     private static List<Criterion> groups() {
         return groups(net.yacy.ai.ToolProvider.setting(SUBJECTS_KEY, ""));
+    }
+
+    /** words of a question for all results or their number (folded) */
+    private static final Pattern ALL = Pattern.compile("(?<![\\p{L}])(?:alle|allen|aller|samtliche\\p{L}*|gesamt\\p{L}*|vollstandig\\p{L}*|komplett\\p{L}*"
+            + "|wie\\s+viele|wieviele|anzahl|zahl\\s+der|all|every|complete|total|how\\s+many|number\\s+of)(?![\\p{L}])");
+
+    /** Whether a question asks for all results or their number ("alle Stellen", "wie viele Anbieter"): no first hits suffice. */
+    public static boolean wantsAll(final String text) {
+        return text != null && ALL.matcher(RagQuery.fold(text)).find();
     }
 
     /** Whether a question asks for job postings. */
@@ -370,13 +379,17 @@ public final class JobSearch {
          * the text search ran out; {@link #found} is then a lower bound
          */
         public final boolean complete;
+        /** why the count is only a lower bound (empty when complete) */
+        public final List<String> gaps;
 
         public Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis) {
-            this(plan, jobs, searched, timedOut, error, millis, jobs.size(), new LinkedHashMap<>(), jobs.size(), !timedOut && error == null);
+            this(plan, jobs, searched, timedOut, error, millis, jobs.size(), new LinkedHashMap<>(), jobs.size(), !timedOut && error == null,
+                    new ArrayList<>());
         }
 
         Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis,
-                final int found, final Map<String, Integer> perSubject, final int scanned, final boolean complete) {
+                final int found, final Map<String, Integer> perSubject, final int scanned, final boolean complete, final List<String> gaps) {
+            this.gaps = Collections.unmodifiableList(gaps);
             this.plan = plan;
             this.jobs = Collections.unmodifiableList(jobs);
             this.searched = Collections.unmodifiableList(searched);
@@ -423,20 +436,24 @@ public final class JobSearch {
      * exclude nor rank: the stock of the graph counts as current.
      */
     static Result run(final ToolContext context, final Plan plan, final LongSupplier clock) {
+        return run(context, plan, clock, MAX_MILLIS);
+    }
+
+    static Result run(final ToolContext context, final Plan plan, final LongSupplier clock, final long budget) {
         final long start = clock.getAsLong();
         final List<String> searched = new ArrayList<>();
+        final List<String> gaps = new ArrayList<>(); // why the count is only a lower bound
         final Map<String, KgReader.JobDigest> digests = new LinkedHashMap<>(); // id -> posting
         final Map<String, Map<String, Integer>> hits = new LinkedHashMap<>(); // id -> subject -> how
         boolean timedOut = false;
-        boolean complete = true;
         String error = null;
         try {
             final KgReader reader = context.reader();
             if (reader == null) return new Result(plan, new ArrayList<>(), searched, false, "unavailable", 0L);
             final Viewer viewer = context.viewer(reader);
-            // 1. the name index: every page of hits of each title variant (a subject's variants, the joint ones)
+            // 1. the name index: every page of hits of each title variant (it also finds names the scan below reaches late)
             for (final Variant v : plan.variants) {
-                if (clock.getAsLong() - start > MAX_MILLIS) {
+                if (clock.getAsLong() - start > budget) {
                     timedOut = true;
                     break;
                 }
@@ -451,86 +468,81 @@ public final class JobSearch {
                     final JSONObject page = reader.entities(q, viewer);
                     final JSONArray items = page.optJSONArray("items");
                     for (int i = 0; items != null && i < items.length(); i++) {
-                        final JSONObject item = items.getJSONObject(i);
-                        final String id = text(item, "id");
-                        final String title = firstNonEmpty(text(item, "name"), text(item, "display_name"));
-                        if (id.isEmpty() || title.isEmpty()) continue;
-                        if (v.filter != null && !v.filter.shownBy.test(RagQuery.fold(title))) continue; // a word that only starts a title word
-                        hits.computeIfAbsent(id, k -> new LinkedHashMap<>());
+                        final String id = text(items.getJSONObject(i), "id");
+                        if (!id.isEmpty()) hits.computeIfAbsent(id, k -> new LinkedHashMap<>());
                     }
-                    final long total = page.optLong("total", 0L);
-                    if (items == null || items.length() < NAME_PAGE || offset + NAME_PAGE >= total) break;
-                    if (offset + NAME_PAGE >= NAME_HITS) complete = false; // more names than this pass reads
-                    if (clock.getAsLong() - start > MAX_MILLIS) {
+                    if (items == null || items.length() < NAME_PAGE || offset + NAME_PAGE >= page.optLong("total", 0L)) break;
+                    if (clock.getAsLong() - start > budget) {
                         timedOut = true;
                         break;
                     }
                 }
             }
-            // 2. every posting of the scope, with its facts and excerpts
+            // 2. every posting of the scope, with its facts and excerpts, page by page to the end of the stock
             long after = 0L;
             boolean more = true;
             while (more && !timedOut) {
-                if (digests.size() >= MAX_SCAN) {
-                    complete = false;
-                    break;
-                }
-                if (clock.getAsLong() - start > MAX_MILLIS) {
+                if (clock.getAsLong() - start > budget) {
                     timedOut = true;
                     break;
                 }
-                final KgReader.JobPage page = reader.jobDigests(viewer, null, after, Math.min(SCAN_PAGE, MAX_SCAN - digests.size()));
+                final KgReader.JobPage page = reader.jobDigests(viewer, null, after, SCAN_PAGE);
                 for (final KgReader.JobDigest d : page.items) digests.putIfAbsent(d.id, d);
                 after = page.last;
                 more = page.more;
             }
-            if (more) complete = false;
+            if (more) gaps.add("time budget: " + digests.size() + " postings of the scope read, not all");
             // the name hits the scan did not reach
             final List<String> unread = new ArrayList<>();
             for (final String id : hits.keySet()) if (!digests.containsKey(id)) unread.add(id);
-            if (!unread.isEmpty() && clock.getAsLong() - start <= MAX_MILLIS) {
+            if (!unread.isEmpty() && clock.getAsLong() - start <= budget) {
                 for (final KgReader.JobDigest d : reader.jobDigests(viewer, unread, 0L, unread.size()).items) digests.putIfAbsent(d.id, d);
             }
-            // 3. the indexed text of the postings' pages
+            // 3. the indexed text of the postings' own pages: the direct index, by the known addresses of the postings that
+            // do not show the subject by title or fact; each posting's page is asked, whichever page of its host ranks first
             final Map<String, String> byUrl = new LinkedHashMap<>();
-            final Map<String, Integer> perHost = new LinkedHashMap<>();
-            for (final KgReader.JobDigest d : digests.values()) {
-                if (d.url == null) continue;
-                byUrl.putIfAbsent(pageKey(d.url), d.id);
-                perHost.merge(host(d.url), 1, Integer::sum);
-            }
-            final Set<String> hostsSearched = new LinkedHashSet<>();
-            for (final Criterion c : plan.criteria) {
-                if (timedOut || clock.getAsLong() - start > MAX_MILLIS) {
-                    timedOut = true;
-                    break;
-                }
-                final String words = c.variants.get(0).text;
-                searched.add("text: " + words);
-                final List<RagCandidate> pages = context.pages(words, TEXT_HITS);
-                if (pages.size() >= TEXT_HITS) complete = false; // the index may hold more pages than one search gives
-                final Set<String> hostsHit = new LinkedHashSet<>();
-                textHits(pages, c, byUrl, hits, hostsHit);
-                // the index gives one page per host: a host with several postings is searched once more by site:
-                for (final String h : hostsHit) {
-                    if (perHost.getOrDefault(h, 0) < 2 || hostsSearched.size() >= MAX_HOST_SEARCHES || !hostsSearched.add(h + "|" + words)) continue;
-                    if (clock.getAsLong() - start > MAX_MILLIS) {
-                        timedOut = true;
-                        break;
+            for (final KgReader.JobDigest d : digests.values()) if (d.url != null) byUrl.putIfAbsent(pageKey(d.url), d.id);
+            if (!plan.criteria.isEmpty() && !timedOut) {
+                if (context.hasIndex()) {
+                    text:
+                    for (final Criterion c : plan.criteria) {
+                        final List<String> urls = new ArrayList<>();
+                        for (final KgReader.JobDigest d : digests.values()) {
+                            if (d.url != null && d.name != null && !shownByData(d, c)) urls.add(d.url);
+                        }
+                        for (final Variant v : c.variants) {
+                            if (v.filter != c) continue; // a subject's own words; the joint variants are no subject of their own
+                            final List<String> words = words(v.text);
+                            if (words.isEmpty() || urls.isEmpty()) continue;
+                            searched.add("index: " + v.text + " (" + urls.size() + " posting pages)");
+                            for (int i = 0; i < urls.size(); i += URL_BATCH) {
+                                if (clock.getAsLong() - start > budget) {
+                                    timedOut = true;
+                                    gaps.add("time budget: the text of " + (urls.size() - i) + " posting pages not searched for " + v.text);
+                                    break text;
+                                }
+                                final List<String> batch = urls.subList(i, Math.min(urls.size(), i + URL_BATCH));
+                                final ToolContext.IndexPage found = context.indexPages(words, batch, 0, batch.size());
+                                textHits(found.pages, c, byUrl, hits, new LinkedHashSet<>());
+                            }
+                        }
                     }
-                    searched.add("text: site:" + h + " " + words);
-                    final List<RagCandidate> more2 = context.pages("site:" + h + " " + words, TEXT_HITS);
-                    if (more2.size() >= TEXT_HITS) complete = false;
-                    textHits(more2, c, byUrl, hits, new LinkedHashSet<>());
-                }
-                if (hostsSearched.size() >= MAX_HOST_SEARCHES) {
-                    for (final String h : hostsHit) if (perHost.getOrDefault(h, 0) > 1 && !hostsSearched.contains(h + "|" + words)) complete = false;
+                } else {
+                    // no direct index: the ranked search, which gives one page per host and at most TEXT_HITS
+                    gaps.add("no direct index: the text of posting pages searched by ranked search only (" + TEXT_HITS
+                            + " pages, one per host)");
+                    for (final Criterion c : plan.criteria) {
+                        final String words = c.variants.get(0).text;
+                        searched.add("text: " + words);
+                        textHits(context.pages(words, TEXT_HITS), c, byUrl, hits, new LinkedHashSet<>());
+                    }
                 }
             }
         } catch (final Exception e) {
             error = e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed";
+            gaps.add("error: " + error);
         }
-        if (timedOut || error != null) complete = false;
+        if (timedOut && gaps.stream().noneMatch(g -> g.startsWith("time budget"))) gaps.add("time budget: the search stopped early");
         // every posting read: which subjects it shows, and how
         final List<Job> matching = new ArrayList<>();
         final Set<String> seen = new LinkedHashSet<>();
@@ -540,10 +552,7 @@ public final class JobSearch {
             final Job job = job(d);
             job.order = order++;
             final String title = RagQuery.fold(d.name);
-            final StringBuilder facts = new StringBuilder();
-            for (final String[] f : d.facts) if (!Vocabulary.NAME.equals(f[0])) facts.append(' ').append(f[1]);
-            for (final String x : d.excerpts) facts.append(' ').append(x);
-            final String folded = RagQuery.fold(facts.toString());
+            final String folded = factText(d);
             final Map<String, Integer> text = hits.getOrDefault(d.id, Collections.emptyMap());
             for (final Criterion c : plan.criteria) {
                 final int how = c.shownBy.test(title) ? BY_TITLE : c.shownBy.test(folded) ? BY_FACT : text.getOrDefault(c.label, 0);
@@ -583,7 +592,28 @@ public final class JobSearch {
         for (final Job job : matching) if (shown.size() < MAX_JOBS && !shown.contains(job)) shown.add(job);
         // by the number of subjects shown; within it the subjects stay in turn, so that a short answer room keeps them all
         shown.sort(java.util.Comparator.comparingInt((Job j) -> -j.met.size()));
-        return new Result(plan, shown, searched, timedOut, error, clock.getAsLong() - start, matching.size(), perSubject, digests.size(), complete);
+        return new Result(plan, shown, searched, timedOut, error, clock.getAsLong() - start, matching.size(), perSubject, digests.size(),
+                gaps.isEmpty(), gaps);
+    }
+
+    /** The facts and excerpts of a posting, folded (without its name). */
+    private static String factText(final KgReader.JobDigest d) {
+        final StringBuilder facts = new StringBuilder();
+        for (final String[] f : d.facts) if (!Vocabulary.NAME.equals(f[0])) facts.append(' ').append(f[1]);
+        for (final String x : d.excerpts) facts.append(' ').append(x);
+        return RagQuery.fold(facts.toString());
+    }
+
+    /** Whether a posting shows a subject by its title or its facts already (its page's text is then not asked). */
+    private static boolean shownByData(final KgReader.JobDigest d, final Criterion c) {
+        return c.shownBy.test(RagQuery.fold(d.name)) || c.shownBy.test(factText(d));
+    }
+
+    /** The words of a variant for the direct index. */
+    static List<String> words(final String text) {
+        final List<String> out = new ArrayList<>();
+        for (final String w : (text == null ? "" : text).split("[^\\p{L}\\p{N}]+")) if (!w.isEmpty()) out.add(w);
+        return out;
     }
 
     /** The pages of a text search that are pages of postings: their subject {@code c}, by text. */
@@ -703,6 +733,7 @@ public final class JobSearch {
             meta.put("notShown", result.jobs.size() - sources.size()); // selected, but no room left in the context
             meta.put("perSubject", new JSONObject(result.perSubject));
             meta.put("scanned", result.scanned);
+            meta.put("gaps", new JSONArray(result.gaps)); // why the count is only a lower bound
             meta.put("full", full);
             meta.put("partial", partial);
             meta.put("timedOut", result.timedOut);

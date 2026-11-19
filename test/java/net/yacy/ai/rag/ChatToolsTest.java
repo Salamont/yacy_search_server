@@ -116,6 +116,49 @@ public class ChatToolsTest {
         if (this.store != null) this.store.close();
     }
 
+    /**
+     * {@code n} invented postings of one employer in alpha-web, straight through the JSON-LD extractor and the publisher in
+     * batches; posting {@code special} shows the subject "Hydraulik" in its field only.
+     */
+    private void bulkPostings(final int n, final int special) throws Exception {
+        final ExtractContext ctx = new ExtractContext(KgVocabularies.get(), Set.of(), true, true, List.of("alpha-web"));
+        for (int from = 1; from <= n; from += 500) {
+            final List<Publisher.Doc> docs = new ArrayList<>();
+            final List<Extraction> extractions = new ArrayList<>();
+            for (int i = from; i < Math.min(n + 1, from + 500); i++) {
+                // 20 postings per employer, each employer on its own host, as in a collection of many companies
+                final int e = (i - 1) / 20;
+                final String org = "{\"@type\":\"Organization\",\"name\":\"Kranich Anlagenbau " + e + " GmbH\",\"url\":\"https://www.kranich-"
+                        + e + ".example/\"}";
+                final String title = "Monteur (m/w/d) " + i;
+                final String url = "https://www.kranich-" + e + ".example/stelle/" + i;
+                final Publisher.Doc d = new Publisher.Doc();
+                d.docId = String.format("KR%04dho%04d", i, e);
+                d.url = url;
+                d.host = "www.kranich-" + e + ".example";
+                d.hostId = String.format("ho%04d", e);
+                d.language = "de";
+                d.state = Aggregates.STATE_ACTIVE;
+                d.token = new byte[8];
+                d.inputHash = new byte[16];
+                d.collections = List.of("alpha-web");
+                d.solrVersion = ++this.version;
+                d.loadedAt = this.now - 86_400_000L;
+                final Extraction ex = new Extraction(300);
+                new JsonLdExtractor(200).extract(List.of("{\"@type\":\"JobPosting\",\"title\":\"" + title + "\",\"description\":\"Montage.\""
+                        + (i == special ? ",\"occupationalCategory\":\"Hydraulik\"" : "") + ",\"hiringOrganization\":" + org + "}"), d.url, d.host,
+                        "de", ex, ctx);
+                docs.add(d);
+                extractions.add(ex);
+                this.pages.add(new RagCandidate(url, title, "", title + ". Montage.", d.host, List.of("alpha-web"), this.pages.size()));
+            }
+            this.store.write(WriteClass.GROWTH, 0, tx -> {
+                for (int k = 0; k < docs.size(); k++) this.publisher.apply(tx, docs.get(k), -1L, extractions.get(k), this.now);
+                return null;
+            });
+        }
+    }
+
     /** One invented page: in the search corpus and, through the extractors and the publisher, in the graph. */
     private void page(final String id, final String url, final String collection, final String title, final String jsonld, final String text)
             throws Exception {
@@ -153,7 +196,31 @@ public class ChatToolsTest {
             }
             return found;
         };
-        return new ToolContext(collection, true, searcher, graph(), 16000, "test");
+        return new ToolContext(collection, true, searcher, graph(), 16000, "test").withIndex(index());
+    }
+
+    /** Pages read through the direct index of the tests: like Solr, every word as a word or the start of one, paged. */
+    final List<String> indexQueries = new ArrayList<>();
+
+    ToolContext.Index index() {
+        return (words, collection, urls, offset, count) -> {
+            this.indexQueries.add(String.join(" ", words) + (urls == null ? "" : " [" + urls.size() + " urls]") + " @" + collection);
+            final java.util.Set<String> wanted = urls == null ? null : new java.util.HashSet<>(urls);
+            final List<RagCandidate> all = new ArrayList<>();
+            for (final RagCandidate page : this.pages) {
+                if (collection != null && !page.collections.contains(collection)) continue;
+                if (wanted != null && !wanted.contains(page.url)) continue;
+                final String text = (page.title + " " + page.description + " " + page.text).toLowerCase(java.util.Locale.ROOT);
+                boolean every = true;
+                for (final String w : words) {
+                    if (!java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])" + java.util.regex.Pattern.quote(w.toLowerCase(java.util.Locale.ROOT)))
+                            .matcher(text).find()) every = false;
+                }
+                if (every) all.add(page);
+            }
+            return new ToolContext.IndexPage(new ArrayList<>(all.subList(Math.min(offset, all.size()), Math.min(offset + count, all.size()))),
+                    all.size());
+        };
     }
 
     private ToolContext.Graph graph() {
@@ -676,6 +743,196 @@ public class ChatToolsTest {
         final String none = net.yacy.ai.PromptGuard.jobSearchNote(0, 0, true, result.searched, plan.criteria(), "collection alpha-web");
         assertTrue(none, none.contains("within its time and size budget") && none.contains("do not say that the index holds none"));
         assertTrue(net.yacy.ai.PromptGuard.jobSearchNote(3, 3, true, result.searched, plan.criteria(), "x").contains("at least 3 matching postings"));
+    }
+
+    static final String BIBER = "{\"@type\":\"Organization\",\"name\":\"Biber Messtechnik GmbH\",\"url\":\"https://www.biber-messtechnik.example/\"}";
+
+    /** A posting of Biber in alpha-web: its id (12 characters), title, the JSON-LD extras and the text of its page. */
+    private void biber(final String id, final String path, final String title, final String extra, final String text) throws Exception {
+        page(id, "https://www.biber-messtechnik.example/" + path, "alpha-web", title,
+                "{\"@type\":\"JobPosting\",\"title\":\"" + title + "\",\"description\":\"Stellenangebot in Vollzeit.\"" + extra
+                        + ",\"hiringOrganization\":" + BIBER + "}", title + ". " + text);
+    }
+
+    @Test
+    public void sevenPostingsOfOneEmployerAreAllFoundAndAtMostSixShown() throws Exception {
+        // seven postings of one employer, each its own (title, page), the subject by title, by a fact or by the page text
+        for (int i = 1; i <= 5; i++) biber("BIBK0" + i + "host03", "jobs/kalibrierung-" + i, "Kalibrierung Techniker (m/w/d) Linie " + i, "",
+                "Stellenangebot.");
+        biber("BIBF01host03", "jobs/pruefstand", "Ingenieur (m/w/d) Prüfstand", ",\"occupationalCategory\":\"Kalibrierung\"", "Stellenangebot.");
+        biber("BIBT01host03", "jobs/labor", "Techniker (m/w/d) Labor", "", "Sie übernehmen die Kalibrierung unserer Messgeräte. Stellenangebot.");
+        // a ranked search that finds nothing at all: the page text is read through the direct index by the postings' addresses
+        final ToolContext chat = new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(), graph(), 16000, "test")
+                .withIndex(index());
+        final JobSearch.Result result = JobSearch.run(chat, JobSearch.plan("Wie viele Stellenanzeigen gibt es zur Kalibrierung?"));
+        assertTrue(JobSearch.wantsAll("Wie viele Stellenanzeigen gibt es zur Kalibrierung?") && JobSearch.wantsAll("Zeig mir alle Stellen"));
+        assertFalse(JobSearch.wantsAll("Welche Stellenanzeigen gibt es zur Kalibrierung?"));
+        assertEquals(result.gaps.toString(), 7, result.found);
+        assertTrue(result.gaps.toString(), result.complete);
+        assertEquals(JobSearch.MAX_JOBS, result.jobs.size());
+        final JobSearch.Built built = JobSearch.format(result, 1, 9000, "collection alpha-web", false);
+        assertEquals(7, built.meta.getInt("found"));
+        assertEquals(6, built.meta.getInt("shown"));
+        final java.util.Map<String, Integer> how = new java.util.LinkedHashMap<>();
+        final JobSearch.Result all = JobSearch.run(chat, JobSearch.plan("Wie viele Stellenanzeigen gibt es zur Kalibrierung?"));
+        for (final JobSearch.Job job : all.jobs) how.put(job.title, job.how.get("Kalibrierung"));
+        // the shown six keep the strongest: the titles first; the fact and the text posting counted among the seven
+        assertTrue(how.toString(), how.values().stream().allMatch(v -> v != null));
+        assertTrue(this.indexQueries.toString(), this.indexQueries.stream().anyMatch(q -> q.contains("urls]") && q.endsWith("@alpha-web")));
+        // without a direct index the page text is not reached through the ranked search here: a lower bound, with its reason
+        final ToolContext ranked = new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(), graph(), 16000, "test");
+        final JobSearch.Result partial = JobSearch.run(ranked, JobSearch.plan("Wie viele Stellenanzeigen gibt es zur Kalibrierung?"));
+        assertEquals(6, partial.found);
+        assertTrue(partial.lowerBound());
+        assertTrue(partial.gaps.toString(), partial.gaps.get(0).startsWith("no direct index"));
+        final String note = net.yacy.ai.PromptGuard.jobSearchNote(partial.found, 6, partial.gaps, partial.searched, partial.plan.criteria(), "x");
+        assertTrue(note, note.contains("at least 6 matching postings, a lower bound (no direct index"));
+    }
+
+    @Test
+    public void aFactOnlyPostingBehindPosition5000IsFound() throws Exception {
+        // about 7,000 postings of one collection, written straight into the graph (the extractors of page() would take minutes);
+        // the only posting of the subject shows it in a fact only and comes after the 6,000th
+        final long t0 = System.currentTimeMillis();
+        bulkPostings(7000, 6500);
+        final long written = System.currentTimeMillis() - t0;
+        final JobSearch.Result result = JobSearch.run(chat("alpha-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zur Hydraulik?"),
+                System::currentTimeMillis, 30_000L);
+        assertTrue(result.gaps.toString(), result.complete);
+        assertTrue(String.valueOf(result.scanned), result.scanned >= 7000);
+        assertEquals(1, result.found);
+        assertEquals("Monteur (m/w/d) 6500", result.jobs.get(0).title);
+        assertEquals(Integer.valueOf(JobSearch.BY_FACT), result.jobs.get(0).how.get("Hydraulik"));
+        System.out.println("SCALE: " + result.scanned + " postings written in " + written + " ms, searched in " + result.millis + " ms");
+        // within the default budget the search reports what it read and why the count is a lower bound if it did not finish
+        final JobSearch.Result timed = JobSearch.run(chat("alpha-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zur Hydraulik?"));
+        System.out.println("SCALE default budget: complete=" + timed.complete + " scanned=" + timed.scanned + " found=" + timed.found
+                + " ms=" + timed.millis + " gaps=" + timed.gaps);
+        assertTrue(timed.complete || (timed.lowerBound() && timed.gaps.get(0).startsWith("time budget")));
+    }
+
+    // ------------------------------------------------------------------- provider search (section 13), graph and index
+
+    /** An organisation's JSON-LD: its name and site, and optionally its address, service area and offered services. */
+    private static String org(final String name, final String host, final String locality, final String area, final String... services) {
+        final StringBuilder o = new StringBuilder("{\"@type\":\"Organization\",\"name\":\"" + name + "\",\"url\":\"https://" + host + "/\"");
+        if (locality != null) {
+            o.append(",\"address\":{\"@type\":\"PostalAddress\",\"streetAddress\":\"Hauptstraße 1\",\"postalCode\":\"12345\","
+                    + "\"addressLocality\":\"").append(locality).append("\"}");
+        }
+        if (area != null) o.append(",\"areaServed\":\"").append(area).append('"');
+        if (services.length > 0) {
+            o.append(",\"hasOfferCatalog\":{\"@type\":\"OfferCatalog\",\"itemListElement\":[");
+            for (int i = 0; i < services.length; i++) {
+                o.append(i == 0 ? "" : ",").append("{\"@type\":\"Offer\",\"itemOffered\":{\"@type\":\"Service\",\"name\":\"")
+                        .append(services[i]).append("\"}}");
+            }
+            o.append("]}");
+        }
+        return o.append('}').toString();
+    }
+
+    /**
+     * Invented providers of mould remediation: Becker (address in Musterstadt, three pages, graph and pages), Adler (a service
+     * area in the graph, its page does not name the service), Cramer (no offer in the graph, its page states its area),
+     * Dorn (its page mentions Musterstadt in passing), six more without a place, Esser (only the second service, a building
+     * surveyor) and, in beta-web, another provider.
+     */
+    private void providers() throws Exception {
+        final String becker = org("Becker Schimmelsanierung GmbH", "www.becker-sanierung.example", "Musterstadt", null, "Schimmelsanierung");
+        page("PBEC01pbec01", "https://www.becker-sanierung.example/", "alpha-web", "Becker Schimmelsanierung", becker,
+                "Becker Schimmelsanierung GmbH, Hauptstraße 1, 12345 Musterstadt. Schimmelsanierung für Wohnungen.");
+        page("PBEC02pbec01", "https://www.becker-sanierung.example/leistungen", "alpha-web", "Leistungen", becker,
+                "Schimmelsanierung, Trocknung und Beratung.");
+        page("PBEC03pbec01", "https://www.becker-sanierung.example/kontakt", "alpha-web", "Kontakt", becker,
+                "Kontakt zur Schimmelsanierung: Telefon und E-Mail.");
+        page("PADL01padl01", "https://www.adler-sanierung.example/", "alpha-web", "Adler Sanierung",
+                org("Adler Sanierung GmbH", "www.adler-sanierung.example", null, "Musterstadt", "Schimmelsanierung"),
+                "Adler Sanierung GmbH. Wir sanieren Keller und Bäder.");
+        page("PCRA01pcra01", "https://www.cramer-bautenschutz.example/", "alpha-web", "Cramer Bautenschutz",
+                org("Cramer Bautenschutz", "www.cramer-bautenschutz.example", null, null),
+                "Cramer Bautenschutz: Schimmelsanierung und Abdichtung. Einsatzgebiet: Musterstadt und Umgebung.");
+        page("PDOR01pdor01", "https://www.dorn-fachbetrieb.example/", "alpha-web", "Dorn Fachbetrieb",
+                org("Dorn Fachbetrieb", "www.dorn-fachbetrieb.example", null, null),
+                "Schimmelsanierung vom Fachbetrieb Dorn. Unser Team war zuletzt auf einer Messe, die in Musterstadt stattfand.");
+        for (int i = 1; i <= 6; i++) {
+            page("PNOR0" + i + "pnor0" + i, "https://www.nordbau-" + i + ".example/", "alpha-web", "Nordbau " + i,
+                    org("Nordbau " + i + " GmbH", "www.nordbau-" + i + ".example", null, null), "Nordbau " + i + ": Schimmelsanierung im Norden.");
+        }
+        page("PESS01pess01", "https://www.esser-gutachten.example/", "alpha-web", "Gutachterbüro Esser",
+                org("Gutachterbüro Esser", "www.esser-gutachten.example", null, null, "Bausachverständiger"),
+                "Gutachterbüro Esser: Bausachverständiger für Feuchteschäden.");
+        page("PFRE01pfre01", "https://www.fremd-sanierung.example/", "beta-web", "Fremd Sanierung",
+                org("Fremd Sanierung GmbH", "www.fremd-sanierung.example", "Musterstadt", null, "Schimmelsanierung"),
+                "Fremd Sanierung GmbH, 12345 Musterstadt: Schimmelsanierung. BETAGEHEIM");
+    }
+
+    @Test
+    public void theProviderSearchCountsEveryProviderOnceWithItsPlace() throws Exception {
+        providers();
+        final ServiceSearch.Plan plan = ServiceSearch.plan("Wer hilft in Musterstadt bei Schimmel im Keller?");
+        assertEquals(List.of("Schimmelsanierung", "Bausachverständiger"), plan.services);
+        final ServiceSearch.Result r = ServiceSearch.run(chat("alpha-web"), plan, List.of());
+        final java.util.Map<String, ServiceSearch.Provider> byName = new java.util.LinkedHashMap<>();
+        final ServiceSearch.Result everything = ServiceSearch.run(chat("alpha-web"), plan, List.of(), System::currentTimeMillis, 30_000L);
+        assertTrue(r.gaps.toString(), !r.lowerBound());
+        // more than eight providers, each once: Becker over three pages and its name, Adler by the graph only, Cramer by its
+        // page only, Dorn, six more, and Esser by the second service only; nothing of beta-web
+        assertEquals(r.searched.toString(), 11, r.found);
+        assertEquals(ServiceSearch.MAX_SHOWN, r.providers.size());
+        assertEquals(11, everything.found);
+        for (final ServiceSearch.Provider p : r.providers) byName.put(p.name, p);
+        final ServiceSearch.Provider becker = r.providers.get(0);
+        assertEquals("Becker Schimmelsanierung GmbH", becker.name);
+        assertEquals(ServiceSearch.AT_PLACE, becker.place);
+        assertEquals(3, becker.pages.size());
+        assertTrue(becker.byGraph && becker.byText);
+        assertEquals(ServiceSearch.SERVES_PLACE, byName.get("Adler Sanierung GmbH").place);
+        assertTrue(byName.get("Adler Sanierung GmbH").byGraph && !byName.get("Adler Sanierung GmbH").byText);
+        final ServiceSearch.Provider cramer = byName.get("Cramer Bautenschutz");
+        assertTrue(cramer != null && cramer.byText && !cramer.byGraph);
+        assertEquals(ServiceSearch.SERVES_PLACE, cramer.place);
+        assertEquals(Integer.valueOf(1), r.perPlace.get(ServiceSearch.AT_PLACE));
+        assertEquals(Integer.valueOf(2), r.perPlace.get(ServiceSearch.SERVES_PLACE));
+        assertEquals(Integer.valueOf(1), r.perPlace.get(ServiceSearch.MENTIONS_PLACE));
+        assertEquals(Integer.valueOf(7), r.perPlace.get(ServiceSearch.NO_PLACE));
+        // a provider only of the second service (Esser) is one of the eleven: every service of the plan is searched in the
+        // graph and the index, also after ten providers of the first
+        assertTrue(r.searched.toString(), r.searched.contains("index: Bausachverständiger")
+                && r.searched.contains("graph service: Bausachverständiger"));
+        final ServiceSearch.Plan second = ServiceSearch.planAny("Bausachverständiger");
+        final ServiceSearch.Result esser = ServiceSearch.run(chat("alpha-web"), second, List.of());
+        assertEquals(1, esser.found);
+        assertEquals("Gutachterbüro Esser", esser.providers.get(0).name);
+        assertTrue(esser.providers.get(0).byGraph && esser.providers.get(0).byText);
+        // the passing mention evidences nothing
+        final ServiceSearch.Built built = ServiceSearch.format(everything, 1, 20000, "collection alpha-web", false);
+        assertTrue(built.text, built.text.contains("Located in Musterstadt: address in the graph"));
+        assertTrue(built.text, built.text.contains("Serves Musterstadt: service area in the graph"));
+        assertEquals(11, built.meta.getInt("found"));
+        assertEquals(6, built.meta.getInt("shown"));
+        assertEquals(3, built.meta.getJSONArray("placeNamedBy").length());
+        assertFalse(built.text, built.text.contains("BETAGEHEIM"));
+        // the whole index: beta-web's provider too
+        assertEquals(12, ServiceSearch.run(chat(null), plan, List.of()).found);
+        // the tool: the same search
+        final JSONObject tool = call(chat("alpha-web"), "provider_search", "{\"query\":\"Wer hilft in Musterstadt bei Schimmel im Keller?\"}");
+        assertEquals(11, tool.getInt("found"));
+        assertEquals(6, tool.getInt("shown"));
+        assertFalse(tool.getBoolean("lower_bound"));
+        assertEquals(ServiceSearch.AT_PLACE, tool.getJSONArray("providers").getJSONObject(0).getString("place"));
+        // the time limit: a lower bound with its reason
+        final long[] now = {0L};
+        final ServiceSearch.Result timed = ServiceSearch.run(chat("alpha-web"), plan, List.of(), () -> {
+            final long t = now[0];
+            now[0] += ServiceSearch.MAX_MILLIS / 4 + 1;
+            return t;
+        }, ServiceSearch.MAX_MILLIS);
+        assertTrue(timed.lowerBound());
+        assertTrue(timed.gaps.toString(), timed.gaps.get(0).startsWith("time budget"));
+        final String note = net.yacy.ai.PromptGuard.serviceSearchNote(timed.found, Math.min(6, timed.found), timed.gaps, timed.searched,
+                "Musterstadt", List.of(), "collection alpha-web");
+        assertTrue(note, note.contains("a lower bound") || note.contains("within its time budget"));
     }
 
     @Test

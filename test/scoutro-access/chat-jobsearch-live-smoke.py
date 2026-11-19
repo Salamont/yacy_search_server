@@ -22,7 +22,9 @@ original failure, two job postings; beta-web: another company with one posting).
 5. a job question whose automatic search matched a majority of its words, but only on a company page: the job search runs;
    a question that is not about jobs: no job search;
 6. a larger stock: more than 12 matching postings of one employer, postings found by title, by a fact and by the text of
-   their page, a duplicate, no dates; the automatic search and job_search determine the same 17 before the answer's limit.
+   their page, a duplicate, no dates; the automatic search and job_search determine the same 17 before the answer's limit;
+7. a question for the number of postings runs the full search after strong first hits; the same count with the index's
+   search events cold and warm; raw records of the graph against unique postings.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_JOBS_DUMP=<file> writes what the stub received;
 --ui also opens the chat page in Chromium (test/scoutro-ui/chat-followup-ui-test.mjs: the search mode of a follow-up).
@@ -121,10 +123,10 @@ def run(base, digest):
     check(js.get("triggered") and js.get("scope") == "collection alpha-web" and js.get("found") == 2 and js.get("full") == 1
           and js.get("partial") == 1 and js.get("criteria") == ["Java", "ML", "Robotik"] and js.get("shown") == 2 and js.get("lowerBound") is False
           and js.get("scanned") == 2, "jobs: the server searched all postings of alpha-web and counts found and shown", json.dumps(js))
-    names = [w for w in js.get("searched", []) if not w.startswith("text: ")]
-    texts = [w for w in js.get("searched", []) if w.startswith("text: ")]
+    names = [w for w in js.get("searched", []) if not w.startswith("index: ")]
+    texts = [w for w in js.get("searched", []) if w.startswith("index: ")]
     check(names[:1] == ["Java ML Robotik"] and "Java" in names and "ML" in names and len(names) <= 6
-          and texts[:3] == ["text: Java", "text: ML", "text: Robotik"], "jobs: a few title variants and one text search per subject",
+          and texts and all("posting pages)" in w for w in texts), "jobs: a few title variants, the posting pages' text by the direct index",
           str(js.get("searched")))
     check(prompt.find("[1] Scoutro knowledge graph: job posting ML-Entwickler") >= 0 and f"URL: {ml_url}" in prompt
           and 0 <= prompt.find("job posting ML-Entwickler") < prompt.find("[3] Tapir Consulting AG"),
@@ -247,7 +249,7 @@ def run(base, digest):
     per = js.get("perSubject") or {}
     check(status == 200 and js.get("triggered") and js.get("found") == 17 and js.get("lowerBound") is False and js.get("shown") <= 6
           and per.get("Kotlin") == 14 and per.get("Sensorik") == 3 and js.get("scope") == "collection alpha-web"
-          and any(w.startswith("text: site:") for w in js.get("searched", [])),
+          and any(w.startswith("index: Sensorik") for w in js.get("searched", [])),
           "stock: 17 postings determined before the limit (14 Kotlin, sensor by title, fact and page text; the duplicate once)",
           json.dumps(js))
     check(any("Sensorik Ingenieur" in t for t in titles) and any("Kotlin Entwickler" in t for t in titles) and len(titles) == len(set(titles))
@@ -262,6 +264,38 @@ def run(base, digest):
     check(status == 200 and result.get("found") == 17 and result.get("lower_bound") is False and result.get("shown") == 6
           and result.get("per_subject") == {"Kotlin": 14, "Sensorik": 3}, "stock: job_search determines the same postings",
           json.dumps({k: v for k, v in result.items() if k != "postings"}) + " " + str([p.get("url") for p in result.get("postings", [])]))
+
+    # 7. a question for all postings or their number: the full search runs although the automatic search finds posting
+    # pages directly (strong first hits); the same count cold and with the index's search event of its words warm; raw
+    # records against unique postings
+    timings = {}
+    count_q = "Wie viele Stellenanzeigen gibt es zu Kotlin oder Sensorik?"
+    t0 = tools.time.monotonic()
+    status, answer, requests = tools.chat(rita, count_q, no_tools_model)
+    timings["all, cold"] = round(tools.time.monotonic() - t0, 2)
+    cold = jobsearch(answer) or {}
+    stage = answer["meta"].get("scoutro-retrieval", {}).get("stage")
+    first_urls = [x.get("url") for x in answer["meta"].get("scoutro-sources", []) if "kind" not in x]
+    check(status == 200 and cold.get("triggered") and cold.get("found") == 17 and cold.get("lowerBound") is False,
+          "all: a question for the number runs the full job search (also after strong first hits)",
+          f"{stage} {first_urls[:3]} {json.dumps(cold)[:400]}")
+    for words in ("Kotlin", "Sensorik", "Kotlin Sensorik"):  # warm the index's search events of these words
+        digest.call("GET", "/yacysearch.json?resource=local&maximumRecords=50&query=" + urllib.parse.quote(words))
+    t0 = tools.time.monotonic()
+    status, answer, requests = tools.chat(rita, count_q, no_tools_model)
+    timings["all, warm"] = round(tools.time.monotonic() - t0, 2)
+    warm = jobsearch(answer) or {}
+    check(warm.get("found") == cold.get("found") and warm.get("perSubject") == cold.get("perSubject"),
+          "cache: the same postings with the index's search events cold and warm", f"{json.dumps(cold.get('perSubject'))} {json.dumps(warm.get('perSubject'))}")
+    raw = tools.kg_get(digest, "entities?type=job&collection=alpha-web&limit=1").get("total", 0)
+    pages = 2 + len(stock)  # posting pages pushed into alpha-web: the two of the base fixtures and the stock
+    check(warm.get("scanned") == raw == pages and warm.get("found") == 17,
+          "records: posting pages, job records of the graph, unique matching postings",
+          f"pages={pages} records={raw} scanned={warm.get('scanned')} found={warm.get('found')}")
+    print(f"JOBS: posting pages of alpha-web={pages} (2 base postings, 18 of the stock incl. the second page of one posting),"
+          f" job records of the graph={raw}, read by the search={warm.get('scanned')}, matching Kotlin/Sensorik={warm.get('found')} unique"
+          f" (14 + 3; the second page is its own record and counts once; the 2 base postings do not match); search ms"
+          f" cold={cold.get('millis')} warm={warm.get('millis')}; chat request s={timings}", flush=True)
 
 
 def main():

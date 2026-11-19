@@ -50,6 +50,7 @@ public final class SearchAssistTools {
                 final JSONObject out = new JSONObject(true).put("tool", JOB_SEARCH).put("scope", context.scopeLabel());
                 out.put("subjects", new JSONArray(plan.criteria())).put("searched", new JSONArray(result.searched));
                 out.put("found", result.found).put("lower_bound", result.lowerBound()).put("per_subject", new JSONObject(result.perSubject));
+                if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
                 final JSONArray postings = new JSONArray();
                 for (final JobSearch.Job job : result.jobs) {
                     final JobSearch.Built one = JobSearch.format(new JobSearch.Result(result.plan, java.util.List.of(job), result.searched,
@@ -80,10 +81,11 @@ public final class SearchAssistTools {
     }
 
     public static ToolHandler providerSearch() {
-        return new Tool(PROVIDER_SEARCH, false, "Search this chat's collections again for providers of a service in a place. Give the"
+        return new Tool(PROVIDER_SEARCH, false, "Search this chat's collections for the providers of a service in a place. Give the"
                 + " request in its words, e.g. \"Wer hilft in Musterstadt bei Schimmel im Keller?\" or \"Schimmelsanierung Musterstadt\";"
-                + " the server derives the service (here Schimmelsanierung) and the place and runs a few targeted searches."
-                + " Returns only pages that name the service, as [n], and which of them name the place.") {
+                + " the server derives the service (here Schimmelsanierung) and the place and searches the knowledge graph's offered"
+                + " services and all pages of the index that name the service. Returns how many providers were found (each once), the"
+                + " most relevant ones as [n], and for each whether it is located in the place, serves it, or only mentions it.") {
             @Override
             JSONObject run(final JSONObject args, final ToolContext context) throws Exception {
                 final String query = query(args);
@@ -93,28 +95,34 @@ public final class SearchAssistTools {
                 final JSONObject out = new JSONObject(true).put("tool", PROVIDER_SEARCH).put("scope", context.scopeLabel()).put("local", true);
                 out.put("services", new JSONArray(plan.services)).put("place", plan.place == null ? JSONObject.NULL : plan.place);
                 out.put("searched", new JSONArray(result.searched));
-                final RagQuery words = RagQuery.prepare(String.join(" ", plan.services) + (plan.place == null ? "" : " " + plan.place));
-                final JSONArray pages = new JSONArray();
-                for (final RagRetriever.Scored s : result.pages) {
-                    final String label = context.collection != null ? context.collection
-                            : s.candidate.collections.isEmpty() ? null : s.candidate.collections.get(0);
-                    final String excerpt = RagContext.excerpt(s.candidate, words, 420);
-                    final String title = RagContext.clean(s.candidate.title.isEmpty() ? s.candidate.url : s.candidate.title, 160);
-                    final RagContext.Source source = context.source(title, s.candidate.url, label, null, excerpt);
+                out.put("found", result.found).put("lower_bound", result.lowerBound());
+                if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
+                if (plan.place != null) out.put("per_place", new JSONObject(result.perPlace));
+                final JSONArray providers = new JSONArray();
+                for (final ServiceSearch.Provider provider : result.providers) {
+                    final ServiceSearch.Built one = ServiceSearch.format(new ServiceSearch.Result(plan, java.util.List.of(provider), 1,
+                            java.util.Map.of(), result.searched, java.util.List.of(), false, 0L), 1, 2000, context.scopeLabel(), false);
+                    if (one.sources.isEmpty()) continue;
+                    final RagContext.Source entry = one.sources.get(0);
+                    final RagContext.Source source = context.source(entry.title, entry.url, entry.collection, entry.kind, entry.text());
                     final JSONObject p = new JSONObject(true);
                     p.put("cite", "[" + source.id + "]");
-                    p.put("title", title);
-                    p.put("url", s.candidate.url);
-                    if (label != null) p.put("collection", label);
-                    if (plan.place != null) p.put("names_place", Boolean.TRUE.equals(result.placeNamed.get(s.candidate.url)));
-                    p.put("text", excerpt);
-                    pages.put(p);
+                    p.put("name", provider.name);
+                    p.put("url", entry.url);
+                    p.put("pages", provider.pages.size());
+                    p.put("evidence", provider.byGraph && provider.byText ? "graph and page" : provider.byGraph ? "graph" : "page");
+                    if (plan.place != null) p.put("place", provider.place);
+                    p.put("text", entry.text());
+                    providers.put(p);
                 }
-                out.put("sources", pages);
-                out.put("note", pages.length() == 0
-                        ? "No page in " + context.scopeLabel() + " names this service. Say that no matching provider was found."
-                        : "Name a provider only with what its page states, cited as [n]." + (plan.place == null ? ""
-                                : " A page with names_place false does not name " + plan.place + ": say so."));
+                out.put("providers", providers).put("shown", providers.length());
+                final String found = (result.lowerBound() ? "at least " : "") + result.found;
+                out.put("note", providers.length() == 0
+                        ? (result.lowerBound() ? "No provider found within the search budget in " + context.scopeLabel() + "; do not say that"
+                                + " the index holds none." : "No provider of this service in " + context.scopeLabel() + ". Say that none was found.")
+                        : "Found " + found + " providers, shown " + providers.length() + ": say both numbers. Name a provider only with what its"
+                                + " source states, cited as [n]." + (plan.place == null ? "" : " place: location or service_area is evidenced;"
+                                + " mentioned or none is no evidence of " + plan.place + ": say so."));
                 return out;
             }
         };

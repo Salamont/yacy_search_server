@@ -1188,12 +1188,24 @@ public final class KgReader {
      * the whole released stock and not only the names the name index finds. Read only; the viewer's scope as everywhere.
      */
     public JobPage jobDigests(final Viewer v, final Collection<String> ids, final long after, final int limit) throws KgException {
+        return entityDigests(v, Vocabulary.JOB, ids, after, limit);
+    }
+
+    /**
+     * As {@link #jobDigests}, for entities of {@code type} (null: any type, then only of {@code ids}): the providers of the chat's
+     * provider search with their addresses, service areas and pages.
+     */
+    public JobPage entityDigests(final Viewer v, final String type, final Collection<String> ids, final long after, final int limit)
+            throws KgException {
         final long now = this.clock.getAsLong();
+        if (type == null && ids == null) throw new IllegalArgumentException("a type or the IDs");
         return read(c -> {
             final List<Object> args = new ArrayList<>();
             final StringBuilder where = new StringBuilder(visibleEntity(v, "e"));
-            where.append(" AND e.type = (SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = ?)");
-            args.add(Vocabulary.JOB);
+            if (type != null) {
+                where.append(" AND e.type = (SELECT term_id FROM kg_vocab WHERE kind = 1 AND name = ?)");
+                args.add(type);
+            }
             where.append(" AND EXISTS (SELECT 1 FROM kg_statement cs WHERE cs.subj = e.ent_rowid AND ").append(currentStatement(v, "cs", now))
                     .append(")");
             if (ids != null) {

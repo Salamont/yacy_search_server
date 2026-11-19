@@ -276,7 +276,7 @@ public class RAGProxyServlet extends HttpServlet {
             final ToolContext toolContext = shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT
                     ? new ToolContext(collection, true,
                             (concepts, q, c, n) -> RAGAugmentor.searchCandidates(concepts, q, c, n, false, runId), ToolContext.runtimeGraph(),
-                            toolResultChars(llm4Chat.llm.num_ctx), runId)
+                            toolResultChars(llm4Chat.llm.num_ctx), runId).withIndex(RAGAugmentor::indexPages)
                     : null;
             llm4Chat.toolContext = toolContext;
             final List<String> scopedTools = llm4Chat.tooling ? ToolProvider.scopedTools(llm4Chat.indexTools, toolContext) : new ArrayList<>();
@@ -385,19 +385,22 @@ public class RAGProxyServlet extends HttpServlet {
                 // (type=job) before the answer, whatever the model does; release of kg_search and scope of the request (section 12)
                 JobSearch.Built jobs = null;
                 JobSearch.Result jobResult = null;
-                if (JobSearch.intent(searchQuestion) && JobSearch.weak(result) && JobSearch.released(llm4Chat.indexTools, toolContext)) {
+                // a question for all postings or their number searches them all, also after strong first hits
+                final boolean allJobs = JobSearch.intent(searchQuestion) && JobSearch.wantsAll(searchQuestion);
+                if (JobSearch.intent(searchQuestion) && (allJobs || JobSearch.weak(result)) && JobSearch.released(llm4Chat.indexTools, toolContext)) {
                     jobResult = JobSearch.run(toolContext, JobSearch.plan(searchQuestion));
                     // a third of the source room, but room for at least one posting
                     jobs = JobSearch.format(jobResult, 1, Math.min(sourceChars, Math.max(1200, sourceChars / 3)), toolContext.scopeLabel(),
                             goal.followUp);
                     // "none found" only when the search found none, never when only the room was missing
                     if (!jobs.sources.isEmpty() || jobResult.jobs.isEmpty()) {
-                        guard.addServerRules(messages, PromptGuard.jobSearchNote(jobResult.found, jobs.sources.size(), jobResult.lowerBound(),
+                        guard.addServerRules(messages, PromptGuard.jobSearchNote(jobResult.found, jobs.sources.size(), jobResult.gaps,
                                 jobResult.searched, jobResult.plan.criteria(), toolContext.scopeLabel()));
                     }
                     ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-jobsearch phase=end stage=" + result.stage + " followUp=" + goal.followUp
                             + " searched=" + jobResult.searched.size() + " found=" + jobResult.found + " lowerBound=" + jobResult.lowerBound() + " scanned="
-                            + jobResult.scanned + " shown=" + jobs.sources.size() + " partial=" + jobs.meta.optInt("partial")
+                            + jobResult.scanned + " shown=" + jobs.sources.size() + " partial=" + jobs.meta.optInt("partial") + " all=" + allJobs
+                            + " gaps=" + jobResult.gaps.size()
                             + " timedOut=" + jobResult.timedOut + " error=" + jobResult.error + " ms=" + jobResult.millis);
                 }
                 final int jobCount = jobs == null ? 0 : jobs.sources.size();
@@ -405,37 +408,34 @@ public class RAGProxyServlet extends HttpServlet {
                 // providers of a service: a question for one whose automatic search matched weakly or found no page naming the
                 // service searches the local index again for the service and the place it asks for (section 13); jobs stay type=job
                 ServiceSearch.Result services = null;
-                RagContext.Built serviceBuilt = null;
+                ServiceSearch.Built serviceBuilt = null;
                 List<RagRetriever.Scored> selected = result.selected;
                 final ServiceSearch.Plan servicePlan = jobs == null && !JobSearch.intent(searchQuestion) ? ServiceSearch.plan(searchQuestion) : null;
-                if (servicePlan != null && ServiceSearch.weak(result, servicePlan) && ServiceSearch.released(llm4Chat.indexTools, toolContext)) {
+                // a question for all providers or their number searches them all, also after strong first hits
+                final boolean allProviders = servicePlan != null && JobSearch.wantsAll(searchQuestion);
+                if (servicePlan != null && (allProviders || ServiceSearch.weak(result, servicePlan)) && ServiceSearch.released(llm4Chat.indexTools, toolContext)) {
                     services = ServiceSearch.run(toolContext, servicePlan, result.selected);
-                    final RagQuery serviceQuery = RagQuery.prepare(String.join(" ", servicePlan.services)
-                            + (servicePlan.place == null ? "" : " " + servicePlan.place));
-                    serviceBuilt = RagContext.build(services.pages, serviceQuery, Math.max(0, (sourceChars - jobChars) / 2),
-                            ragSettings.documentMaxLength, ServiceSearch.MAX_PAGES, scope, jobCount + 1);
+                    serviceBuilt = ServiceSearch.format(services, jobCount + 1, Math.max(1200, (sourceChars - jobChars) / 2), toolContext.scopeLabel(),
+                            goal.followUp);
                     final java.util.Set<String> found = new java.util.HashSet<>();
                     for (final RagContext.Source s : serviceBuilt.sources) found.add(s.url);
-                    // the pages found again first; the automatic hits after them, without the same page twice
+                    // the providers' pages first; the automatic hits after them, without the same page twice
                     selected = new ArrayList<>();
                     for (final RagRetriever.Scored s : result.selected) if (!found.contains(s.candidate.url)) selected.add(s);
-                    final JSONObject meta = ServiceSearch.meta(services, jobCount + 1, toolContext.scopeLabel(), goal.followUp);
                     final List<Integer> named = new ArrayList<>();
-                    final JSONArray namedJson = meta.optJSONArray("placeNamedBy");
-                    for (int i = 0; namedJson != null && i < namedJson.length(); i++) {
-                        if (namedJson.optInt(i) < jobCount + 1 + serviceBuilt.sources.size()) named.add(namedJson.optInt(i));
-                    }
-                    guard.addServerRules(messages, PromptGuard.serviceSearchNote(serviceBuilt.sources.size(), services.searched, servicePlan.place,
-                            named, toolContext.scopeLabel()));
+                    final JSONArray namedJson = serviceBuilt.meta.optJSONArray("placeNamedBy");
+                    for (int i = 0; namedJson != null && i < namedJson.length(); i++) named.add(namedJson.optInt(i));
+                    guard.addServerRules(messages, PromptGuard.serviceSearchNote(services.found, serviceBuilt.sources.size(), services.gaps,
+                            services.searched, servicePlan.place, named, toolContext.scopeLabel()));
                     ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-servicesearch phase=end stage=" + result.stage + " followUp="
-                            + goal.followUp + " searched=" + services.searched.size() + " found=" + serviceBuilt.sources.size() + " placeNamed="
-                            + named.size() + " timedOut=" + services.timedOut + " ms=" + services.millis);
+                            + goal.followUp + " all=" + allProviders + " searched=" + services.searched.size() + " found=" + services.found
+                            + " lowerBound=" + services.lowerBound() + " shown=" + serviceBuilt.sources.size() + " placeNamed=" + named.size()
+                            + " gaps=" + services.gaps.size() + " timedOut=" + services.timedOut + " ms=" + services.millis);
                 }
                 final int serviceCount = serviceBuilt == null ? 0 : serviceBuilt.sources.size();
                 final int serviceChars = serviceBuilt == null || serviceBuilt.text.isEmpty() ? 0 : serviceBuilt.text.length() + 2;
                 // graph facts of the pages found again too (the provider's offers), then of the automatic hits
                 final List<RagRetriever.Scored> graphPages = new ArrayList<>();
-                if (services != null) graphPages.addAll(services.pages.subList(0, serviceCount));
                 graphPages.addAll(selected);
                 final GraphFacts.Selected graphSelection = GraphFacts.collect(GraphFacts.runtime(),
                         shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT,
@@ -474,11 +474,7 @@ public class RAGProxyServlet extends HttpServlet {
                 initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
                 initialMetadata.put("scoutro-graph", graph.meta);
                 if (jobs != null) initialMetadata.put("scoutro-jobsearch", jobs.meta);
-                if (services != null) {
-                    final JSONObject serviceMeta = ServiceSearch.meta(services, jobCount + 1, toolContext.scopeLabel(), goal.followUp);
-                    serviceMeta.put("found", serviceCount);
-                    initialMetadata.put("scoutro-servicesearch", serviceMeta);
-                }
+                if (serviceBuilt != null) initialMetadata.put("scoutro-servicesearch", serviceBuilt.meta);
                 final JSONObject retrieval = new JSONObject(true);
                 retrieval.put("query", query.searchString(false));
                 retrieval.put("followUp", goal.followUp);

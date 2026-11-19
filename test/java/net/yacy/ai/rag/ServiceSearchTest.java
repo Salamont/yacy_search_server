@@ -55,7 +55,18 @@ public class ServiceSearchTest {
             final List<RagCandidate> out = new ArrayList<>();
             for (final RagCandidate p : this.pages) if (!p.matched(concepts).isEmpty()) out.add(p);
             return out;
-        }, null, 16000, "test");
+        }, null, 16000, "test").withIndex((words, scope, urls, offset, count) -> {
+            this.searched.add("index " + String.join(" ", words) + " @" + scope);
+            final List<RagCandidate> all = new ArrayList<>();
+            for (final RagCandidate p : this.pages) {
+                if (scope != null && !p.collections.contains(scope)) continue;
+                final String text = (p.title + " " + p.text).toLowerCase(java.util.Locale.ROOT);
+                if (words.stream().allMatch(w -> java.util.regex.Pattern.compile("(?<![\\p{L}])" + java.util.regex.Pattern.quote(
+                        w.toLowerCase(java.util.Locale.ROOT))).matcher(text).find())) all.add(p);
+            }
+            return new ToolContext.IndexPage(new ArrayList<>(all.subList(Math.min(offset, all.size()), Math.min(offset + count, all.size()))),
+                    all.size());
+        });
     }
 
     @Test
@@ -66,6 +77,8 @@ public class ServiceSearchTest {
         assertTrue(plan.derived);
         assertEquals(List.of("Tragwerksplanung Musterstadt", "Statiker Musterstadt", "Statik Musterstadt", "Tragwerksplanung"), plan.variants);
         assertEquals("Bad Musterbach", ServiceSearch.place("Wer macht in Bad Musterbach einen Wanddurchbruch?"));
+        assertEquals("Neustadt bei Nebenstadt", ServiceSearch.place("Wer saniert in Neustadt bei Nebenstadt?"));
+        assertEquals("Musterstadt", ServiceSearch.place("Wer hilft in Musterstadt bei Schimmel im Keller?"));
         assertEquals("50354", ServiceSearch.place("Statik für ein Haus in 50354"));
         // a question for a provider without a known problem word: its own nouns
         final ServiceSearch.Plan carports = ServiceSearch.plan("Wer baut Carports in Brühl?");
@@ -93,16 +106,20 @@ public class ServiceSearchTest {
         final ServiceSearch.Plan plan = ServiceSearch.plan(QUESTION);
         final ServiceSearch.Result r = ServiceSearch.run(chat(BAU), plan, List.of());
         final List<String> urls = new ArrayList<>();
-        for (final RagRetriever.Scored s : r.pages) urls.add(s.candidate.url);
+        for (final ServiceSearch.Provider p : r.providers) urls.add(p.url());
         assertEquals(List.of("https://www.ostermann-statik.example/", "https://www.rheinblick-statik.example/"), urls);
-        assertEquals(Boolean.TRUE, r.placeNamed.get("https://www.ostermann-statik.example/"));
-        assertEquals(Boolean.FALSE, r.placeNamed.get("https://www.rheinblick-statik.example/"));
-        assertTrue(r.searched.size() <= ServiceSearch.MAX_VARIANTS);
+        assertEquals(2, r.found);
+        assertFalse(r.lowerBound());
+        // the office states its service for the town: a service area; the other names another town: no place
+        assertEquals(ServiceSearch.SERVES_PLACE, r.providers.get(0).place);
+        assertEquals(ServiceSearch.NO_PLACE, r.providers.get(1).place);
         for (final String q : this.searched) assertTrue(q, q.endsWith("@" + BAU));
-        // the pages as the first numbered sources, their text for the support check
-        final RagContext.Built built = RagContext.build(r.pages, RagQuery.prepare("Tragwerksplanung Statiker Statik Musterstadt"), 4000, 1500, 4, BAU, 1);
+        // the providers as the first numbered sources, their page's text for the support check
+        final ServiceSearch.Built built = ServiceSearch.format(r, 1, 4000, "collection " + BAU, false);
         assertEquals("https://www.ostermann-statik.example/", built.sources.get(0).url);
-        assertTrue(built.text, built.text.startsWith("[1] Ingenieurbüro Ostermann – Tragwerksplanung in Musterstadt\nURL: https://www.ostermann-statik.example/"));
+        assertTrue(built.text, built.text.startsWith("[1] Provider Ingenieurbüro Ostermann – Tragwerksplanung in Musterstadt\nURL: https://www.ostermann-statik.example/"));
+        assertEquals(2, built.meta.optInt("found"));
+        assertEquals(2, built.meta.optInt("shown"));
         final org.json.JSONObject check;
         try {
             check = RagCitations.check("Das Ingenieurbüro Ostermann bietet Tragwerksplanung und Statik in Musterstadt an [1].", built.sources);
@@ -112,10 +129,10 @@ public class ServiceSearchTest {
         }
         // the whole index (administrator) sees the office of the other collection too
         final ServiceSearch.Result all = ServiceSearch.run(chat(null), plan, List.of());
-        assertTrue(all.pages.stream().anyMatch(s -> s.candidate.url.contains("fremd-statik")));
+        assertTrue(all.providers.stream().anyMatch(p -> p.url().contains("fremd-statik")));
         // nothing named: a question for a service no page offers
         final ServiceSearch.Result none = ServiceSearch.run(chat(BAU), ServiceSearch.plan("Wer prüft in Musterstadt den Schornstein?"), List.of());
-        assertEquals(0, none.pages.size());
+        assertEquals(0, none.found);
         // only with the release of the search tool
         assertTrue(ServiceSearch.released(false, chat(BAU)));
         assertFalse(ServiceSearch.released(false, null));
@@ -134,15 +151,16 @@ public class ServiceSearchTest {
                 "{\"query\":\"Wer prüft in Musterstadt, ob eine Wand tragend ist?\",\"collection\":\"other-web\"}", false, chat));
         assertEquals("collection " + BAU, r.getString("scope"));
         assertEquals("Musterstadt", r.getString("place"));
-        final org.json.JSONArray pages = r.getJSONArray("sources");
-        assertEquals("https://www.ostermann-statik.example/", pages.getJSONObject(0).getString("url"));
-        assertTrue(pages.getJSONObject(0).getBoolean("names_place"));
-        assertFalse(pages.getJSONObject(1).getBoolean("names_place"));
+        final org.json.JSONArray providers = r.getJSONArray("providers");
+        assertEquals(2, r.getInt("found"));
+        assertEquals("https://www.ostermann-statik.example/", providers.getJSONObject(0).getString("url"));
+        assertEquals(ServiceSearch.SERVES_PLACE, providers.getJSONObject(0).getString("place"));
+        assertEquals(ServiceSearch.NO_PLACE, providers.getJSONObject(1).getString("place"));
         assertFalse(r.toString(), r.toString().contains("FREMDMARKE"));
-        assertEquals("[1]", pages.getJSONObject(0).getString("cite"));
+        assertEquals("[1]", providers.getJSONObject(0).getString("cite"));
         // the model's own words without a question for a provider
         r = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search", "{\"query\":\"Tragwerksplanung Musterstadt\"}", false, chat));
-        assertEquals("https://www.ostermann-statik.example/", r.getJSONArray("sources").getJSONObject(0).getString("url"));
+        assertEquals("https://www.ostermann-statik.example/", r.getJSONArray("providers").getJSONObject(0).getString("url"));
         // a scope without the graph is enough for it; without a scope the tool does not exist
         assertTrue(net.yacy.ai.ToolProvider.offered("provider_search", false, chat));
         assertFalse(net.yacy.ai.ToolProvider.offered("provider_search", true, null));

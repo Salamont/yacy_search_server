@@ -44,6 +44,26 @@ public final class ToolContext {
         List<RagCandidate> search(RagQuery concepts, String query, String collection, int count);
     }
 
+    /**
+     * The local index read directly (no search event, no ranking cache): the pages of one collection (null: all) whose
+     * title, description or text holds every word (as a word or the start of one), optionally only among {@code urls},
+     * from {@code offset}, at most {@code count}; with the total of the matching pages. Replaceable in tests.
+     */
+    public interface Index {
+        IndexPage find(List<String> words, String collection, java.util.Collection<String> urls, int offset, int count) throws Exception;
+    }
+
+    /** One page of an {@link Index} query and the total of its matching pages. */
+    public static final class IndexPage {
+        public final List<RagCandidate> pages;
+        public final long total;
+
+        public IndexPage(final List<RagCandidate> pages, final long total) {
+            this.pages = pages;
+            this.total = total;
+        }
+    }
+
     /** The read layer of the knowledge graph, replaceable in tests. */
     public interface Graph {
         /** The reader; null while the graph is off or not running. */
@@ -76,6 +96,7 @@ public final class ToolContext {
     public final String runId;
     private final Searcher searcher;
     private final Graph graphSource;
+    private Index index;
     private final Supplier<Long> clock;
     private List<RagContext.Source> sources = new ArrayList<>();
     private int added;
@@ -269,6 +290,29 @@ public final class ToolContext {
      * The local search within the chat's scope as the retrieval of the answer does it, for a search of the server
      * ({@link ServiceSearch}): pages of other collections dropped, never the network. Not counted as a tool call.
      */
+    /** The direct index of this chat (null: none; the searches then fall back to {@link #pages}). */
+    public ToolContext withIndex(final Index index) {
+        this.index = index;
+        return this;
+    }
+
+    public boolean hasIndex() {
+        return this.index != null;
+    }
+
+    /**
+     * The pages of this chat's scope that hold every word, optionally only among {@code urls}: the collection is the
+     * chat's, whatever the caller passes; pages of another collection are dropped.
+     */
+    public IndexPage indexPages(final List<String> words, final java.util.Collection<String> urls, final int offset, final int count)
+            throws Exception {
+        if (this.index == null) return new IndexPage(new ArrayList<>(), 0L);
+        final IndexPage page = this.index.find(words, this.collection, urls, offset, count);
+        final List<RagCandidate> own = new ArrayList<>();
+        for (final RagCandidate c : page.pages) if (c != null && c.inCollection(this.collection)) own.add(c);
+        return new IndexPage(own, page.total);
+    }
+
     /**
      * The local index's pages for {@code query} within this chat's scope, at most {@code count}, in the index's order; pages
      * of another collection dropped (the job search maps them to the postings of the graph).

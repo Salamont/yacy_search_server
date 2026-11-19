@@ -121,18 +121,27 @@ public final class PromptGuard {
      */
     public static String jobSearchNote(final int found, final int shown, final boolean lowerBound, final java.util.List<String> searched,
             final java.util.List<String> criteria, final String scope) {
+        return jobSearchNote(found, shown, lowerBound ? java.util.List.of("the search ran out of its budget") : java.util.List.of(), searched,
+                criteria, scope);
+    }
+
+    /** As above; {@code gaps} names why the count is only a lower bound (none: the whole released stock was searched). */
+    public static String jobSearchNote(final int found, final int shown, final java.util.List<String> gaps, final java.util.List<String> searched,
+            final java.util.List<String> criteria, final String scope) {
+        final boolean lowerBound = !gaps.isEmpty();
+        final String why = lowerBound ? " (" + neutralize(String.join("; ", gaps)) + ")" : "";
         final String words = neutralize(String.join(", ", searched));
         final String where = "the job postings of its knowledge graph in " + neutralize(scope) + " (searched: " + words + ")";
         if (found == 0) {
             return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro also searched " + where
-                    + (lowerBound ? " within its time and size budget and found none there. Say that the search found no matching "
-                            + "posting within its budget; do not say that the index holds none."
+                    + (lowerBound ? " within its time and size budget and found none there" + why + ". Say that the search found no "
+                            + "matching posting within its budget; do not say that the index holds none."
                             : " and found none. Say plainly that no matching job posting was found.")
                     + " Never present a company page, a service or a list of names as a job posting, and never invent one.";
         }
         final String count = (lowerBound ? "at least " + found : String.valueOf(found)) + " matching posting" + (found == 1 ? "" : "s");
         return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro searched " + where + " and found "
-                + count + (lowerBound ? " (the search ran out of its budget, so there may be more)" : "") + "; " + shown
+                + count + (lowerBound ? ", a lower bound" + why + ", so there may be more" : "") + "; " + shown
                 + (shown == 1 ? " is" : " are") + " given as the first sources, titled \"job posting\". Name each relevant posting with its "
                 + "title, employer and its number [n] (the number links its original page), and say how many were found and how many "
                 + "are shown." + (criteria.isEmpty() ? "" : " The subjects of the question are " + neutralize(String.join(", ", criteria))
@@ -142,32 +151,39 @@ public final class PromptGuard {
     }
 
     /**
-     * What the model is told after the server searched again for the service and the place of a question for a provider
-     * ({@link net.yacy.ai.rag.ServiceSearch}).
+     * What the model is told after the server searched the providers of a service ({@link net.yacy.ai.rag.ServiceSearch}).
      *
-     * @param found      pages given as the first sources
-     * @param searched   the searches
+     * @param found      providers determined in the scope, each once (before the limit of the answer)
+     * @param shown      providers given as the first sources
+     * @param gaps       why the count is only a lower bound (none: the whole released stock was searched)
      * @param place      the place of the question, or null
-     * @param placeNamed numbers of the pages that name the place
+     * @param placeNamed numbers of the providers with an evidenced location in or service area of the place
      */
-    public static String serviceSearchNote(final int found, final java.util.List<String> searched, final String place,
-            final java.util.List<Integer> placeNamed, final String scope) {
+    public static String serviceSearchNote(final int found, final int shown, final java.util.List<String> gaps,
+            final java.util.List<String> searched, final String place, final java.util.List<Integer> placeNamed, final String scope) {
         final String words = neutralize(String.join("\", \"", searched));
+        final boolean lowerBound = !gaps.isEmpty();
+        final String why = lowerBound ? " (" + neutralize(String.join("; ", gaps)) + ")" : "";
         if (found == 0) {
-            return "\n\nProviders: the automatic search of this question matched weakly, so Scoutro searched " + neutralize(scope)
-                    + " again for the service the question asks for (\"" + words + "\") and found no page that names it. Say plainly "
-                    + "that no matching provider was found; never present a page that does not name the service as a provider of it.";
+            return "\n\nProviders: Scoutro searched the providers of the service the question asks for in " + neutralize(scope)
+                    + " (\"" + words + "\")" + (lowerBound ? " within its time budget and found none there" + why + ". Say that the search "
+                            + "found no matching provider within its budget; do not say that the index holds none."
+                            : " and found none. Say plainly that no matching provider was found.")
+                    + " Never present a page that does not name the service as a provider of it.";
         }
-        final StringBuilder note = new StringBuilder("\n\nProviders: the automatic search of this question matched weakly, so Scoutro "
-                + "searched " + neutralize(scope) + " again for the service the question asks for (\"" + words + "\"). The " + found
-                + " pages found are the first sources; each names the service. Name a provider only with what its page states and its "
-                + "number [n] (the number links the page).");
+        final StringBuilder note = new StringBuilder("\n\nProviders: Scoutro searched the providers of the service the question asks "
+                + "for in " + neutralize(scope) + " (\"" + words + "\") and found " + (lowerBound ? "at least " : "") + found + " provider"
+                + (found == 1 ? "" : "s") + (lowerBound ? ", a lower bound" + why + ", so there may be more" : "") + "; " + shown
+                + (shown == 1 ? " is" : " are") + " given as the first sources, titled \"Provider\", each counted once over its pages. Say how "
+                + "many were found and how many are shown; name a provider only with what its source states and its number [n] (the "
+                + "number links its page).");
         if (place != null) {
             final java.util.List<String> numbers = new java.util.ArrayList<>();
             for (final Integer n : placeNamed) numbers.add("[" + n + "]");
-            note.append(numbers.isEmpty() ? " None of them names " + neutralize(place) + ": say so."
-                    : " Only " + String.join(", ", numbers) + " name " + neutralize(place) + "; for any other say that its page does not name "
-                            + neutralize(place) + ".");
+            note.append(numbers.isEmpty() ? " None of them has an evidenced location in or service area of " + neutralize(place) + ": say so."
+                    : " Only " + String.join(", ", numbers) + " have an evidenced location in or service area of " + neutralize(place)
+                            + " (each source says which); a provider whose page only mentions " + neutralize(place)
+                            + " is not located there and does not serve it by that.");
         }
         return note.toString();
     }

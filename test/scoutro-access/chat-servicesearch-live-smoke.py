@@ -13,11 +13,14 @@ bau-web: a house gallery with the words of the question, an engineering office i
 other-web: an engineering office in Musterstadt that a chat of bau-web must never see. Through /v1/chat/completions:
 
 1. an account of bau-web asks the question: the automatic search finds the gallery only; the service search
-   finds the office in Musterstadt first, the one in Nebenstadt after it (not naming Musterstadt); the model cites the office's page;
+   determines the providers in the graph and the whole index: the office located in Musterstadt (its address in the graph)
+   first, the one in Nebenstadt after it; each once; the model cites the office's page;
 2. the follow-up "Such noch mal" in the same chat searches with the goal of the conversation;
 3. a question for a service no page offers: the answer says that no provider was found;
 4. the collection boundary: nothing of other-web for the account, the administrator's whole index finds it (control);
-5. no service search where none belongs (a question that is not for a provider); a job question keeps the job search.
+5. no service search where none belongs (a question that is not for a provider); a job question keeps the job search;
+6. more than eight providers (one on two pages), a question for their number after strong first hits, the tool, and the
+   index's search events cold and warm: the same providers, each once.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_SERVICES_DUMP=<file> writes what the stub received.
 """
@@ -71,7 +74,7 @@ PAGES = [
 def no_tools_model(body):
     """A model that never calls a tool: the first source naming the service and Musterstadt, or none."""
     user = next((tools.content_text(m) for m in reversed(body["messages"]) if m.get("role") == "user"), "")
-    if "found no page that names it" in tools.content_text(body["messages"][0]):  # the server's rule: no provider of this service
+    if "and found none" in tools.content_text(body["messages"][0]):  # the server's rule: no provider of this service
         return "answer", "In den Quellen ist kein passender Anbieter belegt."
     for number, title, url, text in ENTRY.findall(user):
         if re.search(r"tragwerksplanung|statik", text, re.I) and "Musterstadt" in text:
@@ -121,14 +124,17 @@ def run(base, digest):
     check(gallery and retrieval.get("collection") == BAU and retrieval.get("followUp") is False,
           "service: the automatic search found the house gallery", json.dumps(retrieval))
     check(sv.get("triggered") and sv.get("scope") == f"collection {BAU}" and sv.get("services") == ["Tragwerksplanung", "Statiker", "Statik"]
-          and sv.get("place") == "Musterstadt" and sv.get("searched", [None])[0] == "Tragwerksplanung Musterstadt" and len(sv.get("searched", [])) <= 4,
-          "service: service and place derived, a few targeted searches", json.dumps(sv))
-    check(sv.get("found") == 2 and sv.get("placeNamedBy") == [1], "service: two offices found, only the first names Musterstadt", json.dumps(sv))
+          and sv.get("place") == "Musterstadt" and "index: Tragwerksplanung" in sv.get("searched", []) and "graph service: Statik" in sv.get("searched", [])
+          and sv.get("lowerBound") is False, "service: service and place derived; the graph and the whole index searched", json.dumps(sv))
+    check(sv.get("found") == 2 and sv.get("shown") == 2 and sv.get("placeNamedBy") == [1] and sv.get("perPlace", {}).get("location") == 1,
+          "service: two offices found, each once; only the first located in Musterstadt (its address in the graph)", json.dumps(sv))
     check(listed.get(1, {}).get("url") == office and listed.get(2, {}).get("url") == f"https://{RHEINBLICK}/"
-          and 0 <= prompt.find("[1] Ingenieurbüro Ostermann") < prompt.find("Hausgalerie: Einfamilienhaus"),
+          and 0 <= prompt.find("[1] Provider Ingenieurbüro Ostermann") < prompt.find("Hausgalerie: Einfamilienhaus")
+          and "Located in Musterstadt: address in the graph" in prompt,
           "service: the office's page is source [1], before the gallery", json.dumps(listed.get(1)))
-    check("Providers: the automatic search of this question matched weakly" in system and "Only [1] name Musterstadt" in system,
-          "service: the server rules name the search and which page names the place")
+    check("Providers: Scoutro searched the providers" in system and "found 2 providers; 2 are given" in system
+          and "Only [1] have an evidenced location in or service area of Musterstadt" in system,
+          "service: the server rules give found and shown and which provider is evidenced in the place")
     citations = answer["meta"].get("scoutro-citations", {})
     check("[1]" in answer["text"] and citations.get("invalid") == [] and next((s for s in citations.get("support", []) if s.get("id") == 1), {})
           .get("verdict") == "supported", "service: the answer cites the office's page, the check finds it supported",
@@ -147,7 +153,7 @@ def run(base, digest):
     status, answer, requests = tools.chat(bert, "Wer prüft in Musterstadt den Schornstein?", no_tools_model)
     sv = services(answer) or {}
     system = tools.content_text(requests[0]["body"]["messages"][0]) if requests else ""
-    check(status == 200 and sv.get("triggered") and sv.get("found") == 0 and "found no page that names it" in system
+    check(status == 200 and sv.get("triggered") and sv.get("found") == 0 and sv.get("lowerBound") is False and "and found none" in system
           and "kein passender Anbieter" in answer["text"], "zero: searched, no provider, the answer says so", json.dumps(sv))
 
     # 4. the collection boundary
@@ -166,6 +172,51 @@ def run(base, digest):
     status, answer, requests = tools.chat(bert, "Welche Stellenanzeigen für Statiker gibt es in Musterstadt?", no_tools_model)
     check(status == 200 and services(answer) is None and (answer["meta"].get("scoutro-jobsearch") or {}).get("triggered"),
           "a job question keeps the job search (type=job), no service search", json.dumps(answer["meta"].get("scoutro-jobsearch")))
+
+    # 6. more than eight providers (nine more offices, each its own host; one of them twice, on two pages), a question for all
+    # of them: the full search after strong first hits; the tool; the index's search events cold and warm
+    more = [(f"https://www.statik-{n}-scoutro-test.de/", BAU, page(f"Statikbüro Nummer {n}", f"Statikbüro Nummer {n}",
+             f"www.statik-{n}-scoutro-test.de", f"Statikbüro Nummer {n}: Tragwerksplanung für Wohnhäuser.", "Nebenstadt")) for n in range(1, 10)]
+    more.append(("https://www.statik-1-scoutro-test.de/leistungen", BAU, page("Leistungen", "Statikbüro Nummer 1", "www.statik-1-scoutro-test.de",
+                 "Tragwerksplanung, Statik und Brandschutz.", "Nebenstadt")))
+    for url, collection, html in more:
+        check(tools.push(digest, url, html, collection), "push " + url)
+    deadline = tools.time.monotonic() + 180
+    while tools.time.monotonic() < deadline:
+        n = 0
+        for url, _, _ in more:
+            status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=" + urllib.parse.quote(f'sku:"{url}"'))
+            n += 1 if isinstance(solr, dict) and solr.get("response", {}).get("numFound") else 0
+        if n == len(more):
+            break
+        tools.time.sleep(0.5)
+    timings = {}
+    all_q = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?"
+    t0 = tools.time.monotonic()
+    status, answer, requests = tools.chat(bert, all_q, no_tools_model)
+    timings["all, cold"] = round(tools.time.monotonic() - t0, 2)
+    cold = services(answer) or {}
+    check(status == 200 and cold.get("triggered") and cold.get("found") == 11 and cold.get("shown", 0) <= 6 and cold.get("lowerBound") is False
+          and cold.get("perPlace", {}).get("location") == 1, "many: 11 providers determined (more than 8), each office once over its pages",
+          json.dumps(cold)[:700])
+    for words in ("Tragwerksplanung", "Tragwerksplanung Musterstadt"):
+        digest.call("GET", "/yacysearch.json?resource=local&maximumRecords=50&query=" + urllib.parse.quote(words))
+    t0 = tools.time.monotonic()
+    status, answer, requests = tools.chat(bert, all_q, no_tools_model)
+    timings["all, warm"] = round(tools.time.monotonic() - t0, 2)
+    warm = services(answer) or {}
+    check(warm.get("found") == cold.get("found") and warm.get("perPlace") == cold.get("perPlace"),
+          "cache: the same providers with the index's search events cold and warm", json.dumps(warm.get("perPlace")))
+    status, answer, requests = tools.chat(bert, "Welche Statiker gibt es?", lambda body: (
+        ("call", "provider_search", {"query": "Tragwerksplanung Musterstadt"}) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")))
+    done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+    result = done[0][1] if done else {}
+    check(status == 200 and result.get("found") == 11 and result.get("shown") == 6 and result.get("lower_bound") is False
+          and tools.none_of(json.dumps(result, ensure_ascii=False), FOREIGN_MARKERS), "tool: provider_search determines the same providers",
+          json.dumps({k: v for k, v in result.items() if k != "providers"}))
+    print(f"PROVIDERS: offices pushed=12 pages (11 providers in bau-web, one of them on two pages; one in other-web), found={warm.get('found')},"
+          f" shown={warm.get('shown')}, perPlace={warm.get('perPlace')}; search ms cold={cold.get('millis')} warm={warm.get('millis')};"
+          f" chat request s={timings}", flush=True)
 
 
 def main():

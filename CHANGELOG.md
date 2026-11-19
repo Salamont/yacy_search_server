@@ -2,7 +2,18 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.3) — the job search reads the whole released stock
+## Unreleased (on 0.14.3-rc.3) — the job and provider search read the whole released stock
+
+Second step: the job search reads every posting of the scope to the end of the stock (no stop after 5,000) and asks the
+text of every posting's own page through the direct index (Solr read directly, by the postings' known addresses, the
+request's collection as a filter), so a posting's text counts whichever page of its host ranks first; the provider search
+determines its providers in the graph (offered services, provider names, the organisation of a page's host) and in every
+page of the index that names the service (no stop after eight pages), counts each provider once over its pages, and tells
+apart a location in the place, a service area and a mere mention. A question for all results or their number runs the
+full search also after strong first hits. Both report found and shown, and a lower bound with its reason; the automatic
+paths and the tools `job_search` and `provider_search` share their search.
+
+First step:
 
 The job search (automatic and `job_search`, one search) determines the matching postings of the request's scope before
 the answer's limit: the name index for the title variants, every posting of the scope with its facts and the excerpts of
