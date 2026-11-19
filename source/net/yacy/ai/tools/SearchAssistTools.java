@@ -51,28 +51,23 @@ public final class SearchAssistTools {
                 out.put("subjects", new JSONArray(plan.criteria())).put("searched", new JSONArray(result.searched));
                 out.put("found", result.found).put("lower_bound", result.lowerBound()).put("per_subject", new JSONObject(result.perSubject));
                 if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
-                final JSONArray postings = new JSONArray();
+                final java.util.List<Entry> entries = new java.util.ArrayList<>();
                 for (final JobSearch.Job job : result.jobs) {
                     final JobSearch.Built one = JobSearch.format(new JobSearch.Result(result.plan, java.util.List.of(job), result.searched,
                             result.timedOut, result.error, result.millis), 1, 2000, context.scopeLabel(), false);
                     if (one.sources.isEmpty()) continue;
                     final RagContext.Source entry = one.sources.get(0);
-                    final RagContext.Source source = context.source(entry.title, entry.url, entry.collection, RagContext.Source.KIND_GRAPH,
-                            entry.text());
-                    final JSONObject p = new JSONObject(true);
-                    p.put("cite", "[" + source.id + "]");
-                    p.put("url", entry.url);
-                    p.put("text", entry.text());
-                    postings.put(p);
+                    entries.add(new Entry(entry.title, entry.url, entry.collection, RagContext.Source.KIND_GRAPH, entry.text(),
+                            new JSONObject(true).put("url", entry.url)));
                 }
-                out.put("postings", postings).put("shown", postings.length());
                 if (result.error != null) out.put("error", result.error);
                 final String found = (result.lowerBound() ? "at least " : "") + result.found;
-                out.put("note", postings.length() == 0
-                        ? (result.lowerBound() ? "No matching job posting found within the search budget in " + context.scopeLabel() + "; do not"
-                                + " say that the index holds none." : "No matching job posting in " + context.scopeLabel() + ". Say that none was found.")
-                                + " Never present a company page as a posting."
-                        : "Found " + found + " matching postings, shown " + postings.length() + ": say both numbers. Cite each posting as [n];"
+                fit(context, out, "postings", entries, shown -> shown == 0
+                        ? (result.found > 0 ? "Found " + found + " matching postings; none fits into this answer's room: say the number"
+                                + " and suggest a narrower request." : (result.lowerBound() ? "No matching job posting found within the"
+                                + " search budget in " + context.scopeLabel() + "; do not say that the index holds none." : "No matching job"
+                                + " posting in " + context.scopeLabel() + ". Say that none was found.") + " Never present a company page as a posting.")
+                        : "Found " + found + " matching postings, shown " + shown + ": say both numbers. Cite each posting as [n];"
                                 + " a PARTIAL MATCH shows only some subjects: say which it does not show. The postings count as current; give the"
                                 + " dates they state and no remark about missing dates.");
                 return out;
@@ -82,14 +77,17 @@ public final class SearchAssistTools {
 
     public static ToolHandler providerSearch() {
         return new Tool(PROVIDER_SEARCH, false, "Search this chat's collections for the providers of a service in a place. Give the"
-                + " request in its words, e.g. \"Wer hilft in Musterstadt bei Schimmel im Keller?\" or \"Schimmelsanierung Musterstadt\";"
-                + " the server derives the service (here Schimmelsanierung) and the place and searches the knowledge graph's offered"
-                + " services and all pages of the index that name the service. Returns how many providers were found (each once), the"
-                + " most relevant ones as [n], and for each whether it is located in the place, serves it, or only mentions it.") {
+                + " request in its words, e.g. \"Wer hilft in Musterstadt bei Schimmel im Keller?\", or the service and the place,"
+                + " e.g. \"Schimmelsanierung Musterstadt\" or \"Schimmelsanierung in Musterstadt\" (the same search); name the place"
+                + " in \"place\" when the words leave it unclear. The server derives the service (here Schimmelsanierung) and searches"
+                + " the knowledge graph's offered services and all pages of the index that name the service. Returns how many providers"
+                + " were found (each once), the most relevant ones as [n], and for each whether it is located in the place, serves it,"
+                + " or only mentions it.") {
             @Override
             JSONObject run(final JSONObject args, final ToolContext context) throws Exception {
                 final String query = query(args);
-                final ServiceSearch.Plan plan = ServiceSearch.planAny(query);
+                final String place = args.isNull("place") ? null : args.optString("place", "").trim();
+                final ServiceSearch.Plan plan = ServiceSearch.planAny(query, place == null || place.isEmpty() ? null : place);
                 if (plan == null) throw new IllegalArgumentException("Give the service or the problem, and the place if there is one");
                 final ServiceSearch.Result result = ServiceSearch.run(context, plan, java.util.List.of());
                 final JSONObject out = new JSONObject(true).put("tool", PROVIDER_SEARCH).put("scope", context.scopeLabel()).put("local", true);
@@ -98,34 +96,132 @@ public final class SearchAssistTools {
                 out.put("found", result.found).put("lower_bound", result.lowerBound());
                 if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
                 if (plan.place != null) out.put("per_place", new JSONObject(result.perPlace));
-                final JSONArray providers = new JSONArray();
+                final java.util.List<Entry> entries = new java.util.ArrayList<>();
                 for (final ServiceSearch.Provider provider : result.providers) {
                     final ServiceSearch.Built one = ServiceSearch.format(new ServiceSearch.Result(plan, java.util.List.of(provider), 1,
                             java.util.Map.of(), result.searched, java.util.List.of(), false, 0L), 1, 2000, context.scopeLabel(), false);
                     if (one.sources.isEmpty()) continue;
                     final RagContext.Source entry = one.sources.get(0);
-                    final RagContext.Source source = context.source(entry.title, entry.url, entry.collection, entry.kind, entry.text());
                     final JSONObject p = new JSONObject(true);
-                    p.put("cite", "[" + source.id + "]");
                     p.put("name", provider.name);
                     p.put("url", entry.url);
                     p.put("pages", provider.pages.size());
                     p.put("evidence", provider.byGraph && provider.byText ? "graph and page" : provider.byGraph ? "graph" : "page");
                     if (plan.place != null) p.put("place", provider.place);
-                    p.put("text", entry.text());
-                    providers.put(p);
+                    entries.add(new Entry(entry.title, entry.url, entry.collection, entry.kind, entry.text(), p));
                 }
-                out.put("providers", providers).put("shown", providers.length());
                 final String found = (result.lowerBound() ? "at least " : "") + result.found;
-                out.put("note", providers.length() == 0
-                        ? (result.lowerBound() ? "No provider found within the search budget in " + context.scopeLabel() + "; do not say that"
-                                + " the index holds none." : "No provider of this service in " + context.scopeLabel() + ". Say that none was found.")
-                        : "Found " + found + " providers, shown " + providers.length() + ": say both numbers. Name a provider only with what its"
+                fit(context, out, "providers", entries, shown -> shown == 0
+                        ? (result.found > 0 ? "Found " + found + " providers; none fits into this answer's room: say the number and"
+                                + " suggest a narrower request." : result.lowerBound() ? "No provider found within the search budget in "
+                                + context.scopeLabel() + "; do not say that the index holds none." : "No provider of this service in "
+                                + context.scopeLabel() + ". Say that none was found.")
+                        : "Found " + found + " providers, shown " + shown + ": say both numbers. Name a provider only with what its"
                                 + " source states, cited as [n]." + (plan.place == null ? "" : " place: location or service_area is evidenced;"
                                 + " mentioned or none is no evidence of " + plan.place + ": say so."));
                 return out;
             }
+
+            @Override
+            JSONObject properties() throws JSONException {
+                return super.properties().put("place", new JSONObject(true).put("type", "string")
+                        .put("description", "Optional: the town or area, if the request's words leave it unclear, e.g. \"Musterstadt\"."));
+            }
         };
+    }
+
+    /** One result entry of a tool before it is fitted to the room: its source and its other fields. */
+    static final class Entry {
+        final String title, url, collection, kind, text;
+        final JSONObject fields;
+
+        Entry(final String title, final String url, final String collection, final String kind, final String text, final JSONObject fields) {
+            this.title = title;
+            this.url = url;
+            this.collection = collection;
+            this.kind = kind;
+            this.text = text == null ? "" : text;
+            this.fields = fields;
+        }
+    }
+
+    /** the lengths a result entry's text is shortened to, in this order, before entries are left out */
+    static final int[] TEXT_LEVELS = {2000, 900, 500, 260, 140};
+    /** room kept free for the longer citation numbers and the escaping of the result */
+    static final int FIT_MARGIN = 80;
+
+    /** The text cut at a word boundary to at most {@code max} characters (with an ellipsis). */
+    static String shorten(final String text, final int max) {
+        if (text.length() <= max) return text;
+        int cut = Math.max(0, max - 1);
+        final int space = text.lastIndexOf(' ', cut);
+        if (space > max / 2) cut = space;
+        return text.substring(0, cut).trim() + "…";
+    }
+
+    /**
+     * Puts the entries under {@code key} so that the whole result stays within the tool room of the answer: first the texts
+     * are shortened, then entries are left out from the end. Totals in {@code out} are kept; {@code shown}, the note and,
+     * when anything was shortened or left out, {@code shortened} and {@code not_shown} tell what the answer holds. Only the
+     * entries kept become numbered sources. Returns how many were kept.
+     */
+    static int fit(final ToolContext context, final JSONObject out, final String key, final java.util.List<Entry> entries,
+            final java.util.function.IntFunction<String> note) throws JSONException {
+        final int room = Math.max(0, context.room() - FIT_MARGIN);
+        int keep = entries.size();
+        int level = 0;
+        while (true) {
+            render(out, key, entries, keep, TEXT_LEVELS[level], note, null);
+            if (size(out) <= room) break;
+            if (level < TEXT_LEVELS.length - 1) level++;
+            else if (keep > 0) keep--;
+            else if (out.opt("searched") instanceof JSONArray) {
+                // nothing but the totals fits: the list of searches becomes its number
+                out.put("searched_count", out.getJSONArray("searched").length());
+                out.remove("searched");
+            } else break;
+        }
+        render(out, key, entries, keep, TEXT_LEVELS[level], note, context);
+        return keep;
+    }
+
+    private static void render(final JSONObject out, final String key, final java.util.List<Entry> entries, final int keep,
+            final int textChars, final java.util.function.IntFunction<String> note, final ToolContext register) throws JSONException {
+        final JSONArray list = new JSONArray();
+        boolean shortened = false;
+        for (int i = 0; i < keep; i++) {
+            final Entry e = entries.get(i);
+            final String text = shorten(e.text, textChars);
+            shortened |= text.length() < e.text.length();
+            // while measuring, a citation number as long as any this answer can have; registered only when kept
+            final String cite = register == null ? "[999]" : "[" + register.source(e.title, e.url, e.collection, e.kind, text).id + "]";
+            final JSONObject one = new JSONObject(true).put("cite", cite);
+            for (final String k : orderedNames(e.fields)) one.put(k, e.fields.get(k));
+            one.put("text", text);
+            list.put(one);
+        }
+        out.put(key, list).put("shown", keep);
+        out.remove("shortened");
+        out.remove("not_shown");
+        if (shortened || keep < entries.size()) {
+            out.put("shortened", true);
+            if (keep < entries.size()) out.put("not_shown", entries.size() - keep);
+        }
+        out.put("note", note.apply(keep) + (shortened || keep < entries.size()
+                ? " The texts were shortened" + (keep < entries.size() ? " and " + (entries.size() - keep) + " entries left out" : "")
+                + " to fit this answer's room." : ""));
+    }
+
+    private static String[] orderedNames(final JSONObject o) {
+        final java.util.List<String> names = new java.util.ArrayList<>();
+        final java.util.Iterator<String> it = o.keys();
+        while (it.hasNext()) names.add(it.next());
+        return names.toArray(new String[0]);
+    }
+
+    /** the size of a result as the tool context measures it */
+    static int size(final JSONObject out) {
+        return net.yacy.ai.PromptGuard.neutralize(out.toString()).length();
     }
 
     /** A named search tool of a chat request. */
@@ -148,10 +244,15 @@ public final class SearchAssistTools {
             return q.length() > 400 ? q.substring(0, 400) : q;
         }
 
+        /** the parameters of the tool; query is required */
+        JSONObject properties() throws JSONException {
+            return new JSONObject(true).put("query", new JSONObject(true).put("type", "string")
+                    .put("description", "The request in its own words, or its subjects and the place."));
+        }
+
         @Override
         public JSONObject definition() throws JSONException {
-            final JSONObject props = new JSONObject(true).put("query", new JSONObject(true).put("type", "string")
-                    .put("description", "The request in its own words, or its subjects and the place."));
+            final JSONObject props = properties();
             final JSONObject fn = new JSONObject(true).put("name", this.name).put("description", this.description)
                     .put("parameters", new JSONObject(true).put("type", "object").put("properties", props).put("required", new JSONArray().put("query")));
             return new JSONObject(true).put("type", "function").put("function", fn);

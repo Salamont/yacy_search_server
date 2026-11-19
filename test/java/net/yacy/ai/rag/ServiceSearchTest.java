@@ -50,12 +50,16 @@ public class ServiceSearchTest {
 
     /** A search like the index: every page with a word of the query, of every collection (the scope check is the code's). */
     ToolContext chat(final String collection) {
+        return chat(collection, 16000);
+    }
+
+    ToolContext chat(final String collection, final int room) {
         return new ToolContext(collection, true, (concepts, q, c, n) -> {
             this.searched.add(q + " @" + c);
             final List<RagCandidate> out = new ArrayList<>();
             for (final RagCandidate p : this.pages) if (!p.matched(concepts).isEmpty()) out.add(p);
             return out;
-        }, null, 16000, "test").withIndex((words, scope, urls, offset, count) -> {
+        }, null, room, "test").withIndex((words, scope, urls, offset, count) -> {
             this.searched.add("index " + String.join(" ", words) + " @" + scope);
             final List<RagCandidate> all = new ArrayList<>();
             for (final RagCandidate p : this.pages) {
@@ -165,5 +169,104 @@ public class ServiceSearchTest {
         assertTrue(net.yacy.ai.ToolProvider.offered("provider_search", false, chat));
         assertFalse(net.yacy.ai.ToolProvider.offered("provider_search", true, null));
         assertFalse(net.yacy.ai.ToolProvider.offered("job_search", false, chat));
+    }
+
+    @Test
+    public void thePlaceOfAToolRequestWithAndWithoutIn() {
+        for (final String[] c : new String[][] {
+                {"Tragwerksplanung Musterstadt", "Musterstadt"}, {"Tragwerksplanung in Musterstadt", "Musterstadt"},
+                {"Tragwerksplanung Neustadt an der Musterau", "Neustadt an der Musterau"},
+                {"Tragwerksplanung in Neustadt an der Musterau", "Neustadt an der Musterau"},
+                {"Statik Bad Musterbrunn", "Bad Musterbrunn"}, {"Statik in Bad Musterbrunn", "Bad Musterbrunn"},
+                {"Statiker Musterstadt-Nord", "Musterstadt-Nord"}, {"Wer prüft in Musterstadt, ob eine Wand tragend ist?", "Musterstadt"},
+                {"Tragwerksplanung", null}, {"Schimmelsanierung Keller", null}, {"Statik Wanddurchbruch", null}, {"Statik", null}}) {
+            final ServiceSearch.Plan plan = ServiceSearch.planAny(c[0]);
+            assertTrue(c[0], plan != null);
+            assertEquals(c[0], c[1], plan.place);
+        }
+        // the same plan with and without "in"
+        final ServiceSearch.Plan bare = ServiceSearch.planAny("Tragwerksplanung Musterstadt");
+        final ServiceSearch.Plan with = ServiceSearch.planAny("Tragwerksplanung in Musterstadt");
+        assertEquals(with.services, bare.services);
+        assertEquals(with.variants, bare.variants);
+        // the optional place field: given alone, or instead of the words
+        assertEquals("Musterstadt", ServiceSearch.planAny("Statik", "Musterstadt").place);
+        assertEquals("Nebenstadt", ServiceSearch.planAny("Statik Musterstadt", "in Nebenstadt").place);
+        assertEquals("Neustadt an der Musterau", ServiceSearch.planAny("Schimmelsanierung im Keller", "Neustadt an der Musterau").place);
+        assertNull(ServiceSearch.planAny("Statik", " ").place);
+        // a count question names no service "viele"
+        assertEquals(List.of("fliesenleger"), ServiceSearch.planAny("Wie viele Fliesenleger gibt es in Musterstadt?").services.stream()
+                .map(s -> s.toLowerCase(java.util.Locale.ROOT)).toList());
+    }
+
+    @Test
+    public void theNamedProviderSearchToolGivesTheSameWithAndWithoutIn() throws Exception {
+        final ToolContext chat = chat(BAU);
+        final org.json.JSONObject with = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search",
+                "{\"query\":\"Tragwerksplanung in Musterstadt\"}", false, chat));
+        final org.json.JSONObject bare = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search",
+                "{\"query\":\"Tragwerksplanung Musterstadt\"}", false, chat(BAU)));
+        final org.json.JSONObject field = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search",
+                "{\"query\":\"Tragwerksplanung\",\"place\":\"Musterstadt\"}", false, chat(BAU)));
+        final org.json.JSONObject none = new org.json.JSONObject(net.yacy.ai.ToolProvider.executeTool("provider_search",
+                "{\"query\":\"Tragwerksplanung\"}", false, chat(BAU)));
+        for (final org.json.JSONObject r : new org.json.JSONObject[] {with, bare, field}) {
+            assertEquals(r.toString(), "Musterstadt", r.getString("place"));
+            assertEquals(2, r.getInt("found"));
+            assertEquals(with.getJSONObject("per_place").toString(), r.getJSONObject("per_place").toString());
+            assertEquals("https://www.ostermann-statik.example/", r.getJSONArray("providers").getJSONObject(0).getString("url"));
+            assertEquals(ServiceSearch.SERVES_PLACE, r.getJSONArray("providers").getJSONObject(0).getString("place"));
+            assertEquals(ServiceSearch.NO_PLACE, r.getJSONArray("providers").getJSONObject(1).getString("place"));
+        }
+        assertTrue(none.toString(), none.isNull("place"));
+        assertFalse(none.has("per_place"));
+        assertEquals(2, none.getInt("found"));
+        // the definition offers the optional place, the query stays the only required argument
+        final org.json.JSONObject fn = net.yacy.ai.tools.SearchAssistTools.providerSearch().definition().getJSONObject("function");
+        assertTrue(fn.getJSONObject("parameters").getJSONObject("properties").has("place"));
+        assertEquals("[\"query\"]", fn.getJSONObject("parameters").getJSONArray("required").toString());
+    }
+
+    @Test
+    public void theProviderSearchToolStaysWithinTheRoomOfTheAnswer() throws Exception {
+        // nine more offices with long pages; the rc.4 case: a model context of 4,096 tokens (a tool room of 4,096 characters)
+        final String longText = "Tragwerksplanung, Statik und Bauphysik für Wohnhäuser, Gewerbebauten und Bestandsgebäude. ".repeat(14);
+        for (int n = 1; n <= 9; n++) page("https://www.statik-" + n + ".example/", BAU, "Statikbüro Nummer " + n,
+                "Statikbüro Nummer " + n + ": " + longText + " Für Bauherren in Musterstadt und im Umland, Büro in Nebenstadt.");
+        final int room = 4096 * RagContext.CHARS_PER_TOKEN / 3; // RAGProxyServlet.toolResultChars(4096)
+        for (final String query : new String[] {"Tragwerksplanung in Musterstadt", "Tragwerksplanung Musterstadt"}) {
+            final ToolContext chat = chat(BAU, room);
+            final String raw = net.yacy.ai.ToolProvider.executeTool("provider_search", "{\"query\":\"" + query + "\"}", false, chat);
+            final org.json.JSONObject r = new org.json.JSONObject(raw); // valid JSON
+            assertFalse(raw, r.has("error"));
+            assertTrue(raw.length() + "", raw.length() <= room);
+            assertEquals(raw, "Musterstadt", r.getString("place"));
+            assertEquals(11, r.getInt("found"));
+            assertFalse(r.getBoolean("lower_bound"));
+            final org.json.JSONObject perPlace = r.getJSONObject("per_place");
+            assertEquals(11, perPlace.getInt(ServiceSearch.AT_PLACE) + perPlace.getInt(ServiceSearch.SERVES_PLACE)
+                    + perPlace.getInt(ServiceSearch.MENTIONS_PLACE) + perPlace.getInt(ServiceSearch.NO_PLACE));
+            final int shown = r.getInt("shown");
+            assertTrue(raw, shown >= 3 && shown <= ServiceSearch.MAX_SHOWN);
+            assertEquals(shown, r.getJSONArray("providers").length());
+            assertTrue(raw, r.getBoolean("shortened"));
+            assertEquals("only the providers given are sources", shown, chat.sources().size());
+            for (int i = 0; i < shown; i++) {
+                final org.json.JSONObject p = r.getJSONArray("providers").getJSONObject(i);
+                assertEquals("[" + (i + 1) + "]", p.getString("cite"));
+                assertTrue(p.toString(), p.has("place") && p.has("name") && p.has("url"));
+            }
+            assertTrue(r.getString("note"), r.getString("note").contains("Found 11 providers, shown " + shown));
+        }
+        // a room for nothing but the totals: no provider, the counts and categories kept
+        final ToolContext tiny = chat(BAU, ToolContext.MIN_RESULT_CHARS);
+        final String raw = net.yacy.ai.ToolProvider.executeTool("provider_search", "{\"query\":\"Tragwerksplanung Musterstadt\"}", false, tiny);
+        final org.json.JSONObject r = new org.json.JSONObject(raw);
+        assertFalse(raw, r.has("error"));
+        assertTrue(raw, raw.length() <= ToolContext.MIN_RESULT_CHARS);
+        assertEquals(11, r.getInt("found"));
+        assertEquals(0, r.getInt("shown"));
+        assertTrue(raw, r.has("per_place"));
+        assertTrue(tiny.sources().isEmpty());
     }
 }

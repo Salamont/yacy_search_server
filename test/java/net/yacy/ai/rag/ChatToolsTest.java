@@ -790,6 +790,57 @@ public class ChatToolsTest {
     }
 
     @Test
+    public void aCountQuestionHasNoSubjectOfItsOwnAndCountsLikeShowAll() throws Exception {
+        biber("BIBK01host03", "jobs/kalibrierung-1", "Kalibrierung Techniker (m/w/d) Linie 1", "", "Stellenangebot.");
+        biber("BIBK02host03", "jobs/kalibrierung-2", "Ingenieur (m/w/d) Prüfstand", "", "Sie übernehmen die Kalibrierung. Stellenangebot.");
+        // irrelevant postings whose texts carry the words of a count question
+        biber("BIBV01host03", "jobs/projektleitung", "Projektleiter (m/w/d) Bau", "", "Vielseitige Aufgaben erwarten Sie, vielen Dank.");
+        biber("BIBV02host03", "jobs/buchhaltung", "Buchhalter (m/w/d)", "", "Sie haben viele Freiheiten und vielfältige Aufgaben.");
+        biber("BIBV03host03", "jobs/lager", "Lagerist (m/w/d)", "", "Ein Lager mit vielen Regalen, wie viele andere auch, insgesamt alles komplett.");
+        final ToolContext chat = new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(), graph(), 16000, "test")
+                .withIndex(index());
+        final String[] questions = {"Wie viele Stellenanzeigen zu Kalibrierung gibt es?", "Zeige alle Stellenanzeigen zu Kalibrierung",
+                "Wieviele Stellen zur Kalibrierung gibt es insgesamt?", "Anzahl der Stellenanzeigen zu Kalibrierung", "Liste sämtliche Stellen zur Kalibrierung auf"};
+        for (final String q : questions) {
+            assertTrue(q, JobSearch.wantsAll(q)); // the full search still runs
+            final JobSearch.Plan plan = JobSearch.plan(q);
+            assertEquals(q, List.of("Kalibrierung"), plan.criteria());
+            final JobSearch.Result result = JobSearch.run(chat, plan);
+            assertEquals(q + " " + result.perSubject, 2, result.found);
+            assertEquals(q, java.util.Map.of("Kalibrierung", 2), result.perSubject);
+            assertFalse(q, result.lowerBound());
+        }
+        // the tool counts the same
+        final JSONObject r = call(chat, "job_search", "{\"query\":\"Wie viele Stellenanzeigen zu Kalibrierung gibt es?\"}");
+        assertEquals(r.toString(), 2, r.getInt("found"));
+        assertEquals(r.toString(), List.of("Kalibrierung"), List.of(r.getJSONArray("subjects").getString(0)));
+        assertEquals(1, r.getJSONArray("subjects").length());
+    }
+
+    @Test
+    public void theJobSearchToolStaysWithinTheRoomOfTheAnswer() throws Exception {
+        for (int i = 1; i <= 7; i++) biber("BIBR0" + i + "host03", "jobs/kalibrierung-r" + i, "Kalibrierung Techniker (m/w/d) Linie " + i, "",
+                "Stellenangebot. " + "Sie kalibrieren Messgeräte, prüfen Sensoren und dokumentieren die Ergebnisse. ".repeat(12));
+        for (final int room : new int[] {16000, 4096, 1500, 600}) {
+            final ToolContext chat = new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(), graph(), room, "test")
+                    .withIndex(index());
+            final String raw = net.yacy.ai.ToolProvider.executeTool("job_search", "{\"query\":\"Kalibrierung\"}", false, chat);
+            final JSONObject r = new JSONObject(raw); // valid JSON
+            assertFalse(room + " " + raw, r.has("error"));
+            assertTrue(room + " " + raw.length(), raw.length() <= Math.max(room, ToolContext.MIN_RESULT_CHARS));
+            assertEquals(room + " " + raw, 7, r.getInt("found"));
+            assertFalse(r.getBoolean("lower_bound"));
+            final int shown = r.getInt("shown");
+            assertEquals(shown, r.getJSONArray("postings").length());
+            assertEquals("only the postings given are sources", shown, chat.sources().size());
+            for (int i = 0; i < shown; i++) assertEquals("[" + (i + 1) + "]", r.getJSONArray("postings").getJSONObject(i).getString("cite"));
+            if (room == 16000) assertEquals(6, shown);
+            if (room <= 1500) assertTrue(raw, r.optBoolean("shortened"));
+            if (room == 4096) assertTrue(raw, shown >= 3);
+        }
+    }
+
+    @Test
     public void aFactOnlyPostingBehindPosition5000IsFound() throws Exception {
         // about 7,000 postings of one collection, written straight into the graph (the extractors of page() would take minutes);
         // the only posting of the subject shows it in a fact only and comes after the 6,000th

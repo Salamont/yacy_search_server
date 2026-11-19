@@ -308,6 +308,9 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   by default; e.g. `ML: Machine Learning, maschinelles Lernen`). Short names (up to 3 letters) are whole words.
 - **All or how many:** a question for all postings or their number ("alle", "sämtliche", "wie viele", "Anzahl", "how
   many" …; `JobSearch.wantsAll`) runs the full search also after strong first hits, so they never stand in for it.
+  The words of such a question are never a subject (`JobSearch.countWord`): "Wie viele Stellenanzeigen zu X gibt es?" and
+  "Zeige alle Stellenanzeigen zu X" have the subject X only and count the same unique postings (before 0.14.3-rc.5 "viele"
+  was a subject of its own, and postings with "vielen" or "vielseitige" in their text were counted).
 - **The whole released stock, then the limit** (`JobSearch.run`, the same for the automatic search and `job_search`):
   1. the name index (`type=job`), every page of hits of each title variant (at most 500 per variant; the scan below
      reads every posting anyway);
@@ -375,7 +378,11 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   providers or their number (as in section 12). A job question takes the job search of section 12 (`type=job` stays the
   filter for postings) and never this one.
 - **The place:** the town after "in", "bei", "aus", "um", "nahe" (also "Bad …", "… am Main", "Neustadt bei Nebenstadt";
-  a problem word after "bei" is no part of it: "in Musterstadt bei Schimmel"), or a postal code.
+  a problem word after "bei" is no part of it: "in Musterstadt bei Schimmel"), or a postal code. The tool also takes the place
+  without a preposition at the end of its request, after the service: "Tragwerksplanung Musterstadt" and "Tragwerksplanung
+  in Musterstadt" are one search, as are "Statik Neustadt an der Musterau" and "Statik Bad Musterbrunn"; a part of a
+  building or a kind of work there is no place ("Schimmelsanierung Keller"). The optional argument `place` names it when
+  the words leave it unclear; it takes precedence.
 - **The providers of the whole released stock** (`ServiceSearch.run`, the same for the automatic search and
   `provider_search`), within the request's scope and 6 s:
   1. the graph: services named like each service of the plan (`type=service`, every page of hits) and the providers that
@@ -402,7 +409,13 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
 - **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
 - **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, lowerBound, gaps,
   shown, perPlace, placeNamedBy, timedOut, millis}`. Log: `event=rag-servicesearch … found= lowerBound= shown= all= gaps=`.
-  The model can call `provider_search(query)` itself (2 calls per answer); it also takes the model's own words.
+  The model can call `provider_search(query, place?)` itself (2 calls per answer); it also takes the model's own words.
+- **The tool room:** all tool results of an answer share a third of the model's context in characters (at most 16,000;
+  4,096 for a context of 4,096 tokens). `provider_search` and `job_search` fit their result into what is left: first the
+  texts of the entries are shortened (2,000, 900, 500, 260, 140 characters), then entries are left out from the end;
+  `found`, `lower_bound`, `per_place`/`per_subject` stay, `shown` is the number given, `shortened` and `not_shown` say what
+  was cut, and only the entries given become numbered sources. When nothing but the totals fits, the list of searches
+  becomes its number. Before 0.14.3-rc.5 a result with a place did not fit a 4,096-token context (`too_large`).
 - **Limits of the available queries:** a provider of the graph without a page in the scope, or without a name, is not
   counted; two providers on one host without entities of their own count as one; the host lookup reads at most 50 hosts
   (more is a lower bound); the direct index matches the start of words, not a service within a compound.

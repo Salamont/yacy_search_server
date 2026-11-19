@@ -20,7 +20,10 @@ other-web: an engineering office in Musterstadt that a chat of bau-web must neve
 4. the collection boundary: nothing of other-web for the account, the administrator's whole index finds it (control);
 5. no service search where none belongs (a question that is not for a provider); a job question keeps the job search;
 6. more than eight providers (one on two pages), a question for their number after strong first hits, the tool, and the
-   index's search events cold and warm: the same providers, each once.
+   index's search events cold and warm: the same providers, each once;
+7. provider_search with "Tragwerksplanung in Musterstadt", "Tragwerksplanung Musterstadt" and the place field: the same place,
+   providers and categories; a place of several words; no place; long pages within the tool room of a 4,096-token model;
+   only the providers given become numbered sources; a count question names no service "viele".
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_SERVICES_DUMP=<file> writes what the stub received.
 """
@@ -48,6 +51,8 @@ GALLERY, OSTERMANN, RHEINBLICK, FOREIGN = ("www.hausgalerie-scoutro-test.de", "w
 BAU = "bau-web"
 QUESTION = "Wer prüft in Musterstadt, ob eine Wand tragend ist?"
 FOREIGN_MARKERS = ("FREMDMARKE", "fremd-statik")
+# a long page of an office: the evidence the rc.4 provider_search could not fit into the tool room of a 4,096-token model
+LONG_EVIDENCE = "Tragwerksplanung, Statik und Bauphysik für Wohnhäuser, Gewerbebauten und Bestandsgebäude. " * 12
 ENTRY = re.compile(r"^\[(\d+)\] (.+)\nURL: (\S+)(?:\nCollection: \S+)?\nText: (.*)$", re.M)
 
 
@@ -69,6 +74,16 @@ PAGES = [
     (f"https://{FOREIGN}/", "other-web", page("Statik Musterstadt GmbH", "Statik Musterstadt GmbH", FOREIGN,
      "Tragwerksplanung und Statik in Musterstadt. FREMDMARKE", "Musterstadt")),
 ]
+
+
+def wait_entity(digest, name, timeout=180):
+    """until the knowledge graph has read the organisation of a pushed page (its address), or the timeout"""
+    deadline = tools.time.monotonic() + timeout
+    while tools.time.monotonic() < deadline:
+        if tools.kg_get(digest, "entities?q=" + urllib.parse.quote(name)).get("total", 0) >= 1:
+            return True
+        tools.time.sleep(0.5)
+    return False
 
 
 def no_tools_model(body):
@@ -103,6 +118,7 @@ def run(base, digest):
             break
         tools.time.sleep(0.5)
     check(n == len(PAGES), "four invented pages searchable", str(n))
+    wait_entity(digest, "Ostermann")  # the graph's address of the office (its location), not only the text of its page
     admin = Client(base)
     admin.login("admin", "yacy")
     status, body, _ = admin.call("POST", "/scoutro/api/v1/users", {"username": "bert", "role": "research", "collections": [BAU],
@@ -176,7 +192,8 @@ def run(base, digest):
     # 6. more than eight providers (nine more offices, each its own host; one of them twice, on two pages), a question for all
     # of them: the full search after strong first hits; the tool; the index's search events cold and warm
     more = [(f"https://www.statik-{n}-scoutro-test.de/", BAU, page(f"Statikbüro Nummer {n}", f"Statikbüro Nummer {n}",
-             f"www.statik-{n}-scoutro-test.de", f"Statikbüro Nummer {n}: Tragwerksplanung für Wohnhäuser.", "Nebenstadt")) for n in range(1, 10)]
+             f"www.statik-{n}-scoutro-test.de", f"Statikbüro Nummer {n}: Tragwerksplanung für Wohnhäuser. " + LONG_EVIDENCE, "Nebenstadt"))
+            for n in range(1, 10)]
     more.append(("https://www.statik-1-scoutro-test.de/leistungen", BAU, page("Leistungen", "Statikbüro Nummer 1", "www.statik-1-scoutro-test.de",
                  "Tragwerksplanung, Statik und Brandschutz.", "Nebenstadt")))
     for url, collection, html in more:
@@ -211,9 +228,79 @@ def run(base, digest):
         ("call", "provider_search", {"query": "Tragwerksplanung Musterstadt"}) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")))
     done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
     result = done[0][1] if done else {}
-    check(status == 200 and result.get("found") == 11 and result.get("shown") == 6 and result.get("lower_bound") is False
-          and tools.none_of(json.dumps(result, ensure_ascii=False), FOREIGN_MARKERS), "tool: provider_search determines the same providers",
-          json.dumps({k: v for k, v in result.items() if k != "providers"}))
+    check(status == 200 and "error" not in result and result.get("found") == 11 and 1 <= result.get("shown", 0) <= 6
+          and result.get("lower_bound") is False and tools.none_of(json.dumps(result, ensure_ascii=False), FOREIGN_MARKERS),
+          "tool: provider_search determines the same providers", json.dumps({k: v for k, v in result.items() if k != "providers"}))
+
+    # 7. the tool with and without "in", the place field, a place of several words, no place, within the tool room of the
+    # simulated model's context (the default 4,096 tokens: 4,096 characters for all tool results of an answer)
+    auen = "www.auenblick-statik-scoutro-test.de"
+    check(tools.push(digest, f"https://{auen}/", page("Statikbüro Auenblick", "Statikbüro Auenblick", auen,
+          "Statikbüro Auenblick: Statik und Tragwerksplanung in Neustadt an der Musterau. " + LONG_EVIDENCE, "Neustadt an der Musterau"), BAU),
+          "push the office in Neustadt an der Musterau")
+    deadline = tools.time.monotonic() + 180
+    while tools.time.monotonic() < deadline:
+        status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=" + urllib.parse.quote(f'sku:"https://{auen}/"'))
+        if isinstance(solr, dict) and solr.get("response", {}).get("numFound"):
+            break
+        tools.time.sleep(0.5)
+    wait_entity(digest, "Auenblick")
+
+    def tool(args, question="Welche Statiker gibt es?"):
+        status, answer, requests = tools.chat(bert, question, lambda body: (
+            ("call", "provider_search", args) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")))
+        raw = next((m.get("content") for m in requests[-1]["body"]["messages"] if m.get("role") == "tool"), "") if requests else ""
+        try:
+            result = json.loads(raw or "{}")
+        except ValueError:
+            result = {"invalid": raw[:200]}
+        cites = [int(x.get("cite", "[0]").strip("[]")) for x in result.get("providers", [])]
+        ids = [s.get("id", 0) for s in answer["meta"].get("scoutro-sources", [])]
+        # a provider whose page is already a source of the answer keeps its number; no source after the tool's own is uncited
+        uncited = [i for i in ids if i not in cites]
+        leaked = [i for i in ids if uncited and i > max(uncited) and i not in cites] + [c for c in cites if c not in ids]
+        tail = [i for i in ids if not uncited or i > max(uncited)]
+        return status, result, len(raw), cites, (leaked, tail)
+
+    forms = {}
+    for label, args in (("in", {"query": "Tragwerksplanung in Musterstadt"}), ("bare", {"query": "Tragwerksplanung Musterstadt"}),
+                        ("field", {"query": "Tragwerksplanung", "place": "Musterstadt"})):
+        status, result, size, cites, later = tool(args)
+        forms[label] = result
+        first = (result.get("providers") or [{}])[0]
+        check(status == 200 and "error" not in result and "invalid" not in result and result.get("place") == "Musterstadt"
+              and result.get("found") == 12 and result.get("lower_bound") is False and (result.get("per_place") or {}).get("location") == 1
+              and 3 <= result.get("shown", 0) <= 6 and first.get("name") == "Ingenieurbüro Ostermann" and first.get("place") == "location"
+              and size <= 4096 and result.get("shortened") is True,
+              f"tool {label}: {json.dumps(args, ensure_ascii=False)}: the place Musterstadt, 12 providers each once, within the room",
+              f"size={size} " + json.dumps({k: v for k, v in result.items() if k != "providers"}, ensure_ascii=False)[:600])
+        leaked, tail = later
+        check(bool(cites) and not leaked and len(set(cites)) == len(cites) and all(i in cites for i in tail),
+              f"tool {label}: only the providers given became numbered sources", f"cites={cites} leaked={leaked} tail={tail}")
+    check(forms["in"].get("per_place") == forms["bare"].get("per_place") == forms["field"].get("per_place")
+          and [x.get("name") for x in forms["in"]["providers"]] == [x.get("name") for x in forms["bare"]["providers"]],
+          "tool: with and without \"in\" and with the place field the same providers and place categories",
+          json.dumps({k: v.get("per_place") for k, v in forms.items()}))
+    for args in ({"query": "Statik Neustadt an der Musterau"}, {"query": "Statik in Neustadt an der Musterau"}):
+        status, result, size, cites, later = tool(args)
+        first = (result.get("providers") or [{}])[0]
+        check(status == 200 and "error" not in result and result.get("place") == "Neustadt an der Musterau"
+              and (result.get("per_place") or {}).get("location") == 1 and first.get("name") == "Statikbüro Auenblick" and size <= 4096,
+              f"tool: a place of several words, {json.dumps(args, ensure_ascii=False)}",
+              f"size={size} per_place={result.get('per_place')} first={first.get('name')}/{first.get('place')} found={result.get('found')}"
+              f" shown={result.get('shown')} error={result.get('error')}")
+    status, result, size, cites, later = tool({"query": "Tragwerksplanung"})
+    check(status == 200 and "error" not in result and result.get("place") is None and "per_place" not in result and result.get("found") == 12
+          and size <= 4096, "tool: no place: all providers, no place categories", json.dumps({k: v for k, v in result.items() if k != "providers"})[:400])
+    # the automatic path with a place of several words, and a count question names no service "viele"
+    status, answer, requests = tools.chat(bert, "Wie viele Anbieter für Tragwerksplanung gibt es in Neustadt an der Musterau?", no_tools_model)
+    sv = services(answer) or {}
+    check(status == 200 and sv.get("triggered") and sv.get("place") == "Neustadt an der Musterau" and sv.get("found") == 12
+          and (sv.get("perPlace") or {}).get("location") == 1, "automatic: a place of several words", json.dumps(sv)[:500])
+    status, answer, requests = tools.chat(bert, "Wie viele Anbieter für Fliesenarbeiten gibt es in Musterstadt?", no_tools_model)
+    sv = services(answer) or {}
+    check(status == 200 and not any(s.lower() in ("viele", "wie") for s in sv.get("services", [])),
+          "automatic: a count question names no service \"viele\"", json.dumps(sv.get("services")))
     print(f"PROVIDERS: offices pushed=12 pages (11 providers in bau-web, one of them on two pages; one in other-web), found={warm.get('found')},"
           f" shown={warm.get('shown')}, perPlace={warm.get('perPlace')}; search ms cold={cold.get('millis')} warm={warm.get('millis')};"
           f" chat request s={timings}", flush=True)

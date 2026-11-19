@@ -112,7 +112,7 @@ public final class ServiceSearch {
             // the question's own nouns, without the place and the words about providers
             for (final RagQuery.Term t : RagFollowUp.topics(goal)) {
                 if (services.size() >= 2) break;
-                if (t.phrase || t.weak || !t.noun) continue;
+                if (t.phrase || t.weak || !t.noun || JobSearch.countWord(RagQuery.fold(t.text))) continue;
                 if (place != null && RagQuery.fold(place).contains(t.stem)) continue;
                 if (PROVIDER.matcher(" " + t.text + " ").find()) continue;
                 services.add(t.text);
@@ -168,21 +168,69 @@ public final class ServiceSearch {
      * no provider in words ("Schimmelsanierung Musterstadt"), its own nouns as the service. Null without any.
      */
     public static Plan planAny(final String request) {
-        final Plan plan = plan(request);
-        if (plan != null) return plan;
-        final String place = place(request);
-        final Set<String> services = new LinkedHashSet<>();
-        for (final RagQuery.Term t : RagFollowUp.topics(request)) {
-            if (services.size() >= 3) break;
-            if (t.phrase || t.weak) continue;
-            if (place != null && RagQuery.fold(place).contains(t.stem)) continue;
-            services.add(t.text);
+        return planAny(request, null);
+    }
+
+    /**
+     * The plan of a tool's request: a question, or the service and the place in a few words. The place is taken from
+     * {@code place} when given, else from "in <place>" or a postal code, else from the request's last capitalized words
+     * after the service ("Tragwerksplanung Musterstadt", "Statik Neustadt an der Musterau"); null without a service.
+     */
+    public static Plan planAny(final String request, final String place) {
+        final String given = place == null ? "" : place.trim().replaceAll("^(?i)(?:in|im|bei)\\s+", "").replaceAll("[.,;:!?]+$", "");
+        final String text = request == null ? "" : request.trim();
+        Plan plan = plan(text);
+        String where = given.isEmpty() ? (plan != null && plan.place != null ? plan.place : place(text)) : (given.length() > 80 ? given.substring(0, 80) : given);
+        if (where == null) where = barePlace(text);
+        if (plan == null) {
+            final Set<String> services = new LinkedHashSet<>();
+            for (final RagQuery.Term t : RagFollowUp.topics(text)) {
+                if (services.size() >= 3) break;
+                if (t.phrase || t.weak || JobSearch.countWord(RagQuery.fold(t.text))) continue;
+                if (where != null && RagQuery.fold(where).contains(t.stem)) continue;
+                if (PROVIDER.matcher(" " + RagQuery.fold(t.text) + " ").find()) continue;
+                services.add(t.text);
+            }
+            if (services.isEmpty()) return null;
+            return withPlace(new ArrayList<>(services), where, false);
         }
-        if (services.isEmpty()) return null;
+        return java.util.Objects.equals(where, plan.place) ? plan : withPlace(new ArrayList<>(plan.services), where, plan.derived);
+    }
+
+    /** The searches for services and a place. */
+    private static Plan withPlace(final List<String> services, final String place, final boolean derived) {
         final List<String> variants = new ArrayList<>();
-        for (final String s : services) if (variants.size() < MAX_VARIANTS) variants.add(place == null ? s : s + " " + place);
-        if (place != null && variants.size() < MAX_VARIANTS) variants.add(services.iterator().next());
-        return new Plan(new ArrayList<>(services), place, variants, false);
+        for (final String s : services) {
+            if (variants.size() >= MAX_VARIANTS) break;
+            variants.add(place == null ? s : s + " " + place);
+        }
+        if (place != null && variants.size() < MAX_VARIANTS) variants.add(services.get(0)); // a provider not naming the town
+        return new Plan(services, place, variants, derived);
+    }
+
+    /** a place at the end of a request without a preposition: [prefix] Name[-Name] [am|an der|im|ob der|in der Name] */
+    private static final Pattern BARE_PLACE = Pattern.compile("(?:^|\\s)((?:(?:Bad|Sankt|St\\.|Neu|Alt|Groß|Klein|Hohen|Ober|Unter|Nieder)\\s+)?"
+            + "\\p{Lu}[\\p{L}]+(?:-\\p{Lu}?[\\p{L}]+)*(?:\\s+(?:am|an der|im|ob der|in der|vor der)\\s+\\p{Lu}[\\p{L}]+(?:-\\p{Lu}?[\\p{L}]+)*)?)"
+            + "[\\s.,;:!?]*$");
+    /** nouns of a request that are no place: parts of a building, kinds of work */
+    private static final Set<String> NOT_A_BARE_PLACE = Set.of("keller", "dach", "wand", "wande", "decke", "boden", "bad", "kuche", "haus",
+            "wohnung", "garten", "fenster", "heizung", "fassade", "altbau", "neubau", "umbau", "anbau", "sanierung", "gutachten", "treppe",
+            "balkon", "garage", "mauer", "gebaude", "hausbau", "planung", "beratung", "pruefung", "prufung", "angebot", "kosten", "preis",
+            "notdienst", "hilfe", "firma", "betrieb", "gewerbe", "privat", "sofort", "heute", "morgen");
+
+    /** The place at the end of a request in a few words, after the service; null if there is none. */
+    static String barePlace(final String text) {
+        if (text == null) return null;
+        final Matcher m = BARE_PLACE.matcher(text.trim());
+        if (!m.find()) return null;
+        final String candidate = m.group(1).trim();
+        final String before = text.trim().substring(0, m.start(1)).trim();
+        if (before.isEmpty()) return null; // the service comes first; a request of one name is the service
+        final String folded = RagQuery.fold(candidate);
+        if (NOT_A_PLACE.contains(candidate) || NOT_A_BARE_PLACE.contains(folded) || JobSearch.countWord(folded)) return null;
+        if (PROVIDER.matcher(" " + folded + " ").find()) return null;
+        for (final Object[] need : NEEDS) if (((Pattern) need[0]).matcher(folded).find()) return null; // a problem word, not a town
+        return candidate;
     }
 
     /** How a provider relates to the place of the question. */

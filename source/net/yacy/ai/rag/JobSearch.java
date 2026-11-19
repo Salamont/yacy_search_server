@@ -192,6 +192,20 @@ public final class JobSearch {
         return text != null && INTENT.matcher(RagQuery.fold(text)).find();
     }
 
+    /**
+     * Words of a question for all results or their number (folded, whole words): never a subject. "Wie viele Stellen zu X"
+     * and "Zeige alle Stellen zu X" have the same subjects; a subject "viele" would match "vielseitig" in a posting's text.
+     */
+    private static final Set<String> COUNT_WORDS = Set.of("wie", "viel", "viele", "vielen", "vieler", "wieviel", "wieviele", "anzahl",
+            "zahl", "gesamt", "gesamte", "gesamten", "insgesamt", "alle", "allen", "aller", "alles", "samtliche", "samtlichen",
+            "samtlicher", "vollstandig", "vollstandige", "vollstandigen", "komplett", "komplette", "kompletten", "liste", "auflisten",
+            "aufzahlen", "how", "many", "much", "number", "total", "all", "every", "complete", "list", "count");
+
+    /** Whether a word (folded) only asks for all results or their number. */
+    public static boolean countWord(final String folded) {
+        return folded != null && COUNT_WORDS.contains(folded.trim());
+    }
+
     /** A stem of a word about jobs or about the answer, never a subject (folded). */
     static boolean intentWord(final String stem) {
         for (final String p : INTENT_STEMS) if (stem.startsWith(p)) return true;
@@ -255,14 +269,14 @@ public final class JobSearch {
         final StringBuilder own = new StringBuilder();
         for (final String w : (goal == null ? "" : goal).split("\\s+")) {
             final String f = RagQuery.fold(w.replaceAll("[^\\p{L}\\p{N}]+", ""));
-            if (f.isEmpty() || intentWord(f) || RagFollowUp.noTopic(f)) continue;
+            if (f.isEmpty() || intentWord(f) || countWord(f) || RagFollowUp.noTopic(f)) continue;
             own.append(own.length() == 0 ? "" : " ").append(w);
         }
         for (final RagQuery.Term t : RagFollowUp.topics(own.toString())) {
             if (topics >= 3) break;
             if (t.phrase || t.weak) continue;
             final String folded1 = RagQuery.fold(t.text);
-            if (intentWord(folded1) || ROLES.contains(folded1)) continue; // a word about jobs, or a role (searched with a subject)
+            if (intentWord(folded1) || countWord(folded1) || ROLES.contains(folded1)) continue; // about jobs, the count, or a role
             if (!java.util.regex.Pattern.compile(START + Pattern.quote(folded1) + END).matcher(rest).find()) continue; // a word of a group
             final RagQuery.Term term = t;
             final List<Variant> mine = new ArrayList<>();

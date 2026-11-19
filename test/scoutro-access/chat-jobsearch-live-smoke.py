@@ -24,7 +24,9 @@ original failure, two job postings; beta-web: another company with one posting).
 6. a larger stock: more than 12 matching postings of one employer, postings found by title, by a fact and by the text of
    their page, a duplicate, no dates; the automatic search and job_search determine the same 17 before the answer's limit;
 7. a question for the number of postings runs the full search after strong first hits; the same count with the index's
-   search events cold and warm; raw records of the graph against unique postings.
+   search events cold and warm; raw records of the graph against unique postings;
+8. a count question has no subject of its own: postings of other subjects whose texts carry "viele", "vielen" or
+   "vielseitige" are not counted; "Wie viele ..." and "Zeige alle ..." and job_search count the same unique postings.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_JOBS_DUMP=<file> writes what the stub received;
 --ui also opens the chat page in Chromium (test/scoutro-ui/chat-followup-ui-test.mjs: the search mode of a follow-up).
@@ -292,6 +294,41 @@ def run(base, digest):
     check(warm.get("scanned") == raw == pages and warm.get("found") == 17,
           "records: posting pages, job records of the graph, unique matching postings",
           f"pages={pages} records={raw} scanned={warm.get('scanned')} found={warm.get('found')}")
+    # 8. a count question has no subject of its own: three postings of other subjects whose texts carry "viele", "vielen" and
+    # "vielseitige"; "Wie viele Stellenanzeigen ..." and "Zeige alle Stellenanzeigen ..." count the same unique postings
+    noise = [(f"https://{tools.TAPIR}/stellen/projektleitung", posting_page("Projektleiter (m/w/d) Bau",
+              "Projektleiter (m/w/d) Bau. Vielseitige Aufgaben erwarten Sie, vielen Dank für Ihr Interesse.")),
+             (f"https://{tools.TAPIR}/stellen/buchhaltung", posting_page("Buchhalter (m/w/d)",
+              "Buchhalter (m/w/d). Sie haben viele Freiheiten und vielfältige Aufgaben.")),
+             (f"https://{tools.TAPIR}/stellen/lager", posting_page("Lagerist (m/w/d)", "Lagerist (m/w/d). Ein Lager mit vielen Regalen."))]
+    for url, html in noise:
+        check(tools.push(digest, url, html, "alpha-web"), "push " + url)
+    deadline = tools.time.monotonic() + 180
+    while tools.kg_get(digest, "entities?type=job&collection=alpha-web&limit=1").get("total", 0) < pages + len(noise) and tools.time.monotonic() < deadline:
+        tools.time.sleep(0.5)
+    while tools.time.monotonic() < deadline:
+        n = 0
+        for url, _ in noise:
+            status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=" + urllib.parse.quote(f'sku:"{url}"'))
+            n += 1 if isinstance(solr, dict) and solr.get("response", {}).get("numFound") else 0
+        if n == len(noise):
+            break
+        tools.time.sleep(0.5)
+    counted = {}
+    for q in ("Wie viele Stellenanzeigen zu Kotlin gibt es?", "Zeige alle Stellenanzeigen zu Kotlin"):
+        status, answer, requests = tools.chat(rita, q, no_tools_model)
+        js = jobsearch(answer) or {}
+        counted[q] = js
+        check(status == 200 and js.get("triggered") and js.get("criteria") == ["Kotlin"] and js.get("found") == 14
+              and js.get("perSubject") == {"Kotlin": 14} and js.get("lowerBound") is False and js.get("scanned") == pages + len(noise),
+              f"count: \"{q}\" runs the full search with the subject Kotlin only, 14 unique postings", json.dumps(js)[:500])
+    status, answer, requests = tools.chat(rita, "Wie viele Kotlin-Stellen gibt es?", lambda body: (
+        ("call", "job_search", {"query": "Wie viele Stellenanzeigen zu Kotlin gibt es?"}) if not tools.tool_results(body["messages"])
+        else ("answer", "SIMULATED")))
+    done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+    result = done[0][1] if done else {}
+    check(status == 200 and result.get("subjects") == ["Kotlin"] and result.get("found") == 14 and result.get("per_subject") == {"Kotlin": 14},
+          "count: job_search with the count question counts the same 14", json.dumps({k: v for k, v in result.items() if k != "postings"})[:500])
     print(f"JOBS: posting pages of alpha-web={pages} (2 base postings, 18 of the stock incl. the second page of one posting),"
           f" job records of the graph={raw}, read by the search={warm.get('scanned')}, matching Kotlin/Sensorik={warm.get('found')} unique"
           f" (14 + 3; the second page is its own record and counts once; the 2 base postings do not match); search ms"

@@ -133,7 +133,7 @@ every page that names the service. The answer says how many providers were
 found (each once, over all its pages) and lists the most relevant ones first as
 sources, saying for each whether it is located in your town, serves it, or only
 mentions it. Asking for all of them or for their number ("Wie viele …") always
-runs this complete search; the same holds for job postings. Both searches are tools of their own on the Tools page: "Job
+runs this complete search, and counts the same as "Zeige alle …"; the same holds for job postings. Both searches are tools of their own on the Tools page: "Job
 search" (`job_search`) and "Provider search" (`provider_search`).
 
 A cited number whose source text does not contain the statement in front of

@@ -2,6 +2,21 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased: three corrections of the job and provider search found in 0.14.3-rc.4
+
+- A count question has no subject of its own: "Wie viele Stellenanzeigen zu X gibt es?" and "Zeige alle Stellenanzeigen
+  zu X" search X only and count the same unique postings; words of a question for all results or their number
+  ("wie viele", "alle", "Anzahl", "insgesamt" …) are never a subject (before, "viele" was one, and postings with "vielen"
+  or "vielseitige" in their text were counted). The full search still runs for such questions. Also for the services of
+  a provider question.
+- `provider_search` and `job_search` fit their result into the tool room of the answer (a third of the model's context,
+  at most 16,000 characters): texts shortened first, then entries left out; found, lower bound, the place categories and
+  shown kept, `shortened`/`not_shown` added, only the entries given become numbered sources. Before, a result with a place
+  was refused as `too_large` with a 4,096-token context.
+- `provider_search` takes the place without "in" at the end of its request ("Tragwerksplanung Musterstadt" is the same
+  search as "Tragwerksplanung in Musterstadt"; also places of several words), and an optional argument `place`; existing
+  calls with `query` alone work as before.
+
 ## 0.14.3-rc.4 / 1.942-scoutro.52-rc.4 — test candidate: the job and provider search read the whole released stock (not a release)
 
 On 0.14.3-rc.3, application code `3ffcfce`. Tool releases are kept; schemas, extractors and stored data unchanged: no
