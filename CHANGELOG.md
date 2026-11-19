@@ -2,7 +2,10 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased: three corrections of the job and provider search found in 0.14.3-rc.4
+## 0.14.3-rc.5 / 1.942-scoutro.52-rc.5 — test candidate: three corrections of the job and provider search found in 0.14.3-rc.4 (not a release)
+
+On 0.14.3-rc.4, application code `5f438c9`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.5.md.
 
 - A count question has no subject of its own: "Wie viele Stellenanzeigen zu X gibt es?" and "Zeige alle Stellenanzeigen
   zu X" search X only and count the same unique postings; words of a question for all results or their number
