@@ -31,11 +31,12 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * Tragwerksplanung, Statiker, Statik ...), else from the question's own nouns when it asks for a provider. The place:
  * the town after "in", "bei", "aus" or "um", or a postal code.</li>
  * <li>Only with the existing release of {@code search} and within the scope of the request ({@link ToolContext}): the
- * local index, the session's collection, hits of other collections dropped. At most {@link #MAX_VARIANTS} searches
- * ("Schimmelsanierung Musterstadt", ...; the service alone last), at most {@link #MAX_PAGES} pages, each of
- * which must name a service; pages that name the place first.</li>
- * <li>The pages go to the answer as the first numbered sources, as search results of the index (their original pages).
- * Job postings are a separate search ({@link JobSearch}, {@code type=job}).</li>
+ * knowledge graph with the session's viewer and the local index with the session's collection as a filter. The providers
+ * are determined for the whole scope first (graph rows, the hosts with pages naming a service counted by host) and
+ * counted, each once; service and place must be the same provider's. Texts are loaded only for the at most
+ * {@link #MAX_SHOWN} providers shown.</li>
+ * <li>The providers shown go to the answer as numbered sources with a page naming the service. Job postings are a
+ * separate search ({@link JobSearch}, {@code type=job}).</li>
  * </ul>
  */
 public final class ServiceSearch {
@@ -43,15 +44,9 @@ public final class ServiceSearch {
     public static final int MAX_VARIANTS = 4;
     /** providers shown in an answer; the ones found are determined before this limit */
     public static final int MAX_SHOWN = 6;
-    /** kept for the context room of an answer: providers given as sources */
-    public static final int MAX_PAGES = MAX_SHOWN;
     public static final long MAX_MILLIS = 6000L;
     /** pages of one ranked search (only without a direct index) */
     static final int PER_VARIANT = 8;
-    static final int GRAPH_PAGE = 100;
-    static final int INDEX_PAGE = 100;
-    /** hosts of providers of the index's pages only whose organisation is looked up in the graph */
-    static final int MAX_HOST_LOOKUPS = 50;
     /** entities of the name index read per service */
     static final int GRAPH_MAX = 5000;
     /** addresses and service areas of the graph read for a place */

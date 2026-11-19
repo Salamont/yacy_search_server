@@ -1256,8 +1256,10 @@ public final class KgReader {
                 }
             }
             // the evidence: its page (that of the name first) and the excerpts
+            // CROSS JOIN fixes the order (the statements of these entities, their evidence, its page): left to the planner, the
+            // conditions on the page's state made it start from every current page of the graph and all their evidence
             try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, d.url, d.doc_rowid, d.loaded_at, ev.excerpt FROM kg_statement s"
-                    + " JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_evidence ev ON ev.stmt_rowid = s.stmt_rowid JOIN kg_doc d"
+                    + " CROSS JOIN kg_vocab v ON v.term_id = s.pred CROSS JOIN kg_evidence ev ON ev.stmt_rowid = s.stmt_rowid CROSS JOIN kg_doc d"
                     + " ON d.doc_rowid = ev.doc_rowid WHERE s.subj IN (" + in + ") AND " + visibleStatement(v, "s") + " AND " + visibleDoc(v, "d")
                     + " AND " + currentDoc("d", now) + " ORDER BY s.subj, CASE WHEN v.name = '" + Vocabulary.NAME + "' THEN 0 ELSE 1 END,"
                     + " ev.observed_at DESC, d.doc_id")) {

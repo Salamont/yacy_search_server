@@ -24,17 +24,19 @@ import net.yacy.scoutro.knowledge.read.KgReader;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
 
 /**
- * The job search of the chat (docs/SCOUTRO_RAG_QUALITY.md, section 12). For a question about job postings whose automatic
- * search matched only weakly or not at all, the server searches the job postings of the knowledge graph ({@code type=job})
- * before the model answers, whether or not the model would call a tool; the tool {@code job_search} runs the same search.
+ * The job search of the chat (docs/SCOUTRO_RAG_QUALITY.md, section 12). For a question for job postings (their number, a
+ * list of them, or any job question whose automatic search matched only weakly) the server searches the job postings of
+ * the knowledge graph ({@code type=job}) before the model answers, whether or not the model would call a tool; the tool
+ * {@code job_search} runs the same search, and within one request the same search is made once.
  * <ul>
  * <li>Only with the existing release of {@code kg_search} and within the scope of the chat request ({@link ToolContext}:
  * the session's collection, read with its viewer). Nothing outside it is read.</li>
- * <li>The whole released stock: the name index for a few title variants, every posting of the scope with its facts and
- * excerpts ({@link KgReader#jobDigests}), and the indexed text of the postings' pages. A posting counts by its title, a
- * fact or the text of its own page; a company page is no posting. The matching postings are determined and deduplicated
- * before the answer's limit of {@link #MAX_JOBS}; the result says how many were found and shown, and whether the count
- * is only a lower bound, and why ({@link Result#gaps}: the time of {@link #MAX_MILLIS} ms, or no direct index).</li>
+ * <li>The whole released stock, the matching postings first: the title and the statements of every posting of the scope
+ * ({@link KgReader#entityScan}, no evidence text), and which of the postings' pages match in the direct index (addresses
+ * only). A posting counts by its title, a fact or the text of its own page; a company page is no posting. The matching
+ * postings are determined, deduplicated and counted before the answer's limit of {@link #MAX_JOBS}; only those shown
+ * are read in full. The result says how many were found and shown, and whether the count is only a lower bound, and
+ * why ({@link Result#gaps}: the time of {@link #MAX_MILLIS} ms, a failed read, or no direct index).</li>
  * <li>Each posting shown goes to the answer as a numbered source with the page it was read from, its employer, the
  * dates it states, the subjects of the question it shows and, as a PARTIAL MATCH, those it does not. The stock of the
  * graph counts as current: a missing date neither excludes nor ranks a posting.</li>
@@ -47,20 +49,13 @@ public final class JobSearch {
     public static final int MAX_JOBS = 6;
     /** time of one search (name index, all postings of the scope, text) */
     public static final long MAX_MILLIS = 6000L;
-    /** postings read per page of the scan of the scope (it reads to the end of the stock or of the time) */
-    /** postings of one read of the scan */
+    /** postings of one read of the scan (it reads to the end of the stock or of the time), and of a read that timed out */
     static final int SCAN_CHUNK = 2000;
     static final int SCAN_CHUNK_MIN = 100;
     /** posting pages of one question to the direct index */
     static final int TEXT_BATCH = 1000;
     /** characters of the excerpt of a page that shows a subject by its text */
     static final int EXCERPT_CHARS = 200;
-    static final int SCAN_PAGE = 250;
-    /** posting pages asked per query of the direct index */
-    static final int URL_BATCH = 200;
-    /** hits of the name index read per variant, in pages */
-    static final int NAME_HITS = 500;
-    static final int NAME_PAGE = 100;
     /** pages of one ranked text search (only without a direct index) */
     static final int TEXT_HITS = 50;
     static final int MAX_CHARS = 2600;

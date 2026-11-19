@@ -369,7 +369,7 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   found (or none within the budget), and that no company page may be presented as a posting.
 - **Limits of the available queries** (where a complete set is not guaranteed): there is no index on the values of
   facts, so the facts of every posting of the scope are read and matched in memory; the time grows with the number of
-  postings (JOB_SCALE), and beyond the 6 s the count is a lower bound. The description of a posting is not a fact of its
+  postings (6,851 postings: 0.23 s with warm caches, 1.0 s cold, section 14; about 40,000 postings cold fill the budget), and beyond the 6 s the count is a lower bound. The description of a posting is not a fact of its
   own, it counts through the indexed text of its page. The direct index matches every word as a word or the start of one
   and a word of up to three letters as a whole word (Solr's tokens: "Robotik" finds "Robotiktechnik", not
   "Prozessrobotik", which only the graph's own matching of titles and facts finds); several words of one synonym must
@@ -485,6 +485,75 @@ another collection, the time limit, the tool), `test/scoutro-access/chat-service
 an office located in Musterstadt by its address in the graph, eleven offices of which one on two pages, one of another
 collection; the number question after strong first hits, the tool, the index's search events cold and warm; a model
 that never calls a tool; all invented).
+
+
+## 14. Measurement of the job and provider search (0.14.3-rc.5 and after)
+
+**What the rc.5 acceptance showed** (a production peer: 6,844 postings, 300,677 entities, 812,178 statements, 2,180,413
+evidence rows, 275,134 pages; real model): every search of the server ended at its budget of 6 s. The job search had read
+1,250 postings (five pages of 250) and no longer loaded the name hits it had found: 19 of 40 postings by name in one
+collection, 5 over all collections. The provider search had read 100 to 500 of 3,072 pages naming the service, a different
+number in each run (270 to 328 providers), and no provider with a relation to the place.
+
+**Where the time went** (measured on an invented stock of the same size, `SearchScaleFixture`: 6,851 postings, 250,799
+entities, 537,491 statements, 2,001,365 evidence rows, 246,147 pages; rc.5 with timers added, each run a fresh process, cold
+= the operating system's page cache dropped before):
+
+| rc.5, step | jobs, all collections (cold / warm) | providers, one collection (cold / warm) |
+| --- | --- | --- |
+| name index (`entities` per variant, with totals) | 2.5 s / 1.3 s | 5.9 s / 4.2 s (9 searches and the offers) |
+| digests: the evidence query | **47.1 s / 40.1 s** (28 pages of 250) | **15.5 s / 8.9 s** (6 batches of 100) |
+| digests: entities, facts, collections | 0.4 s / 0.3 s | 0.06 s / 0.03 s |
+| page text | 0.8 s / 0.6 s (34 queries, 57 pages loaded) | 2.4 s / 2.2 s (63 queries, 6,012 pages with 6.8 million characters loaded) |
+| total to the end | 50.8 s / 42.2 s | 23.9 s / 15.4 s |
+| as shipped (reads of at most 1.5 s, budget 6 s) | error `read_timeout`, nothing found | error `read_timeout` in the graph, nothing found |
+
+The evidence query of a page of digests is the bottleneck: left to the planner it starts from every current page of the
+graph and reads all their evidence (2 million rows) to find the evidence of 250 entities, about 1.5 s a page here and
+1.2 s on the production peer (1,250 postings in 6 s). The same query with a fixed join order (the entities' statements,
+their evidence, its page) takes 0.2 ms. On this stock the unchanged rc.5 does not get through its first page within a
+read of 1.5 s; the totals to the end were measured with that limit lifted.
+
+**After** (the same stock, the budget of 6 s unchanged):
+
+| step | jobs, one collection (1,811 of 6,851 postings) | jobs, all collections | providers, one collection | providers, all collections |
+| --- | --- | --- | --- | --- |
+| scan / graph | 893 / 236 ms | 1,011 / 230 ms | 159 / 133 ms | 121 / 130 ms |
+| names | 32 / 18 ms | 45 / 31 ms | | |
+| facts check | 5 / 4 ms | 6 / 9 ms | | |
+| page text / index | 190 / 131 ms (2 questions, no page loaded) | 287 / 231 ms (7 questions, no page loaded) | 103 / 99 ms (one count by host) | 81 / 96 ms |
+| place | | | 233 / 93 ms | 203 / 107 ms |
+| selection | 7 / 3 ms | 7 / 7 ms | 1 / 1 ms | 1 / 2 ms |
+| evidence of the 6 shown | 17 / 12 ms | 12 / 11 ms | 17 / 18 ms (10 pages loaded in all) | 19 / 20 ms |
+| **total** (cold / warm) | **1,174 / 435 ms** | **1,397 / 540 ms** | **523 / 352 ms** | **432 / 362 ms** |
+| found / shown | 60 / 6, complete | 229 / 6, complete | 506 / 6, complete | 507 / 6, complete |
+
+Completeness on this stock (`SearchScaleBench check`): the 229 postings of all collections are exactly the 60, 120 and 49
+of the three collections; "Wie viele …" and "Zeige alle …" find the same postings; the employer with seven records has six
+postings; 506 providers of which 2 are located in the town (one by the address on another page of its host than the one
+naming the service), 2 serve it, 2 only mention it and 500 show no relation; all collections hold every provider of the
+one; `provider_search` with "Tragwerksplanung Musterstadt" and "Tragwerksplanung in Musterstadt" gives the same result
+(4,186 characters).
+
+**Model requests at the chat endpoint** (`chat-search-measure.py`: a disposable peer, 80 invented pages, a simulated model
+with a context of 131,072 tokens; request characters as the stub received them; tokens are an estimate, characters / 3):
+
+| question | rc.5: model requests, characters (est. input tokens) | after |
+| --- | --- | --- |
+| "Wie viele Stellenanzeigen zu Kotlin gibt es?" | 1; 24,337 (8,112); 19 sources | **0**: answered by the server; 6 sources |
+| "Zeige alle Stellenanzeigen zu Kotlin." | 1; 24,330 (8,110); 19 sources | 1; 11,313 (3,771); 6 sources |
+| a list, the model calls `job_search` twice | 3; 81,678 (27,226); two searches | 3; 41,010 (13,670); both calls reuse the result |
+| "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?" | 1; 12,528 (4,176) | **0**: answered by the server |
+| "Wer prüft in Musterstadt, ob eine Wand tragend ist?" | 1; 20,559 (6,853); 10 sources, the provider search did not run (strong first hits) | 1; 11,747 (3,915); 6 providers |
+| a list, the model calls `provider_search` | 2; 25,131 (8,377); the automatic search did not run | 2; 26,228 (8,742); the automatic search ran, the tool reuses it |
+
+Of the about 11,300 characters of a request after the change, about 8,900 are the system prompt, the server rules and the
+definitions of the tools; the sources are 2,400 to 2,700. Real token counts need a real endpoint: the answer's last data
+line and the log now carry them when the endpoint reports them (`scoutro-usage`).
+
+**What stays a limit:** an exact count needs every posting's facts read, as no index on fact values exists; that is the
+scan above, and it grows with the number of postings. The place of a provider on its pages is read for at most 120
+providers. Both are reported as lower bounds with their reason when they are reached.
 
 
 Real-model check against an OpenAI-compatible endpoint (read-only, disposable DATA):

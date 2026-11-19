@@ -398,6 +398,7 @@
       <arg value="net.yacy.ai.rag.ChatToolsTest" />
       <arg value="net.yacy.ai.rag.RagFollowUpTest" />
       <arg value="net.yacy.ai.rag.ServiceSearchTest" />
+      <arg value="net.yacy.ai.rag.SolrIndexTest" />
       <classpath>
         <pathelement location="build/scoutro-rag-tests" />
         <pathelement location="${build}" />

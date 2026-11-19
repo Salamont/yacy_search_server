@@ -7,7 +7,8 @@
  *      follow-up is sent without a search mode and the server searches locally with the goal of the chat;
  *   B  default "Scoutro index", the lens switched off for the follow-up: it is sent with search "no", no search;
  *   C  default "no search", "Such noch mal" as the first message: no earlier goal, no search;
- *   D  default "no search", the lens once, then an ordinary message: no search.
+ *   D  default "no search", the lens once, then an ordinary message: no search;
+ *   E  a plain count question: the server's own answer (no model request) appears in the chat like any answer.
  * Prints one JSON line per request (what was sent, what came back) for the smoke's log check. */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -54,7 +55,8 @@ async function send(page, text, label) {
   const user = body.messages.filter(m => m.role === 'user').at(-1);
   const sent = { label, text: typeof user.content === 'string' ? user.content : user.content.find(p => p.type === 'text')?.text,
     search: Object.prototype.hasOwnProperty.call(user, 'search') ? user.search : '(absent)', collection: body.collection ?? null,
-    retrieval: meta['scoutro-retrieval'] ?? null, jobsearch: meta['scoutro-jobsearch'] ?? null };
+    retrieval: meta['scoutro-retrieval'] ?? null, jobsearch: meta['scoutro-jobsearch'] ?? null,
+    answeredBy: meta['scoutro-answer']?.by ?? 'model', usage: meta['scoutro-usage'] ?? null };
   console.log('REQUEST ' + JSON.stringify(sent));
   return sent;
 }
@@ -109,6 +111,18 @@ try {
   await send(page, FIRST, 'D first');
   const plain = await send(page, 'Danke. Fasse das bitte kurz zusammen.', 'D plain');
   check(plain.search === '(absent)' && !plain.retrieval && !plain.jobsearch, 'D: an ordinary message stays without search: ' + JSON.stringify(plain));
+  await context.close();
+
+  // E: a plain count question: the server's own answer (no model request) is shown as any answer, with its sources
+  ({ context, page, errors } = await chatPage());
+  await setDefault(page, 'local');
+  const count = await send(page, 'Wie viele Stellenanzeigen zu Java gibt es?', 'E count');
+  check(count.search === 'local' && count.answeredBy === 'server' && count.usage && count.usage.modelCalls === 0
+    && count.jobsearch && count.jobsearch.found >= 1, 'E: the count question is answered by the server: ' + JSON.stringify(count));
+  const shown = await page.locator('#chatMessages').innerText();
+  check(new RegExp(`gibt es ${count.jobsearch.found} Stellenanzeigen? zu Java`).test(shown.replace(/\*/g, '')),
+    'E: the chat page shows the number found: ' + shown.slice(-400));
+  check(errors.length === 0, 'E: no page error ' + errors.join('; '));
   await context.close();
 
   console.log(`PASS: ${checks} chat page checks of the follow-up search mode (simulated model)`);

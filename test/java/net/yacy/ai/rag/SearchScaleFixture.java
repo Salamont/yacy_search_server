@@ -113,8 +113,12 @@ public final class SearchScaleFixture {
 
     static KgConfig config() {
         final String all = String.join(",", COLLECTIONS);
-        return KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, all, KgConfig.JOBS_COLLECTIONS, all,
-                KgConfig.JOBS_DISPLAY_COLLECTIONS, all));
+        final Map<String, String> settings = KgTestSupport.enabled(KgConfig.COLLECTIONS, all, KgConfig.JOBS_COLLECTIONS, all,
+                KgConfig.JOBS_DISPLAY_COLLECTIONS, all);
+        // for a measurement of a search to its end: the longest read of the graph in milliseconds (default 5,000)
+        final String readMax = System.getProperty("scoutro.scale.readMaxMillis");
+        if (readMax != null) settings.put(KgConfig.READ_MAX_TRANSACTION_MILLIS, readMax);
+        return KgTestSupport.config(settings);
     }
 
     static EmbeddedInstance openSolr(final File dir) throws Exception {
