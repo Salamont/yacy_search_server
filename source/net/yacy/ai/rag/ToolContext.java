@@ -50,7 +50,85 @@ public final class ToolContext {
      * from {@code offset}, at most {@code count}; with the total of the matching pages. Replaceable in tests.
      */
     public interface Index {
+        /** Pages with their text: the evidence of a selection, never the way to count. */
         IndexPage find(List<String> words, String collection, java.util.Collection<String> urls, int offset, int count) throws Exception;
+
+        /**
+         * Which of the pages {@code urls} match the words (every word as a word or the start of one, a word of up to three
+         * letters as a whole word; with {@code phrase} the words side by side): their addresses only, no text is loaded.
+         * This default reads them through {@link #find}; an index answers it with one query per batch of addresses.
+         */
+        default java.util.Set<String> matching(final List<String> words, final boolean phrase, final String collection,
+                final java.util.Collection<String> urls) throws Exception {
+            final java.util.Set<String> out = new java.util.LinkedHashSet<>();
+            final List<String> list = new ArrayList<>(urls);
+            for (int i = 0; i < list.size(); i += 200) {
+                final List<String> batch = list.subList(i, Math.min(list.size(), i + 200));
+                for (final RagCandidate c : find(words, collection, batch, 0, batch.size()).pages) {
+                    if (!phrase || words.size() < 2 || RagQuery.fold(c.title + " " + c.description + " " + c.text)
+                            .contains(RagQuery.fold(String.join(" ", words)))) out.add(c.url);
+                }
+            }
+            return out;
+        }
+
+        /**
+         * The hosts of the scope with pages that match one of the alternatives (each a list of words that must all match),
+         * and how many pages each has: a count by host, no page is loaded. This default pages through {@link #find}.
+         */
+        default HostCount hosts(final List<List<String>> anyOf, final String collection) throws Exception {
+            final java.util.Map<String, java.util.Set<String>> pages = new java.util.TreeMap<>();
+            for (final List<String> words : anyOf) {
+                for (int offset = 0;; offset += 200) {
+                    final IndexPage page = find(words, collection, null, offset, 200);
+                    for (final RagCandidate c : page.pages) pages.computeIfAbsent(ServiceSearch.hostKey(c.url), k -> new java.util.TreeSet<>()).add(c.url);
+                    if (page.pages.isEmpty() || offset + 200 >= page.total) break;
+                }
+            }
+            final java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+            long total = 0;
+            for (final java.util.Map.Entry<String, java.util.Set<String>> e : pages.entrySet()) {
+                counts.put(e.getKey(), e.getValue().size());
+                total += e.getValue().size();
+            }
+            return new HostCount(counts, total);
+        }
+
+        /**
+         * Up to {@code perHost} pages with their text of each of these hosts that match one of the alternatives: the evidence
+         * of the providers selected. This default pages through {@link #find}.
+         */
+        default List<RagCandidate> hostPages(final List<List<String>> anyOf, final String collection, final java.util.Collection<String> hosts,
+                final int perHost) throws Exception {
+            final java.util.Map<String, List<RagCandidate>> byHost = new java.util.TreeMap<>();
+            final java.util.Set<String> wanted = new java.util.HashSet<>(hosts);
+            for (final List<String> words : anyOf) {
+                for (int offset = 0;; offset += 200) {
+                    final IndexPage page = find(words, collection, null, offset, 200);
+                    for (final RagCandidate c : page.pages) {
+                        final String host = ServiceSearch.hostKey(c.url);
+                        if (!wanted.contains(host)) continue;
+                        final List<RagCandidate> list = byHost.computeIfAbsent(host, k -> new ArrayList<>());
+                        if (list.size() < perHost && list.stream().noneMatch(x -> x.url.equals(c.url))) list.add(c);
+                    }
+                    if (page.pages.isEmpty() || offset + 200 >= page.total) break;
+                }
+            }
+            final List<RagCandidate> out = new ArrayList<>();
+            for (final List<RagCandidate> list : byHost.values()) out.addAll(list);
+            return out;
+        }
+    }
+
+    /** The hosts of an {@link Index#hosts} count (without "www.", in their order) and the pages counted. */
+    public static final class HostCount {
+        public final java.util.Map<String, Integer> pagesByHost;
+        public final long pages;
+
+        public HostCount(final java.util.Map<String, Integer> pagesByHost, final long pages) {
+            this.pagesByHost = pagesByHost;
+            this.pages = pages;
+        }
     }
 
     /** One page of an {@link Index} query and the total of its matching pages. */
@@ -311,6 +389,44 @@ public final class ToolContext {
         final List<RagCandidate> own = new ArrayList<>();
         for (final RagCandidate c : page.pages) if (c != null && c.inCollection(this.collection)) own.add(c);
         return new IndexPage(own, page.total);
+    }
+
+    /** The pages among {@code urls} that match the words, within this chat's scope: addresses only ({@link Index#matching}). */
+    public java.util.Set<String> indexMatching(final List<String> words, final boolean phrase, final java.util.Collection<String> urls)
+            throws Exception {
+        return this.index == null || urls.isEmpty() ? new java.util.LinkedHashSet<>() : this.index.matching(words, phrase, this.collection, urls);
+    }
+
+    /** The hosts of this chat's scope with pages matching one of the alternatives ({@link Index#hosts}). */
+    public HostCount indexHosts(final List<List<String>> anyOf) throws Exception {
+        return this.index == null ? new HostCount(new java.util.TreeMap<>(), 0L) : this.index.hosts(anyOf, this.collection);
+    }
+
+    /** Pages with their text of these hosts within this chat's scope ({@link Index#hostPages}); other collections dropped. */
+    public List<RagCandidate> indexHostPages(final List<List<String>> anyOf, final java.util.Collection<String> hosts, final int perHost)
+            throws Exception {
+        final List<RagCandidate> own = new ArrayList<>();
+        if (this.index == null || hosts.isEmpty()) return own;
+        for (final RagCandidate c : this.index.hostPages(anyOf, this.collection, hosts, perHost)) {
+            if (c != null && c.inCollection(this.collection)) own.add(c);
+        }
+        return own;
+    }
+
+    // ------------------------------------------------------------- results of this request
+
+    private final java.util.Map<String, Object> memo = new java.util.HashMap<>();
+
+    /**
+     * A search result computed earlier in this request under the same key (its kind, criteria and scope), or null: the
+     * automatic search of the answer and a tool call for the same search share one result.
+     */
+    public synchronized Object remembered(final String key) {
+        return this.memo.get(key);
+    }
+
+    public synchronized void remember(final String key, final Object result) {
+        this.memo.put(key, result);
     }
 
     /**

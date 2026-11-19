@@ -276,7 +276,8 @@ public class RAGProxyServlet extends HttpServlet {
             final ToolContext toolContext = shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT
                     ? new ToolContext(collection, true,
                             (concepts, q, c, n) -> RAGAugmentor.searchCandidates(concepts, q, c, n, false, runId), ToolContext.runtimeGraph(),
-                            toolResultChars(llm4Chat.llm.num_ctx), runId).withIndex(RAGAugmentor::indexPages)
+                            toolResultChars(llm4Chat.llm.num_ctx), runId)
+                            .withIndex(new net.yacy.ai.rag.SolrIndex(() -> sb.index.fulltext().getDefaultConnector()))
                     : null;
             llm4Chat.toolContext = toolContext;
             final List<String> scopedTools = llm4Chat.tooling ? ToolProvider.scopedTools(llm4Chat.indexTools, toolContext) : new ArrayList<>();
@@ -358,6 +359,7 @@ public class RAGProxyServlet extends HttpServlet {
 
             // RAG: one retrieval for the LLM context and for the sources shown to the user
             JSONObject initialMetadata = null;
+            String directAnswer = null;
             if (fresh) {
                 final long searchStart = System.currentTimeMillis();
                 final String searchQuestion = goal.text;
@@ -385,13 +387,20 @@ public class RAGProxyServlet extends HttpServlet {
                 // (type=job) before the answer, whatever the model does; release of kg_search and scope of the request (section 12)
                 JobSearch.Built jobs = null;
                 JobSearch.Result jobResult = null;
-                // a question for all postings or their number searches them all, also after strong first hits
-                final boolean allJobs = JobSearch.intent(searchQuestion) && JobSearch.wantsAll(searchQuestion);
+                // what the question asks for: a number, a list, a recommendation (or something of one posting or provider)
+                final net.yacy.ai.rag.QuestionKind kind = net.yacy.ai.rag.QuestionKind.of(searchQuestion);
+                // a plain count question is answered by the server itself: the number is the search's, no model writes it,
+                // and the entries shown need no room in a model's context
+                final boolean plainCount = kind == net.yacy.ai.rag.QuestionKind.COUNT && !goal.followUp && currentExtraChars == 0
+                        && net.yacy.ai.rag.QuestionKind.plainCount(question) && sb.getConfigBool(COUNT_DIRECT_SETTING, true);
+                // a question for the postings, all of them or their number searches the whole stock, also after strong first hits
+                final boolean allJobs = JobSearch.intent(searchQuestion) && (JobSearch.wantsAll(searchQuestion)
+                        || kind == net.yacy.ai.rag.QuestionKind.COUNT || kind == net.yacy.ai.rag.QuestionKind.LIST);
                 if (JobSearch.intent(searchQuestion) && (allJobs || JobSearch.weak(result)) && JobSearch.released(llm4Chat.indexTools, toolContext)) {
                     jobResult = JobSearch.run(toolContext, JobSearch.plan(searchQuestion));
                     // a third of the source room, but room for at least one posting
-                    jobs = JobSearch.format(jobResult, 1, Math.min(sourceChars, Math.max(1200, sourceChars / 3)), toolContext.scopeLabel(),
-                            goal.followUp);
+                    jobs = JobSearch.format(jobResult, 1, plainCount ? JobSearch.ALL_SHOWN : Math.min(sourceChars, Math.max(1200, sourceChars / 3)),
+                            toolContext.scopeLabel(), goal.followUp);
                     // "none found" only when the search found none, never when only the room was missing
                     if (!jobs.sources.isEmpty() || jobResult.jobs.isEmpty()) {
                         guard.addServerRules(messages, PromptGuard.jobSearchNote(jobResult.found, jobs.sources.size(), jobResult.gaps,
@@ -399,9 +408,10 @@ public class RAGProxyServlet extends HttpServlet {
                     }
                     ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-jobsearch phase=end stage=" + result.stage + " followUp=" + goal.followUp
                             + " searched=" + jobResult.searched.size() + " found=" + jobResult.found + " lowerBound=" + jobResult.lowerBound() + " scanned="
-                            + jobResult.scanned + " shown=" + jobs.sources.size() + " partial=" + jobs.meta.optInt("partial") + " all=" + allJobs
-                            + " gaps=" + jobResult.gaps.size()
-                            + " timedOut=" + jobResult.timedOut + " error=" + jobResult.error + " ms=" + jobResult.millis);
+                            + jobResult.scanned + " records=" + jobResult.records + " shown=" + jobs.sources.size() + " partial="
+                            + jobs.meta.optInt("partial") + " all=" + allJobs + " kind=" + kind + " gaps=" + jobResult.gaps.size()
+                            + " timedOut=" + jobResult.timedOut + " error=" + jobResult.error + " ms=" + jobResult.millis
+                            + " phases=" + phases(jobResult.phases));
                 }
                 final int jobCount = jobs == null ? 0 : jobs.sources.size();
                 final int jobChars = jobs == null || jobs.text.isEmpty() ? 0 : jobs.text.length() + 2;
@@ -411,12 +421,12 @@ public class RAGProxyServlet extends HttpServlet {
                 ServiceSearch.Built serviceBuilt = null;
                 List<RagRetriever.Scored> selected = result.selected;
                 final ServiceSearch.Plan servicePlan = jobs == null && !JobSearch.intent(searchQuestion) ? ServiceSearch.plan(searchQuestion) : null;
-                // a question for all providers or their number searches them all, also after strong first hits
-                final boolean allProviders = servicePlan != null && JobSearch.wantsAll(searchQuestion);
+                // a question for the providers, all of them, their number or a recommendation searches them all, also after strong first hits
+                final boolean allProviders = servicePlan != null && (JobSearch.wantsAll(searchQuestion) || kind != net.yacy.ai.rag.QuestionKind.OTHER);
                 if (servicePlan != null && (allProviders || ServiceSearch.weak(result, servicePlan)) && ServiceSearch.released(llm4Chat.indexTools, toolContext)) {
                     services = ServiceSearch.run(toolContext, servicePlan, result.selected);
-                    serviceBuilt = ServiceSearch.format(services, jobCount + 1, Math.max(1200, (sourceChars - jobChars) / 2), toolContext.scopeLabel(),
-                            goal.followUp);
+                    serviceBuilt = ServiceSearch.format(services, jobCount + 1, plainCount ? DIRECT_CHARS : Math.max(1200, (sourceChars - jobChars) / 2),
+                            toolContext.scopeLabel(), goal.followUp);
                     final java.util.Set<String> found = new java.util.HashSet<>();
                     for (final RagContext.Source s : serviceBuilt.sources) found.add(s.url);
                     // the providers' pages first; the automatic hits after them, without the same page twice
@@ -430,14 +440,22 @@ public class RAGProxyServlet extends HttpServlet {
                     ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-servicesearch phase=end stage=" + result.stage + " followUp="
                             + goal.followUp + " all=" + allProviders + " searched=" + services.searched.size() + " found=" + services.found
                             + " lowerBound=" + services.lowerBound() + " shown=" + serviceBuilt.sources.size() + " placeNamed=" + named.size()
-                            + " gaps=" + services.gaps.size() + " timedOut=" + services.timedOut + " ms=" + services.millis);
+                            + " kind=" + kind + " servicePages=" + services.servicePages + " gaps=" + services.gaps.size() + " timedOut="
+                            + services.timedOut + " ms=" + services.millis + " phases=" + phases(services.phases));
                 }
                 final int serviceCount = serviceBuilt == null ? 0 : serviceBuilt.sources.size();
                 final int serviceChars = serviceBuilt == null || serviceBuilt.text.isEmpty() ? 0 : serviceBuilt.text.length() + 2;
+                final boolean directCount = plainCount
+                        && ((jobResult != null && jobResult.error == null && jobs != null) || (services != null && serviceBuilt != null));
+                // a count, a list or a recommendation the search answered: the hits shown with their short entries are the
+                // context, the pages of the automatic search and their graph facts stay out of it
+                final boolean focused = directCount || (kind != net.yacy.ai.rag.QuestionKind.OTHER && jobCount + serviceCount > 0);
+                if (focused) selected = new ArrayList<>();
+                if (focused && !directCount) guard.addServerRules(messages, PromptGuard.kindNote(kind, serviceCount > 0));
                 // graph facts of the pages found again too (the provider's offers), then of the automatic hits
                 final List<RagRetriever.Scored> graphPages = new ArrayList<>();
                 graphPages.addAll(selected);
-                final GraphFacts.Selected graphSelection = GraphFacts.collect(GraphFacts.runtime(),
+                final GraphFacts.Selected graphSelection = focused ? GraphFacts.skipped("focused", scope) : GraphFacts.collect(GraphFacts.runtime(),
                         shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT,
                         shield == LLMAccess.Shield.GUEST,
                         scope, global, graphPages, query, Math.max(0, sourceChars - jobChars - serviceChars));
@@ -485,7 +503,13 @@ public class RAGProxyServlet extends HttpServlet {
                 retrieval.put("contextChars", contextText.length());
                 retrieval.put("contextTokens", RagContext.tokens(contextText.length()));
                 retrieval.put("numCtx", llm4Chat.llm.num_ctx);
+                retrieval.put("kind", kind.name().toLowerCase(java.util.Locale.ROOT));
+                retrieval.put("focused", focused);
                 initialMetadata.put("scoutro-retrieval", retrieval);
+                if (directCount) {
+                    directAnswer = jobResult != null ? net.yacy.ai.rag.QuestionKind.countOfJobs(question, jobResult, jobs.sources, toolContext)
+                            : net.yacy.ai.rag.QuestionKind.countOfProviders(question, services, serviceBuilt.sources, toolContext);
+                }
                 if (!contextText.isEmpty()) {
                     // the attachment the chat page keeps for follow-up questions: exactly what the model saw
                     initialMetadata.put("search-filename", "scoutro-sources-" + (scope == null ? "index" : scope) + ".md");
@@ -515,6 +539,15 @@ public class RAGProxyServlet extends HttpServlet {
                 }
             });
 
+            if (directAnswer != null) {
+                // the server's own answer to a plain count question: the stream a model would have sent, without a model request
+                ToolCallProtocol.answerDirectly(out, llm4Chat.model, directAnswer, initialMetadata, runId, citations);
+                hresponse.setStatus(HttpServletResponse.SC_OK);
+                out.close();
+                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=end result=success status=200 answeredBy=server modelCalls=0"
+                        + " answerChars=" + directAnswer.length() + " durationMs=" + elapsed(requestStart));
+                return;
+            }
             // ToolCallProtocol owns request preparation, initial stream handling and follow-up tool rounds.
             final int status;
             try {
@@ -568,6 +601,19 @@ public class RAGProxyServlet extends HttpServlet {
      */
     static int toolResultChars(final int numCtx) {
         return Math.max(1500, Math.min(16000, numCtx * RagContext.CHARS_PER_TOKEN / 3));
+    }
+
+    /** room for the entries shown with the server's own answer: all of them, no model context limits it */
+    static final int DIRECT_CHARS = 12000;
+
+    /** Setting: the server answers a plain count question for postings or providers itself (default on). */
+    public static final String COUNT_DIRECT_SETTING = "scoutro.chat.count.direct";
+
+    /** The steps of a search and their milliseconds, for the log: scan:12,names:3,... */
+    private static String phases(final java.util.Map<String, Long> phases) {
+        final StringBuilder sb = new StringBuilder();
+        for (final java.util.Map.Entry<String, Long> e : phases.entrySet()) sb.append(sb.length() == 0 ? "" : ",").append(e.getKey()).append(':').append(e.getValue());
+        return sb.length() == 0 ? "-" : sb.toString();
     }
 
     private static long elapsed(final long start) {

@@ -26,7 +26,9 @@ original failure, two job postings; beta-web: another company with one posting).
 7. a question for the number of postings runs the full search after strong first hits; the same count with the index's
    search events cold and warm; raw records of the graph against unique postings;
 8. a count question has no subject of its own: postings of other subjects whose texts carry "viele", "vielen" or
-   "vielseitige" are not counted; "Wie viele ..." and "Zeige alle ..." and job_search count the same unique postings.
+   "vielseitige" are not counted; "Wie viele ..." and "Zeige alle ..." and job_search count the same unique postings; the
+   plain count question is answered by the server without a model request, and a tool call for the search the server
+   already made in the same request reuses its result.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_JOBS_DUMP=<file> writes what the stub received;
 --ui also opens the chat page in Chromium (test/scoutro-ui/chat-followup-ui-test.mjs: the search mode of a follow-up).
@@ -120,8 +122,9 @@ def run(base, digest):
     check(tools.offered(requests) == tools.OFFERED and not tools.tool_results(requests[-1]["body"]["messages"]),
           "jobs: the tools were offered and the model called none", str(tools.offered(requests)))
     company = [s for s in answer["meta"].get("scoutro-sources", []) if s.get("url") == f"https://{tools.TAPIR}/" and "kind" not in s]
-    check(retrieval.get("stage") == "any" and retrieval.get("followUp") is False and company,
-          "jobs: the automatic search found only the company page (weak)", json.dumps(retrieval))
+    check(retrieval.get("stage") == "any" and retrieval.get("followUp") is False and not company and retrieval.get("kind") == "list"
+          and retrieval.get("focused") is True,
+          "jobs: a list question: the postings found are the context, the company page of the weak automatic search stays out", json.dumps(retrieval))
     check(js.get("triggered") and js.get("scope") == "collection alpha-web" and js.get("found") == 2 and js.get("full") == 1
           and js.get("partial") == 1 and js.get("criteria") == ["Java", "ML", "Robotik"] and js.get("shown") == 2 and js.get("lowerBound") is False
           and js.get("scanned") == 2, "jobs: the server searched all postings of alpha-web and counts found and shown", json.dumps(js))
@@ -131,12 +134,17 @@ def run(base, digest):
           and texts and all("posting pages)" in w for w in texts), "jobs: a few title variants, the posting pages' text by the direct index",
           str(js.get("searched")))
     check(prompt.find("[1] Scoutro knowledge graph: job posting ML-Entwickler") >= 0 and f"URL: {ml_url}" in prompt
-          and 0 <= prompt.find("job posting ML-Entwickler") < prompt.find("[3] Tapir Consulting AG"),
-          "jobs: the postings are the first sources of the prompt, the company page after them")
+          and "[3]" not in prompt and len(listed) == 2,
+          "jobs: the postings are the sources of the prompt, nothing else")
     check("PARTIAL MATCH: not shown for ML, Robotik" in prompt and "Application status" not in prompt and "not stated" not in prompt,
           "jobs: the partial match is marked; no remark about the posting's state or a missing date")
-    check("Job postings: the automatic search of this question matched weakly" in system and "found 2 matching postings; 2 are given" in system
-          and "count as current" in system, "jobs: the server rules give found and shown and how to use the postings")
+    check("Job postings: Scoutro searched the job postings of its knowledge graph" in system and "found 2 matching postings; 2 are given" in system
+          and "count as current" in system and "The question asks for a list" in system,
+          "jobs: the server rules give found and shown and how to use the postings")
+    usage = answer["meta"].get("scoutro-usage", {})
+    check(usage.get("modelCalls") == 1 and usage.get("tokens") == "estimated" and usage.get("inputTokens", 0) > 0
+          and js.get("phases", {}).keys() >= {"scan", "names", "facts", "text", "selection", "evidence"} and js.get("records") == 2,
+          "jobs: the model calls and the steps of the search are reported", json.dumps(usage) + " " + json.dumps(js.get("phases")))
     check(listed.get(1, {}).get("url") == ml_url and listed.get(1, {}).get("kind") == "graph" and listed.get(2, {}).get("url") == java_url,
           "jobs: the client's sources [1] and [2] are the postings' original pages", json.dumps(listed.get(1)))
     citations = answer["meta"].get("scoutro-citations", {})
@@ -322,13 +330,27 @@ def run(base, digest):
         check(status == 200 and js.get("triggered") and js.get("criteria") == ["Kotlin"] and js.get("found") == 14
               and js.get("perSubject") == {"Kotlin": 14} and js.get("lowerBound") is False and js.get("scanned") == pages + len(noise),
               f"count: \"{q}\" runs the full search with the subject Kotlin only, 14 unique postings", json.dumps(js)[:500])
-    status, answer, requests = tools.chat(rita, "Wie viele Kotlin-Stellen gibt es?", lambda body: (
+    # the plain count question is answered by the server itself: no model request, the number and the postings shown
+    status, answer, requests = tools.chat(rita, "Wie viele Stellenanzeigen zu Kotlin gibt es?", no_tools_model)
+    direct = answer["meta"].get("scoutro-answer", {})
+    cites = answer["meta"].get("scoutro-citations", {})
+    check(status == 200 and len(requests) == 0 and direct.get("by") == "server" and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0
+          and "gibt es **14** Stellenanzeigen zu Kotlin" in answer["text"] and "alle 23 Stellenanzeigen" in answer["text"]
+          and "Angezeigt werden 6 davon" in answer["text"] and "[6]" in answer["text"] and cites.get("invalid") == []
+          and len(answer["meta"].get("scoutro-sources", [])) == 6,
+          "count: the plain count question is answered by the server, no model request; found, searched and shown",
+          f"requests={len(requests)} {json.dumps(direct)} {answer['text'][:500]}")
+    # a list question goes to the model; a tool call for the same subject in the same request reuses the server's result
+    status, answer, requests = tools.chat(rita, "Welche Stellenanzeigen zu Kotlin gibt es? Nenne die Arbeitgeber.", lambda body: (
         ("call", "job_search", {"query": "Wie viele Stellenanzeigen zu Kotlin gibt es?"}) if not tools.tool_results(body["messages"])
         else ("answer", "SIMULATED")))
     done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
     result = done[0][1] if done else {}
-    check(status == 200 and result.get("subjects") == ["Kotlin"] and result.get("found") == 14 and result.get("per_subject") == {"Kotlin": 14},
-          "count: job_search with the count question counts the same 14", json.dumps({k: v for k, v in result.items() if k != "postings"})[:500])
+    check(status == 200 and result.get("subjects") == ["Kotlin"] and result.get("found") == 14 and result.get("per_subject") == {"Kotlin": 14}
+          and result.get("reused") is True and (jobsearch(answer) or {}).get("found") == 14
+          and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 2,
+          "count: job_search with the count question counts the same 14 and reuses the search of this request",
+          json.dumps({k: v for k, v in result.items() if k != "postings"})[:500])
     print(f"JOBS: posting pages of alpha-web={pages} (2 base postings, 18 of the stock incl. the second page of one posting),"
           f" job records of the graph={raw}, read by the search={warm.get('scanned')}, matching Kotlin/Sensorik={warm.get('found')} unique"
           f" (14 + 3; the second page is its own record and counts once; the 2 base postings do not match); search ms"

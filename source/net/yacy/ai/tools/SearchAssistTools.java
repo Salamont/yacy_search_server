@@ -46,10 +46,14 @@ public final class SearchAssistTools {
                 final String query = query(args);
                 final JobSearch.Plan plan = JobSearch.plan(query);
                 if (plan.variants().isEmpty()) throw new IllegalArgumentException("Give words of a job title or a subject");
+                // the same subjects in the same scope as a search of this request already made: its result, not a second search
+                final boolean reused = JobSearch.computed(context, plan) != null;
                 final JobSearch.Result result = JobSearch.run(context, plan);
                 final JSONObject out = new JSONObject(true).put("tool", JOB_SEARCH).put("scope", context.scopeLabel());
+                if (reused) out.put("reused", true);
                 out.put("subjects", new JSONArray(plan.criteria())).put("searched", new JSONArray(result.searched));
                 out.put("found", result.found).put("lower_bound", result.lowerBound()).put("per_subject", new JSONObject(result.perSubject));
+                if (result.records > result.found) out.put("records", result.records); // a posting on two pages counts once
                 if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
                 final java.util.List<Entry> entries = new java.util.ArrayList<>();
                 for (final JobSearch.Job job : result.jobs) {
@@ -62,7 +66,7 @@ public final class SearchAssistTools {
                 }
                 if (result.error != null) out.put("error", result.error);
                 final String found = (result.lowerBound() ? "at least " : "") + result.found;
-                fit(context, out, "postings", entries, shown -> shown == 0
+                fit(context, out, "postings", entries, reused ? REUSED_LEVEL : 0, shown -> shown == 0
                         ? (result.found > 0 ? "Found " + found + " matching postings; none fits into this answer's room: say the number"
                                 + " and suggest a narrower request." : (result.lowerBound() ? "No matching job posting found within the"
                                 + " search budget in " + context.scopeLabel() + "; do not say that the index holds none." : "No matching job"
@@ -89,8 +93,10 @@ public final class SearchAssistTools {
                 final String place = args.isNull("place") ? null : args.optString("place", "").trim();
                 final ServiceSearch.Plan plan = ServiceSearch.planAny(query, place == null || place.isEmpty() ? null : place);
                 if (plan == null) throw new IllegalArgumentException("Give the service or the problem, and the place if there is one");
+                final boolean reused = ServiceSearch.computed(context, plan) != null;
                 final ServiceSearch.Result result = ServiceSearch.run(context, plan, java.util.List.of());
                 final JSONObject out = new JSONObject(true).put("tool", PROVIDER_SEARCH).put("scope", context.scopeLabel()).put("local", true);
+                if (reused) out.put("reused", true);
                 out.put("services", new JSONArray(plan.services)).put("place", plan.place == null ? JSONObject.NULL : plan.place);
                 out.put("searched", new JSONArray(result.searched));
                 out.put("found", result.found).put("lower_bound", result.lowerBound());
@@ -105,13 +111,13 @@ public final class SearchAssistTools {
                     final JSONObject p = new JSONObject(true);
                     p.put("name", provider.name);
                     p.put("url", entry.url);
-                    p.put("pages", provider.pages.size());
+                    p.put("pages", Math.max(provider.pageCount, provider.pages.size()));
                     p.put("evidence", provider.byGraph && provider.byText ? "graph and page" : provider.byGraph ? "graph" : "page");
                     if (plan.place != null) p.put("place", provider.place);
                     entries.add(new Entry(entry.title, entry.url, entry.collection, entry.kind, entry.text(), p));
                 }
                 final String found = (result.lowerBound() ? "at least " : "") + result.found;
-                fit(context, out, "providers", entries, shown -> shown == 0
+                fit(context, out, "providers", entries, reused ? REUSED_LEVEL : 0, shown -> shown == 0
                         ? (result.found > 0 ? "Found " + found + " providers; none fits into this answer's room: say the number and"
                                 + " suggest a narrower request." : result.lowerBound() ? "No provider found within the search budget in "
                                 + context.scopeLabel() + "; do not say that the index holds none." : "No provider of this service in "
@@ -147,6 +153,8 @@ public final class SearchAssistTools {
 
     /** the lengths a result entry's text is shortened to, in this order, before entries are left out */
     static final int[] TEXT_LEVELS = {2000, 900, 500, 260, 140};
+    /** the level a result starts at that repeats a search of this request: its entries are sources of the answer already */
+    static final int REUSED_LEVEL = 3;
     /** room kept free for the longer citation numbers and the escaping of the result */
     static final int FIT_MARGIN = 80;
 
@@ -166,10 +174,10 @@ public final class SearchAssistTools {
      * entries kept become numbered sources. Returns how many were kept.
      */
     static int fit(final ToolContext context, final JSONObject out, final String key, final java.util.List<Entry> entries,
-            final java.util.function.IntFunction<String> note) throws JSONException {
+            final int firstLevel, final java.util.function.IntFunction<String> note) throws JSONException {
         final int room = Math.max(0, context.room() - FIT_MARGIN);
         int keep = entries.size();
-        int level = 0;
+        int level = Math.max(0, Math.min(TEXT_LEVELS.length - 1, firstLevel));
         while (true) {
             render(out, key, entries, keep, TEXT_LEVELS[level], note, null);
             if (size(out) <= room) break;

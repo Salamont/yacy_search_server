@@ -52,6 +52,16 @@ public final class ServiceSearch {
     static final int INDEX_PAGE = 100;
     /** hosts of providers of the index's pages only whose organisation is looked up in the graph */
     static final int MAX_HOST_LOOKUPS = 50;
+    /** entities of the name index read per service */
+    static final int GRAPH_MAX = 5000;
+    /** addresses and service areas of the graph read for a place */
+    static final int PLACE_FACTS = 5000;
+    /** providers whose pages naming the place are read, per run and per question to the index, and the pages per host */
+    static final int PLACE_HOSTS = 120;
+    static final int PLACE_BATCH = 40;
+    static final int PLACE_PAGES = 3;
+    /** characters of the excerpt of a provider's page */
+    static final int EXCERPT_CHARS = 240;
 
     /** problem words (folded) and the services they ask for */
     private static final List<Object[]> NEEDS = List.of(
@@ -252,6 +262,13 @@ public final class ServiceSearch {
         public String place = NO_PLACE;
         public String placeEvidence;
         public String collection;
+        /** its host without "www." (of the page of its name, or of its pages in the index) */
+        public String host;
+        /** pages of its host in the index that name the service */
+        public int pageCount;
+        long row;
+        /** a page naming the service was read for it */
+        boolean read;
         final StringBuilder text = new StringBuilder();
         int order;
 
@@ -261,6 +278,11 @@ public final class ServiceSearch {
 
         int placeRank() {
             return AT_PLACE.equals(this.place) ? 3 : SERVES_PLACE.equals(this.place) ? 2 : 0;
+        }
+
+        /** for the order of the answer: a mention before no relation at all */
+        int placeOrder() {
+            return MENTIONS_PLACE.equals(this.place) ? 1 : placeRank();
         }
 
         public String url() {
@@ -282,6 +304,12 @@ public final class ServiceSearch {
         public final List<String> gaps;
         public final boolean timedOut;
         public final long millis;
+        /** the time of each step in milliseconds: graph, index, place, selection, evidence */
+        public Map<String, Long> phases = Collections.emptyMap();
+        /** pages of the scope that name a service of the plan (the providers are their hosts) */
+        public long servicePages;
+        /** the keys of all providers found (each once: "e|" and a graph ID, or "h|" and a host), not only of those shown */
+        public List<String> keys = Collections.emptyList();
 
         public Result(final Plan plan, final List<Provider> providers, final int found, final Map<String, Integer> perPlace, final List<String> searched,
                 final List<String> gaps, final boolean timedOut, final long millis) {
@@ -300,110 +328,137 @@ public final class ServiceSearch {
         }
     }
 
+    /** The result of this search computed earlier in this request (the same services, place and scope), or null. */
+    public static Result computed(final ToolContext context, final Plan plan) {
+        final Object known = context == null ? null : context.remembered(key(plan));
+        return known instanceof Result ? (Result) known : null;
+    }
+
+    private static String key(final Plan plan) {
+        return "providers|" + plan.services + "|" + (plan.place == null ? "" : RagQuery.fold(plan.place));
+    }
+
+    /**
+     * The search of a request: computed once per request for the same services, place and scope; the automatic search of the
+     * answer and a call of {@code provider_search} for the same share the result.
+     */
     public static Result run(final ToolContext context, final Plan plan, final List<RagRetriever.Scored> known) {
-        return run(context, plan, known, System::currentTimeMillis, MAX_MILLIS);
+        final Result earlier = computed(context, plan);
+        if (earlier != null) return earlier;
+        final Result result = run(context, plan, known, System::currentTimeMillis, MAX_MILLIS);
+        if (context != null) context.remember(key(plan), result);
+        return result;
     }
 
     static Result run(final ToolContext context, final Plan plan, final List<RagRetriever.Scored> known, final LongSupplier clock) {
         return run(context, plan, known, clock, MAX_MILLIS);
     }
 
+    private static final List<String> PROVIDER_TYPES = List.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY);
+    private static final List<String> PLACE_PREDICATES = List.of(Vocabulary.ADDRESS, Vocabulary.LOCALITY, Vocabulary.POSTAL_CODE,
+            Vocabulary.SERVICE_AREA);
+
     /**
-     * The providers of the service within the request's scope, determined before the answer's limit (the automatic search
-     * and the tool {@code provider_search} both run this):
+     * The providers of the service within the request's scope, determined and counted before the answer's limit (the
+     * automatic search and the tool {@code provider_search} both run this). Which providers there are and why is asked of
+     * the indexes first; texts are loaded only for the few shown:
      * <ol>
-     * <li>the graph: services named like the service ({@code type=service}, every page of hits) and the providers that offer
-     * them ({@code offers}), and organisations and facilities whose own name names it; their addresses, service areas and
-     * pages ({@link KgReader#entityDigests});</li>
-     * <li>the direct index: every page of the scope that names the service (all pages of hits, by every service of the plan),
-     * a page of a host of a provider of the graph counted for that provider, any other page for its host.</li>
+     * <li><b>graph</b>: the rows of the services, organisations and facilities named like a service of the plan (the name
+     * index, {@link KgReader#namedEntities}), the providers that offer those services ({@link KgReader#subjectsOf}), and
+     * of all of them the name and a current page ({@link KgReader#entityRefs});</li>
+     * <li><b>index</b>: the hosts of the scope with pages that name a service, counted by host in one query
+     * ({@link ToolContext#indexHosts}); a host of a provider of the graph counts for that provider, any other host is a
+     * provider of its own. This is the number of providers, each once;</li>
+     * <li><b>place</b> (with a place in the question): an address or service area in the graph that names the place
+     * ({@link KgReader#factsNaming}), for a provider of step 1 or for the organisation of a host of step 2; and the hosts
+     * of the scope with a page naming the place, counted by host: of those that are providers the pages naming the place
+     * are read (at most {@link #PLACE_PAGES} per host) and tell an address, a service area or a mere mention. Service and
+     * place belong to the same provider: its graph entity or its host, on whichever of its pages;</li>
+     * <li><b>selection</b> and <b>evidence</b>: located before serving before mentioning before the rest; of the providers
+     * shown one page naming the service is read for the excerpt, and the organisation of a host without one in step 1.</li>
      * </ol>
-     * A provider counts once over its pages and duplicates; separate entities and hosts stay separate. With a place, a
-     * provider is at the place by an address (graph, or a postal code and the place on its page), serves it by a service
-     * area (graph, or an area phrase on its page), or only mentions it, which evidences nothing.
+     * A provider counts once over its pages; separate entities and hosts stay separate. Every step checks the time budget;
+     * a step that could not run or be read to its end makes the count a lower bound with its reason.
      */
     static Result run(final ToolContext context, final Plan plan, final List<RagRetriever.Scored> known, final LongSupplier clock,
             final long budget) {
         final long start = clock.getAsLong();
         final Map<String, Provider> providers = new LinkedHashMap<>();
         final Map<String, String> byHost = new LinkedHashMap<>(); // host -> provider key
+        final Map<Long, Provider> byRow = new LinkedHashMap<>();
         final List<String> searched = new ArrayList<>();
         final List<String> gaps = new ArrayList<>();
+        final Map<String, Long> phases = new LinkedHashMap<>();
         boolean timedOut = false;
-        // 1. the graph: offered services and named providers
+        long servicePages = 0L;
+        final List<List<String>> serviceWords = new ArrayList<>();
+        for (final String service : plan.services) {
+            final List<String> words = JobSearch.words(service);
+            if (!words.isEmpty()) serviceWords.add(words);
+        }
+        KgReader reader = null;
+        Viewer viewer = null;
+        long mark = System.nanoTime();
+        // 1. the graph: offered services and named providers, by their rows
         try {
-            final KgReader reader = context.graph ? context.reader() : null;
+            reader = context.graph ? context.reader() : null;
             if (reader != null) {
-                final Viewer viewer = context.viewer(reader);
-                final Set<String> ids = new LinkedHashSet<>();
-                graph:
+                viewer = context.viewer(reader);
+                final Set<Long> services = new LinkedHashSet<>();
+                final Set<Long> rows = new LinkedHashSet<>();
+                final List<String> types = List.of(Vocabulary.SERVICE, Vocabulary.ORGANIZATION, Vocabulary.FACILITY);
                 for (final String service : plan.services) {
-                    for (final String type : new String[] {"service", "organization", "facility"}) {
-                        searched.add("graph " + type + ": " + service);
-                        for (int offset = 0;; offset += GRAPH_PAGE) {
-                            if (clock.getAsLong() - start > budget) {
-                                timedOut = true;
-                                gaps.add("time budget: the graph's " + type + " entities for " + service + " not all read");
-                                break graph;
-                            }
-                            final KgReader.EntityQuery q = new KgReader.EntityQuery();
-                            q.q = service;
-                            q.type = type;
-                            q.offset = offset;
-                            q.limit = GRAPH_PAGE;
-                            final JSONObject page = reader.entities(q, viewer);
-                            final JSONArray items = page.optJSONArray("items");
-                            for (int i = 0; items != null && i < items.length(); i++) {
-                                final String id = items.getJSONObject(i).optString("id", "");
-                                if (id.isEmpty()) continue;
-                                if ("service".equals(type)) offerers(reader, viewer, id, ids, clock, start, budget);
-                                else ids.add(id);
-                            }
-                            if (items == null || items.length() < GRAPH_PAGE || offset + GRAPH_PAGE >= page.optLong("total", 0L)) break;
-                        }
-                    }
-                }
-                final List<String> list = new ArrayList<>(ids);
-                for (int i = 0; i < list.size() && !timedOut; i += GRAPH_PAGE) {
+                    searched.add("graph: " + service);
                     if (clock.getAsLong() - start > budget) {
                         timedOut = true;
-                        gaps.add("time budget: " + (list.size() - i) + " providers of the graph not read");
+                        gaps.add("time budget: the graph's entities for " + service + " not read");
                         break;
                     }
-                    final List<String> batch = list.subList(i, Math.min(list.size(), i + GRAPH_PAGE));
-                    for (final KgReader.JobDigest d : reader.entityDigests(viewer, null, batch, 0L, batch.size()).items) {
-                        if (d.name == null || d.url == null) continue; // no page of this scope behind it
-                        final Provider p = providers.computeIfAbsent("e|" + d.id, Provider::new);
-                        p.entity = d.id;
-                        p.name = d.name;
+                    final Map<Long, String> named = context.reader().namedEntities(viewer, service, false, types, GRAPH_MAX);
+                    if (named.size() >= GRAPH_MAX) gaps.add("graph: more than " + GRAPH_MAX + " entities named like " + service + ", not all read");
+                    for (final Map.Entry<Long, String> e : named.entrySet()) {
+                        if (Vocabulary.SERVICE.equals(e.getValue())) services.add(e.getKey());
+                        else rows.add(e.getKey());
+                    }
+                }
+                if (!services.isEmpty() && !timedOut) rows.addAll(context.reader().subjectsOf(viewer, Vocabulary.OFFERS, services));
+                if (!rows.isEmpty() && !timedOut) {
+                    for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, rows)) {
+                        final Provider p = providers.computeIfAbsent("e|" + ref.id, Provider::new);
+                        p.entity = ref.id;
+                        p.row = ref.rowid;
+                        p.name = ref.name;
                         p.byGraph = true;
-                        p.collection = d.collection;
-                        if (!p.pages.contains(d.url)) p.pages.add(d.url);
-                        byHost.putIfAbsent(hostKey(d.url), p.key);
-                        if (plan.place != null) graphPlace(p, d, plan.place);
+                        p.host = hostKey(ref.url);
+                        if (!p.pages.contains(ref.url)) p.pages.add(ref.url);
+                        byHost.putIfAbsent(p.host, p.key);
+                        byRow.put(ref.rowid, p);
                     }
                 }
             }
         } catch (final Exception e) {
             gaps.add("graph: " + (e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed"));
         }
-        // 2. the index: every page of the scope that names a service of the plan
+        phases.put("graph", (System.nanoTime() - mark) / 1_000_000L);
+        mark = System.nanoTime();
+        // 2. the index: the hosts of the scope with pages that name a service of the plan, counted by host
+        final boolean direct = context.hasIndex();
         try {
-            if (context.hasIndex()) {
-                index:
-                for (final String service : plan.services) {
-                    final List<String> words = JobSearch.words(service);
-                    if (words.isEmpty()) continue;
-                    searched.add("index: " + service);
-                    for (int offset = 0;; offset += INDEX_PAGE) {
-                        if (clock.getAsLong() - start > budget) {
-                            timedOut = true;
-                            gaps.add("time budget: the index's pages for " + service + " read from " + offset + " on not read");
-                            break index;
-                        }
-                        final ToolContext.IndexPage page = context.indexPages(words, null, offset, INDEX_PAGE);
-                        for (final RagCandidate c : page.pages) textProvider(c, plan, providers, byHost);
-                        if (page.pages.isEmpty() || offset + INDEX_PAGE >= page.total) break;
+            if (direct) {
+                for (final String service : plan.services) searched.add("index: " + service);
+                if (clock.getAsLong() - start > budget) {
+                    timedOut = true;
+                    gaps.add("time budget: the index's pages naming the service not counted");
+                } else if (!serviceWords.isEmpty()) {
+                    final ToolContext.HostCount hosts = context.indexHosts(serviceWords);
+                    servicePages = hosts.pages;
+                    for (final Map.Entry<String, Integer> e : hosts.pagesByHost.entrySet()) {
+                        final String key = byHost.computeIfAbsent(e.getKey(), h -> "h|" + h);
+                        final Provider p = providers.computeIfAbsent(key, Provider::new);
+                        if (p.name == null) p.name = e.getKey();
+                        if (p.host == null) p.host = e.getKey();
+                        p.byText = true;
+                        p.pageCount += e.getValue();
                     }
                 }
             } else {
@@ -422,79 +477,148 @@ public final class ServiceSearch {
         } catch (final Exception e) {
             gaps.add("index: failed");
         }
-        // 3. a provider of the index's pages only: its organisation in the graph by its host (address, service area, name)
-        try {
-            final KgReader reader = context.graph ? context.reader() : null;
-            if (reader != null && !timedOut) {
-                final Viewer viewer = context.viewer(reader);
-                int looked = 0;
-                for (final Provider p : new ArrayList<>(providers.values())) {
-                    if (p.entity != null || p.url() == null) continue;
-                    if (looked >= MAX_HOST_LOOKUPS || clock.getAsLong() - start > budget) {
-                        gaps.add("graph: the organisations of " + providers.values().stream().filter(x -> x.entity == null).count()
-                                + " hosts of pages not all looked up (their place only from their pages)");
-                        break;
-                    }
-                    looked++;
-                    final JSONArray items = reader.hostEntities(new java.net.URI(p.url()).getHost(), 0, 20, viewer).optJSONArray("items");
-                    String id = null;
-                    for (int i = 0; items != null && i < items.length() && id == null; i++) {
-                        final JSONObject item = items.getJSONObject(i);
-                        final String type = item.optString("type", "");
-                        if ("organization".equals(type) || "facility".equals(type)) id = item.optString("id", null);
-                    }
-                    if (id == null) continue;
-                    for (final KgReader.JobDigest d : reader.entityDigests(viewer, null, List.of(id), 0L, 1).items) {
-                        p.entity = d.id;
-                        if (d.name != null) p.name = d.name;
-                        if (plan.place != null && p.placeRank() < 3) {
-                            final String before = p.place;
-                            final String evidence = p.placeEvidence;
-                            graphPlace(p, d, plan.place);
-                            if (p.placeRank() == 0) {
-                                p.place = before;
-                                p.placeEvidence = evidence;
+        phases.put("index", (System.nanoTime() - mark) / 1_000_000L);
+        mark = System.nanoTime();
+        // 3. the place: the same provider's address or service area in the graph, or its own pages naming the place
+        if (plan.place != null) {
+            try {
+                if (reader != null && !timedOut) {
+                    if (clock.getAsLong() - start > budget) {
+                        timedOut = true;
+                        gaps.add("time budget: the graph's addresses and service areas for " + plan.place + " not read");
+                    } else {
+                        final List<KgReader.FactRow> facts = context.reader().factsNaming(viewer, PLACE_PREDICATES, plan.place, PLACE_FACTS);
+                        if (facts.size() >= PLACE_FACTS) gaps.add("graph: more than " + PLACE_FACTS + " addresses name " + plan.place + ", not all read");
+                        // of entities that are no provider of step 1: the organisation of a host that names the service
+                        final Set<Long> others = new LinkedHashSet<>();
+                        for (final KgReader.FactRow f : facts) if (!byRow.containsKey(f.subject)) others.add(f.subject);
+                        if (!others.isEmpty()) {
+                            for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, others)) {
+                                if (!PROVIDER_TYPES.contains(ref.type)) continue;
+                                final String key = byHost.get(hostKey(ref.url));
+                                final Provider p = key == null ? null : providers.get(key);
+                                if (p == null || p.entity != null) continue; // no provider's host, or a host of a provider of the graph
+                                p.entity = ref.id;
+                                p.row = ref.rowid;
+                                p.name = ref.name;
+                                byRow.put(ref.rowid, p);
                             }
+                        }
+                        for (final KgReader.FactRow f : facts) {
+                            final Provider p = byRow.get(f.subject);
+                            if (p != null) graphPlace(p, f.predicate, f.value, plan.place);
                         }
                     }
                 }
+                if (direct && !timedOut) {
+                    if (clock.getAsLong() - start > budget) {
+                        timedOut = true;
+                        gaps.add("time budget: the pages naming " + plan.place + " not read");
+                    } else {
+                        final List<List<String>> placeWords = List.of(JobSearch.words(plan.place));
+                        final ToolContext.HostCount named = context.indexHosts(placeWords);
+                        final Map<String, Provider> candidates = new java.util.TreeMap<>();
+                        for (final Provider p : providers.values()) {
+                            if (p.host != null && p.placeRank() < 3 && named.pagesByHost.containsKey(p.host)) candidates.put(p.host, p);
+                        }
+                        final List<String> hosts = new ArrayList<>(candidates.keySet());
+                        int read = 0;
+                        for (int i = 0; i < hosts.size(); i += PLACE_BATCH) {
+                            if (read >= PLACE_HOSTS || clock.getAsLong() - start > budget) break;
+                            final List<String> batch = hosts.subList(i, Math.min(hosts.size(), Math.min(i + PLACE_BATCH, PLACE_HOSTS)));
+                            for (final RagCandidate page : context.indexHostPages(placeWords, batch, PLACE_PAGES)) {
+                                final Provider p = candidates.get(hostKey(page.url));
+                                if (p != null && p.placeRank() < 3) textPlace(p, page, plan.place, plan.services);
+                            }
+                            read += batch.size();
+                        }
+                        // a host of the count names the place: at least a mention, whatever its pages read here said
+                        int unread = 0;
+                        for (int i = 0; i < hosts.size(); i++) {
+                            final Provider p = candidates.get(hosts.get(i));
+                            if (NO_PLACE.equals(p.place)) p.place = MENTIONS_PLACE;
+                            if (i >= read) unread++;
+                        }
+                        if (unread > 0) {
+                            if (clock.getAsLong() - start > budget) timedOut = true;
+                            gaps.add("place: the pages of " + unread + " providers naming " + plan.place + " not read (counted as mentioned)");
+                        }
+                    }
+                }
+            } catch (final Exception e) {
+                gaps.add("place: " + (e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed"));
             }
-        } catch (final Exception e) {
-            gaps.add("graph: the organisations of the pages' hosts not read");
         }
+        phases.put("place", (System.nanoTime() - mark) / 1_000_000L);
+        mark = System.nanoTime();
         if (timedOut && gaps.stream().noneMatch(g -> g.startsWith("time budget"))) gaps.add("time budget: the search stopped early");
-        // the order: the place first (an address, then a service area), then by graph and text, then as found
-        final List<Provider> all = new ArrayList<>(providers.values());
-        int order = 0;
-        for (final Provider p : all) p.order = order++;
-        all.sort((a, b) -> a.placeRank() != b.placeRank() ? b.placeRank() - a.placeRank()
-                : (a.byGraph && a.byText) != (b.byGraph && b.byText) ? (a.byGraph && a.byText ? -1 : 1) : a.order - b.order);
+        // 4. the order: the place first (an address, a service area, a mention), then graph and text, the pages, the name
+        final List<Provider> all = new ArrayList<>();
+        for (final Provider p : providers.values()) if (p.byGraph || p.byText) all.add(p);
+        all.sort((a, b) -> a.placeOrder() != b.placeOrder() ? b.placeOrder() - a.placeOrder()
+                : (a.byGraph && a.byText) != (b.byGraph && b.byText) ? (a.byGraph && a.byText ? -1 : 1)
+                : a.pageCount != b.pageCount ? b.pageCount - a.pageCount : a.key.compareTo(b.key));
         final Map<String, Integer> perPlace = new LinkedHashMap<>();
         if (plan.place != null) {
             for (final String k : new String[] {AT_PLACE, SERVES_PLACE, MENTIONS_PLACE, NO_PLACE}) perPlace.put(k, 0);
             for (final Provider p : all) perPlace.merge(p.place, 1, Integer::sum);
         }
-        return new Result(plan, new ArrayList<>(all.subList(0, Math.min(MAX_SHOWN, all.size()))), all.size(), perPlace, searched, gaps,
-                timedOut, clock.getAsLong() - start);
+        final List<Provider> shown = new ArrayList<>(all.subList(0, Math.min(MAX_SHOWN, all.size())));
+        phases.put("selection", (System.nanoTime() - mark) / 1_000_000L);
+        mark = System.nanoTime();
+        // 5. the evidence of the providers shown, and only of them
+        try {
+            evidence(context, viewer, plan, shown, serviceWords, direct);
+        } catch (final Exception e) {
+            // the count stands; a provider shown keeps what the search knows of it
+        }
+        phases.put("evidence", (System.nanoTime() - mark) / 1_000_000L);
+        final Result result = new Result(plan, shown, all.size(), perPlace, searched, gaps, timedOut, clock.getAsLong() - start);
+        result.phases = Collections.unmodifiableMap(phases);
+        result.servicePages = servicePages;
+        final List<String> keys = new ArrayList<>();
+        for (final Provider p : all) keys.add(p.key);
+        result.keys = Collections.unmodifiableList(keys);
+        return result;
     }
 
-    /** The providers that offer a service ({@code offers} into it), every page of them. */
-    private static void offerers(final KgReader reader, final Viewer viewer, final String service, final Set<String> ids, final LongSupplier clock,
-            final long start, final long budget) throws Exception {
-        for (int offset = 0; clock.getAsLong() - start <= budget; offset += GRAPH_PAGE) {
-            final JSONObject page;
-            try {
-                page = reader.entityStatements(service, Vocabulary.OFFERS, true, false, offset, GRAPH_PAGE, viewer);
-            } catch (final KgReader.NotFound e) {
-                return;
+    /** One page naming the service for each provider shown that has none yet, and the organisation of a host of the index. */
+    private static void evidence(final ToolContext context, final Viewer viewer, final Plan plan, final List<Provider> shown,
+            final List<List<String>> serviceWords, final boolean direct) throws Exception {
+        if (direct && !serviceWords.isEmpty()) {
+            final Map<String, Provider> wanted = new LinkedHashMap<>();
+            for (final Provider p : shown) if (p.byText && p.host != null && !p.read) wanted.put(p.host, p);
+            if (!wanted.isEmpty()) {
+                for (final RagCandidate page : context.indexHostPages(serviceWords, wanted.keySet(), 1)) {
+                    final Provider p = wanted.get(hostKey(page.url));
+                    if (p == null || p.read) continue;
+                    p.read = true;
+                    if (!p.pages.contains(page.url)) p.pages.add(0, page.url); // the page that names the service first
+                    if (p.entity == null && (p.name == null || p.name.equals(p.host)) && !page.title.isEmpty()) p.name = page.title;
+                    if (p.collection == null && !page.collections.isEmpty()) {
+                        p.collection = context.collection != null ? context.collection : page.collections.get(0);
+                    }
+                    p.text.setLength(0);
+                    p.text.append(page.title).append(". ").append(page.text);
+                }
             }
-            final JSONArray items = page.optJSONArray("items");
-            for (int i = 0; items != null && i < items.length(); i++) {
-                final String subject = items.getJSONObject(i).optString("subject", "");
-                if (!subject.isEmpty()) ids.add(subject);
-            }
-            if (items == null || items.length() < GRAPH_PAGE || offset + GRAPH_PAGE >= page.optLong("total", 0L)) return;
         }
+        if (context.graph && viewer != null) {
+            for (final Provider p : shown) {
+                if (p.entity != null || p.host == null) continue;
+                // its organisation in the graph by its host, for its name: the one whose own page is on this host
+                final List<Long> rows = context.reader().hostEntityRows(viewer, p.host, PROVIDER_TYPES, 20);
+                if (rows.isEmpty()) continue;
+                for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, rows)) {
+                    if (!p.host.equals(hostKey(ref.url))) continue;
+                    p.entity = ref.id;
+                    p.row = ref.rowid;
+                    p.name = ref.name;
+                    break;
+                }
+            }
+        }
+        for (final Provider p : shown) if (p.collection == null) p.collection = context.collection;
     }
 
     /** A page of the index that names a service: for the provider of its host in the graph, else for its host. */
@@ -504,28 +628,29 @@ public final class ServiceSearch {
         final String key = byHost.computeIfAbsent(host, h -> "h|" + h);
         final Provider p = providers.computeIfAbsent(key, Provider::new);
         if (p.name == null) p.name = page.title.isEmpty() ? host : page.title;
+        if (p.host == null) p.host = host;
         p.byText = true;
+        p.read = true;
         if (p.collection == null && !page.collections.isEmpty()) p.collection = page.collections.get(0);
-        if (!p.pages.contains(page.url)) p.pages.add(page.url);
+        if (!p.pages.contains(page.url)) {
+            p.pages.add(page.url);
+            p.pageCount++;
+        }
         if (p.text.length() < 2000) p.text.append(' ').append(page.title).append(". ").append(page.text);
         if (plan.place != null && p.placeRank() < 3) textPlace(p, page, plan.place, plan.services);
     }
 
-    /** The graph's address (location) or service area of a provider in the place. */
-    private static void graphPlace(final Provider p, final KgReader.JobDigest d, final String place) {
-        final Pattern named = placePattern(place);
-        for (final String[] f : d.facts) {
-            final String value = RagQuery.fold(f[1]);
-            if ((Vocabulary.ADDRESS.equals(f[0]) || Vocabulary.LOCALITY.equals(f[0]) || Vocabulary.POSTAL_CODE.equals(f[0]))
-                    && named.matcher(value).find()) {
-                p.place = AT_PLACE;
-                p.placeEvidence = "address in the graph: " + RagContext.clean(f[1], 120);
-                return;
-            }
-            if (Vocabulary.SERVICE_AREA.equals(f[0]) && named.matcher(value).find() && p.placeRank() < 2) {
-                p.place = SERVES_PLACE;
-                p.placeEvidence = "service area in the graph: " + RagContext.clean(f[1], 120);
-            }
+    /** The graph's address (location) or service area of a provider in the place: one of its statements. */
+    private static void graphPlace(final Provider p, final String predicate, final String raw, final String place) {
+        if (raw == null) return;
+        final String value = RagQuery.fold(raw);
+        if (!placePattern(place).matcher(value).find()) return;
+        if (Vocabulary.ADDRESS.equals(predicate) || Vocabulary.LOCALITY.equals(predicate) || Vocabulary.POSTAL_CODE.equals(predicate)) {
+            p.place = AT_PLACE;
+            p.placeEvidence = "address in the graph: " + RagContext.clean(raw, 120);
+        } else if (Vocabulary.SERVICE_AREA.equals(predicate) && p.placeRank() < 2) {
+            p.place = SERVES_PLACE;
+            p.placeEvidence = "service area in the graph: " + RagContext.clean(raw, 120);
         }
     }
 
@@ -629,7 +754,8 @@ public final class ServiceSearch {
             body.append(p.byGraph && p.byText ? "the knowledge graph records it and its page names the service."
                     : p.byGraph ? "the knowledge graph records the service of it (its pages in the index do not name it)."
                     : "its page names the service (no provider of it in the knowledge graph).");
-            if (p.pages.size() > 1) body.append(" Pages of it in the index: ").append(p.pages.size()).append('.');
+            final int pages = Math.max(p.pageCount, p.byText ? p.pages.size() : 0);
+            if (pages > 1) body.append(" Pages of it naming the service: ").append(pages).append('.');
             if (result.plan.place != null) {
                 switch (p.place) {
                     case AT_PLACE:
@@ -650,7 +776,7 @@ public final class ServiceSearch {
             }
             if (p.text.length() > 0) {
                 final RagCandidate page = new RagCandidate(p.url(), p.name, "", p.text.toString(), "", List.of(), 0);
-                body.append(" Its page: ").append(RagContext.excerpt(page, words, 360));
+                body.append(" Its page: ").append(RagContext.excerpt(page, words, EXCERPT_CHARS));
             }
             final int separator = text.length() == 0 ? 0 : 2;
             if (text.length() + separator + entry.length() + 6 + body.length() > Math.max(0, maxChars)) break;
@@ -675,6 +801,8 @@ public final class ServiceSearch {
             meta.put("placeNamedBy", placeBy); // the numbers with an evidenced location or service area
             meta.put("timedOut", result.timedOut);
             meta.put("millis", result.millis);
+            meta.put("servicePages", result.servicePages);
+            meta.put("phases", new JSONObject(result.phases));
         } catch (final JSONException e) {
             // plain keys and values
         }

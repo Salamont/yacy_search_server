@@ -23,7 +23,9 @@ other-web: an engineering office in Musterstadt that a chat of bau-web must neve
    index's search events cold and warm: the same providers, each once;
 7. provider_search with "Tragwerksplanung in Musterstadt", "Tragwerksplanung Musterstadt" and the place field: the same place,
    providers and categories; a place of several words; no place; long pages within the tool room of a 4,096-token model;
-   only the providers given become numbered sources; a count question names no service "viele".
+   only the providers given become numbered sources; a count question names no service "viele";
+8. a plain count question is answered by the server without a model request; a tool call for the search the server already
+   made in the same request reuses its result.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_SERVICES_DUMP=<file> writes what the stub received.
 """
@@ -137,17 +139,22 @@ def run(base, digest):
     check(status == 200 and len(requests) == 1 and tools.offered(requests) == tools.OFFERED
           and not tools.tool_results(requests[-1]["body"]["messages"]), "service: one model call, tools offered, none called",
           f"{status} {len(requests)} {tools.offered(requests)}")
-    check(gallery and retrieval.get("collection") == BAU and retrieval.get("followUp") is False,
-          "service: the automatic search found the house gallery", json.dumps(retrieval))
+    check(not gallery and retrieval.get("collection") == BAU and retrieval.get("followUp") is False and retrieval.get("kind") == "recommend"
+          and retrieval.get("focused") is True and "Hausgalerie" not in prompt,
+          "service: a recommendation: the providers found are the context, the house gallery of the automatic search stays out", json.dumps(retrieval))
     check(sv.get("triggered") and sv.get("scope") == f"collection {BAU}" and sv.get("services") == ["Tragwerksplanung", "Statiker", "Statik"]
-          and sv.get("place") == "Musterstadt" and "index: Tragwerksplanung" in sv.get("searched", []) and "graph service: Statik" in sv.get("searched", [])
+          and sv.get("place") == "Musterstadt" and "index: Tragwerksplanung" in sv.get("searched", []) and "graph: Statik" in sv.get("searched", [])
           and sv.get("lowerBound") is False, "service: service and place derived; the graph and the whole index searched", json.dumps(sv))
     check(sv.get("found") == 2 and sv.get("shown") == 2 and sv.get("placeNamedBy") == [1] and sv.get("perPlace", {}).get("location") == 1,
           "service: two offices found, each once; only the first located in Musterstadt (its address in the graph)", json.dumps(sv))
-    check(listed.get(1, {}).get("url") == office and listed.get(2, {}).get("url") == f"https://{RHEINBLICK}/"
-          and 0 <= prompt.find("[1] Provider Ingenieurbüro Ostermann") < prompt.find("Hausgalerie: Einfamilienhaus")
-          and "Located in Musterstadt: address in the graph" in prompt,
-          "service: the office's page is source [1], before the gallery", json.dumps(listed.get(1)))
+    check(listed.get(1, {}).get("url") == office and listed.get(2, {}).get("url") == f"https://{RHEINBLICK}/" and len(listed) == 2
+          and prompt.find("[1] Provider Ingenieurbüro Ostermann") >= 0 and "Located in Musterstadt: address in the graph" in prompt
+          and "The question asks for a recommendation" in system,
+          "service: the office's page is source [1], the model is told to weigh the evidence", json.dumps(listed.get(1)))
+    usage = answer["meta"].get("scoutro-usage", {})
+    check(usage.get("modelCalls") == 1 and usage.get("tokens") == "estimated" and usage.get("requestChars", 0) > 0 and sv.get("phases", {}).keys()
+          >= {"graph", "index", "place", "selection", "evidence"}, "service: the model calls and the steps of the search are reported",
+          json.dumps(usage) + " " + json.dumps(sv.get("phases")))
     check("Providers: Scoutro searched the providers" in system and "found 2 providers; 2 are given" in system
           and "Only [1] have an evidenced location in or service area of Musterstadt" in system,
           "service: the server rules give found and shown and which provider is evidenced in the place")
@@ -216,6 +223,18 @@ def run(base, digest):
     check(status == 200 and cold.get("triggered") and cold.get("found") == 11 and cold.get("shown", 0) <= 6 and cold.get("lowerBound") is False
           and cold.get("perPlace", {}).get("location") == 1, "many: 11 providers determined (more than 8), each office once over its pages",
           json.dumps(cold)[:700])
+    direct = answer["meta"].get("scoutro-answer", {})
+    cites = answer["meta"].get("scoutro-citations", {})
+    check(len(requests) == 0 and direct.get("by") == "server" and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0
+          and "gibt es **11** Anbieter für Tragwerksplanung" in answer["text"] and "Standort in Musterstadt: **1**" in answer["text"]
+          and "Angezeigt werden 6 davon" in answer["text"] and "[1]" in answer["text"] and cites.get("invalid") == []
+          and tools.none_of(answer["text"], FOREIGN_MARKERS),
+          "count: the plain count question is answered by the server, no model request; found, shown and the place categories",
+          f"requests={len(requests)} {json.dumps(direct)} {answer['text'][:400]}")
+    status, answer, requests = tools.chat(bert, all_q + " Nenne die drei besten.", no_tools_model)
+    check(status == 200 and len(requests) == 1 and "scoutro-answer" not in answer["meta"] and (services(answer) or {}).get("found") == 11
+          and "The question asks for a number" in tools.content_text(requests[0]["body"]["messages"][0]),
+          "count: a count question that asks for more goes to the model with the number found", f"requests={len(requests)}")
     for words in ("Tragwerksplanung", "Tragwerksplanung Musterstadt"):
         digest.call("GET", "/yacysearch.json?resource=local&maximumRecords=50&query=" + urllib.parse.quote(words))
     t0 = tools.time.monotonic()
@@ -301,6 +320,16 @@ def run(base, digest):
     sv = services(answer) or {}
     check(status == 200 and not any(s.lower() in ("viele", "wie") for s in sv.get("services", [])),
           "automatic: a count question names no service \"viele\"", json.dumps(sv.get("services")))
+    # 8. the same search again in one request: the model calls provider_search for what the server already searched
+    status, answer, requests = tools.chat(bert, "Welche Anbieter für Tragwerksplanung gibt es in Musterstadt? Nenne Namen und Quelle.", lambda body: (
+        ("call", "provider_search", {"query": "Tragwerksplanung Musterstadt"}) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")))
+    auto = services(answer) or {}
+    done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+    result = done[0][1] if done else {}
+    check(status == 200 and auto.get("found") == 12 and result.get("reused") is True and result.get("found") == auto.get("found")
+          and result.get("per_place") == auto.get("perPlace") and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 2,
+          "reuse: provider_search for the same service and place returns the result of this request",
+          json.dumps({k: v for k, v in result.items() if k != "providers"}, ensure_ascii=False)[:500])
     print(f"PROVIDERS: offices pushed=12 pages (11 providers in bau-web, one of them on two pages; one in other-web), found={warm.get('found')},"
           f" shown={warm.get('shown')}, perPlace={warm.get('perPlace')}; search ms cold={cold.get('millis')} warm={warm.get('millis')};"
           f" chat request s={timings}", flush=True)

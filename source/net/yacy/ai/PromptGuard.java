@@ -133,14 +133,14 @@ public final class PromptGuard {
         final String words = neutralize(String.join(", ", searched));
         final String where = "the job postings of its knowledge graph in " + neutralize(scope) + " (searched: " + words + ")";
         if (found == 0) {
-            return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro also searched " + where
+            return "\n\nJob postings: Scoutro searched " + where
                     + (lowerBound ? " within its time and size budget and found none there" + why + ". Say that the search found no "
                             + "matching posting within its budget; do not say that the index holds none."
                             : " and found none. Say plainly that no matching job posting was found.")
                     + " Never present a company page, a service or a list of names as a job posting, and never invent one.";
         }
         final String count = (lowerBound ? "at least " + found : String.valueOf(found)) + " matching posting" + (found == 1 ? "" : "s");
-        return "\n\nJob postings: the automatic search of this question matched weakly, so Scoutro searched " + where + " and found "
+        return "\n\nJob postings: Scoutro searched " + where + " and found "
                 + count + (lowerBound ? ", a lower bound" + why + ", so there may be more" : "") + "; " + shown
                 + (shown == 1 ? " is" : " are") + " given as the first sources, titled \"job posting\". Name each relevant posting with its "
                 + "title, employer and its number [n] (the number links its original page), and say how many were found and how many "
@@ -186,6 +186,27 @@ public final class PromptGuard {
                             + " is not located there and does not serve it by that.");
         }
         return note.toString();
+    }
+
+    /**
+     * What the model is told about the kind of a question the server's search answered ({@link net.yacy.ai.rag.QuestionKind}):
+     * a number is the search's, a list is the entries given, a recommendation weighs their evidence.
+     */
+    public static String kindNote(final net.yacy.ai.rag.QuestionKind kind, final boolean providers) {
+        switch (kind) {
+            case COUNT:
+                return "\n\nThe question asks for a number: it is the number found that is stated above. Give it as it is (with \"at least\" "
+                        + "if it is a lower bound); do not count the sources, which are only the entries shown.";
+            case LIST:
+                return "\n\nThe question asks for a list: list the entries given, each with its number [n], and say how many were found in all. "
+                        + "Add no entry from memory.";
+            case RECOMMEND:
+                return "\n\nThe question asks for a recommendation: weigh only the entries given and say for each what its source evidences"
+                        + (providers ? " (a location, a service area, or neither); prefer one with an evidenced location or service area, and if "
+                        + "none has one, say so instead of recommending by a mere mention of the place." : ".");
+            default:
+                return "";
+        }
     }
 
     /** What the model is told when the automatic search of this question matched only weakly ({@code stage} any or none). */

@@ -149,6 +149,11 @@ public final class GraphFacts {
         }
     }
 
+    /** No graph facts for this answer, with the reason for the metadata (the search of the answer needs none). */
+    public static Selected skipped(final String reason, final String scope) {
+        return Selected.skipped(reason, scope);
+    }
+
     /**
      * @param privileged local or administrator access
      * @param guest      an AI Shield guest

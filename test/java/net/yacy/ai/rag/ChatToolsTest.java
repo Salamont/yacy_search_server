@@ -841,6 +841,131 @@ public class ChatToolsTest {
     }
 
     @Test
+    public void sevenRecordsOfOneEmployerAreSixPostings() throws Exception {
+        // six postings of one employer; one of them stands on a second page with its title in capitals: seven records
+        final String[] fields = {"Finance", "Controlling", "Treasury", "Logistik", "Vertrieb", "Einkauf"};
+        for (int i = 0; i < fields.length; i++) {
+            biber("BIBS0" + i + "host03", "karriere/" + fields[i].toLowerCase(), "Senior Berater (m/w/d) " + fields[i], "", "Stellenangebot.");
+        }
+        biber("BIBS07host03", "partner/senior-berater-finance", "SENIOR BERATER (M/W/D) FINANCE", "", "Stellenangebot.");
+        final ToolContext chat = chat("alpha-web");
+        final JobSearch.Result result = JobSearch.run(chat, JobSearch.plan("Zeige alle Stellenanzeigen von Biber"));
+        assertEquals(List.of("Biber"), result.plan.criteria());
+        assertTrue(result.gaps.toString(), result.complete);
+        assertEquals("the records that match", 7, result.records);
+        assertEquals("the postings: the one on two pages once", 6, result.found);
+        assertEquals(6, result.ids.size());
+        assertEquals(6, new java.util.HashSet<>(result.ids).size());
+        assertEquals(JobSearch.MAX_JOBS, result.jobs.size());
+        // every title once among the six, whichever of the two pages stands for the one posting
+        final java.util.Set<String> titles = new java.util.TreeSet<>();
+        for (final JobSearch.Job job : result.jobs) titles.add(RagQuery.fold(job.title));
+        assertEquals(6, titles.size());
+        final JobSearch.Built built = JobSearch.format(result, 1, 9000, "collection alpha-web", false);
+        assertEquals(7, built.meta.getInt("records"));
+        assertEquals(6, built.meta.getInt("found"));
+        // the tool and the server's own answer to the count question say the same
+        final JSONObject tool = call(chat("alpha-web"), "job_search", "{\"query\":\"Stellenanzeigen von Biber\"}");
+        assertEquals(6, tool.getInt("found"));
+        assertEquals(7, tool.getInt("records"));
+        final String answer = QuestionKind.countOfJobs("Wie viele Stellenanzeigen von Biber gibt es?", result, built.sources, chat);
+        assertTrue(answer, answer.contains("gibt es **6** Stellenanzeigen zu Biber") && answer.contains("7 Datensätze passen; 1 davon ist dieselbe"));
+        assertTrue(answer, answer.contains("[1]") && answer.contains("[6]") && !answer.contains("[7]"));
+    }
+
+    @Test
+    public void allCollectionsHoldEveryHitOfOneCollection() throws Exception {
+        for (int i = 1; i <= 9; i++) biber("BIBA0" + i + "host03", "jobs/kalibrierung-a" + i, "Kalibrierung Techniker (m/w/d) Linie " + i, "", "Stellenangebot.");
+        biber("BIBT09host03", "jobs/labor-a", "Techniker (m/w/d) Labor", "", "Sie übernehmen die Kalibrierung unserer Messgeräte. Stellenangebot.");
+        page("BETACChost02", "https://www.okapi-systems.example/jobs/kalibrierung", "beta-web", "Kalibrierung Ingenieur (m/w/d)",
+                posting("Kalibrierung Ingenieur (m/w/d)", "Sie kalibrieren Sensoren.", OKAPI), "Kalibrierung Ingenieur (m/w/d). Stellenangebot.");
+        providers();
+        final JobSearch.Plan plan = JobSearch.plan("Zeige alle Stellenanzeigen zu Kalibrierung");
+        final JobSearch.Result alpha = JobSearch.run(chat("alpha-web"), plan);
+        final JobSearch.Result beta = JobSearch.run(chat("beta-web"), plan);
+        final JobSearch.Result all = JobSearch.run(chat(null), plan);
+        assertTrue(alpha.complete && beta.complete && all.complete);
+        assertEquals(10, alpha.found);
+        assertEquals(1, beta.found);
+        // the same stock: the whole index holds every posting of each collection, and nothing else here
+        assertTrue(all.ids.containsAll(alpha.ids) && all.ids.containsAll(beta.ids));
+        assertEquals(alpha.found + beta.found, all.found);
+        assertEquals(alpha.scanned + beta.scanned, all.scanned);
+        // the providers alike
+        final ServiceSearch.Plan service = ServiceSearch.plan("Wie viele Anbieter für Schimmelsanierung gibt es in Musterstadt?");
+        final ServiceSearch.Result one = ServiceSearch.run(chat("alpha-web"), service, List.of());
+        final ServiceSearch.Result every = ServiceSearch.run(chat(null), service, List.of());
+        assertTrue(one.gaps.toString() + every.gaps, !one.lowerBound() && !every.lowerBound());
+        assertTrue(every.keys.toString(), every.keys.containsAll(one.keys));
+        assertEquals(one.found + 1, every.found);
+        assertTrue(every.perPlace.get(ServiceSearch.AT_PLACE) >= one.perPlace.get(ServiceSearch.AT_PLACE));
+    }
+
+    @Test
+    public void aToolCallForTheSameSearchReusesTheResultOfTheRequest() throws Exception {
+        for (int i = 1; i <= 3; i++) biber("BIBU0" + i + "host03", "jobs/kalibrierung-u" + i, "Kalibrierung Techniker (m/w/d) Linie " + i, "", "Stellenangebot.");
+        providers();
+        final ToolContext chat = chat("alpha-web");
+        // the automatic search of the answer
+        final JobSearch.Result automatic = JobSearch.run(chat, JobSearch.plan("Wie viele Stellenanzeigen zu Kalibrierung gibt es?"));
+        final int queries = this.indexQueries.size();
+        // the model asks the tool for the same subjects in other words: no second search
+        final JSONObject tool = call(chat, "job_search", "{\"query\":\"Zeige alle Stellenanzeigen zu Kalibrierung\"}");
+        assertTrue(tool.toString(), tool.getBoolean("reused"));
+        assertEquals(automatic.found, tool.getInt("found"));
+        assertEquals("no question to the index for the reused result", queries, this.indexQueries.size());
+        assertTrue(automatic == JobSearch.run(chat, JobSearch.plan("Stellenanzeigen Kalibrierung")));
+        // another subject is another search; another request (its own context) too
+        assertFalse(call(chat, "job_search", "{\"query\":\"Stellenanzeigen zu Robotik\"}").has("reused"));
+        assertFalse(call(chat("alpha-web"), "job_search", "{\"query\":\"Stellenanzeigen zu Kalibrierung\"}").has("reused"));
+        // the providers: the same services and place, however the request words them
+        final ServiceSearch.Result first = ServiceSearch.run(chat, ServiceSearch.plan("Wer hilft in Musterstadt bei Schimmel im Keller?"), List.of());
+        final JSONObject again = call(chat, "provider_search", "{\"query\":\"Wer hilft in Musterstadt bei Schimmel im Keller?\"}");
+        assertTrue(again.toString(), again.getBoolean("reused"));
+        assertEquals(first.found, again.getInt("found"));
+        assertEquals(new JSONObject(first.perPlace).toString(), again.getJSONObject("per_place").toString());
+        assertFalse(call(chat, "provider_search", "{\"query\":\"Schimmelsanierung Nebenstadt\"}").has("reused"));
+    }
+
+    @Test
+    public void theKindOfAQuestionAndThePlainCount() {
+        assertEquals(QuestionKind.COUNT, QuestionKind.of("Wie viele Stellenanzeigen zu Java gibt es?"));
+        assertEquals(QuestionKind.COUNT, QuestionKind.of("How many providers of mould remediation are there in Musterstadt?"));
+        assertEquals(QuestionKind.LIST, QuestionKind.of("Zeige alle Stellenanzeigen zu Java"));
+        assertEquals(QuestionKind.LIST, QuestionKind.of("Welche Stellenanzeigen gibt es zu Java oder Robotik?"));
+        assertEquals(QuestionKind.RECOMMEND, QuestionKind.of("Wer hilft in Musterstadt bei Schimmel im Keller?"));
+        assertEquals(QuestionKind.RECOMMEND, QuestionKind.of("Empfiehl mir einen Statiker in Musterstadt"));
+        assertEquals(QuestionKind.OTHER, QuestionKind.of("Ist die Stelle als Java Senior Berater noch offen?"));
+        // only a question for the number alone is answered without the model
+        assertTrue(QuestionKind.plainCount("Wie viele Stellenanzeigen zu Java gibt es?"));
+        assertTrue(QuestionKind.plainCount("Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?"));
+        assertTrue(QuestionKind.plainCount("Anzahl der Stellenanzeigen zu Robotik"));
+        assertFalse(QuestionKind.plainCount("Wie viele Stellenanzeigen zu Java gibt es? Nenne Arbeitgeber und Quelle."));
+        assertFalse(QuestionKind.plainCount("Wie viele Stellenanzeigen zu Java gibt es, und in welchen Collections?"));
+        assertFalse(QuestionKind.plainCount("Wie viele Anbieter gibt es in Musterstadt und wer ist der beste?"));
+        assertFalse(QuestionKind.plainCount("Zeige alle Stellenanzeigen zu Java"));
+        assertFalse(QuestionKind.plainCount("Wie viele Stellenanzeigen zu Java gibt es?\nUnd warum so wenige?"));
+    }
+
+    @Test
+    public void theServersAnswerToAPlainCountOfProviders() throws Exception {
+        providers();
+        final ToolContext chat = chat("alpha-web");
+        final ServiceSearch.Result r = ServiceSearch.run(chat, ServiceSearch.plan("Wie viele Anbieter für Schimmelsanierung gibt es in Musterstadt?"), List.of());
+        final ServiceSearch.Built built = ServiceSearch.format(r, 1, 9000, chat.scopeLabel(), false);
+        final String de = QuestionKind.countOfProviders("Wie viele Anbieter für Schimmelsanierung gibt es in Musterstadt?", r, built.sources, chat);
+        assertTrue(de, de.startsWith("In der Collection alpha-web gibt es **" + r.found + "** Anbieter für Schimmelsanierung"));
+        assertTrue(de, de.contains("Standort in Musterstadt: **1**") && de.contains("Musterstadt als Einsatzgebiet: **2**"));
+        assertTrue(de, de.contains("1 nennen Musterstadt nur") && de.contains("- Becker Schimmelsanierung GmbH (Standort in Musterstadt) [1]"));
+        assertFalse(de, de.contains("BETAGEHEIM") || de.contains("Fremd"));
+        final String en = QuestionKind.countOfProviders("How many providers of mould remediation are there?", r, built.sources, chat);
+        assertTrue(en, en.startsWith("There are **" + r.found + "** providers of Schimmelsanierung, Bausachverständiger in the collection alpha-web"));
+        // every cited number is a source of the answer
+        final JSONObject check = RagCitations.check(de, built.sources);
+        assertEquals(check.toString(), 0, check.getJSONArray("invalid").length());
+    }
+
+    @Test
     public void aFactOnlyPostingBehindPosition5000IsFound() throws Exception {
         // about 7,000 postings of one collection, written straight into the graph (the extractors of page() would take minutes);
         // the only posting of the subject shows it in a fact only and comes after the 6,000th
@@ -936,7 +1061,7 @@ public class ChatToolsTest {
         final ServiceSearch.Provider becker = r.providers.get(0);
         assertEquals("Becker Schimmelsanierung GmbH", becker.name);
         assertEquals(ServiceSearch.AT_PLACE, becker.place);
-        assertEquals(3, becker.pages.size());
+        assertEquals(3, becker.pageCount); // its three pages name the service
         assertTrue(becker.byGraph && becker.byText);
         assertEquals(ServiceSearch.SERVES_PLACE, byName.get("Adler Sanierung GmbH").place);
         assertTrue(byName.get("Adler Sanierung GmbH").byGraph && !byName.get("Adler Sanierung GmbH").byText);
@@ -950,7 +1075,7 @@ public class ChatToolsTest {
         // a provider only of the second service (Esser) is one of the eleven: every service of the plan is searched in the
         // graph and the index, also after ten providers of the first
         assertTrue(r.searched.toString(), r.searched.contains("index: Bausachverständiger")
-                && r.searched.contains("graph service: Bausachverständiger"));
+                && r.searched.contains("graph: Bausachverständiger"));
         final ServiceSearch.Plan second = ServiceSearch.planAny("Bausachverständiger");
         final ServiceSearch.Result esser = ServiceSearch.run(chat("alpha-web"), second, List.of());
         assertEquals(1, esser.found);

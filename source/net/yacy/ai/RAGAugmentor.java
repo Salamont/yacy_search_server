@@ -533,61 +533,6 @@ public final class RAGAugmentor {
      * @param value field value
      * @return first string representation or empty string
      */
-    /**
-     * The local Solr index read directly for the chat's searches of all postings and providers (no search event, so no
-     * cache of one and no one-page-per-host): the pages of {@code collection} (null: all) whose title, description or text
-     * holds every word as a word or the start of one, optionally only among {@code urls}; from {@code offset}, at most
-     * {@code count}, and the total. Words are lower-cased and escaped; nothing of them reaches the query unescaped.
-     */
-    public static net.yacy.ai.rag.ToolContext.IndexPage indexPages(final List<String> words, final String collection,
-            final Collection<String> urls, final int offset, final int count) throws IOException {
-        final Switchboard sb = Switchboard.getSwitchboard();
-        final List<RagCandidate> out = new ArrayList<>();
-        if (sb == null || words == null || words.isEmpty() || count <= 0) return new net.yacy.ai.rag.ToolContext.IndexPage(out, 0L);
-        final StringBuilder q = new StringBuilder();
-        for (final String w : words) {
-            final String term = org.apache.solr.client.solrj.util.ClientUtils.escapeQueryChars(w.trim().toLowerCase(java.util.Locale.ROOT));
-            if (term.isEmpty()) continue;
-            if (q.length() > 0) q.append(" AND ");
-            q.append("(").append(CollectionSchema.title.getSolrFieldName()).append(':').append(term).append("* OR ")
-                    .append(CollectionSchema.description_txt.getSolrFieldName()).append(':').append(term).append("* OR ")
-                    .append(CollectionSchema.text_t.getSolrFieldName()).append(':').append(term).append("*)");
-        }
-        if (q.length() == 0) return new net.yacy.ai.rag.ToolContext.IndexPage(out, 0L);
-        if (collection != null) {
-            q.append(" AND ").append(CollectionSchema.collection_sxt.getSolrFieldName()).append(":\"")
-                    .append(org.apache.solr.client.solrj.util.ClientUtils.escapeQueryChars(collection)).append('"');
-        }
-        if (urls != null) {
-            if (urls.isEmpty()) return new net.yacy.ai.rag.ToolContext.IndexPage(out, 0L);
-            q.append(" AND ").append(CollectionSchema.sku.getSolrFieldName()).append(":(");
-            boolean first = true;
-            for (final String u : urls) {
-                if (!first) q.append(" OR ");
-                q.append('"').append(u.replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
-                first = false;
-            }
-            q.append(')');
-        }
-        final org.apache.solr.common.SolrDocumentList docs = sb.index.fulltext().getDefaultConnector().getDocumentListByQuery(q.toString(),
-                null, offset, count, CollectionSchema.sku.getSolrFieldName(), CollectionSchema.title.getSolrFieldName(),
-                CollectionSchema.description_txt.getSolrFieldName(), CollectionSchema.text_t.getSolrFieldName(),
-                CollectionSchema.host_s.getSolrFieldName(), CollectionSchema.collection_sxt.getSolrFieldName());
-        int rank = offset;
-        for (final org.apache.solr.common.SolrDocument d : docs) {
-            final String url = firstFieldString(d.getFieldValue(CollectionSchema.sku.getSolrFieldName()));
-            if (url.isEmpty()) continue;
-            final List<String> collections = new ArrayList<>();
-            final Collection<Object> values = d.getFieldValues(CollectionSchema.collection_sxt.getSolrFieldName());
-            if (values != null) for (final Object value : values) if (value != null) collections.add(value.toString());
-            out.add(new RagCandidate(url, firstFieldString(d.getFieldValue(CollectionSchema.title.getSolrFieldName())),
-                    firstFieldString(d.getFieldValue(CollectionSchema.description_txt.getSolrFieldName())),
-                    firstFieldString(d.getFieldValue(CollectionSchema.text_t.getSolrFieldName())),
-                    firstFieldString(d.getFieldValue(CollectionSchema.host_s.getSolrFieldName())), collections, rank++));
-        }
-        return new net.yacy.ai.rag.ToolContext.IndexPage(out, docs.getNumFound());
-    }
-
     private static String firstFieldString(Object value) {
         if (value == null) return "";
         if (value instanceof Collection) {

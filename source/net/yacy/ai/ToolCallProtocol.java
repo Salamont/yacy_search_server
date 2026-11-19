@@ -160,6 +160,8 @@ public final class ToolCallProtocol {
     public static final class AnswerHook {
         private final java.util.function.Function<String, JSONObject> metadata;
         private boolean emitted;
+        /** the model requests of this answer and what they cost */
+        public final Usage usage = new Usage();
 
         public AnswerHook(final java.util.function.Function<String, JSONObject> metadata) {
             this.metadata = metadata;
@@ -168,11 +170,136 @@ public final class ToolCallProtocol {
         void emit(final ServletOutputStream out, final String answer) throws IOException {
             if (this.emitted) return;
             this.emitted = true;
-            final JSONObject data = this.metadata.apply(answer == null ? "" : answer);
+            JSONObject data = this.metadata.apply(answer == null ? "" : answer);
+            this.usage.answerChars = answer == null ? 0 : answer.length();
+            try {
+                if (data == null) data = new JSONObject(true);
+                data.put("scoutro-usage", this.usage.json());
+            } catch (final JSONException e) {
+                // plain keys and values
+            }
             if (data == null || data.length() == 0) return;
             out.println("data: " + data.toString());
             out.println();
             out.flush();
+        }
+    }
+
+    /**
+     * The model requests of one answer: how many, the characters sent, and the tokens the endpoint reported for them
+     * ({@code usage} of a stream chunk, when the endpoint sends it). Without a report the tokens are an estimate from the
+     * characters and marked as one.
+     */
+    public static final class Usage {
+        /** characters per token of the estimate (as the context budget of the RAG chat counts) */
+        static final int CHARS_PER_TOKEN = 3;
+        int modelCalls;
+        long requestChars;
+        long answerChars;
+        long promptTokens;
+        long completionTokens;
+        int reportedCalls;
+        private long callPrompt = -1L, callCompletion = -1L;
+
+        /** A request to the model: its body as sent. */
+        void request(final JSONObject body) {
+            endCall();
+            this.modelCalls++;
+            this.requestChars += body == null ? 0 : body.toString().length();
+        }
+
+        /** A chunk of the model's stream: its usage, if it reports one (the last of a call counts). */
+        void chunk(final JSONObject j) {
+            final JSONObject u = j == null ? null : j.optJSONObject("usage");
+            if (u == null) return;
+            if (u.has("prompt_tokens")) this.callPrompt = u.optLong("prompt_tokens", 0L);
+            if (u.has("completion_tokens")) this.callCompletion = u.optLong("completion_tokens", 0L);
+        }
+
+        private void endCall() {
+            if (this.callPrompt >= 0L || this.callCompletion >= 0L) {
+                this.promptTokens += Math.max(0L, this.callPrompt);
+                this.completionTokens += Math.max(0L, this.callCompletion);
+                this.reportedCalls++;
+            }
+            this.callPrompt = -1L;
+            this.callCompletion = -1L;
+        }
+
+        public int modelCalls() {
+            return this.modelCalls;
+        }
+
+        /** Whether every model request of this answer reported its tokens. */
+        public boolean reported() {
+            endCall();
+            return this.modelCalls > 0 && this.reportedCalls == this.modelCalls;
+        }
+
+        public JSONObject json() throws JSONException {
+            final boolean reported = reported();
+            final JSONObject o = new JSONObject(true);
+            o.put("modelCalls", this.modelCalls);
+            o.put("requestChars", this.requestChars);
+            o.put("answerChars", this.answerChars);
+            o.put("tokens", this.modelCalls == 0 ? "none" : reported ? "reported" : "estimated");
+            o.put("inputTokens", this.modelCalls == 0 ? 0L : reported ? this.promptTokens : this.requestChars / CHARS_PER_TOKEN);
+            o.put("outputTokens", this.modelCalls == 0 ? 0L : reported ? this.completionTokens : this.answerChars / CHARS_PER_TOKEN);
+            return o;
+        }
+
+        @Override
+        public String toString() {
+            final boolean reported = reported();
+            return "modelCalls=" + this.modelCalls + " requestChars=" + this.requestChars + " answerChars=" + this.answerChars + " tokens="
+                    + (this.modelCalls == 0 ? "none" : reported ? "reported" : "estimated") + " inputTokens="
+                    + (this.modelCalls == 0 ? 0L : reported ? this.promptTokens : this.requestChars / CHARS_PER_TOKEN) + " outputTokens="
+                    + (this.modelCalls == 0 ? 0L : reported ? this.completionTokens : this.answerChars / CHARS_PER_TOKEN);
+        }
+    }
+
+    /** Setting: ask the endpoint to report the tokens of a streamed answer ({@code stream_options.include_usage}; default off). */
+    public static final String STREAM_USAGE_SETTING = "ai.stream.usage";
+
+    private static void askForUsage(final JSONObject body) {
+        if (body == null || !"true".equalsIgnoreCase(ToolProvider.setting(STREAM_USAGE_SETTING, "false"))) return;
+        try {
+            body.put("stream_options", new JSONObject(true).put("include_usage", true));
+        } catch (final JSONException e) {
+            // plain keys and values
+        }
+    }
+
+    /**
+     * The server's own answer as the stream a model would have sent, without a model request: one chunk with the answer and
+     * the metadata of the request, the end of the answer, the metadata computed from it, and the end of the stream.
+     */
+    public static void answerDirectly(final ServletOutputStream out, final String model, final String answer, final JSONObject initialMetadata,
+            final String runId, final AnswerHook hook) throws IOException {
+        try {
+            final String id = "scoutro-" + (runId == null ? "answer" : runId);
+            final long created = System.currentTimeMillis() / 1000L;
+            final JSONObject first = new JSONObject(true);
+            first.put("id", id).put("object", "chat.completion.chunk").put("created", created).put("model", "scoutro-server");
+            first.put("choices", new JSONArray().put(new JSONObject(true).put("index", 0)
+                    .put("delta", new JSONObject(true).put("role", "assistant").put("content", answer)).put("finish_reason", JSONObject.NULL)));
+            final JSONArray names = initialMetadata == null ? null : initialMetadata.names();
+            for (int i = 0; names != null && i < names.length(); i++) first.put(names.getString(i), initialMetadata.get(names.getString(i)));
+            first.put("scoutro-answer", new JSONObject(true).put("by", "server").put("modelCalls", 0).put("configuredModel", model == null ? "" : model));
+            out.println("data: " + first.toString());
+            out.println();
+            final JSONObject end = new JSONObject(true);
+            end.put("id", id).put("object", "chat.completion.chunk").put("created", created).put("model", "scoutro-server");
+            end.put("choices", new JSONArray().put(new JSONObject(true).put("index", 0).put("delta", new JSONObject(true)).put("finish_reason", "stop")));
+            out.println("data: " + end.toString());
+            out.println();
+            emit(hook, out, answer);
+            out.println("data: [DONE]");
+            out.println();
+            out.flush();
+            log.info(prefix(runId) + "event=tool-lifecycle phase=end result=server-answer modelCalls=0 answerChars=" + (answer == null ? 0 : answer.length()));
+        } catch (final JSONException e) {
+            throw new IOException("JSON processing error in the server's answer", e);
         }
     }
 
@@ -188,6 +315,8 @@ public final class ToolCallProtocol {
             LLM.applyNoThinkingParameters(preparedBody, llm4Chat.llm.type);
         }
         if (llm4Chat != null) LLM.stripLocalHints(preparedBody, llm4Chat.llm.type);
+        askForUsage(preparedBody);
+        if (hook != null) hook.usage.request(preparedBody);
         final JSONArray offeredTools = preparedBody.optJSONArray("tools");
         log.info(prefix(runId) + "event=tool-lifecycle phase=start tooling=" + (llm4Chat != null && llm4Chat.tooling) + " releasedTools=" + (offeredTools == null ? 0 : offeredTools.length()) + " thinking=" + (llm4Chat != null && llm4Chat.thinking) + " messages=" + (messages == null ? 0 : messages.length()) + " metadata=" + (initialMetadata == null ? 0 : initialMetadata.length()));
         final HttpURLConnection conn;
@@ -202,7 +331,8 @@ public final class ToolCallProtocol {
         //final String message = conn.getResponseMessage();
         if (status == 200) {
             handleInitialStreamAndContinue(out, conn, llm4Chat, preparedBody, messages, initialMetadata, runId, hook);
-            log.info(prefix(runId) + "event=tool-lifecycle phase=end result=success status=" + status + " durationMs=" + (System.currentTimeMillis() - start));
+            log.info(prefix(runId) + "event=tool-lifecycle phase=end result=success status=" + status + " durationMs=" + (System.currentTimeMillis() - start)
+                    + (hook == null ? "" : " " + hook.usage));
         } else {
             log.warn(prefix(runId) + "event=tool-lifecycle phase=end result=upstream-error status=" + status + " reason=" + LogRedaction.redact(conn.getResponseMessage()) + " durationMs=" + (System.currentTimeMillis() - start));
             Logger.getLogger("ToolCallProtocoll").severe(status + " " + conn.getResponseMessage());
@@ -306,6 +436,7 @@ public final class ToolCallProtocol {
                         try {
                             JSONObject j = new JSONObject(new JSONTokener(line.substring(p)));
                             captureToolCalls(j, toolCalls, assistantContent, sawToolCalls);
+                            if (hook != null) hook.usage.chunk(j);
                         } catch (JSONException e) {
                             // ignore malformed stream chunks and continue forwarding stream
                         }
@@ -393,6 +524,8 @@ public final class ToolCallProtocol {
                 followup.put("messages", newMessages);
                 // the last round asks for the answer itself: no further tool call can be served after it
                 if (round == MAX_TOOL_ROUNDS - 1 && followup.has("tools")) followup.put("tool_choice", "none");
+                askForUsage(followup);
+                if (hook != null) hook.usage.request(followup);
                 log.info(prefix(runId) + "event=tool-round phase=followup-call round=" + round + " toolResults=" + roundData.toolResults.length() + " messages=" + newMessages.length());
                 final HttpURLConnection followConn = openChatCompletionConnection(llm4Chat, followup);
                 if (followConn.getResponseCode() != 200) {
@@ -428,6 +561,7 @@ public final class ToolCallProtocol {
                                     JSONObject j = new JSONObject(new JSONTokener(line.substring(p)));
                                     // Parse streamed deltas to capture possible next tool round.
                                     captureToolCalls(j, nextToolCalls, nextAssistantContent, sawToolCalls);
+                                    if (hook != null) hook.usage.chunk(j);
                                 } catch (JSONException e) {
                                     // ignore malformed stream chunks and continue forwarding stream
                                 }
