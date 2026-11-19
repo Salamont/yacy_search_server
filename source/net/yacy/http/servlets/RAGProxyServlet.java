@@ -436,11 +436,12 @@ public class RAGProxyServlet extends HttpServlet {
                     final JSONArray namedJson = serviceBuilt.meta.optJSONArray("placeNamedBy");
                     for (int i = 0; namedJson != null && i < namedJson.length(); i++) named.add(namedJson.optInt(i));
                     guard.addServerRules(messages, PromptGuard.serviceSearchNote(services.found, serviceBuilt.sources.size(), services.gaps,
-                            services.searched, servicePlan.place, named, toolContext.scopeLabel()));
+                            services.searched, servicePlan.place, named, toolContext.scopeLabel(), services.undecided(), services.placeGaps));
                     ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-servicesearch phase=end stage=" + result.stage + " followUp="
                             + goal.followUp + " all=" + allProviders + " searched=" + services.searched.size() + " found=" + services.found
                             + " lowerBound=" + services.lowerBound() + " shown=" + serviceBuilt.sources.size() + " placeNamed=" + named.size()
-                            + " kind=" + kind + " servicePages=" + services.servicePages + " gaps=" + services.gaps.size() + " timedOut="
+                            + " kind=" + kind + " servicePages=" + services.servicePages + " gaps=" + services.gaps.size() + " placeOpen="
+                            + services.undecided() + " placeGaps=" + services.placeGaps.size() + " timedOut="
                             + services.timedOut + " ms=" + services.millis + " phases=" + phases(services.phases));
                 }
                 final int serviceCount = serviceBuilt == null ? 0 : serviceBuilt.sources.size();

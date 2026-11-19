@@ -101,7 +101,12 @@ public final class SearchAssistTools {
                 out.put("searched", new JSONArray(result.searched));
                 out.put("found", result.found).put("lower_bound", result.lowerBound());
                 if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
-                if (plan.place != null) out.put("per_place", new JSONObject(result.perPlace));
+                if (plan.place != null) {
+                    out.put("per_place", new JSONObject(result.perPlace));
+                    // the total above stands; only the relation to the place may be open for some providers
+                    out.put("place_complete", !result.placeOpen());
+                    if (result.placeOpen()) out.put("place_gaps", new JSONArray(result.placeGaps));
+                }
                 final java.util.List<Entry> entries = new java.util.ArrayList<>();
                 for (final ServiceSearch.Provider provider : result.providers) {
                     final ServiceSearch.Built one = ServiceSearch.format(new ServiceSearch.Result(plan, java.util.List.of(provider), 1,
@@ -124,7 +129,10 @@ public final class SearchAssistTools {
                                 + context.scopeLabel() + ". Say that none was found.")
                         : "Found " + found + " providers, shown " + shown + ": say both numbers. Name a provider only with what its"
                                 + " source states, cited as [n]." + (plan.place == null ? "" : " place: location or service_area is evidenced;"
-                                + " mentioned or none is no evidence of " + plan.place + ": say so."));
+                                + " mentioned or none is no evidence of " + plan.place + ": say so." + (result.placeOpen() ? " The relation to "
+                                + plan.place + " is open for " + result.undecided() + " providers (place undecided, see place_gaps): the numbers"
+                                + " located and serving are at least those of per_place; say that the rest is not determined, and do not count"
+                                + " an open one as located, serving or merely mentioning." : "")));
                 return out;
             }
 

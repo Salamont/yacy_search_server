@@ -3,6 +3,7 @@ package net.yacy.ai.rag;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -241,8 +242,13 @@ public final class ServiceSearch {
     /** How a provider relates to the place of the question. */
     public static final String AT_PLACE = "location"; // an address of the provider in the place (graph or its page)
     public static final String SERVES_PLACE = "service_area"; // a service area that names the place (graph or its page)
-    public static final String MENTIONS_PLACE = "mentioned"; // its pages name the place only in passing: no evidence
-    public static final String NO_PLACE = "none";
+    public static final String MENTIONS_PLACE = "mentioned"; // all its pages naming the place were read: they name it only in passing
+    /**
+     * its pages name the place, but not all of them were read (the limit of {@link #PLACE_HOSTS} providers or of
+     * {@link #PLACE_PAGES} pages each, or the time budget): whether it is located there or serves the place is open
+     */
+    public static final String UNDECIDED_PLACE = "undecided";
+    public static final String NO_PLACE = "none"; // no page of its host names the place, and the graph records no address or area there
 
     /** One provider: a graph entity or, without one, a host; its pages and how it shows the service and the place. */
     public static final class Provider {
@@ -275,9 +281,10 @@ public final class ServiceSearch {
             return AT_PLACE.equals(this.place) ? 3 : SERVES_PLACE.equals(this.place) ? 2 : 0;
         }
 
-        /** for the order of the answer: a mention before no relation at all */
+        /** for the order of the answer: an address, a service area, an open relation, a mention, no relation */
         int placeOrder() {
-            return MENTIONS_PLACE.equals(this.place) ? 1 : placeRank();
+            return AT_PLACE.equals(this.place) ? 4 : SERVES_PLACE.equals(this.place) ? 3 : UNDECIDED_PLACE.equals(this.place) ? 2
+                    : MENTIONS_PLACE.equals(this.place) ? 1 : 0;
         }
 
         public String url() {
@@ -295,8 +302,18 @@ public final class ServiceSearch {
         /** per relation to the place: how many of {@link #found} */
         public final Map<String, Integer> perPlace;
         public final List<String> searched;
-        /** why the count is only a lower bound (empty when complete) */
+        /** why the count of providers is only a lower bound (empty when complete) */
         public final List<String> gaps;
+        /**
+         * why the relation to the place is not determined for every provider (empty when it is): then the providers located in
+         * or serving the place are at least those of {@link #perPlace}, and {@link #UNDECIDED_PLACE} counts the open ones. The
+         * count of providers itself is not affected.
+         */
+        public List<String> placeGaps = Collections.emptyList();
+        /** of the open providers: those whose pages naming the place were not read at all, and those read only in part */
+        public int placeUnread, placePartly;
+        /** whether the time budget, not the limit of {@link #PLACE_HOSTS}, left pages naming the place unread */
+        public boolean placeOutOfTime;
         public final boolean timedOut;
         public final long millis;
         /** the time of each step in milliseconds: graph, index, place, selection, evidence */
@@ -320,6 +337,16 @@ public final class ServiceSearch {
 
         public boolean lowerBound() {
             return !this.gaps.isEmpty();
+        }
+
+        /** whether the relation to the place is open for some providers (see {@link #placeGaps}) */
+        public boolean placeOpen() {
+            return !this.placeGaps.isEmpty();
+        }
+
+        /** the providers whose relation to the place is open */
+        public int undecided() {
+            return this.perPlace.getOrDefault(UNDECIDED_PLACE, 0);
         }
     }
 
@@ -366,14 +393,21 @@ public final class ServiceSearch {
      * provider of its own. This is the number of providers, each once;</li>
      * <li><b>place</b> (with a place in the question): an address or service area in the graph that names the place
      * ({@link KgReader#factsNaming}), for a provider of step 1 or for the organisation of a host of step 2; and the hosts
-     * of the scope with a page naming the place, counted by host: of those that are providers the pages naming the place
-     * are read (at most {@link #PLACE_PAGES} per host) and tell an address, a service area or a mere mention. Service and
-     * place belong to the same provider: its graph entity or its host, on whichever of its pages;</li>
-     * <li><b>selection</b> and <b>evidence</b>: located before serving before mentioning before the rest; of the providers
-     * shown one page naming the service is read for the excerpt, and the organisation of a host without one in step 1.</li>
+     * of the scope with a page naming the place, counted by host: of those that are providers (at most {@link #PLACE_HOSTS},
+     * providers of the graph and those with the most pages naming the service first) the pages naming the place are read
+     * (at most {@link #PLACE_PAGES} per host) and tell an address or a service area. A provider whose pages naming the place were all read without either only
+     * mentions it; one whose pages were not all read is {@link #UNDECIDED_PLACE}: a mention found by the count alone
+     * decides nothing. Service and place belong to the same provider: its graph entity or its host, on whichever of its
+     * pages;</li>
+     * <li><b>selection</b> and <b>evidence</b>: located before serving before open before mentioning before the rest; of
+     * the providers shown one page naming the service is read for the excerpt, and the organisation of a host without one
+     * in step 1.</li>
      * </ol>
      * A provider counts once over its pages; separate entities and hosts stay separate. Every step checks the time budget;
-     * a step that could not run or be read to its end makes the count a lower bound with its reason.
+     * a step of the count (graph, index) that could not run or be read to its end makes the count a lower bound with its
+     * reason ({@link Result#gaps}). The place step does not change the count: what it could not read leaves the relation
+     * to the place open for those providers ({@link Result#placeGaps}), and the numbers located and serving are then at
+     * least those evidenced.
      */
     static Result run(final ToolContext context, final Plan plan, final List<RagRetriever.Scored> known, final LongSupplier clock,
             final long budget) {
@@ -474,16 +508,21 @@ public final class ServiceSearch {
         }
         phases.put("index", (System.nanoTime() - mark) / 1_000_000L);
         mark = System.nanoTime();
-        // 3. the place: the same provider's address or service area in the graph, or its own pages naming the place
+        // 3. the place: the same provider's address or service area in the graph, or its own pages naming the place. Every
+        // provider whose pages name the place is either decided by reading them (an address, a service area, or all of them
+        // read and naming it only in passing) or open; a mention alone decides nothing. The count of providers stays as it is.
+        final List<String> placeGaps = new ArrayList<>();
+        final int[] open = new int[2]; // unread, partly read
+        boolean placeOutOfTime = false;
         if (plan.place != null) {
+            boolean decidable = true; // whether the providers without evidence of the place can be told apart
             try {
                 if (reader != null && !timedOut) {
                     if (clock.getAsLong() - start > budget) {
-                        timedOut = true;
-                        gaps.add("time budget: the graph's addresses and service areas for " + plan.place + " not read");
+                        placeGaps.add("time budget: the graph's addresses and service areas for " + plan.place + " not read");
                     } else {
                         final List<KgReader.FactRow> facts = context.reader().factsNaming(viewer, PLACE_PREDICATES, plan.place, PLACE_FACTS);
-                        if (facts.size() >= PLACE_FACTS) gaps.add("graph: more than " + PLACE_FACTS + " addresses name " + plan.place + ", not all read");
+                        if (facts.size() >= PLACE_FACTS) placeGaps.add("graph: more than " + PLACE_FACTS + " addresses name " + plan.place + ", not all read");
                         // of entities that are no provider of step 1: the organisation of a host that names the service
                         final Set<Long> others = new LinkedHashSet<>();
                         for (final KgReader.FactRow f : facts) if (!byRow.containsKey(f.subject)) others.add(f.subject);
@@ -505,49 +544,96 @@ public final class ServiceSearch {
                         }
                     }
                 }
-                if (direct && !timedOut) {
-                    if (clock.getAsLong() - start > budget) {
-                        timedOut = true;
-                        gaps.add("time budget: the pages naming " + plan.place + " not read");
-                    } else {
-                        final List<List<String>> placeWords = List.of(JobSearch.words(plan.place));
-                        final ToolContext.HostCount named = context.indexHosts(placeWords);
-                        final Map<String, Provider> candidates = new java.util.TreeMap<>();
-                        for (final Provider p : providers.values()) {
-                            if (p.host != null && p.placeRank() < 3 && named.pagesByHost.containsKey(p.host)) candidates.put(p.host, p);
+                if (!direct) {
+                    placeGaps.add("no direct index: the place only from the pages read by ranked search");
+                } else if (!timedOut && clock.getAsLong() - start > budget) {
+                    decidable = false;
+                    placeOutOfTime = true;
+                    placeGaps.add("time budget: the pages naming " + plan.place + " not counted");
+                } else if (!timedOut) {
+                    final List<List<String>> placeWords = List.of(JobSearch.words(plan.place));
+                    final ToolContext.HostCount named = context.indexHosts(placeWords);
+                    final Map<String, Provider> candidates = new LinkedHashMap<>();
+                    for (final Provider p : providers.values()) {
+                        if (p.host != null && p.placeRank() < 3 && named.pagesByHost.containsKey(p.host)) candidates.put(p.host, p);
+                    }
+                    // the likely providers first: one of the graph, then the most pages naming the service, then the most pages
+                    // naming the place (an address in every footer), then by host; what the limit leaves unread stays open
+                    final List<String> hosts = new ArrayList<>(candidates.keySet());
+                    hosts.sort((a, b) -> {
+                        final Provider pa = candidates.get(a);
+                        final Provider pb = candidates.get(b);
+                        if (pa.byGraph != pb.byGraph) return pa.byGraph ? -1 : 1;
+                        if (pa.pageCount != pb.pageCount) return pb.pageCount - pa.pageCount;
+                        final int na = named.pagesByHost.get(a);
+                        final int nb = named.pagesByHost.get(b);
+                        return na != nb ? nb - na : a.compareTo(b);
+                    });
+                    final Map<String, Set<String>> seen = new java.util.HashMap<>();
+                    int read = 0;
+                    boolean outOfTime = false;
+                    for (int i = 0; i < hosts.size() && read < PLACE_HOSTS; i += PLACE_BATCH) {
+                        if (clock.getAsLong() - start > budget) {
+                            outOfTime = true;
+                            break;
                         }
-                        final List<String> hosts = new ArrayList<>(candidates.keySet());
-                        int read = 0;
-                        for (int i = 0; i < hosts.size(); i += PLACE_BATCH) {
-                            if (read >= PLACE_HOSTS || clock.getAsLong() - start > budget) break;
-                            final List<String> batch = hosts.subList(i, Math.min(hosts.size(), Math.min(i + PLACE_BATCH, PLACE_HOSTS)));
-                            for (final RagCandidate page : context.indexHostPages(placeWords, batch, PLACE_PAGES)) {
-                                final Provider p = candidates.get(hostKey(page.url));
-                                if (p != null && p.placeRank() < 3) textPlace(p, page, plan.place, plan.services);
-                            }
-                            read += batch.size();
+                        final List<String> batch = hosts.subList(i, Math.min(hosts.size(), Math.min(i + PLACE_BATCH, PLACE_HOSTS)));
+                        for (final RagCandidate page : context.indexHostPages(placeWords, batch, PLACE_PAGES)) {
+                            final String host = hostKey(page.url);
+                            final Provider p = candidates.get(host);
+                            if (p == null) continue;
+                            seen.computeIfAbsent(host, h -> new HashSet<>()).add(page.url);
+                            if (p.placeRank() < 3) textPlace(p, page, plan.place, plan.services);
                         }
-                        // a host of the count names the place: at least a mention, whatever its pages read here said
-                        int unread = 0;
-                        for (int i = 0; i < hosts.size(); i++) {
-                            final Provider p = candidates.get(hosts.get(i));
-                            if (NO_PLACE.equals(p.place)) p.place = MENTIONS_PLACE;
-                            if (i >= read) unread++;
+                        read += batch.size();
+                    }
+                    int unread = 0;
+                    int partly = 0;
+                    for (int i = 0; i < hosts.size(); i++) {
+                        final Provider p = candidates.get(hosts.get(i));
+                        if (p.placeRank() >= 2) continue; // an address or a service area: evidenced
+                        final int pages = named.pagesByHost.get(hosts.get(i));
+                        final int pagesRead = seen.getOrDefault(hosts.get(i), Collections.emptySet()).size();
+                        if (i < read && pagesRead >= pages) {
+                            p.place = MENTIONS_PLACE; // every page of it naming the place was read: a mention in passing
+                            p.placeEvidence = null;
+                        } else {
+                            p.place = UNDECIDED_PLACE;
+                            p.placeEvidence = null;
+                            if (i < read) partly++;
+                            else unread++;
                         }
-                        if (unread > 0) {
-                            if (clock.getAsLong() - start > budget) timedOut = true;
-                            gaps.add("place: the pages of " + unread + " providers naming " + plan.place + " not read (counted as mentioned)");
-                        }
+                    }
+                    open[0] = unread;
+                    open[1] = partly;
+                    placeOutOfTime = outOfTime && unread > 0;
+                    if (unread > 0) {
+                        placeGaps.add((outOfTime ? "time budget" : "place: the limit of " + PLACE_HOSTS + " providers read") + ": the pages of " + unread
+                                + " providers naming " + plan.place + " not read, their relation to it is open");
+                    }
+                    if (partly > 0) {
+                        placeGaps.add("place: " + partly + " providers have more than " + PLACE_PAGES + " pages naming " + plan.place
+                                + " without an address or a service area among those read, their relation to it is open");
                     }
                 }
             } catch (final Exception e) {
-                gaps.add("place: " + (e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed"));
+                decidable = false;
+                placeGaps.add("place: " + (e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed"));
+            }
+            if (!decidable) {
+                // which pages name the place is unknown: no provider without evidence is told to have no relation to it
+                for (final Provider p : providers.values()) {
+                    if (p.placeRank() < 2 && p.host != null) {
+                        p.place = UNDECIDED_PLACE;
+                        p.placeEvidence = null;
+                    }
+                }
             }
         }
         phases.put("place", (System.nanoTime() - mark) / 1_000_000L);
         mark = System.nanoTime();
         if (timedOut && gaps.stream().noneMatch(g -> g.startsWith("time budget"))) gaps.add("time budget: the search stopped early");
-        // 4. the order: the place first (an address, a service area, a mention), then graph and text, the pages, the name
+        // 4. the order: the place first (an address, a service area, open, a mention), then graph and text, the pages, the name
         final List<Provider> all = new ArrayList<>();
         for (final Provider p : providers.values()) if (p.byGraph || p.byText) all.add(p);
         all.sort((a, b) -> a.placeOrder() != b.placeOrder() ? b.placeOrder() - a.placeOrder()
@@ -555,7 +641,7 @@ public final class ServiceSearch {
                 : a.pageCount != b.pageCount ? b.pageCount - a.pageCount : a.key.compareTo(b.key));
         final Map<String, Integer> perPlace = new LinkedHashMap<>();
         if (plan.place != null) {
-            for (final String k : new String[] {AT_PLACE, SERVES_PLACE, MENTIONS_PLACE, NO_PLACE}) perPlace.put(k, 0);
+            for (final String k : new String[] {AT_PLACE, SERVES_PLACE, UNDECIDED_PLACE, MENTIONS_PLACE, NO_PLACE}) perPlace.put(k, 0);
             for (final Provider p : all) perPlace.merge(p.place, 1, Integer::sum);
         }
         final List<Provider> shown = new ArrayList<>(all.subList(0, Math.min(MAX_SHOWN, all.size())));
@@ -571,6 +657,10 @@ public final class ServiceSearch {
         final Result result = new Result(plan, shown, all.size(), perPlace, searched, gaps, timedOut, clock.getAsLong() - start);
         result.phases = Collections.unmodifiableMap(phases);
         result.servicePages = servicePages;
+        result.placeGaps = Collections.unmodifiableList(placeGaps);
+        result.placeUnread = open[0];
+        result.placePartly = open[1];
+        result.placeOutOfTime = placeOutOfTime;
         final List<String> keys = new ArrayList<>();
         for (final Provider p : all) keys.add(p.key);
         result.keys = Collections.unmodifiableList(keys);
@@ -764,6 +854,10 @@ public final class ServiceSearch {
                     case MENTIONS_PLACE:
                         body.append(" Its pages only mention ").append(result.plan.place).append(": neither its location nor a service area.");
                         break;
+                    case UNDECIDED_PLACE:
+                        body.append(" Its pages name ").append(result.plan.place).append(", but not all of them were read: whether it is located in"
+                                + " or serves ").append(result.plan.place).append(" is not determined.");
+                        break;
                     default:
                         body.append(" No location in or service area of ").append(result.plan.place).append(" is recorded.");
                         break;
@@ -793,6 +887,10 @@ public final class ServiceSearch {
             meta.put("gaps", new JSONArray(result.gaps));
             meta.put("shown", sources.size());
             meta.put("perPlace", new JSONObject(result.perPlace));
+            if (result.plan.place != null) {
+                meta.put("placeComplete", !result.placeOpen()); // the relation to the place determined for every provider
+                meta.put("placeGaps", new JSONArray(result.placeGaps));
+            }
             meta.put("placeNamedBy", placeBy); // the numbers with an evidenced location or service area
             meta.put("timedOut", result.timedOut);
             meta.put("millis", result.millis);

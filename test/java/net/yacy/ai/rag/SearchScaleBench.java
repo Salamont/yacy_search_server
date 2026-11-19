@@ -127,7 +127,7 @@ public final class SearchScaleBench {
                     out.put("totalMs", (System.nanoTime() - t0) / 1_000_000L);
                     out.put("services", r.plan.services).put("place", r.plan.place == null ? JSONObject.NULL : r.plan.place).put("found", r.found)
                             .put("shown", r.providers.size()).put("lowerBound", r.lowerBound()).put("perPlace", new JSONObject(r.perPlace))
-                            .put("servicePages", r.servicePages).put("gaps", r.gaps).put("phasesMs", new JSONObject(r.phases));
+                            .put("servicePages", r.servicePages).put("gaps", r.gaps).put("placeGaps", r.placeGaps).put("phasesMs", new JSONObject(r.phases));
                 } else {
                     final String raw = ToolProvider.executeTool(parts[2], parts[3], collection == null, context);
                     out.put("totalMs", (System.nanoTime() - t0) / 1_000_000L);
@@ -178,8 +178,9 @@ public final class SearchScaleBench {
         final ServiceSearch.Result bau = ServiceSearch.run(context(SearchScaleFixture.BAU), service, List.of());
         require(!bau.lowerBound() && bau.found == p.getInt("found"), "providers of bau-web: " + bau.found + ", complete " + bau.gaps);
         require(bau.perPlace.get(ServiceSearch.AT_PLACE) == p.getInt("location") && bau.perPlace.get(ServiceSearch.SERVES_PLACE) == p.getInt("service_area")
-                && bau.perPlace.get(ServiceSearch.MENTIONS_PLACE) == p.getInt("mentioned") && bau.perPlace.get(ServiceSearch.NO_PLACE) == p.getInt("none"),
-                "located, serving, mentioning, unrelated: " + bau.perPlace);
+                && bau.perPlace.get(ServiceSearch.MENTIONS_PLACE) == p.getInt("mentioned") && bau.perPlace.get(ServiceSearch.NO_PLACE) == p.getInt("none")
+                && bau.undecided() == 0 && !bau.placeOpen(),
+                "located, serving, mentioning, unrelated, none open: " + bau.perPlace);
         final ServiceSearch.Result every = ServiceSearch.run(context(null), service, List.of());
         require(!every.lowerBound() && every.found == p.getInt("foundAllCollections") && every.keys.containsAll(bau.keys),
                 "all collections hold every provider of bau-web (" + every.found + ")");

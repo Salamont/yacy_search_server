@@ -965,6 +965,98 @@ public class ChatToolsTest {
         assertEquals(check.toString(), 0, check.getJSONArray("invalid").length());
     }
 
+    /** A page of the direct index only (nothing of it in the graph). */
+    private void indexPage(final String url, final String collection, final String title, final String text) {
+        this.pages.add(new RagCandidate(url, title, "", text, java.net.URI.create(url).getHost(), List.of(collection), this.pages.size()));
+    }
+
+    /**
+     * More providers name the place than the search reads ({@link ServiceSearch#PLACE_HOSTS}): the total stands, the numbers
+     * located and serving are lower bounds, and a provider whose pages naming the place were not all read is open, not a
+     * mere mention. The same for the server's count answer and for provider_search, with and without "in".
+     */
+    @Test
+    public void moreProvidersNamingThePlaceThanReadLeaveTheirRelationOpen() throws Exception {
+        final String c = "gamma-web";
+        // an office located in the place and one serving it, each with two pages naming the service
+        indexPage("https://www.statik-am-ort.example/", c, "Statikbüro am Ort", "Tragwerksplanung und Statik für Wohnhäuser.");
+        indexPage("https://www.statik-am-ort.example/kontakt", c, "Kontakt", "Tragwerksplanung. Statikbüro am Ort, Hauptstraße 1, 12345 Musterstadt.");
+        indexPage("https://www.statik-umland.example/", c, "Statikbüro Umland", "Tragwerksplanung für Wohnhäuser.");
+        indexPage("https://www.statik-umland.example/gebiet", c, "Gebiet", "Tragwerksplanung. Einsatzgebiet: Musterstadt und Umgebung.");
+        // one office with three pages naming the service and five naming the place in passing: more than are read of it
+        for (int i = 0; i < 5; i++) {
+            indexPage("https://www.statik-viele.example/projekt-" + i, c, "Projekt " + i, (i < 3 ? "Tragwerksplanung. " : "")
+                    + "Ein Wohnhaus, die Bauherren kommen aus Musterstadt.");
+        }
+        // 130 house galleries: one page each naming the service and the place in passing
+        for (int i = 0; i < 130; i++) {
+            indexPage(String.format("https://www.galerie-%03d.example/", i), c, "Hausgalerie " + i,
+                    "Ein Einfamilienhaus aus Musterstadt. Die Tragwerksplanung kam vom Architekten.");
+        }
+        // two offices that never name the place
+        indexPage("https://www.statik-fern-a.example/", c, "Statikbüro Fern A", "Tragwerksplanung in Neustadt.");
+        indexPage("https://www.statik-fern-b.example/", c, "Statikbüro Fern B", "Tragwerksplanung in Neustadt.");
+        final String question = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?";
+        final ToolContext chat = chat(c);
+        final ServiceSearch.Result r = ServiceSearch.run(chat, ServiceSearch.plan(question), List.of());
+        // the total: every provider once, complete
+        assertEquals(r.searched.toString(), 135, r.found);
+        assertFalse(r.gaps.toString(), r.lowerBound());
+        // the place: 133 name it; 120 are read (the offices first), 13 galleries are not; the office with five pages naming
+        // the place is read in part; both are open, not mentions
+        assertTrue(r.placeOpen());
+        assertEquals(13, r.placeUnread);
+        assertEquals(1, r.placePartly);
+        assertFalse(r.placeOutOfTime);
+        assertEquals(Integer.valueOf(1), r.perPlace.get(ServiceSearch.AT_PLACE));
+        assertEquals(Integer.valueOf(1), r.perPlace.get(ServiceSearch.SERVES_PLACE));
+        assertEquals(Integer.valueOf(14), r.perPlace.get(ServiceSearch.UNDECIDED_PLACE));
+        assertEquals(Integer.valueOf(117), r.perPlace.get(ServiceSearch.MENTIONS_PLACE));
+        assertEquals(Integer.valueOf(2), r.perPlace.get(ServiceSearch.NO_PLACE));
+        assertEquals(14, r.undecided());
+        assertEquals("Statikbüro am Ort", r.providers.get(0).name);
+        assertEquals(ServiceSearch.AT_PLACE, r.providers.get(0).place);
+        assertEquals(ServiceSearch.SERVES_PLACE, r.providers.get(1).place);
+        assertEquals(ServiceSearch.UNDECIDED_PLACE, r.providers.get(2).place);
+        // the server's count answer: the total on its own, the located and serving at least, the open ones with the reason
+        final ServiceSearch.Built built = ServiceSearch.format(r, 1, 9000, chat.scopeLabel(), false);
+        assertFalse(built.meta.getBoolean("placeComplete"));
+        assertTrue(built.text, built.text.contains("not all of them were read"));
+        final String de = QuestionKind.countOfProviders(question, r, built.sources, chat);
+        assertTrue(de, de.startsWith("In der Collection gamma-web gibt es **135** Anbieter für Tragwerksplanung"));
+        assertTrue(de, de.contains("Diese Gesamtzahl ist vollständig") && !de.contains("Untergrenze"));
+        assertTrue(de, de.contains("Mit belegtem Standort in Musterstadt: mindestens **1**, mit Musterstadt als Einsatzgebiet: mindestens **1**"));
+        assertTrue(de, de.contains("Bei **14** Anbietern ist der Ortsbezug offen"));
+        assertTrue(de, de.contains("die Seiten von 13 Anbietern, die Musterstadt nennen, wurden nicht gelesen (Höchstgrenze von 120"));
+        assertTrue(de, de.contains("1 Anbieter hat mehr als 3 Seiten zu Musterstadt"));
+        assertTrue(de, de.contains("117 nennen Musterstadt nur beiläufig") && de.contains("2 zeigen keinen Bezug zu Musterstadt"));
+        assertTrue(de, de.contains("(Ortsbezug offen) [3]"));
+        final String en = QuestionKind.countOfProviders("How many providers of Tragwerksplanung are there?", r, built.sources, chat);
+        assertTrue(en, en.contains("This total is complete") && en.contains("at least **1**") && en.contains("For **14** providers the relation is open"));
+        // the model's note says the same
+        final String note = net.yacy.ai.PromptGuard.serviceSearchNote(r.found, built.sources.size(), r.gaps, r.searched, r.plan.place,
+                List.of(1, 2), chat.scopeLabel(), r.undecided(), r.placeGaps);
+        assertTrue(note, note.contains("it is open for 14 providers") && note.contains("found 135 providers") && !note.contains("at least 135"));
+        // provider_search in the same request: the same result; in a new request with and without "in": the same numbers
+        final JSONObject reused = call(chat, "provider_search", "{\"query\":\"Tragwerksplanung in Musterstadt\"}");
+        assertTrue(reused.toString(), reused.optBoolean("reused"));
+        final String[] queries = {"Tragwerksplanung in Musterstadt", "Tragwerksplanung Musterstadt"};
+        for (final JSONObject t : new JSONObject[] {reused, call(chat(c), "provider_search", "{\"query\":\"" + queries[0] + "\"}"),
+                call(chat(c), "provider_search", "{\"query\":\"" + queries[1] + "\"}")}) {
+            assertEquals(t.toString(), 135, t.getInt("found"));
+            assertFalse(t.getBoolean("lower_bound"));
+            assertFalse(t.getBoolean("place_complete"));
+            assertEquals(new JSONObject(r.perPlace).toString(), t.getJSONObject("per_place").toString());
+            assertEquals(r.placeGaps.size(), t.getJSONArray("place_gaps").length());
+            assertTrue(t.getString("note"), t.getString("note").contains("open for 14 providers"));
+        }
+        // below the limit nothing is open: a collection with fewer providers naming the place
+        final ServiceSearch.Result few = ServiceSearch.run(chat("alpha-web"), ServiceSearch.plan("Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?"),
+                List.of());
+        assertFalse(few.placeGaps.toString(), few.placeOpen());
+        assertEquals(Integer.valueOf(0), few.perPlace.getOrDefault(ServiceSearch.UNDECIDED_PLACE, 0));
+    }
+
     @Test
     public void aFactOnlyPostingBehindPosition5000IsFound() throws Exception {
         // about 7,000 postings of one collection, written straight into the graph (the extractors of page() would take minutes);
@@ -1097,15 +1189,27 @@ public class ChatToolsTest {
         assertEquals(6, tool.getInt("shown"));
         assertFalse(tool.getBoolean("lower_bound"));
         assertEquals(ServiceSearch.AT_PLACE, tool.getJSONArray("providers").getJSONObject(0).getString("place"));
-        // the time limit: a lower bound with its reason
+        // the time limit before the count is done: a lower bound with its reason
         final long[] now = {0L};
         final ServiceSearch.Result timed = ServiceSearch.run(chat("alpha-web"), plan, List.of(), () -> {
             final long t = now[0];
-            now[0] += ServiceSearch.MAX_MILLIS / 4 + 1;
+            now[0] += ServiceSearch.MAX_MILLIS / 2 + 1;
             return t;
         }, ServiceSearch.MAX_MILLIS);
         assertTrue(timed.lowerBound());
         assertTrue(timed.gaps.toString(), timed.gaps.get(0).startsWith("time budget"));
+        // the time limit in the place step only: the count stands, the relation to the place is open, not "no relation"
+        final long[] later = {0L};
+        final ServiceSearch.Result placeTimed = ServiceSearch.run(chat("alpha-web"), plan, List.of(), () -> {
+            final long t = later[0];
+            later[0] += ServiceSearch.MAX_MILLIS / 4 + 1;
+            return t;
+        }, ServiceSearch.MAX_MILLIS);
+        assertFalse(placeTimed.gaps.toString(), placeTimed.lowerBound());
+        assertEquals(11, placeTimed.found);
+        assertTrue(placeTimed.placeOpen());
+        assertTrue(placeTimed.placeGaps.toString(), placeTimed.placeGaps.get(0).startsWith("time budget"));
+        assertTrue(placeTimed.perPlace.toString(), placeTimed.undecided() > 0 && placeTimed.perPlace.get(ServiceSearch.MENTIONS_PLACE) == 0);
         final String note = net.yacy.ai.PromptGuard.serviceSearchNote(timed.found, Math.min(6, timed.found), timed.gaps, timed.searched,
                 "Musterstadt", List.of(), "collection alpha-web");
         assertTrue(note, note.contains("a lower bound") || note.contains("within its time budget"));

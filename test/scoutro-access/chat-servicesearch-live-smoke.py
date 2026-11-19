@@ -25,7 +25,10 @@ other-web: an engineering office in Musterstadt that a chat of bau-web must neve
    providers and categories; a place of several words; no place; long pages within the tool room of a 4,096-token model;
    only the providers given become numbered sources; a count question names no service "viele";
 8. a plain count question is answered by the server without a model request; a tool call for the search the server already
-   made in the same request reuses its result.
+   made in the same request reuses its result;
+9. more providers name the place than the search reads (135 providers, 133 naming the place, 120 read): the total stays
+   complete; located and serving are lower bounds; 14 providers are open (13 not read, one read in part), not mere mentions;
+   the same in the server's count answer, provider_search with and without "in", and the tool's reuse in one request.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_SERVICES_DUMP=<file> writes what the stub received.
 """
@@ -330,9 +333,87 @@ def run(base, digest):
           and result.get("per_place") == auto.get("perPlace") and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 2,
           "reuse: provider_search for the same service and place returns the result of this request",
           json.dumps({k: v for k, v in result.items() if k != "providers"}, ensure_ascii=False)[:500])
+    open_place(digest)
     print(f"PROVIDERS: offices pushed=12 pages (11 providers in bau-web, one of them on two pages; one in other-web), found={warm.get('found')},"
           f" shown={warm.get('shown')}, perPlace={warm.get('perPlace')}; search ms cold={cold.get('millis')} warm={warm.get('millis')};"
           f" chat request s={timings}", flush=True)
+
+
+PLACE_WEB = "place-web"
+
+
+def plain(title, text):
+    return f"<html><head><title>{title}</title></head><body><h1>{title}</h1><p>{text}</p></body></html>"
+
+
+def open_place(digest):
+    """9. More providers name the place than the search reads (120): the total stands, located and serving are at least,
+    the providers whose pages naming the place were not all read are open, not mere mentions; the same for the server's
+    count answer, provider_search with and without "in", and the tool's reuse of the result in one request."""
+    stock = [("https://www.am-ort-statik-scoutro-test.de/", "Statikbüro am Ort", "Tragwerksplanung und Statik für Wohnhäuser."),
+             ("https://www.am-ort-statik-scoutro-test.de/kontakt", "Kontakt", "Tragwerksplanung. Statikbüro am Ort, Hauptstraße 1, 12345 Musterstadt."),
+             ("https://www.umland-statik-scoutro-test.de/", "Statikbüro Umland", "Tragwerksplanung für Wohnhäuser."),
+             ("https://www.umland-statik-scoutro-test.de/gebiet", "Gebiet", "Tragwerksplanung. Einsatzgebiet: Musterstadt und Umgebung.")]
+    stock += [(f"https://www.viele-statik-scoutro-test.de/projekt-{i}", f"Projekt {i}",
+               ("Tragwerksplanung. " if i < 3 else "") + "Ein Wohnhaus, die Bauherren kommen aus Musterstadt.") for i in range(5)]
+    stock += [(f"https://www.galerie-{i:03d}-scoutro-test.de/", f"Hausgalerie {i}",
+               "Ein Einfamilienhaus aus Musterstadt. Die Tragwerksplanung kam vom Architekten.") for i in range(130)]
+    stock += [(f"https://www.fern-{c}-statik-scoutro-test.de/", f"Statikbüro Fern {c}", "Tragwerksplanung in Neustadt.") for c in "ab"]
+    pushed = sum(1 for url, title, text in stock if tools.push(digest, url, plain(title, text), PLACE_WEB))
+    check(pushed == len(stock), f"open place: push {len(stock)} invented pages to {PLACE_WEB}", str(pushed))
+    deadline = tools.time.monotonic() + 300
+    n = 0
+    while tools.time.monotonic() < deadline:
+        status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=*:*&fq=" + urllib.parse.quote(f'collection_sxt:"{PLACE_WEB}"'))
+        n = solr.get("response", {}).get("numFound", 0) if isinstance(solr, dict) else 0
+        if n >= len(stock):
+            break
+        tools.time.sleep(1)
+    check(n == len(stock), f"open place: {len(stock)} pages of 135 providers searchable in {PLACE_WEB}", str(n))
+    question = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?"
+    status, answer, requests = tools.chat(digest, question, no_tools_model, collection=PLACE_WEB)
+    sv = services(answer) or {}
+    per = sv.get("perPlace") or {}
+    expected = {"location": 1, "service_area": 1, "undecided": 14, "mentioned": 117, "none": 2}
+    check(status == 200 and sv.get("found") == 135 and sv.get("lowerBound") is False and sv.get("placeComplete") is False and per == expected
+          and len(sv.get("placeGaps") or []) == 2,
+          "open place: 135 providers, complete; located 1, serving 1, open 14 (13 not read, one read in part), mentioned 117, none 2",
+          json.dumps({k: sv.get(k) for k in ("found", "lowerBound", "placeComplete", "perPlace", "placeGaps", "phases")}, ensure_ascii=False))
+    text = answer["text"]
+    check(len(requests) == 0 and (answer["meta"].get("scoutro-answer") or {}).get("by") == "server"
+          and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0,
+          "open place: the plain count question is answered by the server, no model request", f"requests={len(requests)}")
+    check("gibt es **135** Anbieter für Tragwerksplanung" in text and "Diese Gesamtzahl ist vollständig" in text and "Untergrenze" not in text
+          and "Standort in Musterstadt: mindestens **1**" in text and "Einsatzgebiet: mindestens **1**" in text
+          and "Bei **14** Anbietern ist der Ortsbezug offen" in text and "Höchstgrenze von 120" in text
+          and "117 nennen Musterstadt nur beiläufig" in text and "(Ortsbezug offen)" in text and "[1]" in text,
+          "open place: the answer keeps the total apart, says at least for located and serving, and counts the open ones with the reason",
+          text[:900])
+    forms = {}
+    for label, args in (("in", {"query": "Tragwerksplanung in Musterstadt"}), ("bare", {"query": "Tragwerksplanung Musterstadt"})):
+        status, answer, requests = tools.chat(digest, "Welche Statiker gibt es?", lambda body, a=args: (
+            ("call", "provider_search", a) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")), collection=PLACE_WEB)
+        done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+        forms[label] = done[0][1] if done else {}
+    check(all(f.get("found") == 135 and f.get("lower_bound") is False and f.get("place_complete") is False and f.get("per_place") == expected
+              and len(f.get("place_gaps") or []) == 2 and "open for 14 providers" in (f.get("note") or "") for f in forms.values()),
+          "open place: provider_search with and without \"in\": the same total, the same open relation and its reasons",
+          json.dumps({k: {x: v.get(x) for x in ("found", "lower_bound", "place_complete", "per_place")} for k, v in forms.items()}))
+    status, answer, requests = tools.chat(digest, "Welche Anbieter für Tragwerksplanung gibt es in Musterstadt? Nenne Namen und Quelle.",
+                                          lambda body: (("call", "provider_search", {"query": "Tragwerksplanung Musterstadt"})
+                                                        if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")), collection=PLACE_WEB)
+    auto = services(answer) or {}
+    done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+    result = done[0][1] if done else {}
+    auto_urls = [s.get("url") for s in answer["meta"].get("scoutro-sources", [])[:auto.get("shown", 0)]]
+    tool_urls = [p.get("url") for p in result.get("providers", [])]
+    print("OPEN PLACE: " + json.dumps({"found": sv.get("found"), "lowerBound": sv.get("lowerBound"), "placeComplete": sv.get("placeComplete"),
+          "perPlace": per, "placeGaps": sv.get("placeGaps"), "searchMs": sv.get("millis"), "phases": sv.get("phases"),
+          "answer": text[:700]}, ensure_ascii=False), flush=True)
+    check(status == 200 and result.get("reused") is True and result.get("found") == auto.get("found") == 135
+          and result.get("per_place") == auto.get("perPlace") == expected and bool(tool_urls) and tool_urls == auto_urls[:len(tool_urls)],
+          "open place: the tool reuses the search of the request: the same total, categories and providers in the same order",
+          json.dumps({"auto": auto_urls, "tool": tool_urls}))
 
 
 def main():

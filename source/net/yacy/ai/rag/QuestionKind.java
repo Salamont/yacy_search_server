@@ -79,6 +79,33 @@ public enum QuestionKind {
         return String.join("; ", out);
     }
 
+    /** Why the relation to the place is open for some providers, in the language of the answer. */
+    static String placeReasons(final ServiceSearch.Result result, final boolean german) {
+        final List<String> out = new ArrayList<>();
+        final String place = result.plan.place;
+        if (result.placeUnread > 0) {
+            out.add(german ? "die Seiten von " + result.placeUnread + " Anbietern, die " + place + " nennen, wurden nicht gelesen ("
+                    + (result.placeOutOfTime ? "das Zeitbudget der Suche war aufgebraucht" : "Höchstgrenze von " + ServiceSearch.PLACE_HOSTS
+                            + " gelesenen Anbietern je Suche erreicht") + ")"
+                    : "the pages of " + result.placeUnread + " providers naming " + place + " were not read (" + (result.placeOutOfTime
+                            ? "the search's time budget ran out" : "the limit of " + ServiceSearch.PLACE_HOSTS + " providers read per search") + ")");
+        }
+        if (result.placePartly > 0) {
+            out.add(german ? result.placePartly + " Anbieter " + (result.placePartly == 1 ? "hat" : "haben") + " mehr als " + ServiceSearch.PLACE_PAGES
+                    + " Seiten zu " + place
+                    + ", unter den gelesenen ohne Adresse oder Einsatzgebiet"
+                    : result.placePartly + (result.placePartly == 1 ? " provider has" : " providers have") + " more than " + ServiceSearch.PLACE_PAGES
+                    + " pages naming " + place
+                    + ", none of those read with an address or service area");
+        }
+        for (final String g : result.placeGaps) {
+            if (g.contains("their relation to it is open")) continue; // said above
+            if (german && g.startsWith("time budget")) out.add("das Zeitbudget der Suche war aufgebraucht (" + g + ")");
+            else out.add(g);
+        }
+        return String.join("; ", out);
+    }
+
     /**
      * The server's answer to a plain count question for job postings: the number of postings found in the scope (a lower
      * bound with its reason when the search could not finish), per subject when there are several, and the postings shown
@@ -134,6 +161,8 @@ public enum QuestionKind {
     /**
      * The server's answer to a plain count question for providers: the number of providers found in the scope, each once,
      * with a place how many are located there, serve it, only mention it or show no relation to it, and the providers shown.
+     * When the search could not read the pages of every provider naming the place, the total stands on its own, the
+     * numbers located and serving are lower bounds, and the providers whose relation is open are counted with the reason.
      */
     public static String countOfProviders(final String question, final ServiceSearch.Result result, final List<RagContext.Source> shown,
             final ToolContext context) {
@@ -157,13 +186,37 @@ public enum QuestionKind {
         if (place != null) {
             final int at = result.perPlace.getOrDefault(ServiceSearch.AT_PLACE, 0);
             final int serves = result.perPlace.getOrDefault(ServiceSearch.SERVES_PLACE, 0);
+            final int open = result.perPlace.getOrDefault(ServiceSearch.UNDECIDED_PLACE, 0);
             final int mentions = result.perPlace.getOrDefault(ServiceSearch.MENTIONS_PLACE, 0);
             final int none = result.perPlace.getOrDefault(ServiceSearch.NO_PLACE, 0);
-            a.append(de ? " Davon mit belegtem Standort in " + place + ": **" + at + "**, mit " + place + " als Einsatzgebiet: **" + serves
-                    + "**. " + mentions + " nennen " + place + " nur (kein Beleg für Standort oder Einsatzgebiet), " + none + " zeigen keinen Bezug zu "
-                    + place + "."
-                    : " Of them located in " + place + " by evidence: **" + at + "**, serving " + place + ": **" + serves + "**. " + mentions
-                    + " only mention " + place + " (no evidence of a location or service area), " + none + " show no relation to " + place + ".");
+            if (!result.placeOpen()) {
+                a.append(de ? " Davon mit belegtem Standort in " + place + ": **" + at + "**, mit " + place + " als Einsatzgebiet: **" + serves
+                        + "**. " + mentions + " nennen " + place + " nur beiläufig (alle ihre Seiten zu " + place + " gelesen, kein Beleg für Standort"
+                        + " oder Einsatzgebiet), " + none + " zeigen keinen Bezug zu " + place + "."
+                        : " Of them located in " + place + " by evidence: **" + at + "**, serving " + place + ": **" + serves + "**. " + mentions
+                        + " only mention " + place + " in passing (all their pages naming it read; no evidence of a location or service area), "
+                        + none + " show no relation to " + place + ".");
+            } else {
+                // the count of providers stands; only the relation to the place is not determined for every one of them
+                if (!result.lowerBound()) {
+                    a.append(de ? " Diese Gesamtzahl ist vollständig; offen ist nur bei einem Teil der Ortsbezug."
+                            : " This total is complete; only the relation to the place is open for some of them.");
+                }
+                a.append(de ? " Mit belegtem Standort in " + place + ": mindestens **" + at + "**, mit " + place + " als Einsatzgebiet: mindestens **"
+                        + serves + "**."
+                        : " Located in " + place + " by evidence: at least **" + at + "**, serving " + place + ": at least **" + serves + "**.");
+                if (open > 0) {
+                    a.append(de ? " Bei **" + open + "** Anbietern ist der Ortsbezug offen: ob sie in " + place + " ansässig oder dort tätig sind,"
+                            + " ist nicht geprüft; eine bloße Nennung des Orts ist kein Beleg dafür und auch nicht dagegen."
+                            : " For **" + open + "** providers the relation is open: whether they are located in or serve " + place + " is not"
+                            + " determined; a mere mention of the place is no evidence either way.");
+                }
+                a.append(de ? " Grund: " + placeReasons(result, true) + "." : " Reason: " + placeReasons(result, false) + ".");
+                a.append(de ? " " + mentions + " nennen " + place + " nur beiläufig (alle ihre Seiten zu " + place + " gelesen), " + none
+                        + " zeigen keinen Bezug zu " + place + "."
+                        : " " + mentions + " only mention " + place + " in passing (all their pages naming it read), " + none
+                        + " show no relation to " + place + ".");
+            }
         }
         if (!shown.isEmpty()) {
             a.append("\n\n").append(de ? (shown.size() < result.found ? "Angezeigt werden " + shown.size() + " davon:" : "Das sind:")
@@ -174,6 +227,7 @@ public enum QuestionKind {
                 if (place != null) {
                     a.append(" (").append(ServiceSearch.AT_PLACE.equals(p.place) ? (de ? "Standort in " + place : "located in " + place)
                             : ServiceSearch.SERVES_PLACE.equals(p.place) ? (de ? "Einsatzgebiet " + place : "serves " + place)
+                            : ServiceSearch.UNDECIDED_PLACE.equals(p.place) ? (de ? "Ortsbezug offen" : "relation to " + place + " open")
                             : ServiceSearch.MENTIONS_PLACE.equals(p.place) ? (de ? "nennt " + place + " nur" : "only mentions " + place)
                             : (de ? "kein Bezug zu " + place : "no relation to " + place)).append(')');
                 }

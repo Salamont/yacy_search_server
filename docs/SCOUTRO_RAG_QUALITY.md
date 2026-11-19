@@ -433,8 +433,11 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   3. **place** (with a place in the question): the addresses and service areas of the graph that name the place
      (`factsNaming`), for a provider of step 1 or for the organisation whose own page is on a host of step 2; and the
      hosts of the scope with a page naming the place (one more count by host): of those that are providers, the pages
-     naming the place are read (at most 3 per host, 120 providers) and tell an address, a service area or a mere
-     mention. A provider beyond that is counted as mentioning, with the reason in `gaps`;
+     naming the place are read (at most 3 per host and 120 providers; providers of the graph and those with the most
+     pages naming the service first) and tell an address or a service area. A provider whose pages naming the place
+     were all read without either only **mentions** it; one whose pages were not all read (beyond the 120, more than 3
+     pages, or the time budget) is **open** (`undecided`): the count found by host shows that it names the place, which
+     decides nothing. Since 0.14.3-rc.6; before, such a provider was counted as mentioning;
   4. **selection** and **evidence**: of the at most 6 providers shown one page naming the service is read for the
      excerpt (240 characters), and the organisation of a host without one in step 1 for its name.
 
@@ -450,21 +453,30 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   locality or postal code, or a postal code and the place on a page of its host), **serves** it by a service area (the
   graph's service area, an area phrase on its page such as "Einsatzgebiet: Musterstadt und Umgebung", or the service
   stated for the place: "Tragwerksplanung in Musterstadt"), or only **mentions** it ("eine Messe, die in Musterstadt
-  stattfand"), which evidences neither; else none. Located before serving before mentioning before the rest, then the
-  providers of graph and page, then by the pages naming the service, then by name.
+  stattfand"; all its pages naming the place read), which evidences neither; **open** when its pages naming the place
+  were not all read; else none (no page of its host names the place). Located before serving before open before
+  mentioning before the rest, then the providers of graph and page, then by the pages naming the service, then by name.
+- **Two kinds of incompleteness, kept apart:** `gaps` (and `lowerBound`) concern the count of providers: a step of graph
+  or index that could not run or be read to its end. `placeGaps` (and `placeComplete: false`) concern only the relation
+  to the place: the total stands, the numbers located and serving are then at least those evidenced, and `undecided`
+  counts the providers whose relation is open. The server's count answer says both apart ("Diese Gesamtzahl ist
+  vollständig; … mindestens **1** … Bei **14** Anbietern ist der Ortsbezug offen … Grund: …"); `provider_search` returns
+  `lower_bound`, `place_complete` and `place_gaps`, and its note tells the model not to count an open provider as
+  located, serving or mentioning.
 - **To the answer:** the providers found are counted (`found`, per relation to the place) before the answer's limit of 6;
   each shown provider is a numbered source ("Provider …") with a page naming the service, its evidence (graph, page or
   both), its relation to the place with the evidence, and an excerpt of its page. As in section 12 the kind of the
   question decides: a plain count ("Wie viele Anbieter für X gibt es in Y?") is answered by the server itself (found,
-  and located / serving / mentioning / unrelated apart), a list or a recommendation goes to the model with the providers
+  and located / serving / open / mentioning / unrelated apart), a list or a recommendation goes to the model with the providers
   shown as its only sources; a recommendation is told to prefer an evidenced location or service area and to say so
   when none has one. A call of `provider_search` for the same services and place in the same request returns the result
   already computed (`reused: true`).
 - **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
 - **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, lowerBound, gaps,
-  shown, perPlace, placeNamedBy, timedOut, millis, servicePages, phases}` (`servicePages`: pages of the scope naming a
+  shown, perPlace, placeComplete, placeGaps, placeNamedBy, timedOut, millis, servicePages, phases}` (`perPlace`:
+  location, service_area, undecided, mentioned, none) (`servicePages`: pages of the scope naming a
   service; `phases`: milliseconds of graph, index, place, selection, evidence). Log: `event=rag-servicesearch … found=
-  lowerBound= shown= all= kind= servicePages= gaps= ms= phases=graph:…,index:…,place:…,selection:…,evidence:…`.
+  lowerBound= shown= all= kind= servicePages= gaps= placeOpen= placeGaps= ms= phases=graph:…,index:…,place:…,selection:…,evidence:…`.
   The model can call `provider_search(query, place?)` itself (2 calls per answer); it also takes the model's own words.
 - **The tool room:** all tool results of an answer share a third of the model's context in characters (at most 16,000;
   4,096 for a context of 4,096 tokens). `provider_search` and `job_search` fit their result into what is left: first the
@@ -476,7 +488,7 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   counted; two providers on one host without entities of their own count as one; an organisation of the graph gives a
   host of the index its place only when the page of its name is on that host; the name index and the addresses naming a
   place are read up to 5,000 rows each (more is a lower bound); the pages naming the place are read for 120 providers
-  (more are counted as mentioning, a lower bound of located and serving); the direct index matches the start of words,
+  and 3 pages each (the rest is open: located and serving are then lower bounds, the total is not affected); the direct index matches the start of words,
   not a service within a compound.
 
 Tests: `ServiceSearchTest` and `ChatToolsTest` (`ant scoutro-rag-test`: 11 providers in the graph and the index, one over

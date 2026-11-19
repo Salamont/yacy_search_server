@@ -161,6 +161,16 @@ public final class PromptGuard {
      */
     public static String serviceSearchNote(final int found, final int shown, final java.util.List<String> gaps,
             final java.util.List<String> searched, final String place, final java.util.List<Integer> placeNamed, final String scope) {
+        return serviceSearchNote(found, shown, gaps, searched, place, placeNamed, scope, 0, java.util.List.of());
+    }
+
+    /**
+     * The note of the provider search with the providers whose relation to the place is open ({@code undecided}, for the
+     * reasons {@code placeGaps}): the total stands, the numbers located and serving are lower bounds.
+     */
+    public static String serviceSearchNote(final int found, final int shown, final java.util.List<String> gaps,
+            final java.util.List<String> searched, final String place, final java.util.List<Integer> placeNamed, final String scope,
+            final int undecided, final java.util.List<String> placeGaps) {
         final String words = neutralize(String.join("\", \"", searched));
         final boolean lowerBound = !gaps.isEmpty();
         final String why = lowerBound ? " (" + neutralize(String.join("; ", gaps)) + ")" : "";
@@ -184,6 +194,13 @@ public final class PromptGuard {
                     : " Only " + String.join(", ", numbers) + " have an evidenced location in or service area of " + neutralize(place)
                             + " (each source says which); a provider whose page only mentions " + neutralize(place)
                             + " is not located there and does not serve it by that.");
+            if (!placeGaps.isEmpty()) {
+                note.append(" The relation to ").append(neutralize(place)).append(" is not determined for every provider found");
+                if (undecided > 0) note.append(": it is open for ").append(undecided).append(undecided == 1 ? " provider" : " providers");
+                note.append(" (").append(neutralize(String.join("; ", placeGaps))).append("). The number found stands; those located in or")
+                        .append(" serving ").append(neutralize(place)).append(" are at least the ones evidenced. Say so; do not count a provider")
+                        .append(" whose relation is open as located there, serving it or merely mentioning it.");
+            }
         }
         return note.toString();
     }
