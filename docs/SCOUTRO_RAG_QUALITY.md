@@ -307,6 +307,10 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   one subject searched by each of its names. Short names (up to 3 letters) are whole words
   (`KgReader.EntityQuery.wholeWords`), and a hit must show its subject in the title. At most 12 candidates, 6 postings,
   4 s.
+- **Selection:** the 12 candidate places are shared by the subjects: the searches of each subject (and the joint ones)
+  fill their own share, so many hits of the first subject do not keep a later one from being searched; the candidates
+  are taken from the shares in turn, each hit once. Sorted by relevance (subjects shown, not ended, newest, search
+  order); of the 6 postings shown, the most relevant one of every subject that has a hit comes first.
 - **To the answer:** each posting is a numbered source before the search results (`[1] Scoutro knowledge graph: job
   posting <title>`, `URL:` the page it was read from, its collection), with employer, employment type, place, dates, the
   subjects of the question it shows and, as `PARTIAL MATCH`, those it does not. The full matches come first.

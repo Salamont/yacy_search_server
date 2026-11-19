@@ -337,8 +337,16 @@ public final class JobSearch {
         public final boolean timedOut;
         public final String error;
         public final long millis;
+        /** the postings considered (at most {@link #MAX_CANDIDATES}) */
+        public final int candidates;
 
         public Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis) {
+            this(plan, jobs, searched, timedOut, error, millis, jobs.size());
+        }
+
+        Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis,
+                final int candidates) {
+            this.candidates = candidates;
             this.plan = plan;
             this.jobs = Collections.unmodifiableList(jobs);
             this.searched = Collections.unmodifiableList(searched);
@@ -370,8 +378,15 @@ public final class JobSearch {
             final KgReader reader = context.reader();
             if (reader == null) return new Result(plan, new ArrayList<>(), searched, false, "unavailable", 0L);
             final Viewer viewer = context.viewer(reader);
+            // the candidate places are shared by the subjects: each subject's searches (Variant.filter; null: the joint ones)
+            // fill their own share first, so that one subject cannot use up the places before the others were searched
+            final Map<Criterion, List<Job>> shares = new LinkedHashMap<>();
+            for (final Variant v : plan.variants) shares.putIfAbsent(v.filter, new ArrayList<>());
+            final int share = Math.max(1, (MAX_CANDIDATES + shares.size() - 1) / shares.size());
+            final Map<String, Job> hits = new LinkedHashMap<>(); // every hit once, the first search that found it decides its share
             for (final Variant v : plan.variants) {
-                if (found.size() >= MAX_CANDIDATES) break;
+                final List<Job> own = shares.get(v.filter);
+                if (hits.size() >= MAX_CANDIDATES && own.size() >= share) continue; // nothing this search could still add
                 if (clock.getAsLong() - start > MAX_MILLIS) {
                     timedOut = true;
                     break;
@@ -383,19 +398,33 @@ public final class JobSearch {
                 q.limit = PER_VARIANT;
                 searched.add(v.text);
                 final JSONArray items = reader.entities(q, viewer).optJSONArray("items");
-                for (int i = 0; items != null && i < items.length() && found.size() < MAX_CANDIDATES; i++) {
+                for (int i = 0; items != null && i < items.length(); i++) {
                     final JSONObject item = items.getJSONObject(i);
                     final String id = text(item, "id");
                     final String title = firstNonEmpty(text(item, "name"), text(item, "display_name"));
-                    if (id.isEmpty() || title.isEmpty() || found.containsKey(id)) continue;
+                    if (id.isEmpty() || title.isEmpty() || hits.containsKey(id)) continue;
                     if (v.filter != null && !v.filter.shownBy.test(RagQuery.fold(title))) continue; // a word that only starts a title word
                     final Job job = new Job(id, title);
-                    job.order = found.size();
                     final JSONObject ctx = item.optJSONObject("context");
                     final JSONArray providers = ctx == null ? null : ctx.optJSONArray("providers");
                     if (providers != null && providers.length() > 0) job.employer = text(providers.getJSONObject(0), "name");
-                    found.put(id, job);
+                    hits.put(id, job);
+                    own.add(job);
                 }
+            }
+            // the candidates: the shares in turn, each in the order its searches ranked them, at most MAX_CANDIDATES
+            for (int round = 0; found.size() < MAX_CANDIDATES; round++) {
+                boolean more = false;
+                for (final List<Job> own : shares.values()) {
+                    if (round >= own.size()) continue;
+                    more = true;
+                    final Job job = own.get(round);
+                    if (found.size() < MAX_CANDIDATES && !found.containsKey(job.id)) {
+                        job.order = found.size();
+                        found.put(job.id, job);
+                    }
+                }
+                if (!more) break;
             }
             details(reader, viewer, found, clock, start);
         } catch (final Exception e) {
@@ -411,12 +440,21 @@ public final class JobSearch {
             if (job.status != null && job.status.toLowerCase(Locale.ROOT).matches(".*(ended|closed|expired|filled|besetzt|beendet).*")) job.ended = true;
             jobs.add(job);
         }
-        jobs.sort((a, b) -> a.met.size() != b.met.size() ? b.met.size() - a.met.size()
+        final java.util.Comparator<Job> relevance = (a, b) -> a.met.size() != b.met.size() ? b.met.size() - a.met.size()
                 : a.ended != b.ended ? (a.ended ? 1 : -1)
                 : !String.valueOf(b.datePosted).equals(String.valueOf(a.datePosted)) ? String.valueOf(b.datePosted).compareTo(String.valueOf(a.datePosted))
-                : a.order - b.order);
-        return new Result(plan, new ArrayList<>(jobs.subList(0, Math.min(MAX_JOBS, jobs.size()))), searched, timedOut, error,
-                clock.getAsLong() - start);
+                : a.order - b.order;
+        jobs.sort(relevance);
+        // the postings shown: the most relevant one of every subject that has one first (a question for several subjects
+        // also gets postings of the later ones), then the most relevant of the rest; shown by relevance
+        final List<Job> shown = new ArrayList<>();
+        for (final Criterion c : plan.criteria) {
+            if (shown.size() >= MAX_JOBS || shown.stream().anyMatch(j -> j.met.contains(c.label))) continue;
+            jobs.stream().filter(j -> j.met.contains(c.label) && !shown.contains(j)).findFirst().ifPresent(shown::add);
+        }
+        for (final Job job : jobs) if (shown.size() < MAX_JOBS && !shown.contains(job)) shown.add(job);
+        shown.sort(relevance);
+        return new Result(plan, shown, searched, timedOut, error, clock.getAsLong() - start, found.size());
     }
 
     /** The facts of each posting and the newest page of its title (or of another of its facts) in this scope. */

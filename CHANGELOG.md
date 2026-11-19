@@ -11,6 +11,11 @@ retry as the first message and an ordinary message without a search mode still r
 follow-up ran with `ragMode=no` and skipped the search. Regression test: `test/scoutro-ui/chat-followup-ui-test.mjs`
 (`chat-jobsearch-live-smoke.py --ui`).
 
+Job search: with several subjects in the question, the candidate places are shared by the subjects, so many postings of
+the first subject no longer keep a later subject from being searched; hits are merged without duplicates and sorted by
+relevance, and the postings shown include the most relevant one of every subject that has a hit. Limits unchanged (6
+name searches, 12 candidates, 6 postings, 4 s).
+
 ## 0.14.3-rc.2 / 1.942-scoutro.52-rc.2 — test candidate: job and provider search of the chat (not a release)
 
 On 0.14.3-rc.1, application code `16f2c8ec`. Tool releases of rc.1 are kept; schemas, extractors and stored data

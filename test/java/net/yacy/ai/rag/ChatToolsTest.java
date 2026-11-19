@@ -562,6 +562,65 @@ public class ChatToolsTest {
         assertFalse(JobSearch.released(false, chat("alpha-web")));
     }
 
+    /** Many postings of the first subject, one of a later one (all invented): alpha-web gets 14 Java postings and a robotics one. */
+    private void manyPostingsOfOneSubject() throws Exception {
+        for (int i = 1; i <= 14; i++) {
+            final String n = String.format("%02d", i);
+            final String title = "Java Entwickler (m/w/d) Team " + n;
+            page("ALPJ" + n + "host01", "https://www.tapir-consulting.example/karriere/java-entwickler-team-" + n, "alpha-web", title,
+                    posting(title, "Sie entwickeln Java-Anwendungen im Team " + n + ".", TAPIR), title + ". Stellenangebot in Vollzeit.");
+        }
+        page("ALPHRBhost01", "https://www.tapir-consulting.example/karriere/robotik-ingenieur", "alpha-web", "Robotik Ingenieur (m/w/d)",
+                posting("Robotik Ingenieur (m/w/d)", "Sie programmieren unsere Montageroboter.", TAPIR),
+                "Robotik Ingenieur (m/w/d). Sie programmieren unsere Montageroboter. Stellenangebot.");
+    }
+
+    @Test
+    public void manyPostingsOfTheFirstSubjectDoNotCrowdOutALaterOne() throws Exception {
+        manyPostingsOfOneSubject();
+        final JobSearch.Plan plan = JobSearch.plan("Welche Stellenanzeigen gibt es zu Java oder Robotik?");
+        assertEquals(List.of("Java", "Robotik"), plan.criteria());
+        final JobSearch.Result result = JobSearch.run(chat("alpha-web"), plan);
+        assertEquals(null, result.error);
+        final List<String> titles = new ArrayList<>();
+        for (final JobSearch.Job job : result.jobs) titles.add(job.title);
+        // every subject is searched, although the first one alone fills the candidates
+        assertTrue(result.searched.toString(), result.searched.contains("Java") && result.searched.contains("Robotik"));
+        // the later subject's posting is shown, next to the best ones of the first subject; no posting twice
+        assertTrue(titles.toString(), titles.contains("Robotik Ingenieur (m/w/d)"));
+        assertTrue(titles.toString(), titles.stream().anyMatch(t -> t.startsWith("Java Entwickler")));
+        assertEquals(titles.toString(), titles.size(), new java.util.HashSet<>(titles).size());
+        // sorted by relevance: no posting shows more subjects than the one before it
+        for (int i = 1; i < result.jobs.size(); i++) {
+            assertTrue(titles.toString(), result.jobs.get(i - 1).met.size() >= result.jobs.get(i).met.size());
+        }
+        // a posting of both subjects, once the searches reach it, comes first
+        final JobSearch.Result both = JobSearch.run(chat("alpha-web"), JobSearch.plan("Welche Stellenanzeigen gibt es zu Prozessrobotik oder Java?"));
+        assertEquals(both.jobs.toString(), "ML-Entwickler (m/w/d) Java Prozessrobotik", both.jobs.get(0).title);
+        assertTrue(both.jobs.stream().anyMatch(j -> j.title.startsWith("Java Entwickler")));
+        // the limits stay: name searches, candidates, shown postings; nothing outside alpha-web
+        assertTrue(result.searched.toString(), result.searched.size() <= JobSearch.MAX_VARIANTS);
+        assertTrue(String.valueOf(result.candidates), result.candidates <= JobSearch.MAX_CANDIDATES);
+        assertTrue(titles.toString(), result.jobs.size() <= JobSearch.MAX_JOBS);
+        for (final JobSearch.Job job : result.jobs) assertTrue(job.url(), job.url().startsWith("https://www.tapir-consulting.example/"));
+    }
+
+    @Test
+    public void theJobSearchKeepsItsTimeLimit() throws Exception {
+        manyPostingsOfOneSubject();
+        final JobSearch.Plan plan = JobSearch.plan("Welche Stellenanzeigen gibt es zu Java oder Robotik?");
+        // a clock that is past the limit after the first name search: no further search, the result says so
+        final long[] now = {0L};
+        final JobSearch.Result result = JobSearch.run(chat("alpha-web"), plan, () -> {
+            final long t = now[0];
+            now[0] += JobSearch.MAX_MILLIS / 2 + 1;
+            return t;
+        });
+        assertTrue(result.timedOut);
+        assertTrue(result.searched.toString(), result.searched.size() < plan.variants().size());
+        assertTrue(result.jobs.size() <= JobSearch.MAX_JOBS);
+    }
+
     @Test
     public void theNamedJobSearchToolGivesThePostingsAsNumberedSources() throws Exception {
         final ToolContext chat = chat("alpha-web");
