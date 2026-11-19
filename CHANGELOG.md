@@ -2,7 +2,11 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.3) — the job and provider search read the whole released stock
+## 0.14.3-rc.4 / 1.942-scoutro.52-rc.4 — test candidate: the job and provider search read the whole released stock (not a release)
+
+On 0.14.3-rc.3, application code `3ffcfce`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.4.md.
+
 
 Second step: the job search reads every posting of the scope to the end of the stock (no stop after 5,000) and asks the
 text of every posting's own page through the direct index (Solr read directly, by the postings' known addresses, the
