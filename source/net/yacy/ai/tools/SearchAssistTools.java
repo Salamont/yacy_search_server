@@ -39,13 +39,18 @@ public final class SearchAssistTools {
         return new Tool(JOB_SEARCH, true, "Search the job postings (job advertisements) of the Scoutro knowledge graph within this chat's"
                 + " collections. Give the subjects and job titles of the request, e.g. \"Java Cloud\" or \"Java Entwickler\";"
                 + " the server searches all postings of the collections by their titles, their facts and the text of their pages"
-                + " (each subject also on its own). Returns how many postings were found, the most relevant ones with employer,"
-                + " the dates they state and their original page as [n], and which subjects each shows (partial matches marked).") {
+                + " (each subject also on its own). For the postings of one employer name it in \"employer\" (or write"
+                + " \"Stellenanzeigen von <employer>\"): only postings the graph records that employer for are counted. Returns how"
+                + " many postings were found, the most relevant ones with employer, the dates they state and their original page as"
+                + " [n], and which subjects each shows (partial matches marked).") {
             @Override
             JSONObject run(final JSONObject args, final ToolContext context) throws Exception {
-                final String query = query(args);
-                final JobSearch.Plan plan = JobSearch.plan(query);
-                if (plan.variants().isEmpty()) throw new IllegalArgumentException("Give words of a job title or a subject");
+                final String employer = args.isNull("employer") ? null : args.optString("employer", "").trim();
+                final String query = employer == null || employer.isEmpty() ? query(args) : args.optString("query", "").trim();
+                final JobSearch.Plan plan = JobSearch.plan(query, employer);
+                if (plan.variants().isEmpty() && plan.employer() == null) {
+                    throw new IllegalArgumentException("Give words of a job title or a subject, or the employer");
+                }
                 // the same subjects in the same scope as a search of this request already made: its result, not a second search
                 final boolean reused = JobSearch.computed(context, plan) != null;
                 final JobSearch.Result result = JobSearch.run(context, plan);
@@ -54,6 +59,11 @@ public final class SearchAssistTools {
                 out.put("subjects", new JSONArray(plan.criteria())).put("searched", new JSONArray(result.searched));
                 out.put("found", result.found).put("lower_bound", result.lowerBound()).put("per_subject", new JSONObject(result.perSubject));
                 if (result.records > result.found) out.put("records", result.records); // a posting on two pages counts once
+                if (plan.employer() != null) {
+                    // found: the postings the graph records this employer for; a posting that only names it is not counted
+                    out.put("employer", plan.employer()).put("mentions_not_counted", result.mentions);
+                }
+                if (result.pageOnly > 0) out.put("pages_not_attributed", result.pageOnly); // overview pages naming a subject, no posting of them
                 if (result.lowerBound()) out.put("gaps", new JSONArray(result.gaps));
                 final java.util.List<Entry> entries = new java.util.ArrayList<>();
                 for (final JobSearch.Job job : result.jobs) {
@@ -73,8 +83,17 @@ public final class SearchAssistTools {
                                 + " posting in " + context.scopeLabel() + ". Say that none was found.") + " Never present a company page as a posting.")
                         : "Found " + found + " matching postings, shown " + shown + ": say both numbers. Cite each posting as [n];"
                                 + " a PARTIAL MATCH shows only some subjects: say which it does not show. The postings count as current; give the"
-                                + " dates they state and no remark about missing dates.");
+                                + " dates they state and no remark about missing dates." + (plan.employer() == null ? "" : " Counted are the"
+                                + " postings the graph records " + plan.employer() + " as the employer of; " + result.mentions + " more name it"
+                                + " otherwise and are not postings of it.") + (result.pageOnly == 0 ? "" : " " + result.pageOnly + " overview pages"
+                                + " name a subject without any single posting on them showing it: not counted, say so if asked for the number."));
                 return out;
+            }
+
+            @Override
+            JSONObject properties() throws JSONException {
+                return super.properties().put("employer", new JSONObject(true).put("type", "string")
+                        .put("description", "Optional: the employer whose postings are asked for, e.g. \"Tapir Consulting\"."));
             }
         };
     }
@@ -118,7 +137,13 @@ public final class SearchAssistTools {
                     p.put("url", entry.url);
                     p.put("pages", Math.max(provider.pageCount, provider.pages.size()));
                     p.put("evidence", provider.byGraph && provider.byText ? "graph and page" : provider.byGraph ? "graph" : "page");
-                    if (plan.place != null) p.put("place", provider.place);
+                    if (plan.place != null) {
+                        p.put("place", provider.place);
+                        // where the place is evidenced or named: not always the page that names the service
+                        if (provider.placeSource != null) p.put("place_source", provider.placeSource);
+                        if (provider.placeNote != null && !ServiceSearch.AT_PLACE.equals(provider.place)
+                                && !ServiceSearch.SERVES_PLACE.equals(provider.place)) p.put("place_note", provider.placeNote);
+                    }
                     entries.add(new Entry(entry.title, entry.url, entry.collection, entry.kind, entry.text(), p));
                 }
                 final String found = (result.lowerBound() ? "at least " : "") + result.found;
@@ -129,7 +154,9 @@ public final class SearchAssistTools {
                                 + context.scopeLabel() + ". Say that none was found.")
                         : "Found " + found + " providers, shown " + shown + ": say both numbers. Name a provider only with what its"
                                 + " source states, cited as [n]." + (plan.place == null ? "" : " place: location or service_area is evidenced;"
-                                + " mentioned or none is no evidence of " + plan.place + ": say so." + (result.placeOpen() ? " The relation to "
+                                + " mentioned or none is no evidence of " + plan.place + ": say so. A provider counts as located or serving only"
+                                + " by its own address or area (place_source names the page); an address of another company, a project or a plot"
+                                + " on its site is none (place_note)." + (result.placeOpen() ? " The relation to "
                                 + plan.place + " is open for " + result.undecided() + " providers (place undecided, see place_gaps): the numbers"
                                 + " located and serving are at least those of per_place; say that the rest is not determined, and do not count"
                                 + " an open one as located, serving or merely mentioning." : "")));

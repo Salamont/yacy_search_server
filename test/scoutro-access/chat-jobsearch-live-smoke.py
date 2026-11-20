@@ -28,7 +28,11 @@ original failure, two job postings; beta-web: another company with one posting).
 8. a count question has no subject of its own: postings of other subjects whose texts carry "viele", "vielen" or
    "vielseitige" are not counted; "Wie viele ..." and "Zeige alle ..." and job_search count the same unique postings; the
    plain count question is answered by the server without a model request, and a tool call for the search the server
-   already made in the same request reuses its result.
+   already made in the same request reuses its result;
+9. a hit belongs to the posting and the employer it is evidenced for: "Stellenanzeigen von <employer>" counts the postings
+   the graph records the employer for (one on two addresses once; a posting of another collection and a posting that only
+   names a similar word are not counted), also through job_search with the argument employer; a text hit on an overview of
+   several postings counts for the posting whose part of the page names the subject, and a hit of the page only for none.
 
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_JOBS_DUMP=<file> writes what the stub received;
 --ui also opens the chat page in Chromium (test/scoutro-ui/chat-followup-ui-test.mjs: the search mode of a follow-up).
@@ -351,10 +355,100 @@ def run(base, digest):
           and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 2,
           "count: job_search with the count question counts the same 14 and reuses the search of this request",
           json.dumps({k: v for k, v in result.items() if k != "postings"})[:500])
+    attribution(digest, rita)
     print(f"JOBS: posting pages of alpha-web={pages} (2 base postings, 18 of the stock incl. the second page of one posting),"
           f" job records of the graph={raw}, read by the search={warm.get('scanned')}, matching Kotlin/Sensorik={warm.get('found')} unique"
           f" (14 + 3; the second page is its own record and counts once; the 2 base postings do not match); search ms"
           f" cold={cold.get('millis')} warm={warm.get('millis')}; chat request s={timings}", flush=True)
+
+
+FASAN = "www.fasan-geraete-scoutro-test.de"
+
+
+def attribution(digest, rita):
+    """9. A hit belongs to the posting and the employer it is evidenced for. Invented postings of one employer (Fasan Geräte
+    GmbH): one on two addresses, an overview with a posting whose part names the subject and one whose part does not, an
+    overview that names the subject outside every posting's part, a posting of the employer in another collection, and a
+    posting of another employer whose page names a similar word. "Wie viele Stellenanzeigen von Fasan gibt es?" counts the
+    employer's postings of the chat's collection, "... zu Hydraulik" the posting whose part shows it; both are answered by
+    the server without a model request; job_search with the argument employer searches the same."""
+    org = {"@type": "Organization", "name": "Fasan Geräte GmbH", "url": f"https://{FASAN}/"}
+    tapir = {"@type": "Organization", "name": "Tapir Consulting AG", "url": f"https://{tools.TAPIR}/"}
+
+    def page(title, postings, text, employer=org):
+        scripts = "".join('<script type="application/ld+json">' + json.dumps({"@context": "https://schema.org", "@type": "JobPosting", "title": t,
+                          "description": "Stellenangebot in Vollzeit.", "hiringOrganization": employer}, ensure_ascii=False) + "</script>"
+                          for t in postings)
+        return f"<html><head><title>{title}</title>{scripts}</head><body><h1>{title}</h1><p>{text}</p></body></html>"
+    stock = [
+        (f"https://{FASAN}/stellen/servicetechniker", "alpha-web", page("Servicetechniker (m/w/d) Außendienst", ["Servicetechniker (m/w/d) Außendienst"],
+         "Servicetechniker (m/w/d) Außendienst. Sie warten Geräte bei Kunden.")),
+        (f"https://{FASAN}/jobs/servicetechniker", "alpha-web", page("Servicetechniker (m/w/d) Außendienst", ["Servicetechniker (m/w/d) Außendienst"],
+         "Servicetechniker (m/w/d) Außendienst. Sie warten Geräte bei Kunden.")),
+        (f"https://{FASAN}/karriere", "alpha-web", page("Offene Stellen", ["Mechatroniker (m/w/d) Montage", "Kauffrau (m/w/d) Vertrieb"],
+         "Offene Stellen. Mechatroniker (m/w/d) Montage. Sie montieren Anlagen und prüfen die Hydraulik. Kauffrau (m/w/d) Vertrieb."
+         " Sie betreuen unsere Kunden am Telefon.")),
+        (f"https://{FASAN}/karriere/ausbildung", "alpha-web", page("Ausbildung", ["Auszubildender (m/w/d) Lager", "Auszubildender (m/w/d) Büro"],
+         "Fasan steht für Hydraulik seit 1970. Unsere Ausbildungsplätze: Auszubildender (m/w/d) Lager. Sie lernen die Logistik kennen."
+         " Auszubildender (m/w/d) Büro. Sie lernen die Verwaltung kennen.")),
+        (f"https://{FASAN}/stellen/lagerist-zentrallager", "beta-web", page("Lagerist (m/w/d) Zentrallager", ["Lagerist (m/w/d) Zentrallager"],
+         "Lagerist (m/w/d) Zentrallager. Hydraulik im Lager. BETAGEHEIM")),
+        (f"https://{tools.TAPIR}/ueber-uns/netzwerk", "alpha-web", page("Plattform Architekt (m/w/d)", ["Plattform Architekt (m/w/d)"],
+         "Plattform Architekt (m/w/d). Das Fasan18 in Musterstadt vernetzt Startups; wir sind Partner im Fasan18.", employer=tapir)),
+    ]
+    before = tools.kg_get(digest, "entities?type=job").get("total", 0)
+    for url, collection, html in stock:
+        check(tools.push(digest, url, html, collection), "push " + url)
+    deadline = tools.time.monotonic() + 240
+    while tools.kg_get(digest, "entities?type=job").get("total", 0) < before + 8 and tools.time.monotonic() < deadline:
+        tools.time.sleep(0.5)
+    while tools.time.monotonic() < deadline:
+        n = 0
+        for url, _, _ in stock:
+            status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=" + urllib.parse.quote(f'sku:"{url}"'))
+            n += 1 if isinstance(solr, dict) and solr.get("response", {}).get("numFound") else 0
+        if n == len(stock):
+            break
+        tools.time.sleep(0.5)
+    tools.time.sleep(2)
+    # the employer: five postings of six records in alpha-web; the posting of beta-web and the mention are not counted
+    question = "Wie viele Stellenanzeigen von Fasan gibt es?"
+    status, answer, requests = tools.chat(rita, question, no_tools_model)
+    js = jobsearch(answer) or {}
+    text = answer["text"]
+    check(status == 200 and js.get("employer") == "Fasan" and js.get("criteria") == [] and js.get("found") == 5 and js.get("records") == 6
+          and js.get("lowerBound") is False and js.get("mentions") == 1 and js.get("scope") == "collection alpha-web",
+          "employer: the postings the graph records the employer for, one on two addresses once; the mention apart",
+          json.dumps({k: js.get(k) for k in ("employer", "criteria", "found", "records", "mentions", "pageOnly", "lowerBound", "scope", "phases")}))
+    check(len(requests) == 0 and (answer["meta"].get("scoutro-answer") or {}).get("by") == "server"
+          and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0 and "gibt es **5** Stellenanzeigen mit Fasan als Arbeitgeber" in text
+          and "6 Datensätze passen" in text and "weitere Anzeige nennt Fasan" in text and "nicht mitgezählt" in text
+          and "Plattform Architekt" not in text and tools.none_of(text + json.dumps(answer["meta"], ensure_ascii=False), tools.BETA_MARKERS)
+          and all(s.get("collection") in (None, "alpha-web") for s in answer["meta"].get("scoutro-sources", [])),
+          "employer: the count is answered by the server without a model request, within the chat's collection", f"requests={len(requests)} {text[:600]}")
+    # the tool with the argument employer, in a list request: the result of the request again
+    status, answer, requests = tools.chat(rita, "Welche Stellenanzeigen von Fasan gibt es? Nenne die Titel.", lambda body: (
+        ("call", "job_search", {"query": "Stellenanzeigen", "employer": "Fasan"}) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")))
+    done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+    result = done[0][1] if done else {}
+    auto = jobsearch(answer) or {}
+    check(status == 200 and result.get("employer") == "Fasan" and result.get("found") == 5 == auto.get("found") and result.get("records") == 6
+          and result.get("mentions_not_counted") == 1 and result.get("reused") is True
+          and tools.none_of(json.dumps(result, ensure_ascii=False), tools.BETA_MARKERS + ("Plattform Architekt",)),
+          "employer: job_search with the argument employer counts the same and reuses the search of the request",
+          json.dumps({k: v for k, v in result.items() if k != "postings"}, ensure_ascii=False)[:500])
+    # the subject by the text: the posting whose part of the overview names it; the other overview is a hit of the page only
+    status, answer, requests = tools.chat(rita, "Wie viele Stellenanzeigen zu Hydraulik gibt es?", no_tools_model)
+    js = jobsearch(answer) or {}
+    titles = [s.get("title", "") for s in answer["meta"].get("scoutro-sources", [])]
+    check(status == 200 and len(requests) == 0 and js.get("found") == 1 and js.get("records") == 1 and js.get("pageOnly") == 1
+          and js.get("lowerBound") is False and len(titles) == 1 and "Mechatroniker" in titles[0]
+          and "gibt es **1** Stellenanzeige zu Hydraulik" in answer["text"] and "Auf 1 Seite mit mehreren Anzeigen" in answer["text"]
+          and "Kauffrau" not in answer["text"] and "Auszubildender" not in answer["text"],
+          "text: the hit belongs to the posting whose part of the page names the subject; a hit of a page only is not counted",
+          json.dumps({k: js.get(k) for k in ("found", "records", "pageOnly", "lowerBound")}) + " " + answer["text"][:500])
+    print("ATTRIBUTION: " + json.dumps({"employer": {"found": 5, "records": 6, "mentions": 1}, "text": {k: js.get(k) for k in
+          ("found", "records", "pageOnly", "millis", "phases")}}, ensure_ascii=False), flush=True)
 
 
 def main():

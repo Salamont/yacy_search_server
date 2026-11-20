@@ -2,6 +2,28 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased (on 0.14.3-rc.6): a hit belongs to the posting, the employer and the provider it is evidenced for
+
+Found with 0.14.3-rc.6 on a production stock: a page of several postings gave its text hit to its first posting only (and
+an independent count gave it to all of them); "Stellenanzeigen von X" counted a posting of another employer whose page
+named a similar word; five providers counted as located in a town by the address of a plot, of reference projects, of
+companies a directory lists and of another company of a group.
+
+- Job search, text: a text hit belongs to the posting whose part of the page shows the subject (the text after its
+  title up to the next posting's title). Several postings of one address stay apart, records of one posting on its page
+  and the same posting on two addresses count once, and a hit of a page that belongs to no posting is reported apart
+  (`pageOnly`) and raises no count.
+- Job search, employer: "Stellenanzeigen von X" (and the tool's new argument `employer`) counts the postings the graph
+  records X as the employer of; a posting that only names X is a mention (`mentions`), not counted. "Stellen zu X" stays
+  the search by subject.
+- Provider search, place: service and place by the same provider's identity (the entity of the graph, or the declared
+  operator of a host; a facility it operates counts for it). An address on a provider's site is its location only when
+  it is its own (`ProviderPlace`): not a listed company's, a plot's, a project's or a group company's; what cannot be
+  attributed is open (`undecided`). The page that evidences the place is given beside the page naming the service
+  (`place_source`).
+- The server's count answers, `job_search`, `provider_search` and the model's notes say what was not counted.
+- New read-only graph queries (`KgReader.siteOperators`, `factsInto`, `statementPages`); no schema, graph or index change.
+
 ## 0.14.3-rc.6 / 1.942-scoutro.52-rc.6 — test candidate: the job and provider search by the indexes first, the server's count answer, the open relation to the place (not a release)
 
 On 0.14.3-rc.5, application code `82997f8`. Tool releases are kept; schemas, extractors and stored data unchanged: no

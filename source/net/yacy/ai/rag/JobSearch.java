@@ -33,9 +33,12 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * the session's collection, read with its viewer). Nothing outside it is read.</li>
  * <li>The whole released stock, the matching postings first: the title and the statements of every posting of the scope
  * ({@link KgReader#entityScan}, no evidence text), and which of the postings' pages match in the direct index (addresses
- * only). A posting counts by its title, a fact or the text of its own page; a company page is no posting. The matching
- * postings are determined, deduplicated and counted before the answer's limit of {@link #MAX_JOBS}; only those shown
- * are read in full. The result says how many were found and shown, and whether the count is only a lower bound, and
+ * only). A posting counts by its title, a fact or the text of its own page; a company page is no posting. On a page of
+ * several postings the text counts for the posting whose part of the page shows the subject ({@link #attribute}); a hit
+ * of the page that belongs to no posting raises no count ({@link Result#pageOnly}). With an employer in the question
+ * ("Stellenanzeigen von X") only the postings the graph records X as the employer of count ({@link Plan#employer}). The
+ * matching postings are determined, deduplicated and counted before the answer's limit of {@link #MAX_JOBS}; only those
+ * shown are read in full. The result says how many were found and shown, and whether the count is only a lower bound, and
  * why ({@link Result#gaps}: the time of {@link #MAX_MILLIS} ms, a failed read, or no direct index).</li>
  * <li>Each posting shown goes to the answer as a numbered source with the page it was read from, its employer, the
  * dates it states, the subjects of the question it shows and, as a PARTIAL MATCH, those it does not. The stock of the
@@ -56,6 +59,11 @@ public final class JobSearch {
     static final int TEXT_BATCH = 1000;
     /** characters of the excerpt of a page that shows a subject by its text */
     static final int EXCERPT_CHARS = 200;
+    /** characters after a posting's title on a page of several postings that count as its part of the page */
+    static final int SECTION_CHARS = 1500;
+    /** pages of several postings read with their text in one search, and in one question to the index */
+    static final int SHARED_PAGES = 60;
+    static final int SHARED_BATCH = 20;
     /** pages of one ranked text search (only without a direct index) */
     static final int TEXT_HITS = 50;
     static final int MAX_CHARS = 2600;
@@ -239,10 +247,23 @@ public final class JobSearch {
     public static final class Plan {
         final List<Criterion> criteria;
         final List<Variant> variants;
+        /**
+         * the employer the question asks for ("Stellenanzeigen von X"), as the question writes it, or null: a posting then
+         * counts only when the graph records X as its employer; a posting that names X elsewhere is a mention, not counted
+         */
+        String employer;
+        /** how an employer's name shows {@link #employer} (folded, whole words) */
+        Pattern employerPattern;
+        /** {@link #employer} as a subject, for the postings that only mention it */
+        Criterion employerTopic;
 
         Plan(final List<Criterion> criteria, final List<Variant> variants) {
             this.criteria = criteria;
             this.variants = variants;
+        }
+
+        public String employer() {
+            return this.employer;
         }
 
         public List<String> criteria() {
@@ -258,7 +279,79 @@ public final class JobSearch {
         }
     }
 
+    /**
+     * The employer of a job question: a name after "von", "bei", "at", "by" or "from" ("Stellenanzeigen von Kranich",
+     * "Stellen bei der Firma Kranich Consulting"). A name starts with a capital or a digit and is no word about jobs, the
+     * count or a role ("bei Beratungsunternehmen" names none).
+     */
+    private static final Pattern EMPLOYER = Pattern.compile("(?<![\\p{L}\\p{N}])(?i:von|vom|bei|beim|at|by|from)\\s+(?:(?i:der|dem|den|the)\\s+)?"
+            + "(?:(?i:firma|unternehmen|arbeitgeber|company|employer)\\s+)?([\\p{Lu}\\p{N}][\\p{L}\\p{N}&.+\\-]*"
+            + "(?:\\s+[\\p{Lu}\\p{N}&][\\p{L}\\p{N}&.+\\-]*){0,3})");
+
+    /** The span of the employer's name in a goal ({start, end} of the whole phrase, {nameStart, nameEnd}), or null. */
+    static int[] employerSpan(final String goal) {
+        if (goal == null) return null;
+        final java.util.regex.Matcher m = EMPLOYER.matcher(goal);
+        while (m.find()) {
+            int end = m.end(1);
+            while (end > m.start(1) && ".-&+".indexOf(goal.charAt(end - 1)) >= 0) end--;
+            // the name ends before a word about jobs, the count or the answer ("von Kranich Stellen")
+            final String[] words = goal.substring(m.start(1), end).split("\\s+");
+            int keep = 0;
+            int at = m.start(1);
+            int nameEnd = at;
+            for (final String w : words) {
+                final String f = RagQuery.fold(w.replaceAll("[^\\p{L}\\p{N}]+", " ").trim());
+                boolean generic = f.isEmpty() || countWord(f) || ROLES.contains(f) || RagFollowUp.noTopic(f);
+                for (final String part : f.split(" ")) generic |= intentWord(part);
+                if (generic) break;
+                keep++;
+                nameEnd = goal.indexOf(w, at) + w.length();
+                at = nameEnd;
+            }
+            if (keep > 0) return new int[] {m.start(), nameEnd, m.start(1), nameEnd};
+        }
+        return null;
+    }
+
+    /** The pattern of an employer's name on folded text: its words side by side as whole words. */
+    static Pattern employerPattern(final String name) {
+        final String words = RagQuery.fold(name == null ? "" : name).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        if (words.isEmpty()) return null;
+        return Pattern.compile(START + Pattern.quote(words).replace(" ", "\\E[^\\p{L}\\p{N}]+\\Q") + END);
+    }
+
     public static Plan plan(final String goal) {
+        return plan(goal, null);
+    }
+
+    /**
+     * The plan of a goal; {@code employer} names the employer when the caller knows it (the tool's argument), else it is
+     * read from the goal ({@link #employerSpan}). The employer's name is no subject: "Stellenanzeigen von X" asks for the
+     * postings X is the employer of, "Stellenanzeigen zu X" for those that show X.
+     */
+    public static Plan plan(final String question, final String employer) {
+        String named = employer == null || employer.trim().isEmpty() ? null : employer.trim();
+        String goal = question == null ? "" : question;
+        final int[] span = employerSpan(goal);
+        if (span != null) {
+            if (named == null) named = goal.substring(span[2], span[3]);
+            goal = goal.substring(0, span[0]) + " " + goal.substring(span[1]);
+        }
+        final Plan plan = topics(goal);
+        final Pattern pattern = employerPattern(named);
+        if (pattern != null) {
+            plan.employer = named;
+            plan.employerPattern = pattern;
+            final List<Variant> mine = new ArrayList<>();
+            final Criterion c = new Criterion(named, f -> pattern.matcher(f).find(), mine);
+            mine.add(new Variant(named, true, c));
+            plan.employerTopic = c;
+        }
+        return plan;
+    }
+
+    private static Plan topics(final String goal) {
         final String folded = RagQuery.fold(goal == null ? "" : goal);
         final List<Criterion> criteria = new ArrayList<>();
         String rest = folded; // the question without the words of its subject groups
@@ -407,6 +500,14 @@ public final class JobSearch {
         public Map<String, Long> phases = Collections.emptyMap();
         /** the graph IDs of all postings found (each once), not only of those shown */
         public List<String> ids = Collections.emptyList();
+        /**
+         * pages of several postings whose text names a subject without any posting of the page showing it (the subject is
+         * outside every posting's part of the page, or the page could not be read): a hit of the page, of no posting; never
+         * part of {@link #found}
+         */
+        public int pageOnly;
+        /** with an employer in the question: the postings (each once) that name it without the graph recording it as their employer */
+        public int mentions;
 
         public Result(final Plan plan, final List<Job> jobs, final List<String> searched, final boolean timedOut, final String error, final long millis) {
             this(plan, jobs, searched, timedOut, error, millis, jobs.size(), new LinkedHashMap<>(), jobs.size(), !timedOut && error == null,
@@ -450,7 +551,7 @@ public final class JobSearch {
     }
 
     private static String key(final Plan plan) {
-        return "jobs|" + plan.criteria() + "|" + plan.variants();
+        return "jobs|" + plan.criteria() + "|" + plan.variants() + "|" + (plan.employer == null ? "" : RagQuery.fold(plan.employer));
     }
 
     /**
@@ -471,8 +572,21 @@ public final class JobSearch {
         final int[] how;
         /** per subject: the statements of the scan that show it, until they are checked for the viewer */
         final List<List<Long>> facts = new ArrayList<>();
+        /** the statements that record the employer of the question as this posting's employer, until they are checked */
+        final List<Long> employerFacts = new ArrayList<>();
+        /** the graph records the employer of the question as this posting's employer (a current statement the viewer sees) */
+        boolean employerHit;
         String employer;
         String place;
+        /** its part of a page of several postings that shows a subject */
+        String excerpt;
+        private Set<String> words;
+
+        /** the words of its title that tell postings apart */
+        Set<String> titleWords() {
+            if (this.words == null) this.words = new LinkedHashSet<>(JobSearch.titleWords(this.ref.name));
+            return this.words;
+        }
 
         Posting(final KgReader.EntityRef ref, final int subjects) {
             this.ref = ref;
@@ -492,10 +606,14 @@ public final class JobSearch {
      * <li><b>facts</b>: the statements that alone show a subject are checked for the viewer
      * ({@link KgReader#currentStatements}); only those, not every statement of every posting;</li>
      * <li><b>text</b>: per subject, the pages of the postings that do not show it yet are asked in the direct index for the
-     * subject's words: which addresses match, no text loaded ({@link ToolContext#indexMatching}). A page counts only as
-     * the page of a posting of the scope, never a company page on its own;</li>
-     * <li><b>selection</b>: duplicates (one page, or one title of one employer at one place) count once; the postings
-     * found are ranked by the subjects they show and how, the shown ones keep one of every subject that has one;</li>
+     * subject's words: which addresses match ({@link ToolContext#indexMatching}). A page counts only as the page of a
+     * posting of the scope, never a company page on its own. A page of one posting is that posting; a page of several
+     * postings is read (at most {@link #SHARED_PAGES}) and the hit goes to the posting whose part of the page shows the
+     * subject ({@link #attribute}), else to no posting ({@link Result#pageOnly});</li>
+     * <li><b>selection</b>: with an employer in the question only its postings; duplicates count once (one title of one
+     * employer at one place over its pages, and the records of one page whose titles are one title; different postings of
+     * one address stay apart); the postings found are ranked by the subjects they show and how, the shown ones keep one of
+     * every subject that has one;</li>
      * <li><b>evidence</b>: only the postings shown are read in full ({@link KgReader#jobDigests}), and the page of a posting
      * that shows a subject by its text only gives a short excerpt.</li>
      * </ol>
@@ -513,6 +631,11 @@ public final class JobSearch {
         final Map<String, Long> phases = new LinkedHashMap<>();
         final List<Posting> postings = new ArrayList<>();
         final int subjects = plan.criteria.size();
+        // every subject, and after them the employer of the question as a subject (for the postings that only mention it)
+        final List<Criterion> all = new ArrayList<>(plan.criteria);
+        if (plan.employerTopic != null) all.add(plan.employerTopic);
+        final int slots = all.size();
+        int pageOnly = 0;
         boolean timedOut = false;
         String error = null;
         int scanned = 0;
@@ -558,9 +681,9 @@ public final class JobSearch {
                 }
                 final Map<Long, Posting> read = new LinkedHashMap<>();
                 for (final KgReader.EntityRef ref : scan.entities) {
-                    final Posting posting = new Posting(ref, subjects);
+                    final Posting posting = new Posting(ref, slots);
                     final String title = RagQuery.fold(ref.name);
-                    for (int i = 0; i < subjects; i++) if (plan.criteria.get(i).shownBy.test(title)) posting.how[i] = BY_TITLE;
+                    for (int i = 0; i < slots; i++) if (all.get(i).shownBy.test(title)) posting.how[i] = BY_TITLE;
                     read.put(ref.rowid, posting);
                 }
                 for (final KgReader.FactRow f : scan.facts) {
@@ -570,10 +693,15 @@ public final class JobSearch {
                     if (value == null || value.isEmpty()) continue;
                     if (Vocabulary.HIRING_ORGANIZATION.equals(f.predicate) && posting.employer == null) posting.employer = value;
                     if (Vocabulary.JOB_LOCATION.equals(f.predicate) && posting.place == null) posting.place = value;
-                    if (subjects == 0) continue;
+                    if (slots == 0) continue;
                     final String folded = RagQuery.fold(value);
-                    for (int i = 0; i < subjects; i++) {
-                        if (posting.how[i] < BY_TITLE && plan.criteria.get(i).shownBy.test(folded)) posting.facts.get(i).add(f.statement);
+                    // the employer of the question: only the statement of the posting's employer shows it
+                    final boolean employerFact = plan.employerPattern != null && Vocabulary.HIRING_ORGANIZATION.equals(f.predicate)
+                            && plan.employerPattern.matcher(folded).find();
+                    if (employerFact) posting.employerFacts.add(f.statement);
+                    for (int i = 0; i < slots; i++) {
+                        if (employerFact && i >= subjects) continue; // its employer is no mere mention of the employer
+                        if (posting.how[i] < BY_TITLE && all.get(i).shownBy.test(folded)) posting.facts.get(i).add(f.statement);
                     }
                 }
                 postings.addAll(read.values());
@@ -583,7 +711,10 @@ public final class JobSearch {
             mark = System.nanoTime();
             // 2. the facts that alone show a subject: checked for the viewer (visible, with a current source)
             final Set<Long> candidates = new LinkedHashSet<>();
-            for (final Posting p : postings) for (int i = 0; i < subjects; i++) if (p.how[i] < BY_TITLE) candidates.addAll(p.facts.get(i));
+            for (final Posting p : postings) {
+                for (int i = 0; i < slots; i++) if (p.how[i] < BY_TITLE) candidates.addAll(p.facts.get(i));
+                candidates.addAll(p.employerFacts);
+            }
             if (!candidates.isEmpty()) {
                 if (clock.getAsLong() - start > budget) {
                     timedOut = true;
@@ -591,7 +722,8 @@ public final class JobSearch {
                 } else {
                     final Set<Long> current = context.reader().currentStatements(viewer, candidates);
                     for (final Posting p : postings) {
-                        for (int i = 0; i < subjects; i++) {
+                        for (final Long statement : p.employerFacts) p.employerHit |= current.contains(statement);
+                        for (int i = 0; i < slots; i++) {
                             if (p.how[i] >= BY_TITLE) continue;
                             for (final Long statement : p.facts.get(i)) {
                                 if (current.contains(statement)) {
@@ -605,31 +737,84 @@ public final class JobSearch {
             }
             phases.put("facts", (System.nanoTime() - mark) / 1_000_000L);
             mark = System.nanoTime();
-            // 3. the indexed text of the postings' own pages: which of the pages that do not show a subject yet match its words
-            if (subjects > 0 && !timedOut) {
-                final Map<String, Posting> byUrl = new LinkedHashMap<>();
-                for (final Posting p : postings) byUrl.putIfAbsent(pageKey(p.ref.url), p);
+            // 3. the indexed text of the postings' own pages: which of the pages that do not show a subject yet match its words.
+            // A page of one posting is that posting. On a page of several postings the text counts for the posting whose part
+            // of the page shows the subject (the text after its title, up to the next posting's title); what the page says
+            // outside every posting's part is a hit of the page and of no posting.
+            if (slots > 0 && !timedOut) {
+                final Map<String, List<Posting>> byPage = new LinkedHashMap<>();
+                for (final Posting p : postings) byPage.computeIfAbsent(pageKey(p.ref.url), k -> new ArrayList<>()).add(p);
+                int sharedRead = 0;
                 if (context.hasIndex()) {
                     text:
-                    for (int i = 0; i < subjects; i++) {
-                        final Criterion c = plan.criteria.get(i);
-                        final List<String> urls = new ArrayList<>();
-                        for (final Posting p : postings) if (p.how[i] == 0) urls.add(p.ref.url);
+                    for (int i = 0; i < slots; i++) {
+                        final Criterion c = all.get(i);
+                        final Map<String, String> urls = new LinkedHashMap<>(); // page -> its address, of the pages with a posting to decide
+                        for (final Posting p : postings) if (p.how[i] == 0) urls.putIfAbsent(pageKey(p.ref.url), p.ref.url);
+                        final Map<String, String> shared = new LinkedHashMap<>(); // matching pages of several postings, with the words that matched
                         for (final Variant v : c.variants) {
                             if (v.filter != c) continue; // a subject's own words; the joint variants are no subject of their own
                             final List<String> words = words(v.text);
                             if (words.isEmpty() || urls.isEmpty()) continue;
                             searched.add("index: " + v.text + " (" + urls.size() + " posting pages)");
-                            for (int k = 0; k < urls.size(); k += TEXT_BATCH) {
+                            final List<String> list = new ArrayList<>(urls.values());
+                            for (int k = 0; k < list.size(); k += TEXT_BATCH) {
                                 if (clock.getAsLong() - start > budget) {
                                     timedOut = true;
-                                    gaps.add("time budget: the text of " + (urls.size() - k) + " posting pages not searched for " + v.text);
+                                    gaps.add("time budget: the text of " + (list.size() - k) + " posting pages not searched for " + v.text);
                                     break text;
                                 }
-                                for (final String url : context.indexMatching(words, words.size() > 1, urls.subList(k, Math.min(urls.size(), k + TEXT_BATCH)))) {
-                                    final Posting p = byUrl.get(pageKey(url));
-                                    if (p != null && p.how[i] == 0) p.how[i] = BY_TEXT;
+                                for (final String url : context.indexMatching(words, words.size() > 1, list.subList(k, Math.min(list.size(), k + TEXT_BATCH)))) {
+                                    final String page = pageKey(url);
+                                    final List<Posting> on = byPage.get(page);
+                                    if (on == null) continue;
+                                    if (onePosting(on)) {
+                                        for (final Posting p : on) if (p.how[i] == 0) p.how[i] = BY_TEXT;
+                                    } else {
+                                        shared.putIfAbsent(page, v.text);
+                                    }
                                 }
+                            }
+                        }
+                        // the pages of several postings: read, and each posting's part of the page asked for the subject
+                        final List<String> pages = new ArrayList<>(shared.keySet());
+                        for (int k = 0; k < pages.size(); k += SHARED_BATCH) {
+                            final List<String> batch = pages.subList(k, Math.min(pages.size(), k + SHARED_BATCH));
+                            if (sharedRead + batch.size() > SHARED_PAGES || clock.getAsLong() - start > budget) {
+                                final boolean time = clock.getAsLong() - start > budget;
+                                timedOut |= time;
+                                gaps.add((time ? "time budget" : "text: more than " + SHARED_PAGES + " pages of several postings") + ": "
+                                        + (pages.size() - k) + " pages naming " + c.label + " not read, their postings not decided");
+                                if (i < subjects) pageOnly += pages.size() - k;
+                                break;
+                            }
+                            sharedRead += batch.size();
+                            final Map<String, RagCandidate> texts = new LinkedHashMap<>();
+                            final Map<String, List<String>> byWords = new LinkedHashMap<>();
+                            for (final String page : batch) byWords.computeIfAbsent(shared.get(page), w -> new ArrayList<>()).add(urls.get(page));
+                            for (final Map.Entry<String, List<String>> e : byWords.entrySet()) {
+                                for (final RagCandidate page : context.indexPages(words(e.getKey()), e.getValue(), 0, e.getValue().size()).pages) {
+                                    texts.put(pageKey(page.url), page);
+                                }
+                            }
+                            for (final String page : batch) {
+                                final List<Posting> on = byPage.get(page);
+                                final RagCandidate read = texts.get(page);
+                                boolean shown = false;
+                                if (read != null) {
+                                    final List<String> titles = new ArrayList<>();
+                                    for (final Posting p : on) titles.add(p.ref.name);
+                                    final String[] parts = attribute(read.text, titles, c.shownBy, RagQuery.fold(words(shared.get(page)).get(0)));
+                                    for (int n = 0; n < on.size(); n++) {
+                                        final Posting p = on.get(n);
+                                        if (parts[n] != null && p.how[i] == 0) {
+                                            p.how[i] = BY_TEXT;
+                                            if (p.excerpt == null) p.excerpt = parts[n];
+                                        }
+                                    }
+                                }
+                                for (final Posting p : on) shown |= p.how[i] > 0;
+                                if (!shown && i < subjects) pageOnly++; // the page names the subject, no posting of it does
                             }
                         }
                     }
@@ -637,14 +822,31 @@ public final class JobSearch {
                     // no direct index: the ranked search, which gives one page per host and at most TEXT_HITS
                     gaps.add("no direct index: the text of posting pages searched by ranked search only (" + TEXT_HITS
                             + " pages, one per host)");
-                    for (int i = 0; i < subjects; i++) {
-                        final Criterion c = plan.criteria.get(i);
+                    for (int i = 0; i < slots; i++) {
+                        final Criterion c = all.get(i);
                         final String words = c.variants.get(0).text;
                         searched.add("text: " + words);
                         for (final RagCandidate page : context.pages(words, TEXT_HITS)) {
-                            final Posting p = byUrl.get(pageKey(page.url));
-                            if (p == null || p.how[i] > 0) continue; // not the page of a posting of this scope
-                            if (c.shownBy.test(RagQuery.fold(page.title + " " + page.description + " " + page.text))) p.how[i] = BY_TEXT;
+                            final List<Posting> on = byPage.get(pageKey(page.url));
+                            if (on == null) continue; // not the page of a posting of this scope
+                            if (!c.shownBy.test(RagQuery.fold(page.title + " " + page.description + " " + page.text))) continue;
+                            if (onePosting(on)) {
+                                for (final Posting p : on) if (p.how[i] == 0) p.how[i] = BY_TEXT;
+                                continue;
+                            }
+                            final List<String> titles = new ArrayList<>();
+                            for (final Posting p : on) titles.add(p.ref.name);
+                            final String[] parts = attribute(page.text, titles, c.shownBy, RagQuery.fold(words(words).get(0)));
+                            boolean shown = false;
+                            for (int n = 0; n < on.size(); n++) {
+                                final Posting p = on.get(n);
+                                if (parts[n] != null && p.how[i] == 0) {
+                                    p.how[i] = BY_TEXT;
+                                    if (p.excerpt == null) p.excerpt = parts[n];
+                                }
+                                shown |= p.how[i] > 0;
+                            }
+                            if (!shown && i < subjects) pageOnly++;
                         }
                     }
                 }
@@ -656,17 +858,25 @@ public final class JobSearch {
         }
         mark = System.nanoTime();
         if (timedOut && gaps.stream().noneMatch(g -> g.startsWith("time budget"))) gaps.add("time budget: the search stopped early");
-        // 4. every posting read: which subjects it shows, and how; duplicates once
+        // 4. every posting read: which subjects it shows, and how; duplicates once. With an employer in the question only the
+        // postings the graph records it as the employer of; one that names it elsewhere is a mention and is not counted.
         final List<Job> matching = new ArrayList<>();
-        final Set<String> seen = new LinkedHashSet<>();
+        final Duplicates seen = new Duplicates();
+        final Duplicates mentioned = new Duplicates();
         int order = 0;
         int records = 0;
+        int mentions = 0;
         for (final Posting p : postings) {
+            if (plan.employer != null && !p.employerHit) {
+                if (p.how[subjects] > 0 && mentioned.add(p)) mentions++;
+                continue;
+            }
             final Job job = new Job(p.ref.id, p.ref.name);
             job.url = p.ref.url;
             job.employer = p.employer;
             job.place = p.place;
             job.collection = context.collection;
+            job.excerpt = p.excerpt;
             job.order = order++;
             for (int i = 0; i < subjects; i++) {
                 final String label = plan.criteria.get(i).label;
@@ -679,9 +889,7 @@ public final class JobSearch {
             }
             if (subjects > 0 && job.met.isEmpty()) continue;
             records++;
-            // duplicates: one page, or one title of one employer at one place
-            final String key = RagQuery.fold(job.title) + "|" + RagQuery.fold(value(job.employer, "")) + "|" + RagQuery.fold(value(job.place, ""));
-            if (!seen.add("u|" + pageKey(job.url)) | !seen.add("k|" + key)) continue;
+            if (!seen.add(p)) continue;
             matching.add(job);
         }
         final java.util.Comparator<Job> relevance = (a, b) -> a.met.size() != b.met.size() ? b.met.size() - a.met.size()
@@ -719,11 +927,106 @@ public final class JobSearch {
         final Result result = new Result(plan, shown, searched, timedOut, error, clock.getAsLong() - start, matching.size(), perSubject, scanned,
                 gaps.isEmpty(), gaps);
         result.records = records;
+        result.pageOnly = pageOnly;
+        result.mentions = mentions;
         result.phases = Collections.unmodifiableMap(phases);
         final List<String> ids = new ArrayList<>();
         for (final Job job : matching) ids.add(job.id);
         result.ids = Collections.unmodifiableList(ids);
         return result;
+    }
+
+    /** a gender marker of a title: "(m/w/d)", "m|w|d", "(all genders)", "*in" */
+    private static final Pattern GENDER = Pattern.compile("\\(?\\s*(?<![\\p{L}\\p{N}])[mwdfx]\\s*[/|*]\\s*[mwdfx](?:\\s*[/|*]\\s*[mwdfx])?(?![\\p{L}\\p{N}])\\s*\\)?"
+            + "|\\(\\s*all\\s+genders\\s*\\)|(?<=\\p{L})[*:_]in(?:nen)?(?![\\p{L}])|(?<=\\p{L})/-?in(?:nen)?(?![\\p{L}])");
+
+    /** A text as words: folded, every run of other characters one space. */
+    static String wordsOf(final String text) {
+        return RagQuery.fold(text == null ? "" : text).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+    }
+
+    /** The words of a posting's title that tell postings apart: folded, without gender markers. */
+    static List<String> titleWords(final String title) {
+        final String words = wordsOf(GENDER.matcher(RagQuery.fold(title == null ? "" : title)).replaceAll(" "));
+        return words.isEmpty() ? new ArrayList<>() : new ArrayList<>(java.util.Arrays.asList(words.split(" ")));
+    }
+
+    /**
+     * Whether two titles of one page are one posting: the same words, or the words of one within the other ("Planer
+     * (m/w/d)" and "Planer Hochbau (m/w/d)" are two records of one posting, read from its heading and its structured data).
+     */
+    static boolean sameTitle(final Set<String> a, final Set<String> b) {
+        if (a.isEmpty() || b.isEmpty()) return a.isEmpty() && b.isEmpty();
+        return a.size() <= b.size() ? b.containsAll(a) : a.containsAll(b);
+    }
+
+    /** Whether the postings of a page are one posting (one record, or records whose titles are one title). */
+    private static boolean onePosting(final List<Posting> on) {
+        for (int a = 0; a < on.size(); a++) {
+            for (int b = a + 1; b < on.size(); b++) if (!sameTitle(on.get(a).titleWords(), on.get(b).titleWords())) return false;
+        }
+        return true;
+    }
+
+    /**
+     * The postings counted so far, each once: one title of one employer at one place counts once over its pages (the same
+     * posting on two addresses), and so do the records of one page whose titles are one title. Different postings of one
+     * page (an overview of several) stay apart.
+     */
+    private static final class Duplicates {
+        private final Set<String> keys = new LinkedHashSet<>();
+        private final Map<String, List<Set<String>>> byPage = new LinkedHashMap<>();
+
+        boolean add(final Posting p) {
+            final String key = RagQuery.fold(p.ref.name) + "|" + RagQuery.fold(value(p.employer, "")) + "|" + RagQuery.fold(value(p.place, ""));
+            final List<Set<String>> onPage = this.byPage.computeIfAbsent(pageKey(p.ref.url), k -> new ArrayList<>());
+            boolean known = !this.keys.add(key);
+            for (final Set<String> other : onPage) known |= sameTitle(other, p.titleWords());
+            onPage.add(p.titleWords());
+            return !known;
+        }
+    }
+
+    /**
+     * Which postings of a page of several postings show a subject in their part of the page's text: the text after an
+     * occurrence of the posting's title, up to the next title of a posting of the page and at most {@link #SECTION_CHARS}
+     * characters. A title of words about jobs only ("Karriere", "Stellenangebote") has no part of its own: it is the page's
+     * furniture. Returns per title an excerpt of the part that shows the subject, or null.
+     *
+     * @param word a folded word of the subject, for the place of the excerpt
+     */
+    static String[] attribute(final String text, final List<String> titles, final Predicate<String> shownBy, final String word) {
+        final String[] out = new String[titles.size()];
+        // the page as words, without gender markers: a title "Monteur (m/w/d) Anlagenbau" is found as "monteur anlagenbau"
+        final String page = " " + wordsOf(GENDER.matcher(RagQuery.fold(text == null ? "" : text)).replaceAll(" ")) + " ";
+        final List<int[]> marks = new ArrayList<>(); // start, end, title
+        for (int t = 0; t < titles.size(); t++) {
+            final List<String> words = titleWords(titles.get(t));
+            boolean own = false;
+            for (final String w : words) own |= !intentWord(w) && w.length() > 1;
+            final String needle = " " + String.join(" ", words) + " ";
+            if (!own || needle.length() < 6) continue;
+            for (int at = page.indexOf(needle); at >= 0; at = page.indexOf(needle, at + 1)) marks.add(new int[] {at, at + needle.length() - 1, t});
+        }
+        marks.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(b[1], a[1]));
+        for (int m = 0; m < marks.size(); m++) {
+            final int[] mark = marks.get(m);
+            if (out[mark[2]] != null) continue;
+            int end = Math.min(page.length(), mark[1] + SECTION_CHARS);
+            for (int n = m + 1; n < marks.size(); n++) {
+                if (marks.get(n)[0] >= mark[1]) {
+                    end = Math.min(end, marks.get(n)[0] + 1);
+                    break;
+                }
+            }
+            final String part = page.substring(mark[1], Math.max(mark[1], end));
+            if (!shownBy.test(part)) continue;
+            final int at = word == null || word.isEmpty() ? -1 : part.indexOf(word);
+            final int from = Math.max(0, (at < 0 ? 0 : at) - EXCERPT_CHARS / 3);
+            out[mark[2]] = RagContext.clean(titles.get(mark[2]) + ": " + (from > 0 ? "… " : "")
+                    + part.substring(from, Math.min(part.length(), from + EXCERPT_CHARS)).trim(), EXCERPT_CHARS + 80);
+        }
+        return out;
     }
 
     /** Reads the postings shown in full (employer, type, place, dates, collection) and a short excerpt for a subject shown by text. */
@@ -843,6 +1146,8 @@ public final class JobSearch {
             if (job.collection != null) entry.append("Collection: ").append(job.collection).append('\n');
             final StringBuilder body = new StringBuilder("A job posting the Scoutro knowledge graph recorded from this page, not model knowledge. ");
             body.append("Title: ").append(title).append(". Employer: ").append(value(job.employer, "not recorded")).append('.');
+            if (result.plan.employer != null) body.append(" The knowledge graph records ").append(RagContext.clean(result.plan.employer, 80))
+                    .append(" as its employer.");
             if (job.employmentType != null) body.append(" Employment type: ").append(value(job.employmentType, "")).append('.');
             if (job.place != null) body.append(" Place: ").append(value(job.place, "")).append('.');
             // the dates it states, if any: the stock of the graph counts as current, a missing date is no remark
@@ -880,6 +1185,11 @@ public final class JobSearch {
             meta.put("notShown", result.jobs.size() - sources.size()); // selected, but no room left in the context
             meta.put("perSubject", new JSONObject(result.perSubject));
             meta.put("records", result.records); // matching records; found counts a posting on two pages once
+            meta.put("pageOnly", result.pageOnly); // pages of several postings naming a subject that no posting of them shows: not counted
+            if (result.plan.employer != null) {
+                meta.put("employer", result.plan.employer); // found: the postings the graph records it as the employer of
+                meta.put("mentions", result.mentions); // postings naming it otherwise: not counted
+            }
             meta.put("scanned", result.scanned);
             meta.put("gaps", new JSONArray(result.gaps)); // why the count is only a lower bound
             meta.put("full", full);

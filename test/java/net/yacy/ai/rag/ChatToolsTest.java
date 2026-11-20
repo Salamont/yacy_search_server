@@ -4,6 +4,7 @@ package net.yacy.ai.rag;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -162,6 +163,12 @@ public class ChatToolsTest {
     /** One invented page: in the search corpus and, through the extractors and the publisher, in the graph. */
     private void page(final String id, final String url, final String collection, final String title, final String jsonld, final String text)
             throws Exception {
+        page(id, url, collection, title, List.of(jsonld), text);
+    }
+
+    /** A page with several structured records (an overview of several postings). */
+    private void page(final String id, final String url, final String collection, final String title, final List<String> jsonld, final String text)
+            throws Exception {
         final String host = java.net.URI.create(url).getHost();
         this.pages.add(new RagCandidate(url, title, "", text, host, List.of(collection), this.pages.size()));
         final ExtractContext ctx = new ExtractContext(KgVocabularies.get(), Set.of(), true, true, List.of(collection));
@@ -176,7 +183,7 @@ public class ChatToolsTest {
         d.inputHash = new byte[16];
         d.collections = List.of(collection);
         final Extraction ex = new Extraction(300);
-        new JsonLdExtractor(200).extract(List.of(jsonld), d.url, d.host, "de", ex, ctx);
+        new JsonLdExtractor(200).extract(jsonld, d.url, d.host, "de", ex, ctx);
         new RuleExtractor(200, 65536).extract(text, d.url, d.host, "de", ex, ctx, List.of(), List.of());
         final Publisher.Row cur = this.store.read(c -> Publisher.row(c, d.docId));
         d.solrVersion = ++this.version;
@@ -850,7 +857,8 @@ public class ChatToolsTest {
         biber("BIBS07host03", "partner/senior-berater-finance", "SENIOR BERATER (M/W/D) FINANCE", "", "Stellenangebot.");
         final ToolContext chat = chat("alpha-web");
         final JobSearch.Result result = JobSearch.run(chat, JobSearch.plan("Zeige alle Stellenanzeigen von Biber"));
-        assertEquals(List.of("Biber"), result.plan.criteria());
+        assertEquals("the employer is no subject", List.of(), result.plan.criteria());
+        assertEquals("Biber", result.plan.employer());
         assertTrue(result.gaps.toString(), result.complete);
         assertEquals("the records that match", 7, result.records);
         assertEquals("the postings: the one on two pages once", 6, result.found);
@@ -869,8 +877,159 @@ public class ChatToolsTest {
         assertEquals(6, tool.getInt("found"));
         assertEquals(7, tool.getInt("records"));
         final String answer = QuestionKind.countOfJobs("Wie viele Stellenanzeigen von Biber gibt es?", result, built.sources, chat);
-        assertTrue(answer, answer.contains("gibt es **6** Stellenanzeigen zu Biber") && answer.contains("7 Datensätze passen; 1 davon ist dieselbe"));
+        assertTrue(answer, answer.contains("gibt es **6** Stellenanzeigen mit Biber als Arbeitgeber") && answer.contains("7 Datensätze passen; 1 davon ist dieselbe"));
         assertTrue(answer, answer.contains("[1]") && answer.contains("[6]") && !answer.contains("[7]"));
+    }
+
+    /** One posting record of a page with several: its title and a short description, an employer or none. */
+    private static String record(final String title, final String organization) {
+        return "{\"@type\":\"JobPosting\",\"title\":\"" + title + "\",\"description\":\"Stellenangebot in Vollzeit.\""
+                + (organization == null ? "" : ",\"hiringOrganization\":" + organization) + "}";
+    }
+
+    /**
+     * A text hit belongs to the posting whose part of the page shows the subject. Several postings of one address stay
+     * apart; a posting on two addresses counts once; what a page of several postings says outside every posting's part is a
+     * hit of the page and raises no count.
+     */
+    @Test
+    public void aTextHitBelongsToThePostingOfItsPartOfThePage() throws Exception {
+        final String host = "https://www.biber-messtechnik.example/";
+        // 1. an overview with a matching and a non-matching posting: only the one whose part names the subject
+        page("BIBO01host03", host + "karriere/uebersicht", "alpha-web", "Offene Stellen", List.of(record("Monteur (m/w/d) Anlagenbau", BIBER),
+                record("Buchhalter (m/w/d) Zentrale", BIBER)), "Offene Stellen bei uns. Monteur (m/w/d) Anlagenbau. Sie nehmen Anlagen in Betrieb"
+                + " und prüfen sie mit Kalibrierung vor Ort. Buchhalter (m/w/d) Zentrale. Sie buchen Kreditoren und Debitoren.");
+        // 2. an overview whose text names the subject outside every posting's part: a hit of the page, of no posting
+        page("BIBO02host03", host + "karriere/logistik", "alpha-web", "Stellen in der Logistik", List.of(record("Lagerist (m/w/d) Halle 2", BIBER),
+                record("Fahrer (m/w/d) Nahverkehr", BIBER)), "Biber ist bekannt für Kalibrierung. Unsere Stellen in der Logistik: Lagerist (m/w/d)"
+                + " Halle 2. Sie kommissionieren Ware. Fahrer (m/w/d) Nahverkehr. Sie liefern Geräte aus.");
+        // 3. the same posting on two addresses, the subject only in the text of both: two records, one posting
+        biber("BIBO03host03", "jobs/pruefer", "Prüfer (m/w/d) Wareneingang", "", "Sie übernehmen die Kalibrierung der Messmittel.");
+        biber("BIBO04host03", "karriere/pruefer-wareneingang", "Prüfer (m/w/d) Wareneingang", "", "Sie übernehmen die Kalibrierung der Messmittel.");
+        // 4. two records of one posting on its page (its heading and its structured data name it differently): one posting
+        page("BIBO05host03", host + "jobs/planer", "alpha-web", "Planer Hochbau (m/w/d)", List.of(record("Planer (m/w/d)", BIBER),
+                record("Planer Hochbau (m/w/d)", BIBER)), "Wir suchen Verstärkung. Aufgaben: Kalibrierung der Vermessungsgeräte und Planung.");
+        // 5. two different postings of one address, each showing the subject in its own part: two postings
+        page("BIBO06host03", host + "karriere/labor", "alpha-web", "Stellen im Labor", List.of(record("Laborant (m/w/d) Chemie", BIBER),
+                record("Laborant (m/w/d) Physik", BIBER)), "Laborant (m/w/d) Chemie. Kalibrierung der Waagen gehört dazu. Laborant (m/w/d) Physik."
+                + " Kalibrierung der Sensoren gehört dazu.");
+        // 6. an overview with a posting that shows the subject in its title and one that does not show it at all
+        page("BIBO07host03", host + "karriere/technik", "alpha-web", "Stellen in der Technik", List.of(record("Kalibrierung Techniker (m/w/d) Nord", BIBER),
+                record("Empfang (m/w/d) Zentrale", BIBER)), "Kalibrierung Techniker (m/w/d) Nord. Sie arbeiten im Außendienst. Empfang (m/w/d) Zentrale."
+                + " Sie begrüßen unsere Gäste.");
+        final ToolContext chat = new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(), graph(), 16000, "test")
+                .withIndex(index());
+        final JobSearch.Result r = JobSearch.run(chat, JobSearch.plan("Wie viele Stellenanzeigen zu Kalibrierung gibt es?"));
+        assertTrue(r.gaps.toString(), r.complete);
+        final java.util.Set<String> titles = new java.util.TreeSet<>();
+        final JobSearch.Built all = JobSearch.format(r, 1, JobSearch.ALL_SHOWN, chat.scopeLabel(), false);
+        for (final JobSearch.Job job : r.jobs) titles.add(job.title);
+        // Monteur; Prüfer once; Planer once; both Laboranten; the Techniker by its title: six postings of eight records
+        assertEquals(titles.toString(), 6, r.found);
+        assertEquals(8, r.records);
+        assertEquals("the logistics overview: a hit of the page only", 1, r.pageOnly);
+        assertTrue(titles.toString(), titles.contains("Monteur (m/w/d) Anlagenbau") && titles.contains("Laborant (m/w/d) Chemie")
+                && titles.contains("Laborant (m/w/d) Physik") && titles.contains("Kalibrierung Techniker (m/w/d) Nord"));
+        for (final String not : new String[] {"Buchhalter", "Lagerist", "Fahrer", "Empfang"}) {
+            assertFalse(not + " " + titles, titles.stream().anyMatch(t -> t.startsWith(not)));
+        }
+        // the excerpt of a posting of an overview is its own part of the page
+        final JobSearch.Job monteur = r.jobs.stream().filter(j -> j.title.startsWith("Monteur")).findFirst().get();
+        assertTrue(monteur.excerpt, monteur.excerpt.contains("kalibrierung") && !monteur.excerpt.contains("kreditoren"));
+        assertEquals(1, all.meta.getInt("pageOnly"));
+        // the server's count answer and the tool say the same, and name what was not counted
+        final String answer = QuestionKind.countOfJobs("Wie viele Stellenanzeigen zu Kalibrierung gibt es?", r, all.sources, chat);
+        assertTrue(answer, answer.contains("gibt es **6** Stellenanzeigen zu Kalibrierung") && answer.contains("8 Datensätze passen; 2 davon sind dieselben"));
+        assertTrue(answer, answer.contains("Auf 1 Seite mit mehreren Anzeigen kommt das Thema vor") && answer.contains("nicht mitgezählt"));
+        final JSONObject tool = call(new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(), graph(), 16000, "test")
+                .withIndex(index()), "job_search", "{\"query\":\"Kalibrierung\"}");
+        assertEquals(tool.toString(), 6, tool.getInt("found"));
+        assertEquals(8, tool.getInt("records"));
+        assertEquals(1, tool.getInt("pages_not_attributed"));
+        // the parts of a page, directly: a title of words about jobs only has no part of its own
+        final String[] parts = JobSearch.attribute("Karriere bei uns: Kalibrierung ist unser Fach. Stellenangebote. Monteur (m/w/d). Sie montieren."
+                + " Techniker (m/w/d) Labor. Kalibrierung der Geräte.", List.of("Karriere", "Stellenangebote", "Monteur (m/w/d)", "Techniker (m/w/d) Labor"),
+                f -> f.contains("kalibrierung"), "kalibrierung");
+        assertNull(parts[0]);
+        assertNull(parts[1]);
+        assertNull(parts[2]);
+        assertTrue(parts[3], parts[3] != null && parts[3].contains("kalibrierung der gerate"));
+    }
+
+    /**
+     * "Stellenanzeigen von X" counts the postings the graph records X as the employer of; a posting that names X in its
+     * text (or a similar name) is a mention and is not counted. "Stellenanzeigen zu X" stays the search by subject.
+     */
+    @Test
+    public void thePostingsOfAnEmployerAreThoseTheGraphRecordsItFor() throws Exception {
+        final String[] fields = {"Finance", "Controlling", "Treasury", "Logistik", "Vertrieb", "Einkauf"};
+        for (int i = 0; i < fields.length; i++) {
+            biber("BIBE0" + i + "host03", "karriere/" + fields[i].toLowerCase(), "Senior Berater (m/w/d) " + fields[i], "", "Stellenangebot.");
+        }
+        // the same posting on a second page: the seventh record
+        biber("BIBE07host03", "partner/senior-berater-finance", "SENIOR BERATER (M/W/D) FINANCE", "", "Stellenangebot.");
+        // a posting of another employer whose page names a network of a similar name, and one that names the employer itself
+        page("ALPE01host01", "https://www.tapir-consulting.example/ueber-uns", "alpha-web", "Plattform Architekt (m/w/d)",
+                posting("Plattform Architekt (m/w/d)", "Sie entwerfen Plattformen.", TAPIR),
+                "Plattform Architekt (m/w/d). Das Biber18 in Musterstadt vernetzt Startups; wir sind Partner im Biber18.");
+        page("ALPE02host01", "https://www.tapir-consulting.example/karriere/projektleiter", "alpha-web", "Projektleiter (m/w/d) Kundenprojekte",
+                posting("Projektleiter (m/w/d) Kundenprojekte", "Sie leiten Projekte.", TAPIR),
+                "Projektleiter (m/w/d) Kundenprojekte. Sie arbeiten in Projekten bei Kunden wie Biber Messtechnik.");
+        // a posting without a recorded employer on the employer's own host: not counted, the graph records no employer
+        page("BIBE08host03", "https://www.biber-messtechnik.example/karriere/initiativ", "alpha-web", "Initiativbewerbung (m/w/d)",
+                record("Initiativbewerbung (m/w/d)", null), "Initiativbewerbung (m/w/d). Bewerben Sie sich bei Biber.");
+        final java.util.function.Supplier<ToolContext> chat = () -> new ToolContext("alpha-web", true, (concepts, query, c, count) -> new ArrayList<>(),
+                graph(), 16000, "test").withIndex(index());
+        // the plan: an employer after "von" or "bei", never a word about jobs or a kind of company
+        assertEquals("Biber", JobSearch.plan("Wie viele Stellenanzeigen von Biber gibt es?").employer());
+        assertEquals("Biber Messtechnik", JobSearch.plan("Welche Stellen gibt es bei der Firma Biber Messtechnik?").employer());
+        assertEquals("Biber", JobSearch.plan("Zeige Stellenanzeigen zu Kalibrierung von Biber.").employer());
+        assertEquals(List.of("Kalibrierung"), JobSearch.plan("Zeige Stellenanzeigen zu Kalibrierung von Biber.").criteria());
+        assertNull(JobSearch.plan("Welche Stellenanzeigen gibt es zu Java und ML bei Beratungsunternehmen mit Prozessrobotik?").employer());
+        assertNull(JobSearch.plan("Wie viele Stellenanzeigen zu Biber gibt es?").employer());
+        assertNull(JobSearch.plan("Anzahl von Java-Stellen").employer());
+        final String question = "Wie viele Stellenanzeigen von Biber gibt es?";
+        final ToolContext context = chat.get();
+        final JobSearch.Result r = JobSearch.run(context, JobSearch.plan(question));
+        assertTrue(r.gaps.toString(), r.complete);
+        assertEquals("the records of the employer", 7, r.records);
+        assertEquals("its postings, the one on two pages once", 6, r.found);
+        for (final JobSearch.Job job : r.jobs) assertEquals(job.title, "Biber Messtechnik GmbH", job.employer);
+        assertTrue("the postings that only name it: " + r.mentions, r.mentions >= 2);
+        final JobSearch.Built built = JobSearch.format(r, 1, JobSearch.ALL_SHOWN, context.scopeLabel(), false);
+        assertEquals("Biber", built.meta.getString("employer"));
+        assertEquals(r.mentions, built.meta.getInt("mentions"));
+        assertFalse(built.text, built.text.contains("Plattform Architekt") || built.text.contains("Projektleiter") || built.text.contains("Initiativ"));
+        final String answer = QuestionKind.countOfJobs(question, r, built.sources, context);
+        assertTrue(answer, answer.contains("gibt es **6** Stellenanzeigen mit Biber als Arbeitgeber") && answer.contains("7 Datensätze passen"));
+        assertTrue(answer, answer.contains("weitere Anzeigen nennen Biber, ohne dass Biber als Arbeitgeber erfasst ist") && answer.contains("nicht mitgezählt"));
+        // the tool: the wording with "von" and the argument "employer" search the same
+        final JSONObject byWords = call(chat.get(), "job_search", "{\"query\":\"Stellenanzeigen von Biber\"}");
+        final JSONObject byArgument = call(chat.get(), "job_search", "{\"query\":\"Stellenanzeigen\",\"employer\":\"Biber\"}");
+        for (final JSONObject t : new JSONObject[] {byWords, byArgument}) {
+            assertEquals(t.toString(), 6, t.getInt("found"));
+            assertEquals(7, t.getInt("records"));
+            assertEquals("Biber", t.getString("employer"));
+            assertEquals(r.mentions, t.getInt("mentions_not_counted"));
+            assertFalse(t.toString(), t.toString().contains("Plattform Architekt") || t.toString().contains("Initiativ"));
+        }
+        assertEquals(byWords.getJSONArray("postings").toString(), byArgument.getJSONArray("postings").toString());
+        // a similar name is no employer either: nothing for "Biber18"
+        final JobSearch.Result other = JobSearch.run(chat.get(), JobSearch.plan("Stellenanzeigen von Biber18"));
+        assertEquals(0, other.found);
+        assertEquals("the posting that names the network", 1, other.mentions);
+        // the search by subject is kept: every posting that shows the word, by its employer, its title or its text
+        final JobSearch.Result subject = JobSearch.run(chat.get(), JobSearch.plan("Wie viele Stellenanzeigen zu Biber gibt es?"));
+        assertEquals(List.of("Biber"), subject.plan.criteria());
+        assertTrue(subject.found + " " + r.found, subject.found >= r.found + 2);
+        // an employer and a subject: the employer's postings that show the subject
+        final JobSearch.Result both = JobSearch.run(chat.get(), JobSearch.plan("Zeige Stellenanzeigen zu Treasury von Biber."));
+        assertEquals(1, both.found);
+        assertEquals("Senior Berater (m/w/d) Treasury", both.jobs.get(0).title);
+        // the model's note names the employer and what is not counted
+        final String note = net.yacy.ai.PromptGuard.jobSearchNote(r.found, 6, r.gaps, r.searched, r.plan.criteria(), "collection alpha-web",
+                r.plan.employer(), r.mentions, r.pageOnly);
+        assertTrue(note, note.contains("postings of the employer Biber") && note.contains("not counted"));
     }
 
     @Test
@@ -1055,6 +1214,153 @@ public class ChatToolsTest {
                 List.of());
         assertFalse(few.placeGaps.toString(), few.placeOpen());
         assertEquals(Integer.valueOf(0), few.perPlace.getOrDefault(ServiceSearch.UNDECIDED_PLACE, 0));
+    }
+
+    /**
+     * Service and place belong to the same provider. An address in the place on a provider's site is its location only
+     * when it is the provider's own: not the address of a company a directory lists, of a plot, of a reference project or
+     * of another company of a group. What cannot be attributed is open. The answer names the page that evidences the place
+     * beside the page that names the service. The same for the server's count answer and provider_search.
+     */
+    @Test
+    public void thePlaceOfAProviderIsItsOwnAddressOrArea() throws Exception {
+        final String c = "alpha-web";
+        // A: its own address on its imprint, the service on its home page (the index only)
+        indexPage("https://www.statik-eins.example/", c, "Statikbüro Eins", "Tragwerksplanung für Wohnhäuser und Hallen.");
+        indexPage("https://www.statik-eins.example/impressum", c, "Impressum", "Angaben gemäß § 5 DDG. Hauptstraße 1, 12345 Musterstadt. Telefon 01234 5678.");
+        // B: a directory: the addresses in the place are those of the companies it lists
+        indexPage("https://www.bauverzeichnis.example/nordstadt", c, "Bauunternehmen in Nordstadt » Fachbetriebe",
+                "Muss der Bauunternehmer einen Statiker hinzuziehen? Fragen Sie nach der Tragwerksplanung.");
+        indexPage("https://www.bauverzeichnis.example/musterstadt-region", c, "Bauunternehmen der Region » Fachbetriebe",
+                "Karl Beispiel (1 Bewertung). Offen für Aufträge. Kringsweg 12, 12345 Musterstadt. Profil ansehen. Berta Muster GmbH (5 Bewertungen)."
+                + " Hafenweg 3, 12345 Musterstadt. Profil ansehen. Anton Bau. Ring 5, 54321 Nebenstadt. Dora Hochbau. Weg 9, 55555 Oststadt."
+                + " Emil Tiefbau. Allee 1, 44444 Weststadt.");
+        // C: a builder of houses: the place is a plot for sale
+        indexPage("https://www.hausbau-zwei.example/", c, "Hausbau Zwei", "Erst die Statik, dann der Grundriss: Tragwerksplanung inklusive.");
+        indexPage("https://www.hausbau-zwei.example/service/grundstuecksboerse", c, "Freie Grundstücke finden",
+                "12345 Musterstadt. Grundstücksgröße: ab 2500 m². Begehrte Wohnlage. 54321 Nebenstadt. Grundstücksgröße: ab 480 m².");
+        // D: a contractor: the place is the address of reference projects
+        indexPage("https://www.hochbau-drei.example/hochbau", c, "Hochbau in Nebenstadt – Drei GmbH",
+                "Mit den von Ihnen beauftragten Architekten und Statikern arbeiten wir Hand in Hand. Tragwerksplanung auf Wunsch.");
+        indexPage("https://www.hochbau-drei.example/referenzen", c, "Referenzen", "Unsere Bauvorhaben. Supermarkt-Filiale – 12345 Musterstadt-Süd."
+                + " Mehrfamilienhaus – 12345 Musterstadt.");
+        // E: a group: the graph knows the provider (its seat elsewhere), the address in the place is another company's of the group
+        page("ALPG01host11", "https://www.kranich-dach.example/", c, "Kranich Dach GmbH", "{\"@type\":\"Organization\",\"name\":\"Kranich Dach GmbH\","
+                + "\"url\":\"https://www.kranich-dach.example/\",\"address\":{\"@type\":\"PostalAddress\",\"streetAddress\":\"Werkstraße 16\","
+                + "\"postalCode\":\"54321\",\"addressLocality\":\"Nebenstadt\"}}", "Kranich Dach GmbH. Zur Kranich Gruppe gehört Kranich Plan mit"
+                + " Statikern und Tragwerksplanung.");
+        indexPage("https://www.kranich-dach.example/standorte/sued", c, "Standort Süd", "Unser Standort im Süden. Kranich Dach Süd GmbH. Hafenstraße 3."
+                + " 12345 Musterstadt. Telefon 01234 99.");
+        // F: a provider with a facility it operates in the place (the graph records both and their relation)
+        page("ALPG02host12", "https://www.specht-statik.example/", c, "Specht Statik GmbH", "{\"@type\":\"Organization\",\"name\":\"Specht Statik GmbH\","
+                + "\"url\":\"https://www.specht-statik.example/\",\"address\":{\"@type\":\"PostalAddress\",\"streetAddress\":\"Am Wald 2\","
+                + "\"postalCode\":\"54321\",\"addressLocality\":\"Nebenstadt\"},\"department\":{\"@type\":\"LocalBusiness\",\"name\":\"Specht Statik"
+                + " Büro Musterstadt\",\"address\":{\"@type\":\"PostalAddress\",\"streetAddress\":\"Ring 2\",\"postalCode\":\"12345\","
+                + "\"addressLocality\":\"Musterstadt\"}}}", "Specht Statik GmbH: Tragwerksplanung und Statik für Wohnhäuser.");
+        // G: a provider the graph knows, its own name at the address on its contact page
+        page("ALPG03host13", "https://www.uhu-tragwerk.example/", c, "Uhu Tragwerk GmbH", "{\"@type\":\"Organization\",\"name\":\"Uhu Tragwerk GmbH\","
+                + "\"url\":\"https://www.uhu-tragwerk.example/\"}", "Uhu Tragwerk GmbH: Tragwerksplanung für Neubau und Bestand.");
+        indexPage("https://www.uhu-tragwerk.example/so-finden-sie-uns", c, "So finden Sie uns", "Uhu Tragwerk GmbH. Lindenallee 7. 12345 Musterstadt."
+                + " Unsere Zweigstelle: 54321 Nebenstadt.");
+        // H: a service area on its own page
+        indexPage("https://www.fuchs-statik.example/", c, "Fuchs Statik", "Tragwerksplanung und Statik. Einsatzgebiet: Musterstadt und Umgebung.");
+        // I: an address in the place without a name, on a page that is no contact page: open
+        indexPage("https://www.dachs-planung.example/", c, "Dachs Planung", "Tragwerksplanung für Umbauten.");
+        indexPage("https://www.dachs-planung.example/aktuelles", c, "Aktuelles", "Tag der offenen Tür: Marktplatz 5, 12345 Musterstadt. Im Herbst"
+                + " in 54321 Nebenstadt.");
+        // J: no relation to the place
+        indexPage("https://www.igel-statik.example/", c, "Igel Statik", "Tragwerksplanung in Nebenstadt.");
+        final String question = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?";
+        final ToolContext chat = chat(c);
+        final ServiceSearch.Result r = ServiceSearch.run(chat, ServiceSearch.plan(question), List.of());
+        final java.util.Map<String, ServiceSearch.Provider> byHost = new java.util.TreeMap<>();
+        final ServiceSearch.Result everything = ServiceSearch.run(chat(c), ServiceSearch.plan(question), List.of(), System::currentTimeMillis, 60_000L);
+        assertEquals(r.searched.toString(), 10, r.found);
+        assertFalse(r.gaps.toString(), r.lowerBound());
+        assertEquals(new JSONObject(r.perPlace).toString(), new JSONObject(everything.perPlace).toString());
+        // every provider, not only the six shown: the tool of a wide context gives the first six, the rest by the categories
+        assertEquals(r.perPlace.toString(), Integer.valueOf(3), r.perPlace.get(ServiceSearch.AT_PLACE)); // A, F, G
+        assertEquals(Integer.valueOf(1), r.perPlace.get(ServiceSearch.SERVES_PLACE)); // H
+        assertEquals(Integer.valueOf(2), r.perPlace.get(ServiceSearch.UNDECIDED_PLACE)); // E, I
+        assertEquals(Integer.valueOf(3), r.perPlace.get(ServiceSearch.MENTIONS_PLACE)); // B, C, D
+        assertEquals(Integer.valueOf(1), r.perPlace.get(ServiceSearch.NO_PLACE)); // J
+        assertTrue(r.placeOpen());
+        assertEquals(2, r.placeUnattributed);
+        assertEquals(0, r.placeUnread + r.placePartly);
+        for (final ServiceSearch.Provider p : r.providers) byHost.put(p.host, p);
+        // the located ones first, each with the page that evidences the place beside the page naming the service
+        final ServiceSearch.Provider eins = byHost.get("statik-eins.example");
+        assertEquals(ServiceSearch.AT_PLACE, eins.place);
+        assertEquals("https://www.statik-eins.example/", eins.url());
+        assertEquals("https://www.statik-eins.example/impressum", eins.placeSource);
+        final ServiceSearch.Provider specht = byHost.get("specht-statik.example");
+        assertEquals(ServiceSearch.AT_PLACE, specht.place);
+        assertTrue(specht.placeEvidence, specht.placeEvidence.contains("its facility Specht Statik Büro Musterstadt"));
+        assertEquals("https://www.specht-statik.example/", specht.placeSource);
+        final ServiceSearch.Provider uhu = byHost.get("uhu-tragwerk.example");
+        assertEquals(ServiceSearch.AT_PLACE, uhu.place);
+        assertEquals("Uhu Tragwerk GmbH", uhu.name);
+        assertEquals("https://www.uhu-tragwerk.example/so-finden-sie-uns", uhu.placeSource);
+        assertEquals(ServiceSearch.SERVES_PLACE, byHost.get("fuchs-statik.example").place);
+        // the group: open, and the answer says whose address it is
+        final ServiceSearch.Provider kranich = byHost.get("kranich-dach.example");
+        assertEquals(ServiceSearch.UNDECIDED_PLACE, kranich.place);
+        assertEquals("Kranich Dach GmbH", kranich.name);
+        assertTrue(kranich.placeNote, kranich.placeNote.contains("kranich dach sud gmbh") && kranich.placeNote.contains("similar name"));
+        assertEquals("https://www.kranich-dach.example/standorte/sued", kranich.placeSource);
+        assertEquals(ServiceSearch.UNDECIDED_PLACE, byHost.get("dachs-planung.example").place);
+        // the directory, the plot and the project: named on the site, not the provider's location
+        final java.util.Map<String, ServiceSearch.Provider> all = new java.util.TreeMap<>();
+        final JSONObject wide = call(new ToolContext(c, true, (concepts, query, cc, count) -> new ArrayList<>(), graph(), 64000, "test").withIndex(index()),
+                "provider_search", "{\"query\":\"Tragwerksplanung in Musterstadt\"}");
+        assertEquals(wide.toString(), 10, wide.getInt("found"));
+        assertFalse(wide.getBoolean("lower_bound"));
+        assertFalse(wide.getBoolean("place_complete"));
+        assertEquals(new JSONObject(r.perPlace).toString(), wide.getJSONObject("per_place").toString());
+        final JSONArray shown = wide.getJSONArray("providers");
+        assertEquals("location", shown.getJSONObject(0).getString("place"));
+        assertTrue(shown.toString(), shown.getJSONObject(0).has("place_source"));
+        // the same with and without "in"
+        final JSONObject bare = call(new ToolContext(c, true, (concepts, query, cc, count) -> new ArrayList<>(), graph(), 64000, "test").withIndex(index()),
+                "provider_search", "{\"query\":\"Tragwerksplanung Musterstadt\"}");
+        assertEquals(wide.getJSONObject("per_place").toString(), bare.getJSONObject("per_place").toString());
+        assertEquals(wide.getJSONArray("providers").toString(), bare.getJSONArray("providers").toString());
+        // what the page of each kind says, directly
+        final List<String> services = List.of("Tragwerksplanung", "Statiker", "Statik");
+        final java.util.function.BiFunction<String, String, RagCandidate> page = (url, text) -> new RagCandidate(url, "Seite", "", text,
+                java.net.URI.create(url).getHost(), List.of(c), 0);
+        final Set<String> none = Set.of();
+        assertEquals("a listed company", ProviderPlace.FOREIGN, ProviderPlace.read(page.apply("https://www.bauverzeichnis.example/region",
+                "Karl Beispiel (1 Bewertung). Kringsweg 12, 12345 Musterstadt. Berta Muster GmbH. Hafenweg 3, 12345 Musterstadt. Anton Bau. Ring 5, 54321"
+                + " Nebenstadt. Dora Hochbau. Weg 9, 55555 Oststadt."), "Musterstadt", services, none, "bauverzeichnis.example").kind);
+        assertEquals("a list of one town", ProviderPlace.FOREIGN, ProviderPlace.read(page.apply("https://www.bauverzeichnis.example/musterstadt",
+                "Karl Beispiel. Kringsweg 12, 12345 Musterstadt. Berta Muster GmbH. Hafenweg 3, 12345 Musterstadt. Anton Bau. Ring 5, 12345 Musterstadt."
+                + " Dora Hochbau. Weg 9, 12345 Musterstadt."), "Musterstadt", services, none, "bauverzeichnis.example").kind);
+        assertEquals("a plot", ProviderPlace.FOREIGN, ProviderPlace.read(page.apply("https://www.hausbau-zwei.example/boerse",
+                "12345 Musterstadt. Grundstücksgröße: ab 2500 m²."), "Musterstadt", services, none, "hausbau-zwei.example").kind);
+        assertEquals("a project", ProviderPlace.FOREIGN, ProviderPlace.read(page.apply("https://www.hochbau-drei.example/referenzen",
+                "Mehrfamilienhaus – 12345 Musterstadt."), "Musterstadt", services, none, "hochbau-drei.example").kind);
+        assertEquals("a company of a group", ProviderPlace.UNSURE, ProviderPlace.read(page.apply("https://www.kranich-dach.example/sued",
+                "Kranich Dach Süd GmbH. Hafenstraße 3. 12345 Musterstadt."), "Musterstadt", services, ProviderPlace.core("Kranich Dach GmbH"),
+                "kranich-dach.example").kind);
+        assertEquals("another company", ProviderPlace.FOREIGN, ProviderPlace.read(page.apply("https://www.kranich-dach.example/partner",
+                "Unser Partner: Berta Muster GmbH. Hafenweg 3, 12345 Musterstadt."), "Musterstadt", services, ProviderPlace.core("Kranich Dach GmbH"),
+                "kranich-dach.example").kind);
+        assertEquals("its own name", ProviderPlace.OWN, ProviderPlace.read(page.apply("https://www.kranich-dach.example/kontakt",
+                "Kranich Dach GmbH. Hafenstraße 3. 12345 Musterstadt."), "Musterstadt", services, ProviderPlace.core("Kranich Dach GmbH"),
+                "kranich-dach.example").kind);
+        assertEquals("a mention", ProviderPlace.MENTION, ProviderPlace.read(page.apply("https://www.igel-statik.example/blog",
+                "Eine Messe, die in Musterstadt stattfand."), "Musterstadt", services, none, "igel-statik.example").kind);
+        // the answer: located and serving with their sources, the open ones with the reason, and nothing located by another's address
+        final ServiceSearch.Built built = ServiceSearch.format(everything, 1, 60000, chat.scopeLabel(), false);
+        assertTrue(built.text, built.text.contains("Source of the place: https://www.statik-eins.example/impressum (another page than the one naming"));
+        assertTrue(built.text, built.text.contains("Its relation to Musterstadt is open: an address in Musterstadt of a company of a similar name"));
+        final String de = QuestionKind.countOfProviders(question, r, ServiceSearch.format(r, 1, 60000, chat.scopeLabel(), false).sources, chat);
+        assertTrue(de, de.contains("gibt es **10** Anbieter") && de.contains("Diese Gesamtzahl ist vollständig"));
+        assertTrue(de, de.contains("Standort in Musterstadt: mindestens **3**") && de.contains("Einsatzgebiet: mindestens **1**"));
+        assertTrue(de, de.contains("Bei **2** Anbietern ist der Ortsbezug offen") && de.contains("nicht sicher dem Anbieter selbst gehört"));
+        assertTrue(de, de.contains("Beleg für den Ort: https://www.statik-eins.example/impressum"));
+        assertFalse(de, de.contains("Untergrenze"));
     }
 
     @Test

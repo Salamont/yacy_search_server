@@ -34,7 +34,8 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * <li>Only with the existing release of {@code search} and within the scope of the request ({@link ToolContext}): the
  * knowledge graph with the session's viewer and the local index with the session's collection as a filter. The providers
  * are determined for the whole scope first (graph rows, the hosts with pages naming a service counted by host) and
- * counted, each once; service and place must be the same provider's. Texts are loaded only for the at most
+ * counted, each once; service and place must be the same provider's: its own address or area, or that of a facility it
+ * operates, never the address of another company, a project or a plot on its site ({@link ProviderPlace}). Texts are loaded only for the at most
  * {@link #MAX_SHOWN} providers shown.</li>
  * <li>The providers shown go to the answer as numbered sources with a page naming the service. Job postings are a
  * separate search ({@link JobSearch}, {@code type=job}).</li>
@@ -262,12 +263,23 @@ public final class ServiceSearch {
         public boolean byText;
         public String place = NO_PLACE;
         public String placeEvidence;
+        /** the page that evidences the place (the provider's address or service area): not always the page naming the service */
+        public String placeSource;
+        /**
+         * what its site says of the place without evidencing its location: an address of another company, of a project or a
+         * plot, or one that cannot be shown to be its own (with {@link #UNDECIDED_PLACE} or {@link #MENTIONS_PLACE})
+         */
+        public String placeNote;
         public String collection;
         /** its host without "www." (of the page of its name, or of its pages in the index) */
         public String host;
         /** pages of its host in the index that name the service */
         public int pageCount;
         long row;
+        /** the graph statement that evidences its place, until its page is read for the answer */
+        long placeStatement;
+        /** the strongest finding of its site about the place that is not its own address or area ({@link ProviderPlace}) */
+        int otherPlace = ProviderPlace.NONE;
         /** a page naming the service was read for it */
         boolean read;
         final StringBuilder text = new StringBuilder();
@@ -312,6 +324,8 @@ public final class ServiceSearch {
         public List<String> placeGaps = Collections.emptyList();
         /** of the open providers: those whose pages naming the place were not read at all, and those read only in part */
         public int placeUnread, placePartly;
+        /** of the open providers: those whose site shows an address in the place that is not shown to be their own */
+        public int placeUnattributed;
         /** whether the time budget, not the limit of {@link #PLACE_HOSTS}, left pages naming the place unread */
         public boolean placeOutOfTime;
         public final boolean timedOut;
@@ -379,6 +393,10 @@ public final class ServiceSearch {
     private static final List<String> PROVIDER_TYPES = List.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY);
     private static final List<String> PLACE_PREDICATES = List.of(Vocabulary.ADDRESS, Vocabulary.LOCALITY, Vocabulary.POSTAL_CODE,
             Vocabulary.SERVICE_AREA);
+    /** whose a facility or site is: its operator and what is located at it (statements into it), what it is part of */
+    private static final List<String> OWNER_INTO = List.of(Vocabulary.OPERATES, Vocabulary.LOCATED_AT);
+    private static final List<String> OWNER_OF = List.of(Vocabulary.PART_OF);
+
 
     /**
      * The providers of the service within the request's scope, determined and counted before the answer's limit (the
@@ -391,14 +409,16 @@ public final class ServiceSearch {
      * <li><b>index</b>: the hosts of the scope with pages that name a service, counted by host in one query
      * ({@link ToolContext#indexHosts}); a host of a provider of the graph counts for that provider, any other host is a
      * provider of its own. This is the number of providers, each once;</li>
-     * <li><b>place</b> (with a place in the question): an address or service area in the graph that names the place
-     * ({@link KgReader#factsNaming}), for a provider of step 1 or for the organisation of a host of step 2; and the hosts
-     * of the scope with a page naming the place, counted by host: of those that are providers (at most {@link #PLACE_HOSTS},
-     * providers of the graph and those with the most pages naming the service first) the pages naming the place are read
-     * (at most {@link #PLACE_PAGES} per host) and tell an address or a service area. A provider whose pages naming the place were all read without either only
-     * mentions it; one whose pages were not all read is {@link #UNDECIDED_PLACE}: a mention found by the count alone
-     * decides nothing. Service and place belong to the same provider: its graph entity or its host, on whichever of its
-     * pages;</li>
+     * <li><b>place</b> (with a place in the question), by the identity of the provider: an address or service area in the
+     * graph that names the place ({@link KgReader#factsNaming}) counts for the provider itself or a facility it operates
+     * ({@code operates}, {@code part_of}, {@code located_at}); a host of step 2 is the organisation it belongs to
+     * (the declared operator of its domain, {@link KgReader#siteOperators}). Of the providers whose hosts have a page naming the
+     * place (at most {@link #PLACE_HOSTS}, providers of the graph and those with the most pages naming the service first)
+     * the pages naming the place are read (at most {@link #PLACE_PAGES} per host) and asked whose the address or area on
+     * them is ({@link ProviderPlace}): the provider's own, another company's, a project's or plot's, or not shown. A
+     * provider whose pages naming the place were all read without an address or area of its own only mentions it; one
+     * whose pages were not all read, or whose site shows an address that cannot be shown to be its own, is
+     * {@link #UNDECIDED_PLACE};</li>
      * <li><b>selection</b> and <b>evidence</b>: located before serving before open before mentioning before the rest; of
      * the providers shown one page naming the service is read for the excerpt, and the organisation of a host without one
      * in step 1.</li>
@@ -452,7 +472,17 @@ public final class ServiceSearch {
                 }
                 if (!services.isEmpty() && !timedOut) rows.addAll(context.reader().subjectsOf(viewer, Vocabulary.OFFERS, services));
                 if (!rows.isEmpty() && !timedOut) {
-                    for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, rows)) {
+                    // one provider, not two: a facility or a part of an organisation that is itself among the rows counts for it
+                    final Map<Long, Long> owner = new java.util.HashMap<>();
+                    for (final KgReader.FactRow f : context.reader().factsInto(viewer, List.of(Vocabulary.OPERATES), rows)) {
+                        if (rows.contains(f.subject) && f.subject != f.object) owner.putIfAbsent(f.object, f.subject);
+                    }
+                    for (final KgReader.FactRow f : context.reader().factsOf(viewer, rows, OWNER_OF)) {
+                        if (f.object > 0L && rows.contains(f.object) && f.subject != f.object) owner.putIfAbsent(f.subject, f.object);
+                    }
+                    final List<KgReader.EntityRef> refs = context.reader().entityRefs(viewer, rows);
+                    for (final KgReader.EntityRef ref : refs) {
+                        if (owner.containsKey(ref.rowid)) continue;
                         final Provider p = providers.computeIfAbsent("e|" + ref.id, Provider::new);
                         p.entity = ref.id;
                         p.row = ref.rowid;
@@ -462,6 +492,15 @@ public final class ServiceSearch {
                         if (!p.pages.contains(ref.url)) p.pages.add(ref.url);
                         byHost.putIfAbsent(p.host, p.key);
                         byRow.put(ref.rowid, p);
+                    }
+                    for (final KgReader.EntityRef ref : refs) {
+                        Long top = owner.get(ref.rowid);
+                        for (int hop = 0; top != null && hop < 3 && owner.containsKey(top); hop++) top = owner.get(top);
+                        if (top == null) continue;
+                        final Provider p = byRow.get(top);
+                        if (p == null) continue; // its owner is not visible with a page: not counted on its own either
+                        byRow.put(ref.rowid, p);
+                        if (!p.pages.contains(ref.url)) p.pages.add(ref.url);
                     }
                 }
             }
@@ -508,11 +547,13 @@ public final class ServiceSearch {
         }
         phases.put("index", (System.nanoTime() - mark) / 1_000_000L);
         mark = System.nanoTime();
-        // 3. the place: the same provider's address or service area in the graph, or its own pages naming the place. Every
-        // provider whose pages name the place is either decided by reading them (an address, a service area, or all of them
-        // read and naming it only in passing) or open; a mention alone decides nothing. The count of providers stays as it is.
+        // 3. the place, by the identity of the provider. Service and place must be the same provider's: its own address or
+        // service area in the graph, that of a facility it operates, or its own address or area on a page of its site. An
+        // address of another company on its site (a directory's entry, a company of a group), of a project or of a plot is
+        // not its location; an address that cannot be shown to be its own leaves the relation open. A provider whose pages
+        // naming the place were not all read is open too. The count of providers stays as it is.
         final List<String> placeGaps = new ArrayList<>();
-        final int[] open = new int[2]; // unread, partly read
+        final int[] open = new int[3]; // unread, partly read, an address not shown to be its own
         boolean placeOutOfTime = false;
         if (plan.place != null) {
             boolean decidable = true; // whether the providers without evidence of the place can be told apart
@@ -523,24 +564,80 @@ public final class ServiceSearch {
                     } else {
                         final List<KgReader.FactRow> facts = context.reader().factsNaming(viewer, PLACE_PREDICATES, plan.place, PLACE_FACTS);
                         if (facts.size() >= PLACE_FACTS) placeGaps.add("graph: more than " + PLACE_FACTS + " addresses name " + plan.place + ", not all read");
-                        // of entities that are no provider of step 1: the organisation of a host that names the service
                         final Set<Long> others = new LinkedHashSet<>();
                         for (final KgReader.FactRow f : facts) if (!byRow.containsKey(f.subject)) others.add(f.subject);
+                        final Map<Long, KgReader.EntityRef> refs = new java.util.HashMap<>();
+                        final Map<Long, Set<Long>> owners = new java.util.HashMap<>();
                         if (!others.isEmpty()) {
-                            for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, others)) {
-                                if (!PROVIDER_TYPES.contains(ref.type)) continue;
+                            for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, others)) refs.put(ref.rowid, ref);
+                            // whose they are: the organisation that operates a facility or that it is part of, what is located at a
+                            // site (two steps: the site of a facility of an organisation)
+                            Set<Long> frontier = others;
+                            for (int hop = 0; hop < 2 && !frontier.isEmpty(); hop++) {
+                                final Set<Long> next = new LinkedHashSet<>();
+                                for (final KgReader.FactRow f : context.reader().factsInto(viewer, OWNER_INTO, frontier)) {
+                                    if (owners.computeIfAbsent(f.object, k -> new LinkedHashSet<>()).add(f.subject)) next.add(f.subject);
+                                }
+                                for (final KgReader.FactRow f : context.reader().factsOf(viewer, frontier, OWNER_OF)) {
+                                    if (f.object > 0L && owners.computeIfAbsent(f.subject, k -> new LinkedHashSet<>()).add(f.object)) next.add(f.object);
+                                }
+                                next.removeAll(owners.keySet());
+                                frontier = next;
+                            }
+                            // the provider of a host without an entity of step 1 is the organisation the host belongs to
+                            final Set<String> hosts = new LinkedHashSet<>();
+                            for (final KgReader.EntityRef ref : refs.values()) {
                                 final String key = byHost.get(hostKey(ref.url));
                                 final Provider p = key == null ? null : providers.get(key);
-                                if (p == null || p.entity != null) continue; // no provider's host, or a host of a provider of the graph
-                                p.entity = ref.id;
-                                p.row = ref.rowid;
-                                p.name = ref.name;
-                                byRow.put(ref.rowid, p);
+                                if (p != null && p.entity == null && p.row == 0L) hosts.add(p.host);
                             }
+                            identify(context, viewer, providers, byHost, byRow, hosts);
                         }
+                        // the facilities of providers that carry the place: by their names
+                        final Set<Long> facilities = new LinkedHashSet<>();
                         for (final KgReader.FactRow f : facts) {
                             final Provider p = byRow.get(f.subject);
-                            if (p != null) graphPlace(p, f.predicate, f.value, plan.place);
+                            if (p != null && p.row != f.subject) facilities.add(f.subject);
+                        }
+                        final Map<Long, String> facilityNames = facilities.isEmpty() ? Map.of() : context.reader().entityNames(viewer, facilities);
+                        for (final KgReader.FactRow f : facts) {
+                            Provider p = byRow.get(f.subject);
+                            String through = p == null || p.row == f.subject ? null : facilityNames.get(f.subject) == null ? "a facility of it"
+                                    : "its facility " + RagContext.clean(facilityNames.get(f.subject), 80);
+                            final KgReader.EntityRef ref = refs.get(f.subject);
+                            if (p == null) {
+                                // a facility or site of a provider: its operator, or the operator of what is located there
+                                final Set<Long> seen = new LinkedHashSet<>(owners.getOrDefault(f.subject, Set.of()));
+                                for (final Long owner : new ArrayList<>(seen)) seen.addAll(owners.getOrDefault(owner, Set.of()));
+                                for (final Long owner : seen) {
+                                    if (byRow.containsKey(owner)) {
+                                        p = byRow.get(owner);
+                                        through = ref == null ? "a facility of it" : "its facility " + RagContext.clean(ref.name, 80);
+                                        break;
+                                    }
+                                }
+                            }
+                            if (p != null) {
+                                graphPlace(p, f, plan.place, through);
+                                continue;
+                            }
+                            // an entity on a provider's site that is not the provider: another company's or an unrelated address
+                            if (ref == null || !placePattern(plan.place).matcher(RagQuery.fold(f.value == null ? "" : f.value)).find()) continue;
+                            final String key = byHost.get(hostKey(ref.url));
+                            final Provider host = key == null ? null : providers.get(key);
+                            if (host == null || Vocabulary.SERVICE_AREA.equals(f.predicate)) continue;
+                            final boolean related = Vocabulary.ORGANIZATION.equals(ref.type)
+                                    ? ProviderPlace.related(ProviderPlace.core(ref.name), ProviderPlace.core(host.name), plan.services)
+                                    : true; // a facility or site on its pages the graph does not link to it
+                            final int kind = related ? ProviderPlace.UNSURE : ProviderPlace.FOREIGN;
+                            if (kind > host.otherPlace) {
+                                host.otherPlace = kind;
+                                host.placeNote = (related ? "an address in " + plan.place + " on its site belongs to " + RagContext.clean(ref.name, 80)
+                                        + ", which the knowledge graph does not record as the provider's own"
+                                        : "its site names " + plan.place + " as the address of another company (" + RagContext.clean(ref.name, 80) + ")")
+                                        + ": " + RagContext.clean(f.value, 120);
+                                host.placeStatement = f.statement;
+                            }
                         }
                     }
                 }
@@ -578,6 +675,12 @@ public final class ServiceSearch {
                             break;
                         }
                         final List<String> batch = hosts.subList(i, Math.min(hosts.size(), Math.min(i + PLACE_BATCH, PLACE_HOSTS)));
+                        // whose the hosts are: the name an address must carry to be the provider's own
+                        if (reader != null) {
+                            final Set<String> unnamed = new LinkedHashSet<>();
+                            for (final String host : batch) if (candidates.get(host).row == 0L) unnamed.add(host);
+                            if (!unnamed.isEmpty()) identify(context, viewer, providers, byHost, byRow, unnamed);
+                        }
                         for (final RagCandidate page : context.indexHostPages(placeWords, batch, PLACE_PAGES)) {
                             final String host = hostKey(page.url);
                             final Provider p = candidates.get(host);
@@ -594,14 +697,14 @@ public final class ServiceSearch {
                         if (p.placeRank() >= 2) continue; // an address or a service area: evidenced
                         final int pages = named.pagesByHost.get(hosts.get(i));
                         final int pagesRead = seen.getOrDefault(hosts.get(i), Collections.emptySet()).size();
-                        if (i < read && pagesRead >= pages) {
-                            p.place = MENTIONS_PLACE; // every page of it naming the place was read: a mention in passing
-                            p.placeEvidence = null;
-                        } else {
+                        if (i >= read || pagesRead < pages) {
                             p.place = UNDECIDED_PLACE;
                             p.placeEvidence = null;
                             if (i < read) partly++;
                             else unread++;
+                        } else if (p.otherPlace < ProviderPlace.UNSURE) {
+                            p.place = MENTIONS_PLACE; // every page of it naming the place was read: no address or area of its own
+                            p.placeEvidence = null;
                         }
                     }
                     open[0] = unread;
@@ -619,6 +722,24 @@ public final class ServiceSearch {
             } catch (final Exception e) {
                 decidable = false;
                 placeGaps.add("place: " + (e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed"));
+            }
+            // an address in the place on its site that is not shown to be its own: open; another company's, a project's or a
+            // plot's: named on its site, not its location
+            for (final Provider p : providers.values()) {
+                if (p.placeRank() >= 2 || UNDECIDED_PLACE.equals(p.place)) {
+                    if (p.placeRank() >= 2) p.placeNote = null;
+                    continue;
+                }
+                if (p.otherPlace == ProviderPlace.UNSURE) {
+                    p.place = UNDECIDED_PLACE;
+                    open[2]++;
+                } else if (p.otherPlace == ProviderPlace.FOREIGN) {
+                    p.place = MENTIONS_PLACE;
+                }
+            }
+            if (open[2] > 0) {
+                placeGaps.add("place: " + open[2] + " providers show an address in " + plan.place + " on their site that is not shown to be their"
+                        + " own (a company of a group, an address without a name), their relation to it is open");
             }
             if (!decidable) {
                 // which pages name the place is unknown: no provider without evidence is told to have no relation to it
@@ -660,6 +781,7 @@ public final class ServiceSearch {
         result.placeGaps = Collections.unmodifiableList(placeGaps);
         result.placeUnread = open[0];
         result.placePartly = open[1];
+        result.placeUnattributed = open[2];
         result.placeOutOfTime = placeOutOfTime;
         final List<String> keys = new ArrayList<>();
         for (final Provider p : all) keys.add(p.key);
@@ -689,8 +811,15 @@ public final class ServiceSearch {
             }
         }
         if (context.graph && viewer != null) {
+            // where the place can be read: the page of the graph's statement (an address, a service area)
+            final Set<Long> statements = new LinkedHashSet<>();
+            for (final Provider p : shown) if (p.placeStatement != 0L && p.placeSource == null) statements.add(p.placeStatement);
+            if (!statements.isEmpty()) {
+                final Map<Long, String> pages = context.reader().statementPages(viewer, statements);
+                for (final Provider p : shown) if (p.placeStatement != 0L && p.placeSource == null) p.placeSource = pages.get(p.placeStatement);
+            }
             for (final Provider p : shown) {
-                if (p.entity != null || p.host == null) continue;
+                if (p.entity != null || p.row != 0L || p.host == null) continue;
                 // its organisation in the graph by its host, for its name: the one whose own page is on this host
                 final List<Long> rows = context.reader().hostEntityRows(viewer, p.host, PROVIDER_TYPES, 20);
                 if (rows.isEmpty()) continue;
@@ -725,64 +854,95 @@ public final class ServiceSearch {
         if (plan.place != null && p.placeRank() < 3) textPlace(p, page, plan.place, plan.services);
     }
 
-    /** The graph's address (location) or service area of a provider in the place: one of its statements. */
-    private static void graphPlace(final Provider p, final String predicate, final String raw, final String place) {
-        if (raw == null) return;
-        final String value = RagQuery.fold(raw);
-        if (!placePattern(place).matcher(value).find()) return;
-        if (Vocabulary.ADDRESS.equals(predicate) || Vocabulary.LOCALITY.equals(predicate) || Vocabulary.POSTAL_CODE.equals(predicate)) {
-            p.place = AT_PLACE;
-            p.placeEvidence = "address in the graph: " + RagContext.clean(raw, 120);
-        } else if (Vocabulary.SERVICE_AREA.equals(predicate) && p.placeRank() < 2) {
-            p.place = SERVES_PLACE;
-            p.placeEvidence = "service area in the graph: " + RagContext.clean(raw, 120);
+    /**
+     * The organisation each of these hosts belongs to, for the providers that are hosts of the index: the declared operator
+     * of the host's registrable domain ({@link KgReader#siteOperators}). A host without one declared operator (a directory,
+     * a group's site, a site the graph has not read the operator of) has no identity in the graph: nothing on its pages is
+     * the provider's own by the graph, and a page must show whose an address is ({@link ProviderPlace}).
+     */
+    private static void identify(final ToolContext context, final Viewer viewer, final Map<String, Provider> providers, final Map<String, String> byHost,
+            final Map<Long, Provider> byRow, final Set<String> hosts) throws Exception {
+        if (hosts.isEmpty()) return;
+        final Map<Long, Provider> bound = new LinkedHashMap<>();
+        for (final Map.Entry<String, Long> e : context.reader().siteOperators(viewer, hosts).entrySet()) {
+            final String key = byHost.get(e.getKey());
+            final Provider p = key == null ? null : providers.get(key);
+            if (p == null || p.row != 0L || byRow.containsKey(e.getValue())) continue;
+            p.row = e.getValue();
+            byRow.put(p.row, p);
+            bound.put(p.row, p);
+        }
+        if (bound.isEmpty()) return;
+        // their names: of those with a current page of their name, else the first name the viewer sees
+        for (final KgReader.EntityRef ref : context.reader().entityRefs(viewer, bound.keySet())) {
+            final Provider p = bound.remove(ref.rowid);
+            if (p == null) continue;
+            p.entity = ref.id;
+            p.name = ref.name;
+        }
+        if (!bound.isEmpty()) {
+            final Map<Long, String> names = context.reader().entityNames(viewer, bound.keySet());
+            for (final Map.Entry<Long, Provider> e : bound.entrySet()) if (names.get(e.getKey()) != null) e.getValue().name = names.get(e.getKey());
         }
     }
 
-    /** A page's evidence of the place: an address (postal code and place), an area phrase, or only a mention. */
-    private static void textPlace(final Provider p, final RagCandidate page, final String place, final List<String> services) {
-        final String text = RagQuery.fold(page.title + " " + page.description + " " + page.text);
-        final String name = Pattern.quote(RagQuery.fold(place));
-        final Matcher address = Pattern.compile("(?<!\\d)\\d{5}\\s+" + name + "(?![\\p{L}])").matcher(text);
-        if (address.find()) {
+    /**
+     * The graph's address (location) or service area of a provider in the place: a statement of the provider itself, or
+     * ({@code through}) of a facility it operates.
+     */
+    private static void graphPlace(final Provider p, final KgReader.FactRow f, final String place, final String through) {
+        if (f.value == null) return;
+        final String value = RagQuery.fold(f.value);
+        if (!placePattern(place).matcher(value).find()) return;
+        final String of = through == null ? "" : " of " + through;
+        if (Vocabulary.ADDRESS.equals(f.predicate) || Vocabulary.LOCALITY.equals(f.predicate) || Vocabulary.POSTAL_CODE.equals(f.predicate)) {
+            if (p.placeRank() == 3 && p.placeEvidence != null && p.placeEvidence.startsWith("address")) return; // the address first
             p.place = AT_PLACE;
-            p.placeEvidence = "address on its page: " + excerpt(text, address.start());
-            return;
+            p.placeEvidence = (Vocabulary.ADDRESS.equals(f.predicate) ? "address" : "place") + of + " in the graph: " + RagContext.clean(f.value, 120);
+            p.placeStatement = f.statement;
+            p.placeSource = null;
+        } else if (Vocabulary.SERVICE_AREA.equals(f.predicate) && p.placeRank() < 2) {
+            p.place = SERVES_PLACE;
+            p.placeEvidence = "service area" + of + " in the graph: " + RagContext.clean(f.value, 120);
+            p.placeStatement = f.statement;
+            p.placeSource = null;
         }
-        final Matcher area = Pattern.compile("(?:einsatzgebiet|einzugsgebiet|einsatzorte?|tatig in|im raum|in und um|rund um|umgebung von|region|"
-                + "service area|serving)\\W+(?:\\p{L}+\\W+){0,3}" + name + "(?![\\p{L}])|" + name + "\\s+und\\s+umgebung").matcher(text);
-        if (area.find()) {
+    }
+
+    /**
+     * What a page of the provider's site says of the place for the provider ({@link ProviderPlace}): its own address, its
+     * service area, an address not shown to be its own (open), an address of something else, or only a mention.
+     */
+    private static void textPlace(final Provider p, final RagCandidate page, final String place, final List<String> services) {
+        final Set<String> name = p.row != 0L || p.entity != null ? ProviderPlace.core(p.name) : Collections.emptySet();
+        final ProviderPlace.Finding found = ProviderPlace.read(page, place, services, name, p.host);
+        if (found.kind == ProviderPlace.OWN) {
+            p.place = AT_PLACE;
+            p.placeEvidence = found.evidence;
+            p.placeSource = found.url;
+            p.placeStatement = 0L;
+        } else if (found.kind == ProviderPlace.AREA) {
             if (p.placeRank() < 2) {
                 p.place = SERVES_PLACE;
-                p.placeEvidence = "service area on its page: " + excerpt(text, area.start());
+                p.placeEvidence = found.evidence;
+                p.placeSource = found.url;
+                p.placeStatement = 0L;
             }
-            return;
-        }
-        // the service stated for the place ("Tragwerksplanung in Musterstadt", "Schimmelsanierung für Musterstadt")
-        for (final String service : services) {
-            final String stem = Pattern.quote(RagQuery.stem(RagQuery.fold(service)));
-            final Matcher offered = Pattern.compile(stem + "\\p{L}*(?:\\W+\\p{L}+){0,5}?\\W+(?:in|fur|im raum|rund um)\\s+" + name + "(?![\\p{L}])")
-                    .matcher(text);
-            if (offered.find()) {
-                if (p.placeRank() < 2) {
-                    p.place = SERVES_PLACE;
-                    p.placeEvidence = "the service stated for the place on its page: " + excerpt(text, offered.start());
-                }
-                return;
+        } else if (found.kind >= ProviderPlace.FOREIGN) {
+            if (found.kind > p.otherPlace) {
+                p.otherPlace = found.kind;
+                p.placeNote = found.evidence;
+                p.placeSource = p.placeRank() >= 2 ? p.placeSource : found.url;
+                p.placeStatement = p.placeRank() >= 2 ? p.placeStatement : 0L;
             }
-        }
-        if (p.placeRank() == 0 && placePattern(place).matcher(text).find()) {
+        } else if (found.kind == ProviderPlace.MENTION && p.placeRank() == 0 && NO_PLACE.equals(p.place)) {
             p.place = MENTIONS_PLACE;
             p.placeEvidence = null;
         }
     }
 
     private static Pattern placePattern(final String place) {
-        return Pattern.compile("(?<![\\p{L}])" + Pattern.quote(RagQuery.fold(place)) + "(?![\\p{L}])");
-    }
-
-    private static String excerpt(final String text, final int at) {
-        return RagContext.clean(text.substring(Math.max(0, at - 30), Math.min(text.length(), at + 90)), 140);
+        return ProviderPlace.placePattern(place);
     }
 
     /** A host without scheme and "www.", one provider per host for pages without a provider of the graph. */
@@ -842,24 +1002,30 @@ public final class ServiceSearch {
             final int pages = Math.max(p.pageCount, p.byText ? p.pages.size() : 0);
             if (pages > 1) body.append(" Pages of it naming the service: ").append(pages).append('.');
             if (result.plan.place != null) {
+                final String place = result.plan.place;
+                // the page above names the service; the place has its own source when another page evidences it
+                final String where = p.placeSource == null || p.placeSource.equals(p.url()) ? ""
+                        : " Source of the place: " + p.placeSource + " (another page than the one naming the service).";
                 switch (p.place) {
                     case AT_PLACE:
-                        body.append(" Located in ").append(result.plan.place).append(": ").append(p.placeEvidence).append('.');
+                        body.append(" Located in ").append(place).append(": ").append(p.placeEvidence).append('.').append(where);
                         placeBy.put(id);
                         break;
                     case SERVES_PLACE:
-                        body.append(" Serves ").append(result.plan.place).append(": ").append(p.placeEvidence).append('.');
+                        body.append(" Serves ").append(place).append(": ").append(p.placeEvidence).append('.').append(where);
                         placeBy.put(id);
                         break;
                     case MENTIONS_PLACE:
-                        body.append(" Its pages only mention ").append(result.plan.place).append(": neither its location nor a service area.");
+                        body.append(p.placeNote == null ? " Its pages only mention " + place + ": neither its location nor a service area."
+                                : " Not located in " + place + " by evidence: " + p.placeNote + "." + where);
                         break;
                     case UNDECIDED_PLACE:
-                        body.append(" Its pages name ").append(result.plan.place).append(", but not all of them were read: whether it is located in"
-                                + " or serves ").append(result.plan.place).append(" is not determined.");
+                        body.append(p.placeNote == null ? " Its pages name " + place + ", but not all of them were read: whether it is located in"
+                                + " or serves " + place + " is not determined."
+                                : " Its relation to " + place + " is open: " + p.placeNote + "." + where);
                         break;
                     default:
-                        body.append(" No location in or service area of ").append(result.plan.place).append(" is recorded.");
+                        body.append(" No location in or service area of ").append(place).append(" is recorded.");
                         break;
                 }
             }

@@ -28,8 +28,10 @@ other-web: an engineering office in Musterstadt that a chat of bau-web must neve
    made in the same request reuses its result;
 9. more providers name the place than the search reads (135 providers, 133 naming the place, 120 read): the total stays
    complete; located and serving are lower bounds; 14 providers are open (13 not read, one read in part), not mere mentions;
-   the same in the server's count answer, provider_search with and without "in", and the tool's reuse in one request.
-
+   the same in the server's count answer, provider_search with and without "in", and the tool's reuse in one request;
+10. service and place by the same provider's identity: an address on a provider's site is its location only when it is its
+   own (its imprint), not a listed company's, a plot's or a project's; an address without a name is open; the place has
+   its own source beside the page naming the service; the count answer (no model request) and the tool say the same.
 Requires a compiled repository and a JDK 17+. Optional: JAVA; SCOUTRO_SERVICES_DUMP=<file> writes what the stub received.
 """
 import importlib.util
@@ -334,6 +336,7 @@ def run(base, digest):
           "reuse: provider_search for the same service and place returns the result of this request",
           json.dumps({k: v for k, v in result.items() if k != "providers"}, ensure_ascii=False)[:500])
     open_place(digest)
+    own_place(digest)
     print(f"PROVIDERS: offices pushed=12 pages (11 providers in bau-web, one of them on two pages; one in other-web), found={warm.get('found')},"
           f" shown={warm.get('shown')}, perPlace={warm.get('perPlace')}; search ms cold={cold.get('millis')} warm={warm.get('millis')};"
           f" chat request s={timings}", flush=True)
@@ -411,9 +414,85 @@ def open_place(digest):
           "perPlace": per, "placeGaps": sv.get("placeGaps"), "searchMs": sv.get("millis"), "phases": sv.get("phases"),
           "answer": text[:700]}, ensure_ascii=False), flush=True)
     check(status == 200 and result.get("reused") is True and result.get("found") == auto.get("found") == 135
-          and result.get("per_place") == auto.get("perPlace") == expected and bool(tool_urls) and tool_urls == auto_urls[:len(tool_urls)],
+          and result.get("per_place") == auto.get("perPlace") == expected and bool(tool_urls) and bool(auto_urls)
+          and tool_urls[:min(len(tool_urls), len(auto_urls))] == auto_urls[:min(len(tool_urls), len(auto_urls))],
           "open place: the tool reuses the search of the request: the same total, categories and providers in the same order",
           json.dumps({"auto": auto_urls, "tool": tool_urls}))
+
+
+IDENT_WEB = "ident-web"
+
+
+def own_place(digest):
+    """10. Service and place by the same provider's identity: an address in the place on a provider's site is its location
+    only when it is its own. Invented sites of the index: an office with its address on its imprint (located, with the
+    imprint as the source of the place beside the page naming the service), a directory that lists other companies'
+    addresses, a builder with a plot for sale, a contractor with reference projects (all three: named, not located), a site
+    with an address without a name on a news page (open) and an office elsewhere (none). The same for the server's count
+    answer (no model request) and provider_search with and without "in"."""
+    listing = ("Karl Beispiel (1 Bewertung). Offen für Aufträge. Kringsweg 12, 12345 Musterstadt. Profil ansehen. Berta Muster GmbH (5 Bewertungen)."
+               " Hafenweg 3, 12345 Musterstadt. Profil ansehen. Anton Bau. Ring 5, 54321 Nebenstadt. Dora Hochbau. Weg 9, 55555 Oststadt.")
+    stock = [("https://www.eins-statik-scoutro-test.de/", "Statikbüro Eins", "Tragwerksplanung für Wohnhäuser und Hallen."),
+             ("https://www.eins-statik-scoutro-test.de/impressum", "Impressum", "Angaben gemäß § 5 DDG. Hauptstraße 1, 12345 Musterstadt. Telefon 01234 5678."),
+             ("https://www.bauverzeichnis-scoutro-test.de/nordstadt", "Bauunternehmen in Nordstadt » Fachbetriebe",
+              "Muss der Bauunternehmer einen Statiker hinzuziehen? Fragen Sie nach der Tragwerksplanung."),
+             ("https://www.bauverzeichnis-scoutro-test.de/region", "Bauunternehmen der Region » Fachbetriebe", listing),
+             ("https://www.hausbau-zwei-scoutro-test.de/", "Hausbau Zwei", "Erst die Statik, dann der Grundriss: Tragwerksplanung inklusive."),
+             ("https://www.hausbau-zwei-scoutro-test.de/service/grundstuecksboerse", "Freie Grundstücke finden",
+              "12345 Musterstadt. Grundstücksgröße: ab 2500 m². Begehrte Wohnlage. 54321 Nebenstadt. Grundstücksgröße: ab 480 m²."),
+             ("https://www.hochbau-drei-scoutro-test.de/hochbau", "Hochbau in Nebenstadt",
+              "Mit den von Ihnen beauftragten Architekten und Statikern arbeiten wir Hand in Hand. Tragwerksplanung auf Wunsch."),
+             ("https://www.hochbau-drei-scoutro-test.de/referenzen", "Referenzen",
+              "Unsere Bauvorhaben. Supermarkt-Filiale – 12345 Musterstadt-Süd. Mehrfamilienhaus – 12345 Musterstadt."),
+             ("https://www.dachs-planung-scoutro-test.de/", "Dachs Planung", "Tragwerksplanung für Umbauten."),
+             ("https://www.dachs-planung-scoutro-test.de/aktuelles", "Aktuelles",
+              "Tag der offenen Tür: Marktplatz 5, 12345 Musterstadt. Im Herbst in 54321 Nebenstadt."),
+             ("https://www.igel-statik-scoutro-test.de/", "Igel Statik", "Tragwerksplanung in Nebenstadt.")]
+    pushed = sum(1 for url, title, text in stock if tools.push(digest, url, plain(title, text), IDENT_WEB))
+    check(pushed == len(stock), f"own place: push {len(stock)} invented pages to {IDENT_WEB}", str(pushed))
+    deadline = tools.time.monotonic() + 300
+    n = 0
+    while tools.time.monotonic() < deadline:
+        status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=*:*&fq=" + urllib.parse.quote(f'collection_sxt:"{IDENT_WEB}"'))
+        n = solr.get("response", {}).get("numFound", 0) if isinstance(solr, dict) else 0
+        if n >= len(stock):
+            break
+        tools.time.sleep(1)
+    question = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?"
+    status, answer, requests = tools.chat(digest, question, no_tools_model, collection=IDENT_WEB)
+    sv = services(answer) or {}
+    expected = {"location": 1, "service_area": 0, "undecided": 1, "mentioned": 3, "none": 1}
+    text = answer["text"]
+    check(status == 200 and sv.get("found") == 6 and sv.get("lowerBound") is False and sv.get("perPlace") == expected
+          and sv.get("placeComplete") is False and sv.get("scope") == f"collection {IDENT_WEB}",
+          "own place: 6 providers; located 1 (its imprint), open 1 (an address without a name), named 3 (a directory, a plot, projects), none 1",
+          json.dumps({k: sv.get(k) for k in ("found", "lowerBound", "perPlace", "placeComplete", "placeGaps", "phases")}, ensure_ascii=False))
+    listed = answer["meta"].get("scoutro-sources", [])
+    check(len(requests) == 0 and (answer["meta"].get("scoutro-answer") or {}).get("by") == "server"
+          and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0 and "gibt es **6** Anbieter" in text
+          and "Standort in Musterstadt: mindestens **1**" in text and "Bei **1** Anbietern ist der Ortsbezug offen" in text
+          and "Beleg für den Ort: https://www.eins-statik-scoutro-test.de/impressum" in text
+          and listed and listed[0].get("url") == "https://www.eins-statik-scoutro-test.de/"
+          and all(s.get("collection") in (None, IDENT_WEB) for s in listed),
+          "own place: the count is answered by the server without a model request; the place has its own source beside the service's page",
+          f"requests={len(requests)} {text[:900]}")
+    forms = {}
+    for label, args in (("in", {"query": "Tragwerksplanung in Musterstadt"}), ("bare", {"query": "Tragwerksplanung Musterstadt"})):
+        status, answer, requests = tools.chat(digest, "Welche Statiker gibt es?", lambda body, a=args: (
+            ("call", "provider_search", a) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")), collection=IDENT_WEB)
+        done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+        forms[label] = done[0][1] if done else {}
+    first = (forms["in"].get("providers") or [{}])[0]
+    check(all(f.get("found") == 6 and f.get("lower_bound") is False and f.get("per_place") == expected for f in forms.values())
+          and forms["in"].get("providers") == forms["bare"].get("providers") and first.get("place") == "location"
+          and first.get("place_source") == "https://www.eins-statik-scoutro-test.de/impressum"
+          and not any(p.get("place") == "location" for p in (forms["in"].get("providers") or [])[1:]),
+          "own place: provider_search with and without \"in\": the same providers, one located with the source of its place",
+          json.dumps({k: {x: v.get(x) for x in ("found", "lower_bound", "per_place")} for k, v in forms.items()})
+          + " " + json.dumps([{x: p.get(x) for x in ("name", "place", "place_source", "place_note")} for p in forms["in"].get("providers") or []],
+                             ensure_ascii=False)[:900])
+    print("OWN PLACE: " + json.dumps({"found": sv.get("found"), "perPlace": sv.get("perPlace"), "placeGaps": sv.get("placeGaps"),
+          "searchMs": sv.get("millis"), "phases": sv.get("phases")}, ensure_ascii=False), flush=True)
 
 
 def main():

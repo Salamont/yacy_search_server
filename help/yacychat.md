@@ -134,7 +134,12 @@ found (each once, over all its pages) and lists the most relevant ones first as
 sources, saying for each whether it is located in your town, serves it, or only
 mentions it. When more providers name the town than Scoutro reads in one search, it
 says so: the number of providers stays complete, and for the providers whose pages
-were not read their relation to the town is reported as open, not as a mere mention. Asking for all of them or for their number ("Wie viele …") always
+were not read their relation to the town is reported as open, not as a mere mention.
+A provider counts as located in your town only by its own address: the address of a
+company a directory lists, of a plot or of a reference project on its site is not its
+location, and an address that cannot be attributed to it is reported as open. For job
+postings, "Stellenanzeigen von <employer>" counts the postings recorded for that
+employer; a posting that only names the employer is not counted. Asking for all of them or for their number ("Wie viele …") always
 runs this complete search, and counts the same as "Zeige alle …"; the same holds for job postings. A question
 that asks only for the number is answered by Scoutro itself from the search, without the language model: it gives the
 number found, how many are shown, and for providers how many are located in the place, serve it, are open or only mention it. Both searches are tools of their own on the Tools page: "Job

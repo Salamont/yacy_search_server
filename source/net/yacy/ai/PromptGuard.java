@@ -128,6 +128,33 @@ public final class PromptGuard {
     /** As above; {@code gaps} names why the count is only a lower bound (none: the whole released stock was searched). */
     public static String jobSearchNote(final int found, final int shown, final java.util.List<String> gaps, final java.util.List<String> searched,
             final java.util.List<String> criteria, final String scope) {
+        return jobSearchNote(found, shown, gaps, searched, criteria, scope, null, 0, 0);
+    }
+
+    /**
+     * As above, with the employer of the question ({@code found} are then the postings the graph records it as the employer
+     * of; {@code mentions} name it otherwise and are not counted) and the pages of several postings that name a subject
+     * without any posting of them showing it ({@code pageOnly}: hits of pages, not of postings, not counted).
+     */
+    public static String jobSearchNote(final int found, final int shown, final java.util.List<String> gaps, final java.util.List<String> searched,
+            final java.util.List<String> criteria, final String scope, final String employer, final int mentions, final int pageOnly) {
+        String note = jobSearchNoteOf(found, shown, gaps, searched, criteria, scope);
+        if (employer != null) {
+            note += " The question asks for the postings of the employer " + neutralize(employer) + ": counted are only postings whose "
+                    + "recorded employer it is" + (mentions > 0 ? "; " + mentions + " more posting" + (mentions == 1 ? " names" : "s name")
+                    + " it without being its posting and " + (mentions == 1 ? "is" : "are") + " not counted" : "") + ". Never present a "
+                    + "posting of another employer as a posting of " + neutralize(employer) + ".";
+        }
+        if (pageOnly > 0) {
+            note += " " + pageOnly + " page" + (pageOnly == 1 ? "" : "s") + " with several postings name" + (pageOnly == 1 ? "s" : "")
+                    + " a subject without any single posting on " + (pageOnly == 1 ? "it" : "them") + " showing it: a hit of the page, "
+                    + "not a posting, and not part of the number found.";
+        }
+        return note;
+    }
+
+    private static String jobSearchNoteOf(final int found, final int shown, final java.util.List<String> gaps, final java.util.List<String> searched,
+            final java.util.List<String> criteria, final String scope) {
         final boolean lowerBound = !gaps.isEmpty();
         final String why = lowerBound ? " (" + neutralize(String.join("; ", gaps)) + ")" : "";
         final String words = neutralize(String.join(", ", searched));

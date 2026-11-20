@@ -1584,6 +1584,91 @@ public final class KgReader {
         return out;
     }
 
+    /** The viewer's current statements of these predicates into these entities (who operates a facility, what is located at a site). */
+    public List<FactRow> factsInto(final Viewer v, final Collection<String> predicates, final Collection<Long> objects) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(objects));
+        final List<FactRow> out = new ArrayList<>();
+        if (predicates.isEmpty()) return out;
+        for (int i = 0; i < wanted.size(); i += 400) {
+            final List<Object> batch = new ArrayList<>(wanted.subList(i, Math.min(wanted.size(), i + 400)));
+            final int objectsInBatch = batch.size();
+            batch.addAll(predicates);
+            read(c -> {
+                // from the objects by the index of the related entity; the predicate compared in the statement's row
+                try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, s.stmt_rowid, pv.name, s.obj_ent FROM kg_statement s"
+                        + " CROSS JOIN kg_vocab pv ON pv.term_id = +s.pred WHERE s.obj_ent IS NOT NULL AND s.obj_ent IN (" + placeholders(objectsInBatch)
+                        + ") AND pv.kind = 2 AND pv.name IN (" + placeholders(predicates.size()) + ") AND " + visibleStatement(v, "s") + " AND "
+                        + currentStatement(v, "s", now) + " ORDER BY s.obj_ent, s.stmt_rowid")) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) out.add(new FactRow(rs.getLong(1), rs.getLong(2), rs.getString(3), null, rs.getLong(4)));
+                    }
+                }
+                return null;
+            });
+        }
+        return out;
+    }
+
+    /**
+     * The declared operator of each of these hosts: the one active organisation the viewer sees that holds the operator key
+     * of the host's registrable domain ({@code site_operator} or {@code domain_operator}). A host without one, or with
+     * several, has no entry: who a site belongs to is then not known to the graph.
+     */
+    public Map<String, Long> siteOperators(final Viewer v, final Collection<String> hosts) throws KgException {
+        final Map<String, List<String>> byScope = new LinkedHashMap<>();
+        for (final String host : hosts) {
+            final String domain = host == null ? null : net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(host);
+            if (domain != null && !domain.isEmpty()) byScope.computeIfAbsent(Vocabulary.ORGANIZATION + "@" + domain, k -> new ArrayList<>()).add(host);
+        }
+        final Map<String, Long> out = new LinkedHashMap<>();
+        final List<String> scopes = new ArrayList<>(byScope.keySet());
+        for (int i = 0; i < scopes.size(); i += 400) {
+            final List<Object> batch = new ArrayList<>(scopes.subList(i, Math.min(scopes.size(), i + 400)));
+            read(c -> {
+                final Map<String, Set<Long>> found = new LinkedHashMap<>();
+                try (PreparedStatement ps = c.prepareStatement("SELECT k.scope, k.ent_rowid FROM kg_vocab sv CROSS JOIN kg_entity_key k"
+                        + " ON k.scheme = sv.term_id CROSS JOIN kg_entity e ON e.ent_rowid = k.ent_rowid WHERE sv.kind = 3 AND sv.name IN ('"
+                        + Vocabulary.SITE_OPERATOR + "', '" + Vocabulary.DOMAIN_OPERATOR + "') AND k.scope IN (" + placeholders(batch.size()) + ") AND "
+                        + visibleEntity(v, "e"))) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) found.computeIfAbsent(rs.getString(1), k -> new LinkedHashSet<>()).add(rs.getLong(2));
+                    }
+                }
+                for (final Map.Entry<String, Set<Long>> e : found.entrySet()) {
+                    if (e.getValue().size() != 1) continue; // several operators: not one identity
+                    for (final String host : byScope.get(e.getKey())) out.put(host, e.getValue().iterator().next());
+                }
+                return null;
+            });
+        }
+        return out;
+    }
+
+    /** A current page the viewer sees of each of these statements (the latest evidence): where a fact can be read. */
+    public Map<Long, String> statementPages(final Viewer v, final Collection<Long> statements) throws KgException {
+        final long now = this.clock.getAsLong();
+        final List<Long> wanted = new ArrayList<>(new LinkedHashSet<>(statements));
+        final Map<Long, String> out = new LinkedHashMap<>();
+        for (int i = 0; i < wanted.size(); i += 400) {
+            final List<Object> batch = new ArrayList<>(wanted.subList(i, Math.min(wanted.size(), i + 400)));
+            read(c -> {
+                try (PreparedStatement ps = c.prepareStatement("SELECT ev.stmt_rowid, d.url FROM kg_evidence ev CROSS JOIN kg_doc d"
+                        + " ON d.doc_rowid = ev.doc_rowid WHERE ev.stmt_rowid IN (" + placeholders(batch.size()) + ") AND d.url IS NOT NULL AND "
+                        + visibleDoc(v, "d") + " AND " + currentDoc("d", now) + " ORDER BY ev.stmt_rowid, ev.observed_at DESC, d.doc_id")) {
+                    bind(ps, batch);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) out.putIfAbsent(rs.getLong(1), rs.getString(2));
+                    }
+                }
+                return null;
+            });
+        }
+        return out;
+    }
+
     /**
      * The viewer's current statements of these predicates whose literal value contains {@code text} (an address, a locality,
      * a service area that names a town), at most {@code max}: by the index of the predicates, the value compared in the

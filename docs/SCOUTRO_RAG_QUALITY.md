@@ -324,11 +324,23 @@ therefore searches the knowledge graph's postings itself, before the model is ca
      with a current source);
   3. **text**: per subject, the pages of the postings that do not show it yet are asked in the direct index
      (`SolrIndex.matching`): a filter on up to 1,000 addresses per query and the collection, answered with addresses
-     only; no page is loaded. A page counts only as the page of a posting of the scope; the ranked search, which gives
-     one page per host, is not used. Without a direct index the ranked search is the fallback, reported as a lower bound;
-  4. **selection**: duplicates count once (one page, or one title of one employer at one place): `found` is the number
-     of postings, `records` the matching records before that (seven records of one employer of which two are one posting
-     on two pages: `found` 6, `records` 7);
+     only. A page counts only as the page of a posting of the scope; the ranked search, which gives one page per host, is
+     not used. Without a direct index the ranked search is the fallback, reported as a lower bound. **A text hit belongs
+     to a posting, not to a page** (since the correction on 0.14.3-rc.6):
+     - a page of one posting (one record, or records whose titles are one title: "Planer (m/w/d)" and "Planer Hochbau
+       (m/w/d)" read from its heading and its structured data) is that posting;
+     - a page of several postings (an overview) is read (at most 60 such pages per search) and each posting is asked
+       for its part of the page: the text after an occurrence of its title up to the next title of a posting of the
+       page, at most 1,500 characters, gender markers ("(m/w/d)") ignored (`JobSearch.attribute`). Only a posting whose
+       part shows the subject counts. A title of words about jobs only ("Karriere", "Stellenangebote") has no part of
+       its own;
+     - what such a page says outside every posting's part is a hit of the page and of no posting: it raises neither
+       `found` nor `records` and is reported apart as `pageOnly` (pages). Before, the first posting of a page took the
+       hit of the whole page, and further postings of the page none;
+  4. **selection**: duplicates count once: one title of one employer at one place over its pages (the same posting on
+     two addresses), and the records of one page whose titles are one title. Different postings of one address stay
+     apart. `found` is the number of postings, `records` the matching records before that (seven records of one employer
+     of which two are one posting on two pages: `found` 6, `records` 7);
   5. **evidence**: only the postings shown are read in full (`KgReader.jobDigests` for at most 6), and the page of a
      posting that shows a subject by its text only gives an excerpt of 200 characters.
 
@@ -338,6 +350,14 @@ therefore searches the knowledge graph's postings itself, before the model is ca
   a read of the graph failed, or there is no direct index, the count is a lower bound (`lowerBound`) and `gaps` says
   why; the model is told "at least" with the reason and, with nothing found, not to say that the index holds none. A
   chunk of the scan that does not fit one read of the graph (1.5 s) is read again in smaller chunks.
+- **The employer of the question** ("Stellenanzeigen von X", "Stellen bei der Firma X", "jobs at X"; the tool's argument
+  `employer`): a name after "von", "bei", "at", "by" or "from" that starts with a capital or a digit and is no word
+  about jobs, the count or a role ("bei Beratungsunternehmen" names none; `JobSearch.employerSpan`). It is no subject:
+  only a posting the graph records X as the employer of counts (a current `hiring_organization` statement the viewer
+  sees whose name holds X as whole words: "Biber" is the employer "Biber Messtechnik GmbH", not "Biber18"). A posting
+  that names X in its title, another fact or its page's text is a mention, counted apart (`mentions`) and never part of
+  `found`. Other subjects of the question narrow the employer's postings ("Stellenanzeigen zu Treasury von X"). "Stellen
+  zu X" stays the search by subject: every posting that shows X by its employer, its title or its text.
 - **One stock, one answer:** a search over all collections reads the same postings as the searches of the single
   collections together, so it holds every posting any of them finds (`ChatToolsTest`, `SearchScaleBench check`). The
   order of the scan is the order of the graph's rows; the selection breaks ties by it, so the same question gives the
@@ -348,8 +368,9 @@ therefore searches the knowledge graph's postings itself, before the model is ca
 - **To the answer, by the kind of the question** (`QuestionKind`):
   - a **plain count** ("Wie viele Stellenanzeigen zu X gibt es?": one short question for the number and nothing else) is
     answered by the server itself, without a model request: the number found (or "at least" with the reason), the
-    records when a posting stands on two pages, per subject when there are several, and the postings shown with their
-    numbers. `scoutro-answer: {by: "server", modelCalls: 0}`; `scoutro.chat.count.direct=false` sends it to the model;
+    records when a posting stands on two pages, what was seen and not counted (postings that only name the employer
+    of the question, overview pages whose hit belongs to no posting), per subject when there are several, and the
+    postings shown with their numbers. `scoutro-answer: {by: "server", modelCalls: 0}`; `scoutro.chat.count.direct=false` sends it to the model;
   - a **count that asks for more**, a **list** or a **recommendation** goes to the model with the postings shown as its
     only sources: the pages of the automatic search and their graph facts stay out of the context
     (`scoutro-retrieval.focused`), and the server rules name the kind (the number is the search's, a list is the entries
@@ -430,31 +451,56 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   2. **index**: the hosts of the scope with pages that name a service of the plan, counted by host in one query (a facet
      on the host, `SolrIndex.hosts`); no page is loaded. A host of a provider of the graph counts for that provider, any
      other host is a provider of its own;
-  3. **place** (with a place in the question): the addresses and service areas of the graph that name the place
-     (`factsNaming`), for a provider of step 1 or for the organisation whose own page is on a host of step 2; and the
-     hosts of the scope with a page naming the place (one more count by host): of those that are providers, the pages
-     naming the place are read (at most 3 per host and 120 providers; providers of the graph and those with the most
-     pages naming the service first) and tell an address or a service area. A provider whose pages naming the place
-     were all read without either only **mentions** it; one whose pages were not all read (beyond the 120, more than 3
-     pages, or the time budget) is **open** (`undecided`): the count found by host shows that it names the place, which
-     decides nothing. Since 0.14.3-rc.6; before, such a provider was counted as mentioning;
+  3. **place** (with a place in the question), by the identity of the provider (below): the addresses and service
+     areas of the graph that name the place (`factsNaming`), for the provider itself or a facility it operates; and
+     the hosts of the scope with a page naming the place (one more count by host): of those that are providers, the
+     pages naming the place are read (at most 3 per host and 120 providers; providers of the graph and those with the
+     most pages naming the service first) and asked whose the address or area on them is (`ProviderPlace`). A provider
+     whose pages naming the place were all read without an address or area of its own only **mentions** it; one whose
+     pages were not all read (beyond the 120, more than 3 pages, or the time budget), or whose site shows an address in
+     the place that cannot be shown to be its own, is **open** (`undecided`);
   4. **selection** and **evidence**: of the at most 6 providers shown one page naming the service is read for the
      excerpt (240 characters), and the organisation of a host without one in step 1 for its name.
 
-  A provider counts once: an entity of the graph over all its pages, any other provider once per host; separate
+  A provider counts once: an entity of the graph over all its pages, any other provider once per host; a facility an
+  organisation of the rows operates, or a part of it, counts for that organisation (`operates`, `part_of`); other
   entities and hosts stay separate. The count does not depend on how far a paging came: it is the same for the same
   stock, whatever was asked before. Without a direct index the ranked search (8 pages per search, one per host) is the
   fallback, reported as a lower bound.
-- **Service and place of the same provider:** the service is the provider's (its offer or name in the graph, or a page
-  of its host), and so is the place: its own address or service area in the graph, or a page of its own host, which
-  need not be the page that names the service (an imprint with the address). A page of another host never gives a
-  provider its place.
+- **Service and place of the same provider** (the identity of a provider; corrected on 0.14.3-rc.6, where any page of
+  a provider's host with a postal code and the place made it "located", and any organisation of the graph on a host
+  gave the host its address):
+  - **Who a provider is:** an entity of the graph of step 1; for a host of step 2, the organisation the host belongs
+    to: the declared operator of its registrable domain (`KgReader.siteOperators`: the one organisation holding the
+    `site_operator` or `domain_operator` key). A host without one declared operator (a directory, a group's site, a
+    site whose operator the graph has not read) has no identity in the graph; a page must then show whose an address
+    is.
+  - **The place by the graph:** an address, locality, postal code or service area that names the place is the
+    provider's when its subject is the provider, or a facility or site the provider operates, that is part of it or
+    located at it (`operates`, `part_of`, `located_at`, two steps: the site of a facility of the organisation). An
+    address of another entity on the provider's site is not its own: another organisation's (a company a directory
+    lists) is named, not counted; that of a facility the graph does not link, or of an organisation of a similar name (a
+    company of a group), leaves the relation open.
+  - **The place by a page of its site** (`ProviderPlace.read`), only when the page shows whose the address is: the name
+    of a company at the address (the words before it up to a legal form such as "GmbH") is the provider's name: its
+    own; shares nothing with it: another company's; a longer name around it ("Kranich Dach Süd GmbH" for "Kranich Dach
+    GmbH"): a company of a group, open. Without a company's name: the provider's own name or a word of its host at
+    the address, or the site's contact page or imprint with one address: its own. The address of a project, a
+    reference or a plot (the words of its own sentence, or the page's title and address), and an entry of a list of
+    four or more addresses, are not the provider's. Anything else is open. A service area on its page counts unless
+    the page is such a list.
+  - **Two sources:** the page that names the service and the page (or the graph statement's page) that evidences the
+    place are given apart (`placeSource`, in the tool `place_source`; "Source of the place: … (another page than the
+    one naming the service)"), and what a site says of the place without evidencing a location as `placeNote`.
+  A page of another host never gives a provider its place. Whether a page that names a service offers it is still the
+  page's text (the excerpt shows it): a page of a group that names a sister company's service counts for the host.
 - **Its relation to the place** (with a place in the question): **located** there by an address (the graph's address,
   locality or postal code, or a postal code and the place on a page of its host), **serves** it by a service area (the
   graph's service area, an area phrase on its page such as "Einsatzgebiet: Musterstadt und Umgebung", or the service
   stated for the place: "Tragwerksplanung in Musterstadt"), or only **mentions** it ("eine Messe, die in Musterstadt
-  stattfand"; all its pages naming the place read), which evidences neither; **open** when its pages naming the place
-  were not all read; else none (no page of its host names the place). Located before serving before open before
+  stattfand", or the address of a project, a plot or another company; all its pages naming the place read), which
+  evidences neither; **open** when its pages naming the place were not all read or an address there cannot be shown to
+  be its own; else none (no page of its host names the place). Located before serving before open before
   mentioning before the rest, then the providers of graph and page, then by the pages naming the service, then by name.
 - **Two kinds of incompleteness, kept apart:** `gaps` (and `lowerBound`) concern the count of providers: a step of graph
   or index that could not run or be read to its end. `placeGaps` (and `placeComplete: false`) concern only the relation
@@ -474,7 +520,8 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
 - **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
 - **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, lowerBound, gaps,
   shown, perPlace, placeComplete, placeGaps, placeNamedBy, timedOut, millis, servicePages, phases}` (`perPlace`:
-  location, service_area, undecided, mentioned, none) (`servicePages`: pages of the scope naming a
+  location, service_area, undecided, mentioned, none; `scoutro-jobsearch` of section 12 adds `pageOnly` and, with an
+  employer in the question, `employer` and `mentions`) (`servicePages`: pages of the scope naming a
   service; `phases`: milliseconds of graph, index, place, selection, evidence). Log: `event=rag-servicesearch … found=
   lowerBound= shown= all= kind= servicePages= gaps= placeOpen= placeGaps= ms= phases=graph:…,index:…,place:…,selection:…,evidence:…`.
   The model can call `provider_search(query, place?)` itself (2 calls per answer); it also takes the model's own words.

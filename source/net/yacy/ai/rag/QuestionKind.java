@@ -98,12 +98,38 @@ public enum QuestionKind {
                     + " pages naming " + place
                     + ", none of those read with an address or service area");
         }
+        if (result.placeUnattributed > 0) {
+            out.add(german ? "bei " + result.placeUnattributed + " Anbietern steht auf der Website eine Adresse in " + place
+                    + ", die nicht sicher dem Anbieter selbst gehört (etwa eine Gruppenfirma oder eine Adresse ohne Namen)"
+                    : result.placeUnattributed + (result.placeUnattributed == 1 ? " provider shows" : " providers show") + " an address in " + place
+                    + " on the site that is not shown to be the provider's own (a company of a group, an address without a name)");
+        }
         for (final String g : result.placeGaps) {
             if (g.contains("their relation to it is open")) continue; // said above
             if (german && g.startsWith("time budget")) out.add("das Zeitbudget der Suche war aufgebraucht (" + g + ")");
             else out.add(g);
         }
         return String.join("; ", out);
+    }
+
+    /** What the search saw and did not count: postings that only name the employer, pages whose hit belongs to no posting. */
+    private static String notCounted(final JobSearch.Result result, final boolean de) {
+        final StringBuilder a = new StringBuilder();
+        final String employer = result.plan.employer();
+        if (employer != null && result.mentions > 0) {
+            a.append(de ? " " + result.mentions + (result.mentions == 1 ? " weitere Anzeige nennt " : " weitere Anzeigen nennen ") + employer
+                    + ", ohne dass " + employer + " als Arbeitgeber erfasst ist; " + (result.mentions == 1 ? "sie ist" : "sie sind") + " nicht mitgezählt."
+                    : " " + result.mentions + " more posting" + (result.mentions == 1 ? " names " : "s name ") + employer + " without " + employer
+                    + " being recorded as the employer; not counted.");
+        }
+        if (result.pageOnly > 0) {
+            a.append(de ? " Auf " + result.pageOnly + (result.pageOnly == 1 ? " Seite" : " Seiten") + " mit mehreren Anzeigen kommt das Thema vor, ohne"
+                    + " dass es einer bestimmten Anzeige zugeordnet werden kann; " + (result.pageOnly == 1 ? "diese Seite ist" : "diese Seiten sind")
+                    + " nicht mitgezählt."
+                    : " " + result.pageOnly + " page" + (result.pageOnly == 1 ? "" : "s") + " with several postings name" + (result.pageOnly == 1 ? "s" : "")
+                    + " the subject without any single posting showing it; not counted.");
+        }
+        return a.toString();
     }
 
     /**
@@ -115,11 +141,15 @@ public enum QuestionKind {
             final ToolContext context) {
         final boolean de = german(question);
         final String subjects = String.join(", ", result.plan.criteria());
-        final String about = subjects.isEmpty() ? "" : (de ? " zu " : " for ") + subjects;
+        final String employer = result.plan.employer();
+        // "zu X" for subjects, "mit X als Arbeitgeber" for the employer of the question
+        final String about = (subjects.isEmpty() ? "" : (de ? " zu " : " for ") + subjects)
+                + (employer == null ? "" : (de ? " mit " + employer + " als Arbeitgeber" : " with " + employer + " as the employer"));
         final StringBuilder a = new StringBuilder();
         if (result.found == 0 && !result.lowerBound()) {
             a.append(de ? "In " + scope(context, true) + " wurde keine Stellenanzeige" + about + " gefunden."
                     : "No job posting" + about + " was found in " + scope(context, false) + ".");
+            a.append(notCounted(result, de));
             return a.toString();
         }
         if (result.lowerBound()) {
@@ -135,9 +165,12 @@ public enum QuestionKind {
         }
         if (result.records > result.found) {
             a.append(de ? " " + result.records + " Datensätze passen; " + (result.records - result.found) + " davon " + (result.records - result.found == 1
-                    ? "ist dieselbe Ausschreibung" : "sind dieselben Ausschreibungen") + " auf einer weiteren Seite."
-                    : " " + result.records + " records match; " + (result.records - result.found) + " of them repeat a posting on another page.");
+                    ? "ist dieselbe Ausschreibung" : "sind dieselben Ausschreibungen") + " auf einer weiteren Seite oder ein zweiter Datensatz"
+                    + " derselben Seite."
+                    : " " + result.records + " records match; " + (result.records - result.found) + " of them repeat a posting on another page or"
+                    + " as a second record of its page.");
         }
+        a.append(notCounted(result, de));
         if (result.perSubject.size() > 1) {
             final List<String> per = new ArrayList<>();
             for (final Map.Entry<String, Integer> e : result.perSubject.entrySet()) per.add(e.getKey() + " " + e.getValue());
@@ -225,8 +258,10 @@ public enum QuestionKind {
                 final ServiceSearch.Provider p = result.providers.get(i);
                 a.append("\n- ").append(RagContext.clean(p.name, 120));
                 if (place != null) {
-                    a.append(" (").append(ServiceSearch.AT_PLACE.equals(p.place) ? (de ? "Standort in " + place : "located in " + place)
-                            : ServiceSearch.SERVES_PLACE.equals(p.place) ? (de ? "Einsatzgebiet " + place : "serves " + place)
+                    final String source = p.placeSource == null || p.placeSource.equals(p.url()) ? ""
+                            : (de ? ", Beleg für den Ort: " : ", evidence of the place: ") + p.placeSource;
+                    a.append(" (").append(ServiceSearch.AT_PLACE.equals(p.place) ? (de ? "Standort in " + place : "located in " + place) + source
+                            : ServiceSearch.SERVES_PLACE.equals(p.place) ? (de ? "Einsatzgebiet " + place : "serves " + place) + source
                             : ServiceSearch.UNDECIDED_PLACE.equals(p.place) ? (de ? "Ortsbezug offen" : "relation to " + place + " open")
                             : ServiceSearch.MENTIONS_PLACE.equals(p.place) ? (de ? "nennt " + place + " nur" : "only mentions " + place)
                             : (de ? "kein Bezug zu " + place : "no relation to " + place)).append(')');
