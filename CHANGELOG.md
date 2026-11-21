@@ -2,7 +2,12 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.6): service and place of one company, not of two on one domain
+## 0.14.3-rc.7 / 1.942-scoutro.52-rc.7 — test candidate: a hit belongs to the posting, the employer and the company it is evidenced for (not a release)
+
+On 0.14.3-rc.6, application code `bb6a9cc`. Tool releases are kept; schemas, extractors and stored data unchanged: no
+re-extraction. Candidate notes: docs/SCOUTRO_CANDIDATE_0.14.3-rc.7.md.
+
+### Service and place of one company, not of two on one domain
 
 - Provider search, place: a provider known by pages of its host that name the service is local only when its address or
   service area is evidenced for the same company. Three cases counted the address of one company for the service of
@@ -19,7 +24,7 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 - The measurement stock has pages of several postings (60 pages of eight postings, 20 KB each), added to an existing
   stock with `SearchScaleFixture <directory> shared`; `SearchScaleBench check` covers them.
 
-## On 0.14.3-rc.6 (134209b): a hit belongs to the posting, the employer and the provider it is evidenced for
+### A hit belongs to the posting, the employer and the provider it is evidenced for (134209b)
 
 Found with 0.14.3-rc.6 on a production stock: a page of several postings gave its text hit to its first posting only (and
 an independent count gave it to all of them); "Stellenanzeigen von X" counted a posting of another employer whose page

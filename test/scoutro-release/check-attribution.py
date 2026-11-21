@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--inputs', required=True, type=Path)
     parser.add_argument('--distribution', type=Path)
     parser.add_argument('--image-root', type=Path, help='Actual locally exported container root')
-    parser.add_argument('--version', default='1.942-scoutro.52-rc.6')
+    parser.add_argument('--version', default='1.942-scoutro.52-rc.7')
     args = parser.parse_args()
     assert args.distribution or args.image_root, 'Choose an actual distribution and/or exported image'
     expected = originals(args.inputs)
