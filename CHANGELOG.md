@@ -12,6 +12,10 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   sentence names as doing the service); another company's address is named, not counted, a company of a similar name
   is open, and of two companies the one that has the address and offers the service is the provider. The count answer,
   what a recommendation is given, and `provider_search` follow.
+- The answer's metadata lists the whole result for a comparison with another count of the same stock:
+  `scoutro-jobsearch` the graph IDs of every posting found (`ids`, at most 500; `idsComplete`) and the addresses of the
+  pages that are hits of a page only (`pageOnlyPages`); `scoutro-servicesearch` the hosts of every provider with a
+  relation to the place, per relation (`placeHosts`, at most 200 each). The model is not given these lists.
 - The measurement stock has pages of several postings (60 pages of eight postings, 20 KB each), added to an existing
   stock with `SearchScaleFixture <directory> shared`; `SearchScaleBench check` covers them.
 

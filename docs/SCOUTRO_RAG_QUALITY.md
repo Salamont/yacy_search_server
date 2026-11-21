@@ -532,9 +532,12 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   already computed (`reused: true`).
 - **Follow-up:** "Such noch mal" takes the goal of the conversation (section 12).
 - **Metadata:** `scoutro-servicesearch: {triggered, followUp, scope, services, place, searched, found, lowerBound, gaps,
-  shown, perPlace, placeComplete, placeGaps, placeNamedBy, timedOut, millis, servicePages, phases}` (`perPlace`:
-  location, service_area, undecided, mentioned, none; `scoutro-jobsearch` of section 12 adds `pageOnly` and, with an
-  employer in the question, `employer` and `mentions`) (`servicePages`: pages of the scope naming a
+  shown, perPlace, placeComplete, placeGaps, placeNamedBy, placeHosts, timedOut, millis, servicePages, phases}`
+  (`perPlace`: location, service_area, undecided, mentioned, none; `placeHosts`: the hosts of every provider with a
+  relation to the place, per relation and at most 200 each, not only of the providers shown; `scoutro-jobsearch` of
+  section 12 adds `pageOnly` with `pageOnlyPages` (their addresses), `ids` (the graph IDs of every posting found, at
+  most 500; `idsComplete`) and, with an employer in the question, `employer` and `mentions`. The lists are for a
+  comparison of a whole result with another count of the same stock; the model is not given them) (`servicePages`: pages of the scope naming a
   service; `phases`: milliseconds of graph, index, place, selection, evidence). Log: `event=rag-servicesearch … found=
   lowerBound= shown= all= kind= servicePages= gaps= placeOpen= placeGaps= ms= phases=graph:…,index:…,place:…,selection:…,evidence:…`.
   The model can call `provider_search(query, place?)` itself (2 calls per answer); it also takes the model's own words.

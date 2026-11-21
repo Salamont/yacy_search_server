@@ -542,10 +542,14 @@ def two_companies(digest):
     status, answer, requests = tools.chat(digest, question, no_tools_model, collection=TWIN_WEB)
     sv = services(answer) or {}
     text = answer["text"]
+    listed = sv.get("placeHosts") or {}
     check(status == 200 and sv.get("found") == 5 and sv.get("lowerBound") is False and sv.get("perPlace") == expected
-          and sv.get("scope") == f"collection {TWIN_WEB}",
+          and sv.get("scope") == f"collection {TWIN_WEB}"
+          and {"www." + h for h in listed.get("location") or []} == local and sorted(listed.get("mentioned") or []) == sorted(apart)
+          and not listed.get("service_area") and not listed.get("undecided"),
           "two companies: 5 providers; located 2 (one company each for service and address), 3 named only (the address or area is another company's)",
-          json.dumps({k: sv.get(k) for k in ("found", "lowerBound", "perPlace", "placeComplete", "placeGaps", "phases")}, ensure_ascii=False))
+          json.dumps({k: sv.get(k) for k in ("found", "lowerBound", "perPlace", "placeComplete", "placeGaps", "placeHosts", "phases")},
+                     ensure_ascii=False))
     check(len(requests) == 0 and (answer["meta"].get("scoutro-answer") or {}).get("by") == "server"
           and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0 and "gibt es **5** Anbieter" in text
           and "Standort in Musterstadt: **2**" in text and "3 nennen Musterstadt nur beiläufig" in text

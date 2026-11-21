@@ -442,11 +442,12 @@ def attribution(digest, rita):
     js = jobsearch(answer) or {}
     titles = [s.get("title", "") for s in answer["meta"].get("scoutro-sources", [])]
     check(status == 200 and len(requests) == 0 and js.get("found") == 1 and js.get("records") == 1 and js.get("pageOnly") == 1
+          and len(js.get("ids") or []) == 1 and js.get("idsComplete") is True and len(js.get("pageOnlyPages") or []) == 1
           and js.get("lowerBound") is False and len(titles) == 1 and "Mechatroniker" in titles[0]
           and "gibt es **1** Stellenanzeige zu Hydraulik" in answer["text"] and "Auf 1 Seite mit mehreren Anzeigen" in answer["text"]
           and "Kauffrau" not in answer["text"] and "Auszubildender" not in answer["text"],
           "text: the hit belongs to the posting whose part of the page names the subject; a hit of a page only is not counted",
-          json.dumps({k: js.get(k) for k in ("found", "records", "pageOnly", "lowerBound")}) + " " + answer["text"][:500])
+          json.dumps({k: js.get(k) for k in ("found", "records", "pageOnly", "lowerBound", "ids", "pageOnlyPages")}) + " " + answer["text"][:500])
     print("ATTRIBUTION: " + json.dumps({"employer": {"found": 5, "records": 6, "mentions": 1}, "text": {k: js.get(k) for k in
           ("found", "records", "pageOnly", "millis", "phases")}}, ensure_ascii=False), flush=True)
 

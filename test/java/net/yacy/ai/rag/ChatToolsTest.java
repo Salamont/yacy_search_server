@@ -937,6 +937,12 @@ public class ChatToolsTest {
         final JobSearch.Job monteur = r.jobs.stream().filter(j -> j.title.startsWith("Monteur")).findFirst().get();
         assertTrue(monteur.excerpt, monteur.excerpt.contains("kalibrierung") && !monteur.excerpt.contains("kreditoren"));
         assertEquals(1, all.meta.getInt("pageOnly"));
+        // the whole list for a comparison: every posting found by its ID, and the page that is a hit of the page only
+        assertEquals(all.meta.toString(), r.found, all.meta.getJSONArray("ids").length());
+        assertTrue(all.meta.getBoolean("idsComplete"));
+        assertEquals(new JSONArray(r.ids).toString(), all.meta.getJSONArray("ids").toString());
+        assertEquals(1, all.meta.getJSONArray("pageOnlyPages").length());
+        assertEquals(host + "karriere/logistik", all.meta.getJSONArray("pageOnlyPages").getString(0));
         // the server's count answer and the tool say the same, and name what was not counted
         final String answer = QuestionKind.countOfJobs("Wie viele Stellenanzeigen zu Kalibrierung gibt es?", r, all.sources, chat);
         assertTrue(answer, answer.contains("gibt es **6** Stellenanzeigen zu Kalibrierung") && answer.contains("8 Datensätze passen; 2 davon sind dieselben"));
@@ -1463,6 +1469,14 @@ public class ChatToolsTest {
         // the count answer of the server and what a recommendation is given: four located, none of the combinations
         final ServiceSearch.Built built = ServiceSearch.format(r, 1, 60000, chat.scopeLabel(), false);
         assertEquals(built.meta.toString(), 4, built.meta.getJSONArray("placeNamedBy").length());
+        // the whole list for a comparison: the hosts of every provider with a relation to the place, not only of the six shown
+        final JSONObject hosts = built.meta.getJSONObject("placeHosts");
+        assertEquals(hosts.toString(), 4, hosts.getJSONArray(ServiceSearch.AT_PLACE).length());
+        assertEquals(1, hosts.getJSONArray(ServiceSearch.UNDECIDED_PLACE).length());
+        assertEquals(5, hosts.getJSONArray(ServiceSearch.MENTIONS_PLACE).length());
+        final String mentioning = hosts.getJSONArray(ServiceSearch.MENTIONS_PLACE).toString();
+        assertTrue(mentioning, mentioning.contains("\"elster-bau.example\"") && mentioning.contains("\"gimpel-haus.example\"")
+                && mentioning.contains("\"kleiber-hof.example\""));
         for (final String host : new String[] {"amsel-park", "drossel-gruppe", "elster-bau", "gimpel-haus", "kiebitz-zentrum", "kleiber-hof"}) {
             for (final String entry : built.text.split("\n\n")) {
                 if (entry.contains("https://www." + host + ".example/")) {

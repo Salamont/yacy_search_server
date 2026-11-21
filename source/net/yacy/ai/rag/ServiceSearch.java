@@ -59,6 +59,8 @@ public final class ServiceSearch {
     static final int PLACE_PAGES = 3;
     /** pages naming the service read per located provider to see whose service it is ({@link #sameCompany}) */
     static final int SERVICE_PAGES = 3;
+    /** the hosts per relation to the place that the answer's metadata lists, for a comparison of the whole list */
+    static final int LISTED_HOSTS = 200;
     /** characters of the excerpt of a provider's page */
     static final int EXCERPT_CHARS = 240;
 
@@ -1198,6 +1200,16 @@ public final class ServiceSearch {
                 meta.put("placeGaps", new JSONArray(result.placeGaps));
             }
             meta.put("placeNamedBy", placeBy); // the numbers with an evidenced location or service area
+            if (result.plan.place != null) {
+                // every provider with a relation to the place by its host, not only those shown (those without one are not listed)
+                final JSONObject hosts = new JSONObject(true);
+                for (final String k : new String[] {AT_PLACE, SERVES_PLACE, UNDECIDED_PLACE, MENTIONS_PLACE}) hosts.put(k, new JSONArray());
+                for (final Provider p : result.everyone) {
+                    final JSONArray of = hosts.optJSONArray(p.place);
+                    if (of != null && of.length() < LISTED_HOSTS) of.put(p.host == null || p.host.isEmpty() ? p.key : p.host);
+                }
+                meta.put("placeHosts", hosts);
+            }
             meta.put("timedOut", result.timedOut);
             meta.put("millis", result.millis);
             meta.put("servicePages", result.servicePages);

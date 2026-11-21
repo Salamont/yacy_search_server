@@ -64,6 +64,8 @@ public final class JobSearch {
     /** pages of several postings read with their text in one search, and in one question to the index */
     static final int SHARED_PAGES = 60;
     static final int SHARED_BATCH = 20;
+    /** the IDs of the postings found that the answer's metadata lists, for a comparison of the whole list */
+    static final int LISTED_IDS = 500;
     /** pages of one ranked text search (only without a direct index) */
     static final int TEXT_HITS = 50;
     static final int MAX_CHARS = 2600;
@@ -506,6 +508,8 @@ public final class JobSearch {
          * part of {@link #found}
          */
         public int pageOnly;
+        /** the addresses of those pages (at most {@link #SHARED_PAGES} and those not read) */
+        public List<String> pageOnlyPages = Collections.emptyList();
         /** with an employer in the question: the postings (each once) that name it without the graph recording it as their employer */
         public int mentions;
 
@@ -636,6 +640,7 @@ public final class JobSearch {
         if (plan.employerTopic != null) all.add(plan.employerTopic);
         final int slots = all.size();
         int pageOnly = 0;
+        final Set<String> pageOnlyPages = new LinkedHashSet<>();
         boolean timedOut = false;
         String error = null;
         int scanned = 0;
@@ -785,7 +790,10 @@ public final class JobSearch {
                                 timedOut |= time;
                                 gaps.add((time ? "time budget" : "text: more than " + SHARED_PAGES + " pages of several postings") + ": "
                                         + (pages.size() - k) + " pages naming " + c.label + " not read, their postings not decided");
-                                if (i < subjects) pageOnly += pages.size() - k;
+                                if (i < subjects) {
+                                    pageOnly += pages.size() - k;
+                                    for (final String page : pages.subList(k, pages.size())) pageOnlyPages.add(urls.get(page));
+                                }
                                 break;
                             }
                             sharedRead += batch.size();
@@ -814,7 +822,10 @@ public final class JobSearch {
                                     }
                                 }
                                 for (final Posting p : on) shown |= p.how[i] > 0;
-                                if (!shown && i < subjects) pageOnly++; // the page names the subject, no posting of it does
+                                if (!shown && i < subjects) { // the page names the subject, no posting of it does
+                                    pageOnly++;
+                                    pageOnlyPages.add(urls.get(page));
+                                }
                             }
                         }
                     }
@@ -846,7 +857,10 @@ public final class JobSearch {
                                 }
                                 shown |= p.how[i] > 0;
                             }
-                            if (!shown && i < subjects) pageOnly++;
+                            if (!shown && i < subjects) {
+                                pageOnly++;
+                                pageOnlyPages.add(page.url);
+                            }
                         }
                     }
                 }
@@ -928,6 +942,8 @@ public final class JobSearch {
                 gaps.isEmpty(), gaps);
         result.records = records;
         result.pageOnly = pageOnly;
+        pageOnlyPages.remove(null);
+        result.pageOnlyPages = Collections.unmodifiableList(new ArrayList<>(pageOnlyPages));
         result.mentions = mentions;
         result.phases = Collections.unmodifiableMap(phases);
         final List<String> ids = new ArrayList<>();
@@ -1186,6 +1202,11 @@ public final class JobSearch {
             meta.put("perSubject", new JSONObject(result.perSubject));
             meta.put("records", result.records); // matching records; found counts a posting on two pages once
             meta.put("pageOnly", result.pageOnly); // pages of several postings naming a subject that no posting of them shows: not counted
+            meta.put("pageOnlyPages", new JSONArray(result.pageOnlyPages));
+            // every posting found, not only those shown: the whole list, for a comparison with another count of the same stock
+            final int listed = Math.min(result.ids.size(), LISTED_IDS);
+            meta.put("ids", new JSONArray(result.ids.subList(0, listed)));
+            meta.put("idsComplete", listed == result.ids.size());
             if (result.plan.employer != null) {
                 meta.put("employer", result.plan.employer); // found: the postings the graph records it as the employer of
                 meta.put("mentions", result.mentions); // postings naming it otherwise: not counted
