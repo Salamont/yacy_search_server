@@ -2,7 +2,20 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased (on 0.14.3-rc.6): a hit belongs to the posting, the employer and the provider it is evidenced for
+## Unreleased (on 0.14.3-rc.6): service and place of one company, not of two on one domain
+
+- Provider search, place: a provider known by pages of its host that name the service is local only when its address or
+  service area is evidenced for the same company. Three cases counted the address of one company for the service of
+  another one on the same domain before: the site's operator with its address in the graph, an imprint of another
+  company, and a service area stated by another company. Now the pages naming the service (at most three per located
+  provider) are asked whom they speak for (`ProviderPlace.speaker`: the company of the title, else the company a
+  sentence names as doing the service); another company's address is named, not counted, a company of a similar name
+  is open, and of two companies the one that has the address and offers the service is the provider. The count answer,
+  what a recommendation is given, and `provider_search` follow.
+- The measurement stock has pages of several postings (60 pages of eight postings, 20 KB each), added to an existing
+  stock with `SearchScaleFixture <directory> shared`; `SearchScaleBench check` covers them.
+
+## On 0.14.3-rc.6 (134209b): a hit belongs to the posting, the employer and the provider it is evidenced for
 
 Found with 0.14.3-rc.6 on a production stock: a page of several postings gave its text hit to its first posting only (and
 an independent count gave it to all of them); "Stellenanzeigen von X" counted a posting of another employer whose page

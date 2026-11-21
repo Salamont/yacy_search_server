@@ -1364,6 +1364,149 @@ public class ChatToolsTest {
     }
 
     @Test
+    public void twoCompaniesOnOneDomainAreNotOneLocalProvider() throws Exception {
+        final String c = "alpha-web";
+        final String offer = ",\"hasOfferCatalog\":{\"@type\":\"OfferCatalog\",\"itemListElement\":[{\"@type\":\"Offer\",\"itemOffered\":"
+                + "{\"@type\":\"Service\",\"name\":\"Tragwerksplanung\"}}]}";
+        final String inPlace = ",\"address\":{\"@type\":\"PostalAddress\",\"streetAddress\":\"Hauptstraße 1\",\"postalCode\":\"12345\","
+                + "\"addressLocality\":\"Musterstadt\"}";
+        // 1: both in the graph. One company offers the service, another one of the same domain has the address in the place
+        page("TWOG01host21", "https://www.amsel-park.example/statik", c, "Amsel Statik GmbH", "{\"@type\":\"Organization\",\"name\":\"Amsel Statik GmbH\","
+                + "\"url\":\"https://www.amsel-park.example/statik\"" + offer + "}", "Amsel Statik GmbH: Berechnungen für Wohnhäuser.");
+        page("TWOG02host21", "https://www.amsel-park.example/bau", c, "Birke Bau GmbH", "{\"@type\":\"Organization\",\"name\":\"Birke Bau GmbH\","
+                + "\"url\":\"https://www.amsel-park.example/bau\"" + inPlace + "}", "Birke Bau GmbH: Hochbau und Ausbau.");
+        // 2: the same with two companies of similar names
+        page("TWOG03host22", "https://www.drossel-gruppe.example/statik", c, "Drossel Statik GmbH", "{\"@type\":\"Organization\",\"name\":\"Drossel Statik"
+                + " GmbH\",\"url\":\"https://www.drossel-gruppe.example/statik\"" + offer + "}", "Drossel Statik GmbH: Berechnungen für Hallen.");
+        page("TWOG04host22", "https://www.drossel-gruppe.example/bau", c, "Drossel Bau GmbH", "{\"@type\":\"Organization\",\"name\":\"Drossel Bau GmbH\","
+                + "\"url\":\"https://www.drossel-gruppe.example/bau\"" + inPlace + "}", "Drossel Bau GmbH: Hochbau.");
+        // 3: the site's operator has the address in the place (graph); the service is another company's, named by its page only
+        page("TWOG05host23", "https://www.elster-bau.example/", c, "Elster Bau GmbH", "{\"@type\":\"Organization\",\"name\":\"Elster Bau GmbH\","
+                + "\"url\":\"https://www.elster-bau.example/\"" + inPlace + "}", "Elster Bau GmbH: Hochbau und Schlüsselfertigbau.");
+        indexPage("https://www.elster-bau.example/partner/finken-statik", c, "Finken Statik GmbH – Tragwerksplanung",
+                "Die Finken Statik GmbH erstellt die Tragwerksplanung für Wohnhäuser. Sitz in Nebenstadt.");
+        // 4: the index only. The service on the page of one company, the imprint names another one with the address
+        indexPage("https://www.gimpel-haus.example/leistungen/statik", c, "Habicht Statik GmbH – Tragwerksplanung",
+                "Die Habicht Statik GmbH übernimmt die Tragwerksplanung für Ihr Haus.");
+        indexPage("https://www.gimpel-haus.example/impressum", c, "Impressum", "Angaben gemäß § 5 DDG. Gimpel Haus GmbH. Hauptstraße 1, 12345 Musterstadt.");
+        // 5: the graph knows who offers the service; the address in the place is another company's on a page of the site
+        page("TWOG06host25", "https://www.kiebitz-zentrum.example/", c, "Kiebitz Statik GmbH", "{\"@type\":\"Organization\",\"name\":\"Kiebitz Statik GmbH\","
+                + "\"url\":\"https://www.kiebitz-zentrum.example/\"" + offer + "}", "Kiebitz Statik GmbH: Berechnungen für Umbauten.");
+        indexPage("https://www.kiebitz-zentrum.example/mieter", c, "Mieter im Zentrum", "Lerche Bau GmbH. Hauptstraße 1, 12345 Musterstadt. Telefon 01234 1.");
+        // 6: the service area of another company of the domain
+        indexPage("https://www.kleiber-hof.example/statik", c, "Kuckuck Statik GmbH – Tragwerksplanung", "Die Kuckuck Statik GmbH plant Tragwerke.");
+        indexPage("https://www.kleiber-hof.example/dach", c, "Kleiber Dach GmbH – Dacharbeiten", "Kleiber Dach GmbH. Einsatzgebiet: Musterstadt und Umgebung.");
+        // the same shapes with one company: these stay local
+        // 7: its own name on the page of the service and at the address
+        indexPage("https://www.meise-statik.example/leistungen", c, "Tragwerksplanung – Meise Statik GmbH", "Tragwerksplanung für Neubau und Bestand.");
+        indexPage("https://www.meise-statik.example/impressum", c, "Impressum", "Meise Statik GmbH. Hauptstraße 1, 12345 Musterstadt.");
+        // 8: the operator with its address in the graph; the page of the service names no company
+        page("TWOG07host28", "https://www.pirol-ingenieure.example/", c, "Pirol Ingenieure GmbH", "{\"@type\":\"Organization\",\"name\":\"Pirol Ingenieure"
+                + " GmbH\",\"url\":\"https://www.pirol-ingenieure.example/\"" + inPlace + "}", "Pirol Ingenieure GmbH: Beratung.");
+        indexPage("https://www.pirol-ingenieure.example/leistungen", c, "Leistungen", "Tragwerksplanung und Bauphysik aus einer Hand.");
+        // 9: the page of the service names a client, not who offers it
+        page("TWOG08host29", "https://www.reiher-plan.example/", c, "Reiher Plan GmbH", "{\"@type\":\"Organization\",\"name\":\"Reiher Plan GmbH\","
+                + "\"url\":\"https://www.reiher-plan.example/\"" + inPlace + "}", "Reiher Plan GmbH: Beratung.");
+        indexPage("https://www.reiher-plan.example/referenzen", c, "Referenzen", "Wir erstellten die Tragwerksplanung für die Wohnbau Nord GmbH."
+                + " Für die Stadtwerke Oststadt AG übernahmen wir die Tragwerksplanung eines Hallenbads.");
+        // 10: two companies, and the one with the address offers the service too
+        indexPage("https://www.sperber-hof.example/statik", c, "Sperber Statik GmbH – Tragwerksplanung", "Die Sperber Statik GmbH plant Tragwerke.");
+        indexPage("https://www.sperber-hof.example/bau", c, "Storch Bau GmbH – Bauen aus einer Hand", "Die Storch Bau GmbH übernimmt auch die Tragwerksplanung.");
+        indexPage("https://www.sperber-hof.example/impressum", c, "Impressum", "Storch Bau GmbH. Hauptstraße 1, 12345 Musterstadt.");
+        final String question = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?";
+        final ToolContext chat = chat(c);
+        final ServiceSearch.Result r = ServiceSearch.run(chat, ServiceSearch.plan(question), List.of(), System::currentTimeMillis, 60_000L);
+        final java.util.Map<String, ServiceSearch.Provider> byHost = new java.util.TreeMap<>();
+        final ServiceSearch.Result wideRun = r;
+        final JSONObject wide = call(new ToolContext(c, true, (concepts, query, cc, count) -> new ArrayList<>(), graph(), 64000, "test").withIndex(index()),
+                "provider_search", "{\"query\":\"Tragwerksplanung in Musterstadt\"}");
+        final StringBuilder seen = new StringBuilder();
+        final java.util.Map<String, String> places = new java.util.TreeMap<>();
+        // every provider: the search of each host alone tells its class (the result shows six)
+        for (final String host : new String[] {"amsel-park.example", "drossel-gruppe.example", "elster-bau.example", "gimpel-haus.example",
+                "kiebitz-zentrum.example", "kleiber-hof.example", "meise-statik.example", "pirol-ingenieure.example", "reiher-plan.example",
+                "sperber-hof.example"}) {
+            for (final ServiceSearch.Provider p : wideRun.everyone) if (host.equals(p.host)) byHost.put(host, p);
+            final ServiceSearch.Provider p = byHost.get(host);
+            places.put(host, p == null ? "missing" : p.place);
+            seen.append('\n').append(host).append(": ").append(p == null ? "missing" : p.place + " | " + p.name + " | " + p.placeEvidence + " | "
+                    + p.placeNote + " | " + p.placeSource);
+        }
+        final String report = seen.toString();
+        assertEquals(report, 10, r.found);
+        // one company offers, another one has the address or the area: not a local provider, whatever the source
+        assertEquals(report, ServiceSearch.MENTIONS_PLACE, places.get("amsel-park.example"));
+        assertEquals(report, ServiceSearch.UNDECIDED_PLACE, places.get("drossel-gruppe.example"));
+        assertEquals(report, ServiceSearch.MENTIONS_PLACE, places.get("elster-bau.example"));
+        assertEquals(report, ServiceSearch.MENTIONS_PLACE, places.get("gimpel-haus.example"));
+        assertEquals(report, ServiceSearch.MENTIONS_PLACE, places.get("kiebitz-zentrum.example"));
+        assertEquals(report, ServiceSearch.MENTIONS_PLACE, places.get("kleiber-hof.example"));
+        // one company: local as before
+        assertEquals(report, ServiceSearch.AT_PLACE, places.get("meise-statik.example"));
+        assertEquals(report, ServiceSearch.AT_PLACE, places.get("pirol-ingenieure.example"));
+        assertEquals(report, ServiceSearch.AT_PLACE, places.get("reiher-plan.example"));
+        assertEquals(report, ServiceSearch.AT_PLACE, places.get("sperber-hof.example"));
+        assertEquals(report, Integer.valueOf(4), r.perPlace.get(ServiceSearch.AT_PLACE));
+        assertEquals(report, Integer.valueOf(0), r.perPlace.get(ServiceSearch.SERVES_PLACE));
+        assertEquals(report, Integer.valueOf(1), r.perPlace.get(ServiceSearch.UNDECIDED_PLACE));
+        assertEquals(report, Integer.valueOf(5), r.perPlace.get(ServiceSearch.MENTIONS_PLACE));
+        assertEquals(new JSONObject(r.perPlace).toString(), wide.getJSONObject("per_place").toString());
+        // the company that offers is the provider, not the operator of the site: named by its page, no entity of the other one
+        final ServiceSearch.Provider elster = byHost.get("elster-bau.example");
+        assertNull(report, elster.entity);
+        assertTrue(elster.placeNote, elster.placeNote.contains("its pages name the service for finken statik gmbh")
+                && elster.placeNote.contains("the address in Musterstadt is that of Elster Bau GmbH, another company on the same site"));
+        assertTrue(byHost.get("kleiber-hof.example").placeNote, byHost.get("kleiber-hof.example").placeNote.contains("the service area naming Musterstadt"
+                + " is that of kleiber dach gmbh"));
+        // the one of two companies that has the address and offers the service too is shown by its own page
+        assertEquals("https://www.sperber-hof.example/bau", byHost.get("sperber-hof.example").url());
+        // the count answer of the server and what a recommendation is given: four located, none of the combinations
+        final ServiceSearch.Built built = ServiceSearch.format(r, 1, 60000, chat.scopeLabel(), false);
+        assertEquals(built.meta.toString(), 4, built.meta.getJSONArray("placeNamedBy").length());
+        for (final String host : new String[] {"amsel-park", "drossel-gruppe", "elster-bau", "gimpel-haus", "kiebitz-zentrum", "kleiber-hof"}) {
+            for (final String entry : built.text.split("\n\n")) {
+                if (entry.contains("https://www." + host + ".example/")) {
+                    assertFalse(entry, entry.contains("Located in Musterstadt") || entry.contains("Serves Musterstadt"));
+                }
+            }
+        }
+        final String de = QuestionKind.countOfProviders(question, r, built.sources, chat);
+        assertTrue(de, de.contains("gibt es **10** Anbieter") && de.contains("Standort in Musterstadt: mindestens **4**"));
+        assertTrue(de, de.contains("als Einsatzgebiet: mindestens **0**"));
+        assertTrue(de, de.contains("Bei **1** Anbietern ist der Ortsbezug offen") && de.contains("eine andere Firma als die, für die die Seiten die"
+                + " Leistung nennen"));
+        assertTrue(de, de.contains("5 nennen Musterstadt nur beiläufig"));
+        // two of them alone (another collection): the answer names whose the address is, and nobody is located
+        indexPage("https://www.elster-bau.example/partner/finken-statik", "beta-web", "Finken Statik GmbH – Tragwerksplanung",
+                "Die Finken Statik GmbH erstellt die Tragwerksplanung für Wohnhäuser. Sitz in Nebenstadt.");
+        indexPage("https://www.elster-bau.example/impressum", "beta-web", "Impressum", "Elster Bau GmbH. Hauptstraße 1, 12345 Musterstadt.");
+        indexPage("https://www.kleiber-hof.example/statik", "beta-web", "Kuckuck Statik GmbH – Tragwerksplanung", "Die Kuckuck Statik GmbH plant Tragwerke.");
+        indexPage("https://www.kleiber-hof.example/dach", "beta-web", "Kleiber Dach GmbH – Dacharbeiten", "Kleiber Dach GmbH. Einsatzgebiet: Musterstadt und"
+                + " Umgebung.");
+        final ToolContext other = chat("beta-web");
+        final String recommend = "Welchen Anbieter für Tragwerksplanung in Musterstadt empfiehlst du?";
+        assertEquals(QuestionKind.RECOMMEND, QuestionKind.of(recommend));
+        final ServiceSearch.Result two = ServiceSearch.run(other, ServiceSearch.plan(recommend), List.of());
+        assertEquals(2, two.found);
+        assertEquals(two.perPlace.toString(), Integer.valueOf(2), two.perPlace.get(ServiceSearch.MENTIONS_PLACE));
+        final ServiceSearch.Built given = ServiceSearch.format(two, 1, 60000, other.scopeLabel(), false);
+        assertEquals(0, given.meta.getJSONArray("placeNamedBy").length());
+        assertFalse(given.text, given.text.contains("Located in Musterstadt") || given.text.contains("Serves Musterstadt"));
+        assertTrue(given.text, given.text.contains("Provider Finken Statik GmbH") && given.text.contains("Not located in Musterstadt by evidence: its pages"
+                + " name the service for finken statik gmbh; the address in Musterstadt is that of elster bau gmbh, another company on the same site"));
+        assertTrue(given.text, given.text.contains("Source of the place: https://www.elster-bau.example/impressum"));
+        final JSONObject tool = call(new ToolContext("beta-web", true, (concepts, query, cc, count) -> new ArrayList<>(), graph(), 64000, "test")
+                .withIndex(index()), "provider_search", "{\"query\":\"Tragwerksplanung Musterstadt\"}");
+        assertEquals(tool.toString(), 0, tool.getJSONObject("per_place").getInt("location") + tool.getJSONObject("per_place").getInt("service_area"));
+        for (int i = 0; i < tool.getJSONArray("providers").length(); i++) {
+            final JSONObject p = tool.getJSONArray("providers").getJSONObject(i);
+            assertEquals("mentioned", p.getString("place"));
+            assertTrue(p.toString(), p.getString("place_note").contains("another company on the same site"));
+        }
+        System.out.println("TWO COMPANIES:" + report);
+    }
+
+    @Test
     public void aFactOnlyPostingBehindPosition5000IsFound() throws Exception {
         // about 7,000 postings of one collection, written straight into the graph (the extractors of page() would take minutes);
         // the only posting of the subject shows it in a fact only and comes after the 6,000th

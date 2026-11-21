@@ -57,6 +57,8 @@ public final class ServiceSearch {
     static final int PLACE_HOSTS = 120;
     static final int PLACE_BATCH = 40;
     static final int PLACE_PAGES = 3;
+    /** pages naming the service read per located provider to see whose service it is ({@link #sameCompany}) */
+    static final int SERVICE_PAGES = 3;
     /** characters of the excerpt of a provider's page */
     static final int EXCERPT_CHARS = 240;
 
@@ -282,6 +284,17 @@ public final class ServiceSearch {
         int otherPlace = ProviderPlace.NONE;
         /** a page naming the service was read for it */
         boolean read;
+        /** whose the address or area of its place is: the words of that company's name, empty when no company is named */
+        Set<String> placeCompany = Collections.emptySet();
+        String placeCompanyName;
+        /** its page states the service for the place itself: both by one sentence */
+        boolean placeWithService;
+        /** the company of its pages naming the service was compared with the company of its place */
+        boolean compared;
+        /** the graph's operator of its host is not who its pages name for the service: not shown as that organisation */
+        boolean unbound;
+        /** the pages naming the service read by the ranked search (without a direct index) */
+        final List<RagCandidate> servicePages = new ArrayList<>(2);
         final StringBuilder text = new StringBuilder();
         int order;
 
@@ -336,6 +349,8 @@ public final class ServiceSearch {
         public long servicePages;
         /** the keys of all providers found (each once: "e|" and a graph ID, or "h|" and a host), not only of those shown */
         public List<String> keys = Collections.emptyList();
+        /** every provider found with its relation to the place, in the order of the answer ({@link #providers} are its first) */
+        List<Provider> everyone = Collections.emptyList();
 
         public Result(final Plan plan, final List<Provider> providers, final int found, final Map<String, Integer> perPlace, final List<String> searched,
                 final List<String> gaps, final boolean timedOut, final long millis) {
@@ -418,7 +433,8 @@ public final class ServiceSearch {
      * them is ({@link ProviderPlace}): the provider's own, another company's, a project's or plot's, or not shown. A
      * provider whose pages naming the place were all read without an address or area of its own only mentions it; one
      * whose pages were not all read, or whose site shows an address that cannot be shown to be its own, is
-     * {@link #UNDECIDED_PLACE};</li>
+     * {@link #UNDECIDED_PLACE}. A host can carry several companies: for a provider known by the pages of its host only,
+     * the company its pages name for the service must be the company of the address or area ({@link #sameCompany});</li>
      * <li><b>selection</b> and <b>evidence</b>: located before serving before open before mentioning before the rest; of
      * the providers shown one page naming the service is read for the excerpt, and the organisation of a host without one
      * in step 1.</li>
@@ -690,6 +706,23 @@ public final class ServiceSearch {
                         }
                         read += batch.size();
                     }
+                    // whose service it is, for the providers located or serving by a named company: one company, not two of a host
+                    final Map<String, Provider> located = new LinkedHashMap<>();
+                    for (final Provider p : providers.values()) if (toCompare(p) && p.host != null) located.put(p.host, p);
+                    final List<String> locatedHosts = new ArrayList<>(located.keySet());
+                    for (int i = 0; i < locatedHosts.size() && !serviceWords.isEmpty(); i += PLACE_BATCH) {
+                        if (clock.getAsLong() - start > budget) break; // left to the check below: open
+                        final List<String> batch = locatedHosts.subList(i, Math.min(locatedHosts.size(), i + PLACE_BATCH));
+                        final Map<String, List<RagCandidate>> pages = new java.util.HashMap<>();
+                        for (final RagCandidate page : context.indexHostPages(serviceWords, batch, SERVICE_PAGES)) {
+                            pages.computeIfAbsent(hostKey(page.url), h -> new ArrayList<>()).add(page);
+                        }
+                        for (final String host : batch) {
+                            final Provider p = located.get(host);
+                            final List<RagCandidate> got = pages.getOrDefault(host, Collections.emptyList());
+                            sameCompany(p, got, p.pageCount <= got.size(), plan, byRow);
+                        }
+                    }
                     int unread = 0;
                     int partly = 0;
                     for (int i = 0; i < hosts.size(); i++) {
@@ -723,6 +756,28 @@ public final class ServiceSearch {
                 decidable = false;
                 placeGaps.add("place: " + (e instanceof net.yacy.scoutro.knowledge.KgException ? ((net.yacy.scoutro.knowledge.KgException) e).code() : "failed"));
             }
+            // the located ones whose service was not compared with the company of the place: by the pages the ranked search
+            // read, else open (the time budget, a failed read)
+            int uncompared = 0;
+            for (final Provider p : providers.values()) {
+                if (!toCompare(p)) continue;
+                if (!p.servicePages.isEmpty()) {
+                    sameCompany(p, p.servicePages, p.pageCount <= p.servicePages.size(), plan, byRow);
+                } else {
+                    p.compared = true;
+                    p.place = NO_PLACE;
+                    p.otherPlace = ProviderPlace.UNSURE; // open, with the others whose address is not shown to be their own
+                    p.placeNote = "an address or service area in " + plan.place + " is evidenced for "
+                            + RagContext.clean(p.placeCompanyName == null ? "a company of its site" : p.placeCompanyName, 80)
+                            + "; whether its pages name the service for the same company was not read";
+                    p.placeEvidence = null;
+                    uncompared++;
+                }
+            }
+            if (uncompared > 0) {
+                placeGaps.add("place: for " + uncompared + " providers with an address or service area in " + plan.place
+                        + " the pages naming the service were not compared with the company of the place (the time budget or a failed read)");
+            }
             // an address in the place on its site that is not shown to be its own: open; another company's, a project's or a
             // plot's: named on its site, not its location
             for (final Provider p : providers.values()) {
@@ -739,7 +794,8 @@ public final class ServiceSearch {
             }
             if (open[2] > 0) {
                 placeGaps.add("place: " + open[2] + " providers show an address in " + plan.place + " on their site that is not shown to be their"
-                        + " own (a company of a group, an address without a name), their relation to it is open");
+                        + " own (a company of a group, an address without a name, another company than the one their pages name for the service),"
+                        + " their relation to it is open");
             }
             if (!decidable) {
                 // which pages name the place is unknown: no provider without evidence is told to have no relation to it
@@ -786,6 +842,7 @@ public final class ServiceSearch {
         final List<String> keys = new ArrayList<>();
         for (final Provider p : all) keys.add(p.key);
         result.keys = Collections.unmodifiableList(keys);
+        result.everyone = Collections.unmodifiableList(all);
         return result;
     }
 
@@ -819,7 +876,7 @@ public final class ServiceSearch {
                 for (final Provider p : shown) if (p.placeStatement != 0L && p.placeSource == null) p.placeSource = pages.get(p.placeStatement);
             }
             for (final Provider p : shown) {
-                if (p.entity != null || p.row != 0L || p.host == null) continue;
+                if (p.entity != null || p.row != 0L || p.host == null || p.unbound) continue;
                 // its organisation in the graph by its host, for its name: the one whose own page is on this host
                 final List<Long> rows = context.reader().hostEntityRows(viewer, p.host, PROVIDER_TYPES, 20);
                 if (rows.isEmpty()) continue;
@@ -851,6 +908,7 @@ public final class ServiceSearch {
             p.pageCount++;
         }
         if (p.text.length() < 2000) p.text.append(' ').append(page.title).append(". ").append(page.text);
+        if (p.servicePages.size() < SERVICE_PAGES) p.servicePages.add(page);
         if (plan.place != null && p.placeRank() < 3) textPlace(p, page, plan.place, plan.services);
     }
 
@@ -901,11 +959,13 @@ public final class ServiceSearch {
             p.placeEvidence = (Vocabulary.ADDRESS.equals(f.predicate) ? "address" : "place") + of + " in the graph: " + RagContext.clean(f.value, 120);
             p.placeStatement = f.statement;
             p.placeSource = null;
+            placeOf(p, ProviderPlace.core(p.name), p.name, false);
         } else if (Vocabulary.SERVICE_AREA.equals(f.predicate) && p.placeRank() < 2) {
             p.place = SERVES_PLACE;
             p.placeEvidence = "service area" + of + " in the graph: " + RagContext.clean(f.value, 120);
             p.placeStatement = f.statement;
             p.placeSource = null;
+            placeOf(p, ProviderPlace.core(p.name), p.name, false);
         }
     }
 
@@ -916,17 +976,21 @@ public final class ServiceSearch {
     private static void textPlace(final Provider p, final RagCandidate page, final String place, final List<String> services) {
         final Set<String> name = p.row != 0L || p.entity != null ? ProviderPlace.core(p.name) : Collections.emptySet();
         final ProviderPlace.Finding found = ProviderPlace.read(page, place, services, name, p.host);
+        // whose the place is: the company the page names for it, else the organisation the graph knows the host to belong to
+        final boolean known = !found.company.isEmpty() || name.isEmpty();
         if (found.kind == ProviderPlace.OWN) {
             p.place = AT_PLACE;
             p.placeEvidence = found.evidence;
             p.placeSource = found.url;
             p.placeStatement = 0L;
+            placeOf(p, known ? found.company : name, known ? found.companyName : p.name, false);
         } else if (found.kind == ProviderPlace.AREA) {
             if (p.placeRank() < 2) {
                 p.place = SERVES_PLACE;
                 p.placeEvidence = found.evidence;
                 p.placeSource = found.url;
                 p.placeStatement = 0L;
+                placeOf(p, known ? found.company : name, known ? found.companyName : p.name, found.withService);
             }
         } else if (found.kind >= ProviderPlace.FOREIGN) {
             if (found.kind > p.otherPlace) {
@@ -939,6 +1003,82 @@ public final class ServiceSearch {
             p.place = MENTIONS_PLACE;
             p.placeEvidence = null;
         }
+    }
+
+    private static void placeOf(final Provider p, final Set<String> company, final String name, final boolean withService) {
+        p.placeCompany = company;
+        p.placeCompanyName = name;
+        p.placeWithService = withService;
+        p.compared = false;
+    }
+
+    /** Whether a provider's place is evidenced for a named company while its service is known from pages of its host only. */
+    private static boolean toCompare(final Provider p) {
+        return p.placeRank() >= 2 && p.byText && !p.byGraph && !p.compared && !p.placeWithService && !p.placeCompany.isEmpty();
+    }
+
+    /**
+     * Service and place of the same company. A host can carry several companies: a provider known by pages of its host that
+     * name the service, whose address or service area is evidenced for a named company (the graph's operator of the host,
+     * the company at the address, the company of the page stating the area), is local only when a page naming the service
+     * is that company's or names no company at all (it then speaks for its site). When the pages naming the service are
+     * another company's ({@link ProviderPlace#speaker}), the provider is the company of the service: the place is the
+     * other one's, named on its site (a company of a similar name: open). Not all such pages read: open.
+     *
+     * @param pages the pages naming the service that were read for the provider
+     * @param complete whether these are all its pages naming the service
+     */
+    private static void sameCompany(final Provider p, final List<RagCandidate> pages, final boolean complete, final Plan plan,
+            final Map<Long, Provider> byRow) {
+        p.compared = true;
+        RagCandidate own = null;
+        String other = null;
+        boolean similar = false;
+        for (final RagCandidate page : pages) {
+            final String speaker = ProviderPlace.speaker(page, plan.services);
+            final int same = speaker == null ? 2 : ProviderPlace.same(ProviderPlace.core(speaker), p.placeCompany, plan.services);
+            if (same == 2) {
+                // the company of the place itself first, then a page that names none
+                if (own == null || (speaker != null && ProviderPlace.speaker(own, plan.services) == null)) own = page;
+            } else {
+                if (other == null) other = speaker;
+                similar |= same == 1;
+            }
+        }
+        if (own != null) {
+            // the page shown for the service is one of the company of the place
+            if (!own.url.equals(p.url())) {
+                p.pages.remove(own.url);
+                p.pages.add(0, own.url);
+                p.read = true;
+                if (p.entity == null && !own.title.isEmpty()) p.name = own.title;
+                if (p.collection == null && !own.collections.isEmpty()) p.collection = own.collections.get(0);
+                p.text.setLength(0);
+                p.text.append(own.title).append(". ").append(own.text);
+            }
+            return;
+        }
+        if (other == null) return; // no page naming the service was read: nothing shows another company
+        final String whose = (SERVES_PLACE.equals(p.place) ? "the service area naming " : "the address in ") + plan.place + " is that of "
+                + RagContext.clean(p.placeCompanyName == null ? "another company" : p.placeCompanyName, 80);
+        final int rest = Math.max(0, p.pageCount - pages.size());
+        p.place = NO_PLACE;
+        p.placeEvidence = null;
+        if (!complete) {
+            p.otherPlace = ProviderPlace.UNSURE;
+            p.placeNote = "the pages read that name the service are of " + RagContext.clean(other, 80) + " (" + rest + " more not read); " + whose
+                    + ", not shown to be the same company";
+            return;
+        }
+        p.otherPlace = similar ? ProviderPlace.UNSURE : ProviderPlace.FOREIGN;
+        p.placeNote = "its pages name the service for " + RagContext.clean(other, 80) + "; " + whose
+                + (similar ? ", a company of a similar name on the same site, not shown to be the same company" : ", another company on the same site");
+        // the provider is the company of the service, not the organisation the graph knows as the site's operator
+        if (p.row != 0L) byRow.remove(p.row);
+        p.row = 0L;
+        p.entity = null;
+        p.unbound = true;
+        p.name = p.host;
     }
 
     private static Pattern placePattern(final String place) {

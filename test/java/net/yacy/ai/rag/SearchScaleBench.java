@@ -119,7 +119,8 @@ public final class SearchScaleBench {
                 if ("jobs".equals(parts[0])) {
                     final JobSearch.Result r = JobSearch.run(context, JobSearch.plan(parts[2]), System::currentTimeMillis, budget);
                     out.put("totalMs", (System.nanoTime() - t0) / 1_000_000L);
-                    out.put("criteria", r.plan.criteria()).put("found", r.found).put("records", r.records).put("shown", r.jobs.size())
+                    out.put("criteria", r.plan.criteria()).put("found", r.found).put("records", r.records).put("pageOnly", r.pageOnly)
+                            .put("shown", r.jobs.size())
                             .put("lowerBound", r.lowerBound()).put("scanned", r.scanned).put("gaps", r.gaps)
                             .put("error", r.error == null ? JSONObject.NULL : r.error).put("phasesMs", new JSONObject(r.phases));
                 } else if ("providers".equals(parts[0])) {
@@ -172,6 +173,19 @@ public final class SearchScaleBench {
         final JobSearch.Result kranich = JobSearch.run(context(SearchScaleFixture.STACK), JobSearch.plan("Zeige alle Stellenanzeigen von Kranich"));
         require(kranich.complete && kranich.records == employer.getInt("records") && kranich.found == employer.getInt("unique"),
                 "one employer: " + kranich.records + " records, " + kranich.found + " unique postings");
+        // pages of several postings: a hit in the text counts for the posting whose part of the page shows it
+        if (expected.has("shared")) {
+            final JSONObject shared = expected.getJSONObject("shared");
+            final JobSearch.Result boards = JobSearch.run(context(shared.getString("collection")),
+                    JobSearch.plan("Wie viele Stellenanzeigen zu " + shared.getString("subject") + " gibt es?"));
+            require(boards.complete && boards.found == shared.getInt("found") && boards.records == shared.getInt("records")
+                    && boards.pageOnly == shared.getInt("pageOnly"), "pages of several postings: " + boards.found + " postings of "
+                    + shared.getInt("pages") + " pages by their part of the page, " + boards.pageOnly + " pages by their head only, not counted");
+            final JobSearch.Result everywhere = JobSearch.run(context(null),
+                    JobSearch.plan("Wie viele Stellenanzeigen zu " + shared.getString("subject") + " gibt es?"));
+            require(everywhere.complete && everywhere.found == boards.found && everywhere.ids.containsAll(boards.ids),
+                    "the same postings of these pages over all collections");
+        }
         // the providers
         final JSONObject p = expected.getJSONObject("providers");
         final ServiceSearch.Plan service = ServiceSearch.plan("Wie viele Anbieter für Tragwerksplanung gibt es in " + SearchScaleFixture.PLACE + "?");

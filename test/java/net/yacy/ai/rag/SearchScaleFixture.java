@@ -44,13 +44,16 @@ import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
  * <li>postings of the subject "Kalibrierung" by title, by a fact only and by the text of their page only, spread over the
  * whole stock of each collection;</li>
  * <li>one employer with seven posting records, two of them the same posting on two pages;</li>
+ * <li>60 pages of job boards with eight postings each (20 KB of text a page): a second subject ("Vakuumtechnik") stands in
+ * the part of two postings of 55 pages and, on five pages, in the head of the page that belongs to no posting;</li>
  * <li>offices of "Tragwerksplanung"/"Statik": one located in Musterstadt by its address in the graph, one by the address on
  * another page of its host than the one naming the service, one serving it by the graph's service area, one by a phrase on
  * its page, two that only mention it, and pages that mention the town without offering the service.</li>
  * </ul>
  * The expected counts are written to {@code expected.json}.
  *
- * <p>Usage: {@code SearchScaleFixture <directory> [scale]} from the repository root.
+ * <p>Usage: {@code SearchScaleFixture <directory> [scale]} from the repository root; {@code SearchScaleFixture <directory>
+ * shared} adds the pages of several postings to a stock built before they were part of it.
  */
 public final class SearchScaleFixture {
 
@@ -59,6 +62,9 @@ public final class SearchScaleFixture {
     static final String SUBJECT = "Kalibrierung";
     static final String EMPLOYER = "Kranich Consulting AG";
     static final String PLACE = "Musterstadt";
+    /** the subject of the pages of several postings: in the text of a posting's part of the page only */
+    static final String SHARED_SUBJECT = "Vakuumtechnik";
+    static final int SHARED_PAGES = 60, SHARED_POSTINGS = 8, SHARED_PAGE_ONLY = 5;
     static final long NOW = java.time.LocalDate.of(2027, 1, 15).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
 
     private static final String[] WORDS = ("wir planen bauen beraten und begleiten projekte für kunden aus industrie handel handwerk und "
@@ -80,7 +86,7 @@ public final class SearchScaleFixture {
     private final List<Extraction> extractions = new ArrayList<>();
     private final List<SolrInputDocument> solrDocs = new ArrayList<>();
     private final Map<String, ExtractContext> contexts = new LinkedHashMap<>();
-    private long docCount, hostCount, version = 1000L;
+    private long docCount, hostCount, version = 1000L, hostBase;
     private final JSONObject expected = new JSONObject(true);
     private final Map<String, int[]> subjectCounts = new LinkedHashMap<>(); // collection -> title, fact, text
     private final Map<String, String> hostIds = new java.util.HashMap<>();
@@ -92,6 +98,10 @@ public final class SearchScaleFixture {
 
     public static void main(final String[] args) throws Exception {
         final File dir = new File(args[0]);
+        if (args.length > 1 && "shared".equals(args[1])) {
+            new SearchScaleFixture(dir, 1.0).addShared();
+            System.exit(0);
+        }
         final double scale = args.length > 1 ? Double.parseDouble(args[1]) : 1.0;
         if (new File(dir, "expected.json").exists()) {
             System.out.println("fixture exists: " + dir);
@@ -166,6 +176,7 @@ public final class SearchScaleFixture {
         }
         if (!kranich) kranich();
         offices();
+        shared();
         flush(true);
         final JSONObject subject = new JSONObject(true);
         int total = 0;
@@ -177,6 +188,11 @@ public final class SearchScaleFixture {
         subject.put("all", total);
         this.expected.put("scale", this.scale).put("subject", SUBJECT).put("postingsOfSubject", subject);
         this.expected.put("employer", new JSONObject(true).put("name", EMPLOYER).put("collection", STACK).put("records", 7).put("unique", 6));
+        finish();
+    }
+
+    /** The sizes of the stock, and the expected counts to {@code expected.json}. */
+    private void finish() throws Exception {
         final JSONObject counts = new JSONObject(true);
         for (final String t : new String[] {"kg_doc", "kg_entity", "kg_statement", "kg_evidence"}) {
             counts.put(t, this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM " + t)));
@@ -190,6 +206,33 @@ public final class SearchScaleFixture {
         this.store.close();
         Files.write(new File(this.dir, "expected.json").toPath(), this.expected.toString(2).getBytes(StandardCharsets.UTF_8));
         System.out.println(this.expected.toString(2));
+    }
+
+    /** Adds the pages of several postings to a stock built without them (the same pages a new build writes). */
+    private void addShared() throws Exception {
+        final File file = new File(this.dir, "expected.json");
+        final JSONObject before = new JSONObject(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+        if (before.has("shared")) {
+            System.out.println("the stock has the pages of several postings: " + this.dir);
+            return;
+        }
+        for (final String key : before.keySet()) this.expected.put(key, before.get(key));
+        this.store = openStore(this.dir);
+        final Terms terms = new Terms();
+        this.store.write(WriteClass.SYSTEM, 0, tx -> {
+            terms.seed(tx);
+            return null;
+        });
+        this.publisher = new Publisher(config(), terms);
+        this.solr = openSolr(this.dir);
+        for (final String c : COLLECTIONS) this.contexts.put(c, new ExtractContext(KgVocabularies.get(), Set.of(), true, true, List.of(c)));
+        // documents, hosts and versions after those of the stock
+        this.docCount = before.getLong("solrDocs") + 1_000_000L;
+        this.hostBase = 10_000_000L;
+        this.version = 2_000_000_000L;
+        shared();
+        flush(true);
+        finish();
     }
 
     private int n(final int production) {
@@ -248,6 +291,37 @@ public final class SearchScaleFixture {
         page(STACK, host, "/partner/senior-berater-finance", again, posting(again, null, org, "Nebenstadt"),
                 again + ". Stellenangebot bei " + EMPLOYER + ". " + filler(80), true);
         if (h < 0) throw new IllegalStateException();
+    }
+
+    /**
+     * Job boards of stack-web: {@link #SHARED_PAGES} pages with {@link #SHARED_POSTINGS} postings of different employers
+     * each, about 20 KB of text a page. The second subject is no title and no fact: on all but {@link #SHARED_PAGE_ONLY}
+     * pages it stands in the part of the second and of the sixth posting, on those in the head of the page only.
+     */
+    private void shared() throws Exception {
+        int found = 0;
+        for (int p = 0; p < SHARED_PAGES; p++) {
+            final String host = "www.stellenboerse-" + (p % 3) + ".example";
+            final boolean headOnly = p >= SHARED_PAGES - SHARED_PAGE_ONLY;
+            final List<String> jsonld = new ArrayList<>();
+            final StringBuilder text = new StringBuilder("Stellenbörse " + (p % 3) + ", Übersicht " + p + ". ");
+            if (headOnly) text.append("Diese Woche neu: Stellen rund um die ").append(SHARED_SUBJECT).append(" in unserem Newsletter. ");
+            text.append(filler(60)).append(' ');
+            for (int k = 0; k < SHARED_POSTINGS; k++) {
+                final String title = ROLES[k % ROLES.length] + " (m/w/d) Verbund " + p + "-" + k;
+                final String employer = "Verbundfirma " + p + "-" + k + " GmbH";
+                jsonld.add(posting(title, null, org(employer, "www.verbundfirma-" + p + "-" + k + ".example", null, null), TOWNS[k % TOWNS.length]));
+                text.append(title).append(". Stellenangebot in Vollzeit bei ").append(employer).append(". ");
+                if (!headOnly && (k == 1 || k == 5)) {
+                    text.append("Zu Ihren Aufgaben gehört die ").append(SHARED_SUBJECT).append(" unserer Anlagen. ");
+                    found++;
+                }
+                text.append(filler(330)).append(' ');
+            }
+            page(STACK, host, "/uebersicht/" + p, "Stellenbörse " + (p % 3) + ": Übersicht " + p, jsonld, text.toString().trim(), true);
+        }
+        this.expected.put("shared", new JSONObject(true).put("collection", STACK).put("subject", SHARED_SUBJECT).put("pages", SHARED_PAGES)
+                .put("postingsPerPage", SHARED_POSTINGS).put("found", found).put("records", found).put("pageOnly", SHARED_PAGE_ONLY));
     }
 
     // --------------------------------------------------------------------------------------------------- offices
@@ -347,12 +421,17 @@ public final class SearchScaleFixture {
 
     private void page(final String collection, final String host, final String path, final String title, final String jsonld, final String text,
             final boolean rules) throws Exception {
+        page(collection, host, path, title, List.of(jsonld), text, rules);
+    }
+
+    private void page(final String collection, final String host, final String path, final String title, final List<String> jsonld, final String text,
+            final boolean rules) throws Exception {
         final long n = this.docCount++;
         final Publisher.Doc d = new Publisher.Doc();
         d.docId = "D" + id(n, 11);
         d.url = "https://" + host + path;
         d.host = host;
-        d.hostId = this.hostIds.computeIfAbsent(host, k -> "h" + id(this.hostIds.size(), 5));
+        d.hostId = this.hostIds.computeIfAbsent(host, k -> "h" + id(this.hostBase + this.hostIds.size(), 5));
         d.language = "de";
         d.state = Aggregates.STATE_ACTIVE;
         d.token = new byte[8];
@@ -362,7 +441,7 @@ public final class SearchScaleFixture {
         d.loadedAt = NOW - 86_400_000L;
         final ExtractContext ctx = this.contexts.get(collection);
         final Extraction ex = new Extraction(300);
-        new JsonLdExtractor(200).extract(List.of(jsonld), d.url, d.host, "de", ex, ctx);
+        new JsonLdExtractor(200).extract(jsonld, d.url, d.host, "de", ex, ctx);
         if (rules) new RuleExtractor(200, 65536).extract(text, d.url, d.host, "de", ex, ctx, List.of(), List.of());
         this.docs.add(d);
         this.extractions.add(ex);

@@ -337,6 +337,7 @@ def run(base, digest):
           json.dumps({k: v for k, v in result.items() if k != "providers"}, ensure_ascii=False)[:500])
     open_place(digest)
     own_place(digest)
+    two_companies(digest)
     print(f"PROVIDERS: offices pushed=12 pages (11 providers in bau-web, one of them on two pages; one in other-web), found={warm.get('found')},"
           f" shown={warm.get('shown')}, perPlace={warm.get('perPlace')}; search ms cold={cold.get('millis')} warm={warm.get('millis')};"
           f" chat request s={timings}", flush=True)
@@ -495,6 +496,99 @@ def own_place(digest):
           "searchMs": sv.get("millis"), "phases": sv.get("phases")}, ensure_ascii=False), flush=True)
 
 
+TWIN_WEB = "twin-web"
+
+
+def two_companies(digest):
+    """11. Two companies on one domain: one offers the service, the other one has the evidenced address or service area in
+    the place. The combination is no local provider: not in the server's count answer, not in what a recommendation is
+    given, not in provider_search. Three such sites (the site's operator with its address in the knowledge graph, an
+    imprint of another company, a service area of another company) and two sites that stay local (one company; two
+    companies of which the one with the address offers the service too)."""
+    stock = [("https://www.elster-bau-scoutro-test.de/", page("Elster Bau GmbH", "Elster Bau GmbH", "www.elster-bau-scoutro-test.de",
+                                                              "Elster Bau GmbH: Hochbau und Schlüsselfertigbau.", "Musterstadt")),
+             ("https://www.elster-bau-scoutro-test.de/partner/finken-statik", plain("Finken Statik GmbH – Tragwerksplanung",
+              "Die Finken Statik GmbH erstellt die Tragwerksplanung für Wohnhäuser. Sitz in Nebenstadt.")),
+             ("https://www.gimpel-haus-scoutro-test.de/leistungen/statik", plain("Habicht Statik GmbH – Tragwerksplanung",
+              "Die Habicht Statik GmbH übernimmt die Tragwerksplanung für Ihr Haus.")),
+             ("https://www.gimpel-haus-scoutro-test.de/impressum", plain("Impressum", "Angaben gemäß § 5 DDG. Gimpel Haus GmbH. Hauptstraße 1,"
+                                                                                       " 12345 Musterstadt.")),
+             ("https://www.kleiber-hof-scoutro-test.de/statik", plain("Kuckuck Statik GmbH – Tragwerksplanung", "Die Kuckuck Statik GmbH plant Tragwerke.")),
+             ("https://www.kleiber-hof-scoutro-test.de/dach", plain("Kleiber Dach GmbH – Dacharbeiten",
+                                                                    "Kleiber Dach GmbH. Einsatzgebiet: Musterstadt und Umgebung.")),
+             ("https://www.meise-statik-scoutro-test.de/leistungen", plain("Tragwerksplanung – Meise Statik GmbH", "Tragwerksplanung für Neubau und Bestand.")),
+             ("https://www.meise-statik-scoutro-test.de/impressum", plain("Impressum", "Meise Statik GmbH. Hauptstraße 1, 12345 Musterstadt.")),
+             ("https://www.sperber-hof-scoutro-test.de/statik", plain("Sperber Statik GmbH – Tragwerksplanung", "Die Sperber Statik GmbH plant Tragwerke.")),
+             ("https://www.sperber-hof-scoutro-test.de/bau", plain("Storch Bau GmbH – Bauen aus einer Hand",
+                                                                   "Die Storch Bau GmbH übernimmt auch die Tragwerksplanung.")),
+             ("https://www.sperber-hof-scoutro-test.de/impressum", plain("Impressum", "Storch Bau GmbH. Hauptstraße 1, 12345 Musterstadt."))]
+    pushed = sum(1 for url, html in stock if tools.push(digest, url, html, TWIN_WEB))
+    check(pushed == len(stock), f"two companies: push {len(stock)} invented pages to {TWIN_WEB}", str(pushed))
+    deadline = tools.time.monotonic() + 300
+    n = 0
+    while tools.time.monotonic() < deadline:
+        status, solr, _ = digest.call("GET", "/solr/select?wt=json&rows=0&q=*:*&fq=" + urllib.parse.quote(f'collection_sxt:"{TWIN_WEB}"'))
+        n = solr.get("response", {}).get("numFound", 0) if isinstance(solr, dict) else 0
+        if n >= len(stock):
+            break
+        tools.time.sleep(1)
+    check(n == len(stock) and wait_entity(digest, "Elster Bau"), "two companies: the pages are searchable and the graph has read the site's operator",
+          str(n))
+    apart = ("elster-bau-scoutro-test.de", "gimpel-haus-scoutro-test.de", "kleiber-hof-scoutro-test.de")
+    local = {"www.meise-statik-scoutro-test.de", "www.sperber-hof-scoutro-test.de"}
+    host = lambda url: urllib.parse.urlparse(url or "").hostname
+    expected = {"location": 2, "service_area": 0, "undecided": 0, "mentioned": 3, "none": 0}
+    question = "Wie viele Anbieter für Tragwerksplanung gibt es in Musterstadt?"
+    status, answer, requests = tools.chat(digest, question, no_tools_model, collection=TWIN_WEB)
+    sv = services(answer) or {}
+    text = answer["text"]
+    check(status == 200 and sv.get("found") == 5 and sv.get("lowerBound") is False and sv.get("perPlace") == expected
+          and sv.get("scope") == f"collection {TWIN_WEB}",
+          "two companies: 5 providers; located 2 (one company each for service and address), 3 named only (the address or area is another company's)",
+          json.dumps({k: sv.get(k) for k in ("found", "lowerBound", "perPlace", "placeComplete", "placeGaps", "phases")}, ensure_ascii=False))
+    check(len(requests) == 0 and (answer["meta"].get("scoutro-answer") or {}).get("by") == "server"
+          and answer["meta"].get("scoutro-usage", {}).get("modelCalls") == 0 and "gibt es **5** Anbieter" in text
+          and "Standort in Musterstadt: **2**" in text and "3 nennen Musterstadt nur beiläufig" in text
+          and not any(f"{h}/" in line and "Standort in Musterstadt" in line for h in apart for line in text.splitlines()),
+          "two companies: the count is answered by the server without a model request; none of the three combinations is counted as located",
+          f"requests={len(requests)} {text[:1200]}")
+    # a recommendation: the model is given the hits; of the three sites none as located or serving
+    status, answer, requests = tools.chat(digest, "Welchen Anbieter für Tragwerksplanung in Musterstadt empfiehlst du?", no_tools_model,
+                                          collection=TWIN_WEB)
+    given = next((tools.content_text(m) for m in reversed(requests[-1]["body"]["messages"]) if m.get("role") == "user"), "") if requests else ""
+    entries = ENTRY.findall(given)
+    rec = services(answer) or {}
+    located = {url for number, title, url, body in entries if "Located in Musterstadt" in body or "Serves Musterstadt" in body}
+    wrong = [url for number, title, url, body in entries if any(h in url for h in apart)
+             and ("Located in Musterstadt" in body or "Serves Musterstadt" in body)]
+    noted = [url for number, title, url, body in entries if any(h in url for h in apart) and "another company on the same site" in body]
+    by = {s.get("id"): s.get("url") for s in answer["meta"].get("scoutro-sources", [])}
+    # of the two companies of one site, the one with the address is shown by its own page naming the service
+    check(status == 200 and len(requests) == 1 and rec.get("perPlace") == expected and {host(u) for u in located} == local and not wrong
+          and len(noted) >= 1 and {host(by.get(i)) for i in rec.get("placeNamedBy") or []} == local
+          and "https://www.sperber-hof-scoutro-test.de/bau" in located and not any(h in answer["text"] for h in apart),
+          "two companies: a recommendation is given two located providers; the three combinations are not located, and say whose the address is",
+          json.dumps({"located": sorted(located), "wrong": wrong, "noted": noted, "placeNamedBy": rec.get("placeNamedBy"),
+                      "answer": answer["text"][:200]}, ensure_ascii=False) + " " + given[:1500])
+    forms = {}
+    for label, args in (("in", {"query": "Tragwerksplanung in Musterstadt"}), ("bare", {"query": "Tragwerksplanung Musterstadt"})):
+        status, answer, requests = tools.chat(digest, "Welche Statiker gibt es?", lambda body, a=args: (
+            ("call", "provider_search", a) if not tools.tool_results(body["messages"]) else ("answer", "SIMULATED")), collection=TWIN_WEB)
+        done = tools.tool_results(requests[-1]["body"]["messages"]) if requests else []
+        forms[label] = done[0][1] if done else {}
+    shown = forms["in"].get("providers") or []
+    check(all(f.get("found") == 5 and f.get("lower_bound") is False and f.get("per_place") == expected for f in forms.values())
+          and forms["in"].get("providers") == forms["bare"].get("providers")
+          and {host(p.get("url")) for p in shown if p.get("place") in ("location", "service_area")} == local
+          and all(p.get("place") == "mentioned" and "another company on the same site" in (p.get("place_note") or "") and "entity" not in p
+                  for p in shown if any(h in (p.get("url") or "") for h in apart)),
+          "two companies: provider_search with and without \"in\": the same two located providers; the others with whose the address is",
+          json.dumps({k: {x: v.get(x) for x in ("found", "lower_bound", "per_place")} for k, v in forms.items()})
+          + " " + json.dumps([{x: p.get(x) for x in ("name", "url", "place", "place_source", "place_note")} for p in shown], ensure_ascii=False)[:1500])
+    print("TWO COMPANIES: " + json.dumps({"found": sv.get("found"), "perPlace": sv.get("perPlace"), "placeGaps": sv.get("placeGaps"),
+          "searchMs": sv.get("millis"), "phases": sv.get("phases")}, ensure_ascii=False), flush=True)
+
+
 def main():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
@@ -509,7 +603,7 @@ def main():
         process, base = smoke.start_peer(root, port, extra=[
             "scoutro.access.protected=true", "ai.production_models=" + json.dumps(models, separators=(",", ":")),
             *[f"ai.tools.{tool}.enabled=true" for tool in tools.TOOLS],
-            "scoutro.kg.enabled=true", f"scoutro.kg.collections={BAU},other-web", "scoutro.kg.jsonld.enabled=true",
+            "scoutro.kg.enabled=true", f"scoutro.kg.collections={BAU},other-web,{TWIN_WEB}", "scoutro.kg.jsonld.enabled=true",
             f"scoutro.kg.jobs.collections={BAU},other-web"])
         run(base, Client(base, digest=("admin", "yacy")))
     finally:

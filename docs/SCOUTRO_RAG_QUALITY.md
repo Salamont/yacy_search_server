@@ -492,8 +492,21 @@ searches again itself, before the model is called (`ServiceSearch`, tool `provid
   - **Two sources:** the page that names the service and the page (or the graph statement's page) that evidences the
     place are given apart (`placeSource`, in the tool `place_source`; "Source of the place: … (another page than the
     one naming the service)"), and what a site says of the place without evidencing a location as `placeNote`.
+  - **Two companies on one domain** (`ServiceSearch.sameCompany`, on 0.14.3-rc.7): a host can carry several
+    companies. A provider known only by pages of its host that name the service, whose address or service area is
+    evidenced for a named company (the graph's operator of the host, the company at the address, the company of the
+    page stating the area), is local only when a page naming the service is that company's or names no company (it
+    then speaks for its site). The company a page speaks for (`ProviderPlace.speaker`) is the company of its title,
+    else the company a sentence names as the one doing the service; a company the service was done for ("für die …
+    GmbH") is not it. Of the provider's pages naming the service at most three are read for this. When they name
+    another company, the provider is the company of the service and the place is the other one's: named, not counted
+    (`placeNote`: "its pages name the service for …; the address in … is that of …, another company on the same
+    site"); the provider is then not shown as the site's operator. Companies of similar names, or pages naming the
+    service that were not all read: open. Of two companies of which the one with the address offers the service too,
+    that one is the provider, shown by its own page.
   A page of another host never gives a provider its place. Whether a page that names a service offers it is still the
-  page's text (the excerpt shows it): a page of a group that names a sister company's service counts for the host.
+  page's text (the excerpt shows it). What remains by the host: a page naming the service without a company's name
+  counts for the site, also on a site of several companies; a company is recognised by its legal form only.
 - **Its relation to the place** (with a place in the question): **located** there by an address (the graph's address,
   locality or postal code, or a postal code and the place on a page of its host), **serves** it by a service area (the
   graph's service area, an area phrase on its page such as "Einsatzgebiet: Musterstadt und Umgebung", or the service

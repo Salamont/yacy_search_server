@@ -53,11 +53,27 @@ final class ProviderPlace {
         /** what the page says, for the answer (never null for a kind above {@link #MENTION}) */
         final String evidence;
         final String url;
+        /**
+         * the words of the company the page shows the address or the area for ({@link #core}): the company named at the
+         * address, else the one the page speaks for; empty when the page names none
+         */
+        final Set<String> company;
+        /** the company as the page writes it (folded), or null */
+        final String companyName;
+        /** the page states the service itself for the place: service and place by the same sentence */
+        final boolean withService;
 
         Finding(final int kind, final String evidence, final String url) {
+            this(kind, evidence, url, null, false);
+        }
+
+        Finding(final int kind, final String evidence, final String url, final String company, final boolean withService) {
             this.kind = kind;
             this.evidence = evidence;
             this.url = url;
+            this.companyName = company;
+            this.company = company == null ? Set.of() : core(company);
+            this.withService = withService;
         }
     }
 
@@ -155,7 +171,7 @@ final class ProviderPlace {
                 if (company != null) {
                     final Set<String> other = core(company);
                     if (!name.isEmpty() && other.equals(name)) {
-                        found = new Finding(OWN, "its address on its page: " + excerpt, page.url);
+                        found = new Finding(OWN, "its address on its page: " + excerpt, page.url, company, false);
                     } else if (!name.isEmpty()) {
                         found = related(other, name, services)
                                 ? new Finding(UNSURE, "an address in " + place + " of a company of a similar name (" + RagContext.clean(company, 80)
@@ -167,7 +183,7 @@ final class ProviderPlace {
                                 page.url);
                     } else if (single || related(other, hostWords, services)) {
                         // the one company a site names with its one address, or a company named like the host: the site's owner
-                        found = new Finding(OWN, "the address of " + RagContext.clean(company, 80) + " on its page: " + excerpt, page.url);
+                        found = new Finding(OWN, "the address of " + RagContext.clean(company, 80) + " on its page: " + excerpt, page.url, company, false);
                     } else {
                         found = new Finding(UNSURE, "an address in " + place + " of " + RagContext.clean(company, 80)
                                 + ", not shown to be the site owner's: " + excerpt, page.url);
@@ -191,14 +207,17 @@ final class ProviderPlace {
         if (!listing) {
             final Matcher area = Pattern.compile("(?:einsatzgebiet|einzugsgebiet|einsatzorte?|tatig in|im raum|in und um|rund um|umgebung von|region|"
                     + "service area|serving)\\W+(?:\\p{L}+\\W+){0,3}" + quoted + "(?![\\p{L}])|" + quoted + "\\s+und\\s+umgebung").matcher(text);
-            if (area.find()) return new Finding(AREA, "service area on its page: " + excerpt(text, area.start()), page.url);
+            if (area.find()) {
+                // whose area it is: the company the page speaks for (its title), when it names one
+                return new Finding(AREA, "service area on its page: " + excerpt(text, area.start()), page.url, speaker(page, services), false);
+            }
             // the service stated for the place ("Tragwerksplanung in Musterstadt", "Schimmelsanierung für Musterstadt")
             for (final String service : services) {
                 final String stem = Pattern.quote(RagQuery.stem(RagQuery.fold(service)));
                 final Matcher offered = Pattern.compile(stem + "\\p{L}*(?:\\W+\\p{L}+){0,5}?\\W+(?:in|fur|im raum|rund um)\\s+" + quoted + "(?![\\p{L}])")
                         .matcher(text);
                 if (offered.find()) {
-                    return new Finding(AREA, "the service stated for the place on its page: " + excerpt(text, offered.start()), page.url);
+                    return new Finding(AREA, "the service stated for the place on its page: " + excerpt(text, offered.start()), page.url, null, true);
                 }
             }
         }
@@ -235,8 +254,23 @@ final class ProviderPlace {
         return letters >= 3 ? start : postalCode;
     }
 
+    /** words that lead to a company's name and are not part of it ("bei der …", "für die …", "unsere …") */
+    private static final Set<String> LEADING = Set.of("fur", "die", "das", "den", "dem", "bei", "durch", "unsere", "unser", "unserer", "unseren", "ihre",
+            "ihr", "ihren", "mit", "ist", "sind", "wir", "eine", "ein", "einer", "zum", "zur", "im", "vom", "auch", "hat", "wird", "als");
+    /** words before a company's name that make it the one a service was done for, not the one doing it */
+    private static final Pattern CLIENT = Pattern.compile("(?<![\\p{L}])(?:fur|auftrag|auftraggeber\\p{L}*|kunde\\p{L}*|bauherr\\p{L}*)(?![\\p{L}])");
+
     /** The name of a company right before an address: the words before the last legal form of the window, back to a delimiter. */
     static String companyAt(final String window) {
+        final String[] named = company(window);
+        return named == null ? null : named[0];
+    }
+
+    /**
+     * The last company a text names by a legal form: its name (the words before the legal form back to a delimiter or to a
+     * word that leads to a name, at most six) and the words of the same passage before it.
+     */
+    private static String[] company(final String window) {
         final Matcher m = LEGAL_FORM.matcher(window);
         int start = -1;
         int end = -1;
@@ -250,8 +284,49 @@ final class ProviderPlace {
         final String name = window.substring(from, start).trim();
         if (name.isEmpty() || core(name).isEmpty()) return null;
         final List<String> words = new ArrayList<>(Arrays.asList(name.split("\\s+")));
-        final String kept = String.join(" ", words.subList(Math.max(0, words.size() - 6), words.size()));
-        return (kept + " " + window.substring(start, end)).trim();
+        int first = Math.max(0, words.size() - 6);
+        for (int i = words.size() - 1; i >= first; i--) {
+            if (LEADING.contains(words.get(i).replaceAll("[^\\p{L}\\p{N}]", ""))) {
+                first = i + 1;
+                break;
+            }
+        }
+        while (first < words.size() && "der".equals(words.get(first))) first++;
+        if (first >= words.size()) return null;
+        final String kept = String.join(" ", words.subList(first, words.size()));
+        if (core(kept).isEmpty()) return null;
+        return new String[] {(kept + " " + window.substring(start, end)).trim(), String.join(" ", words.subList(0, first))};
+    }
+
+    /**
+     * The company a page speaks for when it names a service: the company of its title, else the company a sentence names as
+     * the one doing the service ("Die Finken Statik GmbH erstellt die Tragwerksplanung"). A company the service was done
+     * for ("Tragwerksplanung für die Wohnbau Nord GmbH", "Für die … AG übernahmen wir …") is not it. Null when the page
+     * names none: it then speaks for its site.
+     */
+    static String speaker(final RagCandidate page, final List<String> services) {
+        final String[] titled = company(RagQuery.fold(page.title));
+        if (titled != null && !CLIENT.matcher(titled[1]).find()) return titled[0];
+        final String text = RagQuery.fold(page.description + ". " + page.text);
+        for (final String service : services) {
+            final String stem = RagQuery.stem(RagQuery.fold(service));
+            if (stem.length() < 4) continue;
+            final Matcher named = Pattern.compile("(?<![\\p{L}])" + Pattern.quote(stem)).matcher(text);
+            while (named.find()) {
+                int sentence = named.start();
+                while (sentence > Math.max(0, named.start() - 200) && ".!?\n\r;".indexOf(text.charAt(sentence - 1)) < 0) sentence--;
+                final String[] subject = company(text.substring(sentence, named.start()));
+                if (subject != null && !CLIENT.matcher(subject[1]).find()) return subject[0];
+            }
+        }
+        return null;
+    }
+
+    /** Whether two companies are the same (2), of names that share a telling word such as companies of a group (1), or apart (0). */
+    static int same(final Set<String> a, final Set<String> b, final List<String> services) {
+        if (a.isEmpty() || b.isEmpty()) return 0;
+        if (a.equals(b)) return 2;
+        return related(a, b, services) || related(b, a, services) ? 1 : 0;
     }
 
     /** Whether every telling word of a name stands in the text before an address. */

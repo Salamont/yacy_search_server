@@ -100,9 +100,11 @@ public enum QuestionKind {
         }
         if (result.placeUnattributed > 0) {
             out.add(german ? "bei " + result.placeUnattributed + " Anbietern steht auf der Website eine Adresse in " + place
-                    + ", die nicht sicher dem Anbieter selbst gehört (etwa eine Gruppenfirma oder eine Adresse ohne Namen)"
+                    + ", die nicht sicher dem Anbieter selbst gehört (etwa eine Gruppenfirma, eine Adresse ohne Namen oder eine andere Firma"
+                    + " als die, für die die Seiten die Leistung nennen)"
                     : result.placeUnattributed + (result.placeUnattributed == 1 ? " provider shows" : " providers show") + " an address in " + place
-                    + " on the site that is not shown to be the provider's own (a company of a group, an address without a name)");
+                    + " on the site that is not shown to be the provider's own (a company of a group, an address without a name, another"
+                    + " company than the one the pages name for the service)");
         }
         for (final String g : result.placeGaps) {
             if (g.contains("their relation to it is open")) continue; // said above

@@ -137,7 +137,9 @@ says so: the number of providers stays complete, and for the providers whose pag
 were not read their relation to the town is reported as open, not as a mere mention.
 A provider counts as located in your town only by its own address: the address of a
 company a directory lists, of a plot or of a reference project on its site is not its
-location, and an address that cannot be attributed to it is reported as open. For job
+location, and an address that cannot be attributed to it is reported as open. When a
+website carries several companies, the address of one company does not make another
+company of the same website a local provider. For job
 postings, "Stellenanzeigen von <employer>" counts the postings recorded for that
 employer; a posting that only names the employer is not counted. Asking for all of them or for their number ("Wie viele …") always
 runs this complete search, and counts the same as "Zeige alle …"; the same holds for job postings. A question
